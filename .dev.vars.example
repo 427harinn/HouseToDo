@@ -1,0 +1,11 @@
+# Local Worker development secrets. Copy this file to .dev.vars and fill values locally.
+# Never commit .dev.vars.
+
+# SESSION_SECRET: secret used to sign session cookies.
+SESSION_SECRET=
+
+# VAPID_PUBLIC_KEY: public key for Web Push.
+VAPID_PUBLIC_KEY=
+
+# VAPID_PRIVATE_KEY: private key for Web Push.
+VAPID_PRIVATE_KEY=

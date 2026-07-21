@@ -1,0 +1,81 @@
+services:
+  app:
+    build:
+      context: .
+    working_dir: /workspace
+    command: npm run dev
+    ports:
+      - "5174:5173"
+    volumes:
+      - ./src:/workspace/src
+      - ./worker:/workspace/worker
+      - ./migrations:/workspace/migrations
+      - ./docs:/workspace/docs
+      - ./.git:/workspace/.git
+      - ./index.html:/workspace/index.html
+      - ./README.md:/workspace/README.md
+      - ./package.json:/workspace/package.json
+      - ./package-lock.json:/workspace/package-lock.json
+      - ./tsconfig.json:/workspace/tsconfig.json
+      - ./vite.config.ts:/workspace/vite.config.ts
+      - ./eslint.config.js:/workspace/eslint.config.js
+      - ./.prettierrc.json:/workspace/.prettierrc.json
+      - ./.gitattributes:/workspace/.gitattributes
+      - ./.gitignore:/workspace/.gitignore
+      - ./.dockerignore:/workspace/.dockerignore
+      - ./.env.example:/workspace/.env.example
+      - ./.dev.vars.example:/workspace/.dev.vars.example
+      - ./Dockerfile:/workspace/Dockerfile
+      - ./compose.yaml:/workspace/compose.yaml
+      - ./wrangler.jsonc:/workspace/wrangler.jsonc
+      - node_modules:/workspace/node_modules
+      - build_dist:/workspace/dist
+      - wrangler_state:/workspace/.wrangler
+    environment:
+      NODE_ENV: development
+      CHOKIDAR_USEPOLLING: "true"
+    env_file:
+      - path: ./.dev.vars
+        required: false
+  worker:
+    build:
+      context: .
+    working_dir: /workspace
+    command: sh -c "npm run build && npm run cf:dev"
+    ports:
+      - "8787:8787"
+    volumes:
+      - ./src:/workspace/src
+      - ./worker:/workspace/worker
+      - ./migrations:/workspace/migrations
+      - ./docs:/workspace/docs
+      - ./.git:/workspace/.git
+      - ./index.html:/workspace/index.html
+      - ./README.md:/workspace/README.md
+      - ./package.json:/workspace/package.json
+      - ./package-lock.json:/workspace/package-lock.json
+      - ./tsconfig.json:/workspace/tsconfig.json
+      - ./vite.config.ts:/workspace/vite.config.ts
+      - ./eslint.config.js:/workspace/eslint.config.js
+      - ./.prettierrc.json:/workspace/.prettierrc.json
+      - ./.gitattributes:/workspace/.gitattributes
+      - ./.gitignore:/workspace/.gitignore
+      - ./.dockerignore:/workspace/.dockerignore
+      - ./.env.example:/workspace/.env.example
+      - ./.dev.vars.example:/workspace/.dev.vars.example
+      - ./Dockerfile:/workspace/Dockerfile
+      - ./compose.yaml:/workspace/compose.yaml
+      - ./wrangler.jsonc:/workspace/wrangler.jsonc
+      - node_modules:/workspace/node_modules
+      - build_dist:/workspace/dist
+      - wrangler_state:/workspace/.wrangler
+    environment:
+      NODE_ENV: development
+    env_file:
+      - path: ./.dev.vars
+        required: false
+
+volumes:
+  node_modules:
+  build_dist:
+  wrangler_state:
