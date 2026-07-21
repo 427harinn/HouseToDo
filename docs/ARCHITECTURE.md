@@ -62,11 +62,35 @@ Docker Compose の `app` サービスで開発する。
 ## API設計方針
 
 - REST形式を基本にする。
+- APIパスはMVP段階では `/api` プレフィックスに統一し、バージョニングは導入しない。互換性維持が必要になった時点で `/api/v1` を検討する。
+- Worker entryの `worker/index.ts` は起動入口に限定し、`worker/app.ts`、`worker/routes/`、`worker/middleware/`、`worker/lib/`、`worker/repositories/`、`worker/services/` に責務を分ける。
+- APIレスポンスは成功時 `{ ok: true, data, requestId }`、失敗時 `{ ok: false, error, requestId }` に統一する。
+- エラーコードは `VALIDATION_ERROR`、`UNAUTHENTICATED`、`FORBIDDEN`、`NOT_FOUND`、`CONFLICT`、`RATE_LIMITED`、`INTERNAL_ERROR` を基本にする。
 - 全APIで認証確認を行う。
 - householdに紐づくAPIでは、必ずユーザーの家庭所属を確認する。
-- 入力値検証をWorker側で行う。
+- 入力値検証をWorker側で行う。現段階では追加依存なしの小さな独自バリデーションを採用し、外部入力は `unknown` として受けてから検証する。
 - エラーには内部情報を含めない。
 - Dashboard APIなど、画面でまとめて必要な情報は集約して返し、不要な複数リクエストを避ける。
+
+## 認証・セッション方針
+
+- ログインIDは正規化済みメールアドレスとする。前後空白を除去し、小文字化する。
+- MVPの認証はメールアドレスとパスワードで行う。メール確認、パスワード再設定はMVP後に実装する。
+- パスワード要件は12文字以上128文字以内とし、文字種の強制やコピー＆ペースト禁止は行わない。
+- パスワード保存はWeb Crypto APIのPBKDF2-SHA-256を使用し、ランダムソルトと反復回数をハッシュ文字列に含める。
+- セッションはランダムトークン方式とし、ブラウザへは生トークンをHttpOnly Cookieで渡す。
+- D1にはセッショントークンのSHA-256ハッシュのみ保存する。生トークンは保存しない。
+- セッション有効期限は30日。MVPではログイン時に新規セッションを発行し、アクセスごとの期限延長やローテーションは行わない。
+- Cookie名は `house_todo_session`。本番では `HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000` を使用する。
+- ローカル開発ではHTTPで確認するため、`APP_ENV=production` の場合だけ `Secure` を付与する。
+
+## CSRF対策方針
+
+- Cookie認証を採用するため、MVPでは `SameSite=Lax` を基本防御とする。
+- 状態変更APIでは `Content-Type: application/json` のみ受け付ける。
+- GETリクエストで状態変更しない。
+- CORSは不要に広げず、同一オリジン構成を基本にする。
+- 公開範囲が広がる、別オリジンフロントエンドを採用する、または外部連携が増える場合は、Originヘッダー検証とCSRFトークンを追加検討する。
 
 ## DB設計方針
 
@@ -75,6 +99,8 @@ Docker Compose の `app` サービスで開発する。
 - マイグレーションは `migrations/` へ追加する。
 - 既存マイグレーションは原則書き換えない。
 - 日付保存はUTCを基本とし、表示と当日判定では家庭のタイムゾーンを使う。
+- D1操作はRepository層へ分離する。`UserRepository` はユーザー作成、ID検索、メール検索を担当し、`SessionRepository` はセッション作成、有効セッション検索、削除、期限切れ削除を担当する。
+- SQLはD1のbind変数を使用し、ユーザー入力をSQL文字列へ直接連結しない。
 
 ## 画像保存方針
 
@@ -96,6 +122,6 @@ Docker Compose の `app` サービスで開発する。
 
 - 本番用D1 database_id。
 - 本番用R2 bucket名。
-- パスワードハッシュ方式。
 - Service Worker実装方式。
 - Workers Static Assetsのみで進めるか、将来Pagesを併用するか。
+- PBKDF2の反復回数は無料枠CPU時間と実測に応じて見直す可能性がある。

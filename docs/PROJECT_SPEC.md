@@ -1795,11 +1795,14 @@ CREATE TABLE household_invites (
 CREATE TABLE sessions (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
+  token_hash TEXT,
   expires_at TEXT NOT NULL,
   created_at TEXT NOT NULL,
   last_used_at TEXT NOT NULL
 );
 ```
+
+`token_hash` は `migrations/0002_auth_foundation.sql` で追加する。ブラウザへ渡す生セッショントークンはD1へ保存せず、SHA-256ハッシュのみ保存する。
 
 ---
 

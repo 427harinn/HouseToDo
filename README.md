@@ -1,6 +1,6 @@
 # おうちTodo
 
-家庭内の家事・買い物・通知を二人で共有するための、モバイルファーストなPWAです。現在は開発環境と継続開発ルールを整備した初期段階で、機能本実装はまだ始めていません。
+家庭内の家事・買い物・通知を二人で共有するための、モバイルファーストなPWAです。現在は開発環境とWorker API基盤、認証方式の最小技術検証を整備した初期段階です。
 
 ## 採用技術
 
@@ -75,6 +75,18 @@ http://127.0.0.1:5174/api/health
 ```
 
 `5174/api/health` は、Vite dev server から Worker service へプロキシされます。
+
+現在の最小API:
+
+```text
+GET  /api/health
+POST /api/auth/register
+POST /api/auth/login
+POST /api/auth/logout
+GET  /api/auth/me
+```
+
+認証APIは基盤検証用の最小実装です。完成版のログイン画面、新規登録画面、パスワード再設定、メール確認はまだ未実装です。
 
 停止する場合:
 
@@ -203,14 +215,16 @@ docs/images/household-todo-screen-rough.png
 ## 現在の実装状況
 
 - React/Vite のプレースホルダー画面を追加済み
-- Worker の `/api/health` と未実装 API 用 404 応答を追加済み
+- Worker のルーティング、共通レスポンス、共通エラー処理、入力検証、Repository層を追加済み
+- Worker の `/api/health` と最小認証APIを追加済み
 - React画面から `/api/health` へ疎通し、接続状態を表示
-- D1 初期マイグレーション案を追加済み
+- D1 初期マイグレーション案と `sessions.token_hash` 追加マイグレーションを追加済み
+- PBKDF2-SHA-256によるパスワードハッシュ、D1にはセッショントークンハッシュのみ保存する方式を技術検証済み
 - Docker / Dev Container を追加済み
 - Lint、型チェック、テスト、ビルド用 npm scripts を追加済み
 - Dockerコンテナ内で Lint、型チェック、テスト、ビルド、npm audit を確認済み
 
-本番用認証、タスク、買い物、画像アップロード、Web Push、Cron 通知、本番デプロイは未実装です。
+完成版の認証UI、家庭グループ、タスク、買い物、画像アップロード、Web Push、Cron 通知、本番デプロイは未実装です。
 
 ## 今後の開発フェーズ
 

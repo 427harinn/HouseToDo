@@ -298,3 +298,183 @@ docker-compose logs worker
 
 - Cloudflareのローカル設定と本番リソース作成手順を整理する。
 - Worker APIのルーティング基盤と認証方式の検討へ進む。
+
+## 2026-07-21 Worker API基盤と認証方式の技術検証
+
+### 作業目的
+
+今後の認証、家庭グループ、タスク、買い物APIで共通して使用するWorker API基盤、共通レスポンス、共通エラー処理、入力検証、D1アクセス層、認証方式、セッション方式、Cookie方針、CSRF方針を整える。
+
+### 作業前の状態
+
+- ブランチ: `main`
+- 直近コミット: `36bd094 開発用Docker・Cloudflare基盤を初期構築`
+- `git status --short`: 差分なし。
+- 通常の `git branch --show-current` と `git log --oneline -5` は dubious ownership で失敗したため、`git -c safe.directory=...` で確認。
+- `worker/index.ts` に `/api/health` と未実装API 404がまとまっていた。
+- `migrations/0001_initial.sql` には `users` と `sessions` が存在したが、`sessions` に `token_hash` はなかった。
+
+### 調査内容
+
+- 既存ドキュメント、README、Wrangler設定、Compose設定、Worker実装、初期マイグレーションを確認した。
+- APIルーターはHonoなどの導入も検討したが、現段階では小さな独自ルーターで十分と判断した。
+- 入力検証はZod、Valibot、独自実装を比較し、現段階では追加依存なしの独自ユーティリティを採用した。
+- パスワードハッシュはWeb Crypto PBKDF2、Argon2系、bcrypt系、SHA-256単体を比較し、Workers標準APIで安定して動作するPBKDF2-SHA-256を採用した。
+
+### 検討した選択肢
+
+- APIルーティング: 小さな独自ルーター、Hono、その他Workers対応フレームワーク。
+- 入力検証: Zod、Valibot、独自バリデーション。
+- パスワードハッシュ: Web Crypto PBKDF2、Argon2系ライブラリ、bcrypt系ライブラリ、SHA-256単体。
+- セッション: D1生トークン保存、D1トークンハッシュ保存、JWT Cookie。
+- CSRF: SameSiteのみ、SameSite + JSON限定、CSRFトークン。
+
+### 採用した構成
+
+- `worker/index.ts` は起動入口に限定し、`worker/app.ts` でルーティングする。
+- `worker/routes/` にAPIハンドラー、`worker/middleware/` にエラー処理と認証、`worker/lib/` に共通レスポンス、エラー、バリデーション、Cookie、暗号、日付処理を配置した。
+- `worker/repositories/` に `UserRepository` と `SessionRepository` を配置した。
+- `worker/services/auth-service.ts` に認証ビジネスロジックを集約した。
+
+### 採用理由
+
+- 現段階では依存を増やさず、Workers標準機能とTypeScriptで管理できる規模だった。
+- 今後APIが増えた場合も、ルート、サービス、Repository単位で拡張できる。
+- Honoやスキーマライブラリへの移行が必要になっても、境界を分けているため影響範囲を限定しやすい。
+
+### 作成・変更ファイル
+
+- `worker/index.ts`
+- `worker/app.ts`
+- `worker/types/env.ts`
+- `worker/types/api.ts`
+- `worker/types/domain.ts`
+- `worker/lib/constants.ts`
+- `worker/lib/errors.ts`
+- `worker/lib/response.ts`
+- `worker/lib/validation.ts`
+- `worker/lib/crypto.ts`
+- `worker/lib/cookies.ts`
+- `worker/lib/date.ts`
+- `worker/middleware/error-handler.ts`
+- `worker/middleware/request-context.ts`
+- `worker/middleware/auth.ts`
+- `worker/routes/health.ts`
+- `worker/routes/auth.ts`
+- `worker/repositories/user-repository.ts`
+- `worker/repositories/session-repository.ts`
+- `worker/services/auth-service.ts`
+- `worker/lib/*.test.ts`
+- `worker/repositories/repository.test.ts`
+- `migrations/0002_auth_foundation.sql`
+- `docs/ARCHITECTURE.md`
+- `docs/DECISIONS.md`
+- `docs/PROJECT_SPEC.md`
+- `README.md`
+- `docs/WORKLOG.md`
+
+### マイグレーション
+
+`migrations/0002_auth_foundation.sql` を追加した。
+
+- `sessions.token_hash` を追加。
+- `idx_sessions_token_hash` を追加。
+- `idx_sessions_user_id` を追加。
+- `idx_sessions_expires_at` を追加。
+
+既存の `0001_initial.sql` は上書きしなかった。
+
+### API変更
+
+- `GET /api/health` は共通成功レスポンス `{ ok: true, data, requestId }` へ変更。
+- `POST /api/auth/register` を追加。
+- `POST /api/auth/login` を追加。
+- `POST /api/auth/logout` を追加。
+- `GET /api/auth/me` を追加。
+- 未実装APIは共通エラーレスポンスで404を返す。
+
+### セキュリティ上の判断
+
+- パスワードはPBKDF2-SHA-256、ランダムソルト、反復回数付き形式で保存する。
+- SHA-256単体でのパスワード保存は採用しない。
+- セッショントークンは32バイトの暗号学的乱数をbase64url化する。
+- D1にはセッショントークンのSHA-256ハッシュのみ保存する。
+- Cookie名は `house_todo_session` とし、HttpOnly、SameSite=Lax、Path=/、Max-Age=30日を付与する。
+- `APP_ENV=production` の場合のみSecureを付与し、ローカルHTTP開発を可能にする。
+- MVPではセッション期限延長やローテーションは行わない。
+- CSRFは同一オリジン前提でSameSite=Lax、JSON限定、GETで状態変更しない方針とした。必要になればOrigin検証とCSRFトークンを追加する。
+- ログにはパスワード、セッショントークン、Cookie全文、リクエストBody全文を出さない方針とした。
+
+### 実行したコマンド
+
+```bash
+git status --short
+git -c safe.directory=C:/Users/rinnr/Documents/GitHub/HouseToDo branch --show-current
+git -c safe.directory=C:/Users/rinnr/Documents/GitHub/HouseToDo log --oneline -5
+rg --files
+docker-compose run --rm app npm run typecheck
+docker-compose run --rm app npm run lint
+docker-compose run --rm app npm test
+docker-compose run --rm app npm run build
+docker-compose run --rm app npm audit
+docker-compose run --rm app npm run db:migrate:local
+```
+
+### Lint結果
+
+成功。
+
+### 型チェック結果
+
+成功。
+
+### テスト結果
+
+成功。7ファイル、20件が通過。
+
+### ビルド結果
+
+成功。
+
+### npm audit結果
+
+成功。`found 0 vulnerabilities`。
+
+### ローカルD1確認結果
+
+成功。既存のローカルD1に `0002_auth_foundation.sql` を適用できた。
+
+空のローカルDBへの再適用確認は、既存ローカルD1状態を壊さないため今回は実施していない。
+
+### Worker API手動確認結果
+
+成功。Wrangler dev経由で `GET /api/health` が共通レスポンス形式で返ることを確認した。
+
+成功。`POST /api/auth/register`、`GET /api/auth/me`、`POST /api/auth/logout` の最小フローを `curl.exe` とCookie jarで確認した。
+
+### ドキュメント更新内容
+
+- `docs/ARCHITECTURE.md` にAPI構成、共通レスポンス、エラーコード、入力検証、D1アクセス層、認証、セッション、Cookie、CSRF方針を追記。
+- `docs/DECISIONS.md` にAPIルーター、入力検証、パスワードハッシュ、セッション、CSRFの判断を追記。
+- `docs/PROJECT_SPEC.md` の `sessions` へ `token_hash` の追加方針を追記。
+- `README.md` に現在の最小APIと実装状況を追記。
+- `docs/WORKLOG.md` に本記録を追記。
+
+### 未対応事項
+
+- 完成版のログイン画面、新規登録画面。
+- メール確認、パスワード再設定。
+- 家庭グループ、招待、タスク、買い物、画像、Web Push、Cronの本実装。
+- 状態変更APIのOriginヘッダー検証。
+- CSRFトークン方式。
+- セッション期限延長、ローテーション、端末管理。
+- PBKDF2反復回数のWorkers実環境での応答時間測定。
+- 空のローカルD1でのマイグレーション再適用確認。
+- Cloudflare本番リソース作成、デプロイ、push、コミット。
+
+### 次回の作業候補
+
+- 認証APIをWrangler dev経由で手動疎通確認する。
+- 状態変更API向けのOrigin検証ミドルウェアを追加する。
+- 家庭グループ作成とメンバー所属確認のRepository/Service設計へ進む。
+- PBKDF2反復回数のWorkers環境での実測を行う。
