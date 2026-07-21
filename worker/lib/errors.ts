@@ -1,9 +1,15 @@
 export type AppErrorCode =
   | "VALIDATION_ERROR"
+  | "INVALID_ORIGIN"
   | "UNAUTHENTICATED"
   | "FORBIDDEN"
   | "NOT_FOUND"
   | "CONFLICT"
+  | "HOUSEHOLD_LIMIT_REACHED"
+  | "INVALID_INVITE"
+  | "INVITE_EXPIRED"
+  | "INVITE_ALREADY_USED"
+  | "ALREADY_HOUSEHOLD_MEMBER"
   | "RATE_LIMITED"
   | "INTERNAL_ERROR";
 
@@ -57,4 +63,53 @@ export const conflictError = (message = "すでに登録されています。") 
     code: "CONFLICT",
     status: 409,
     message
+  });
+
+export const forbiddenError = (message = "この操作は許可されていません。") =>
+  new AppError({
+    code: "FORBIDDEN",
+    status: 403,
+    message
+  });
+
+export const invalidOriginError = () =>
+  new AppError({
+    code: "INVALID_ORIGIN",
+    status: 403,
+    message: "許可されていない送信元です。"
+  });
+
+export const householdLimitReachedError = () =>
+  new AppError({
+    code: "HOUSEHOLD_LIMIT_REACHED",
+    status: 409,
+    message: "MVPでは所属できる家庭は1つまでです。"
+  });
+
+export const invalidInviteError = () =>
+  new AppError({
+    code: "INVALID_INVITE",
+    status: 400,
+    message: "招待コードが正しくありません。"
+  });
+
+export const inviteExpiredError = () =>
+  new AppError({
+    code: "INVITE_EXPIRED",
+    status: 400,
+    message: "招待コードの有効期限が切れています。"
+  });
+
+export const inviteAlreadyUsedError = () =>
+  new AppError({
+    code: "INVITE_ALREADY_USED",
+    status: 409,
+    message: "この招待コードはすでに使用されています。"
+  });
+
+export const alreadyHouseholdMemberError = () =>
+  new AppError({
+    code: "ALREADY_HOUSEHOLD_MEMBER",
+    status: 409,
+    message: "すでにこの家庭へ参加しています。"
   });

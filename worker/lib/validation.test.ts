@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { AppError } from "./errors";
-import { parseJsonBody, validateLoginInput, validateRegisterInput } from "./validation";
+import {
+  parseJsonBody,
+  validateCreateHouseholdInput,
+  validateJoinHouseholdInput,
+  validateLoginInput,
+  validateRegisterInput,
+  validateUpdateHouseholdInput
+} from "./validation";
 
 describe("validation helpers", () => {
   it("normalizes valid register input", () => {
@@ -42,5 +49,26 @@ describe("validation helpers", () => {
     });
 
     await expect(parseJsonBody(request)).rejects.toThrow(AppError);
+  });
+
+  it("validates household create input", () => {
+    expect(validateCreateHouseholdInput({ name: " わが家 " })).toEqual({ name: "わが家" });
+    expect(() => validateCreateHouseholdInput({ name: " ".repeat(2) })).toThrow(AppError);
+    expect(() => validateCreateHouseholdInput({ name: "あ".repeat(51) })).toThrow(AppError);
+  });
+
+  it("validates household update input", () => {
+    expect(validateUpdateHouseholdInput({ name: " 新しい家 ", weekStartsOn: 6 })).toEqual({
+      name: "新しい家",
+      weekStartsOn: 6
+    });
+    expect(() => validateUpdateHouseholdInput({})).toThrow(AppError);
+    expect(() => validateUpdateHouseholdInput({ weekStartsOn: 7 })).toThrow(AppError);
+  });
+
+  it("validates household join input", () => {
+    expect(validateJoinHouseholdInput({ code: " invite " })).toEqual({ code: "invite" });
+    expect(() => validateJoinHouseholdInput({ code: "" })).toThrow(AppError);
+    expect(() => validateJoinHouseholdInput({ code: "a".repeat(129) })).toThrow(AppError);
   });
 });

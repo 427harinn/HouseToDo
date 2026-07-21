@@ -86,11 +86,31 @@ Docker Compose の `app` サービスで開発する。
 
 ## CSRF対策方針
 
-- Cookie認証を採用するため、MVPでは `SameSite=Lax` を基本防御とする。
+- Cookie認証を採用するため、`SameSite=Lax` を基本防御とし、状態変更APIではOrigin検証を行う。
+- 対象メソッドは `POST`、`PUT`、`PATCH`、`DELETE` とする。
+- 状態変更APIでは `Origin` ヘッダーが必須。`ALLOWED_ORIGINS` に含まれないOrigin、またはOriginなしの状態変更リクエストは `INVALID_ORIGIN` の403で拒否する。
 - 状態変更APIでは `Content-Type: application/json` のみ受け付ける。
+- ローカル開発の既定許可Originは `http://127.0.0.1:5174` と `http://localhost:5174`。本番では `ALLOWED_ORIGINS` に実際のアプリOriginのみを明示する。
 - GETリクエストで状態変更しない。
 - CORSは不要に広げず、同一オリジン構成を基本にする。
-- 公開範囲が広がる、別オリジンフロントエンドを採用する、または外部連携が増える場合は、Originヘッダー検証とCSRFトークンを追加検討する。
+- 将来multipart APIが必要になった場合は、JSON限定とは別の許可条件を個別に設計する。
+- 公開範囲が広がる、別オリジンフロントエンドを採用する、または外部連携が増える場合は、CSRFトークンを追加検討する。
+
+## 家庭・メンバー・招待方針
+
+- 家庭は `households`、所属は `household_members`、招待は `household_invites` で管理する。
+- 家庭の初期値は `timezone = Asia/Tokyo`、`week_starts_on = 1`。
+- 権限は `owner` と `member`。家庭作成者は自動的に `owner` として追加する。
+- MVPでは1ユーザー1家庭に制限する。ただしDB上は複数所属可能な構造を維持し、MVP制限はService層で判定する。
+- `GET /api/households/current` は家庭未所属を正常なユーザー状態として扱い、`household: null` を200で返す。
+- `GET /api/auth/me` はユーザー情報のみを返し、家庭情報は `GET /api/households/current` で取得する。
+- 家庭作成時の家庭レコード作成とowner追加はD1 `batch` でまとめる。
+- 今後の家庭内APIでは、認証と家庭所属確認を分ける。認証は `requireAuth`、家庭所属と権限は `HouseholdService.requireCurrentHousehold` / `requireHouseholdRole` を使う。
+- memberは家庭情報の参照とメンバー一覧取得ができるが、家庭設定更新と招待発行はownerだけができる。
+- 招待コードは暗号学的乱数から生成したURL-safe文字列を使用し、有効期限は24時間、使用回数は1回とする。
+- D1には招待コードのSHA-256ハッシュのみ保存し、平文コードは作成直後のレスポンスでのみ返す。
+- 招待の同時利用は `used_at IS NULL` 条件付き更新で1回だけ使用済みにする。
+- DB上の主な一意性は `household_members(household_id, user_id)` と `household_invites(code_hash)`。
 
 ## DB設計方針
 
@@ -99,8 +119,19 @@ Docker Compose の `app` サービスで開発する。
 - マイグレーションは `migrations/` へ追加する。
 - 既存マイグレーションは原則書き換えない。
 - 日付保存はUTCを基本とし、表示と当日判定では家庭のタイムゾーンを使う。
-- D1操作はRepository層へ分離する。`UserRepository` はユーザー作成、ID検索、メール検索を担当し、`SessionRepository` はセッション作成、有効セッション検索、削除、期限切れ削除を担当する。
+- D1操作はRepository層へ分離する。`UserRepository` はユーザー作成、ID検索、メール検索を担当し、`SessionRepository` はセッション作成、有効セッション検索、削除、期限切れ削除を担当する。家庭関連は `HouseholdRepository`、`HouseholdMemberRepository`、`HouseholdInviteRepository` に分ける。
 - SQLはD1のbind変数を使用し、ユーザー入力をSQL文字列へ直接連結しない。
+
+## PBKDF2ローカル計測
+
+2026-07-21時点のWrangler devローカル計測では、認証API経由のPBKDF2-SHA-256処理時間は以下だった。パスワード値は出力していない。
+
+```text
+ハッシュ生成を含む登録API: 495.9ms、497.7ms、41.9ms、118.7ms
+照合を含むログインAPI: 34.2ms、32.5ms、31.6ms
+```
+
+これはWrangler dev、ローカルD1、PowerShell `Invoke-WebRequest` を含むAPI往復時間であり、本番Cloudflare Workers上の性能を保証するものではない。初回または起動直後はばらつきが大きいため、反復回数を変更する場合は本番に近い環境で再計測する。
 
 ## 画像保存方針
 
@@ -125,3 +156,4 @@ Docker Compose の `app` サービスで開発する。
 - Service Worker実装方式。
 - Workers Static Assetsのみで進めるか、将来Pagesを併用するか。
 - PBKDF2の反復回数は無料枠CPU時間と実測に応じて見直す可能性がある。
+- MVPの1ユーザー1家庭制限をService層だけで完全に同時実行防止できるか。将来の複数家庭対応と、MVP期間だけの一意インデックス追加のトレードオフを継続検討する。

@@ -328,6 +328,18 @@ Asia/Tokyo
 
 MVPでは、有効期限なしの招待コードでもよいが、将来的に改善できる構造にする。
 
+実装上のMVP方針:
+
+```text
+有効期限: 24時間
+使用回数: 1回
+保存方式: D1には招待コードのSHA-256ハッシュのみ保存
+発行権限: ownerのみ
+参加時権限: member
+```
+
+平文の招待コードは作成直後のレスポンスでのみ返し、ログやD1には保存しない。
+
 ---
 
 ## 5.5 メンバー情報
@@ -2001,10 +2013,14 @@ GET  /api/auth/me
 POST /api/households
 GET  /api/households/current
 PATCH /api/households/current
-POST /api/households/invites
+POST /api/households/current/invites
 POST /api/households/join
-GET  /api/households/members
+GET  /api/households/current/members
 ```
+
+`GET /api/households/current` は、ログイン済みだが家庭未所属の場合に `household: null` を200で返す。これは家庭作成または招待参加へ誘導するオンボーディング状態として扱うため。
+
+MVPでは1ユーザー1家庭に制限する。ただしDB上は複数家庭所属に拡張できる `household_members` 構造を維持し、MVP制限はService層で行う。
 
 ---
 
@@ -2215,6 +2231,8 @@ notificationclick
 
 * パスワードを平文保存しない
 * CookieはHttpOnly、Secure
+* Cookie認証を使う状態変更APIではOriginを検証する
+* 状態変更APIでは原則としてJSON Content-Typeを要求する
 * APIごとに認証確認
 * 家庭IDだけでデータへアクセスさせない
 * 必ずユーザーが家庭メンバーか確認

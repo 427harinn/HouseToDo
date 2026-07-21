@@ -1,101 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { sha256Hex } from "../lib/crypto";
+import { HouseholdInviteRepository } from "./household-invite-repository";
+import { HouseholdMemberRepository } from "./household-member-repository";
+import { HouseholdRepository } from "./household-repository";
 import { SessionRepository } from "./session-repository";
+import { MemoryD1 } from "../test-utils/memory-d1";
 import { UserRepository } from "./user-repository";
-
-type UserRecord = {
-  id: string;
-  email: string;
-  password_hash: string;
-  display_name: string;
-  created_at: string;
-  updated_at: string;
-};
-
-type SessionRecord = {
-  id: string;
-  user_id: string;
-  token_hash: string;
-  expires_at: string;
-  created_at: string;
-  last_used_at: string;
-};
-
-class MemoryPreparedStatement {
-  private values: unknown[] = [];
-
-  constructor(
-    private readonly db: MemoryD1,
-    private readonly sql: string
-  ) {}
-
-  bind(...values: unknown[]): D1PreparedStatement {
-    this.values = values;
-    return this as unknown as D1PreparedStatement;
-  }
-
-  first<T = unknown>(): Promise<T | null> {
-    return Promise.resolve(this.db.first(this.sql, this.values) as T | null);
-  }
-
-  run(): Promise<D1Result> {
-    return Promise.resolve(this.db.run(this.sql, this.values));
-  }
-}
-
-class MemoryD1 {
-  readonly users = new Map<string, UserRecord>();
-  readonly sessions = new Map<string, SessionRecord>();
-
-  prepare(sql: string): D1PreparedStatement {
-    return new MemoryPreparedStatement(this, sql) as unknown as D1PreparedStatement;
-  }
-
-  first(sql: string, values: unknown[]): UserRecord | SessionRecord | null {
-    if (sql.includes("FROM users WHERE id")) {
-      return this.users.get(String(values[0])) ?? null;
-    }
-    if (sql.includes("FROM users WHERE email")) {
-      return Array.from(this.users.values()).find((user) => user.email === values[0]) ?? null;
-    }
-    if (sql.includes("FROM sessions WHERE token_hash")) {
-      return (
-        Array.from(this.sessions.values()).find(
-          (session) => session.token_hash === values[0] && session.expires_at > String(values[1])
-        ) ?? null
-      );
-    }
-    return null;
-  }
-
-  run(sql: string, values: unknown[]): D1Result {
-    if (sql.startsWith("INSERT INTO users")) {
-      this.users.set(String(values[0]), {
-        id: String(values[0]),
-        email: String(values[1]),
-        password_hash: String(values[2]),
-        display_name: String(values[3]),
-        created_at: String(values[4]),
-        updated_at: String(values[5])
-      });
-    }
-    if (sql.startsWith("INSERT INTO sessions")) {
-      this.sessions.set(String(values[0]), {
-        id: String(values[0]),
-        user_id: String(values[1]),
-        token_hash: String(values[2]),
-        expires_at: String(values[3]),
-        created_at: String(values[4]),
-        last_used_at: String(values[5])
-      });
-    }
-    if (sql.startsWith("DELETE FROM sessions WHERE token_hash")) {
-      for (const [id, session] of this.sessions) {
-        if (session.token_hash === values[0]) this.sessions.delete(id);
-      }
-    }
-    return { success: true, meta: { changes: 1 } } as D1Result;
-  }
-}
 
 describe("repositories", () => {
   it("creates and finds users by email", async () => {
@@ -136,5 +46,72 @@ describe("repositories", () => {
     await expect(
       repository.findValidByTokenHash("token-hash", "2026-07-21T01:00:00.000Z")
     ).resolves.toBeNull();
+  });
+
+  it("creates households and manages memberships", async () => {
+    const db = new MemoryD1();
+    const users = new UserRepository(db as unknown as D1Database);
+    const households = new HouseholdRepository(db as unknown as D1Database);
+    const members = new HouseholdMemberRepository(db as unknown as D1Database);
+    const now = "2026-07-21T00:00:00.000Z";
+
+    await users.create({
+      id: "user-1",
+      email: "user@example.com",
+      passwordHash: "hash",
+      displayName: "Rinn",
+      now
+    });
+    await households.create({
+      id: "household-1",
+      name: "わが家",
+      timezone: "Asia/Tokyo",
+      weekStartsOn: 1,
+      createdBy: "user-1",
+      now
+    });
+    await members.add({
+      householdId: "household-1",
+      userId: "user-1",
+      role: "owner",
+      joinedAt: now
+    });
+
+    await expect(households.findCurrentByUserId("user-1")).resolves.toMatchObject({
+      id: "household-1",
+      role: "owner"
+    });
+    await expect(members.findMembership("household-1", "user-1")).resolves.toMatchObject({
+      role: "owner"
+    });
+    await expect(members.countByUserId("user-1")).resolves.toBe(1);
+    await expect(members.listByHouseholdId("household-1")).resolves.toMatchObject([
+      { displayName: "Rinn", role: "owner" }
+    ]);
+  });
+
+  it("creates, finds, and marks household invites as used", async () => {
+    const db = new MemoryD1();
+    const repository = new HouseholdInviteRepository(db as unknown as D1Database);
+    const codeHash = await sha256Hex("invite-code");
+
+    await repository.create({
+      id: "invite-1",
+      householdId: "household-1",
+      codeHash,
+      createdBy: "owner-1",
+      expiresAt: "2026-07-22T00:00:00.000Z",
+      createdAt: "2026-07-21T00:00:00.000Z"
+    });
+
+    await expect(
+      repository.findValidByCodeHash(codeHash, "2026-07-21T01:00:00.000Z")
+    ).resolves.toMatchObject({ id: "invite-1" });
+    await expect(
+      repository.markUsed("invite-1", "member-1", "2026-07-21T01:00:00.000Z")
+    ).resolves.toBe(true);
+    await expect(
+      repository.markUsed("invite-1", "member-2", "2026-07-21T01:01:00.000Z")
+    ).resolves.toBe(false);
   });
 });

@@ -1,124 +1,58 @@
 import { describe, expect, it } from "vitest";
 import { createApp } from "./app";
+import { MemoryD1 } from "./test-utils/memory-d1";
 import type { Env } from "./types/env";
 
-type UserRecord = {
-  id: string;
-  email: string;
-  password_hash: string;
-  display_name: string;
-  created_at: string;
-  updated_at: string;
-};
-
-type SessionRecord = {
-  id: string;
-  user_id: string;
-  token_hash: string;
-  expires_at: string;
-  created_at: string;
-  last_used_at: string;
-};
-
-class MemoryPreparedStatement {
-  private values: unknown[] = [];
-
-  constructor(
-    private readonly db: MemoryD1,
-    private readonly sql: string
-  ) {}
-
-  bind(...values: unknown[]): D1PreparedStatement {
-    this.values = values;
-    return this as unknown as D1PreparedStatement;
-  }
-
-  first<T = unknown>(): Promise<T | null> {
-    return Promise.resolve(this.db.first(this.sql, this.values) as T | null);
-  }
-
-  run(): Promise<D1Result> {
-    return Promise.resolve(this.db.run(this.sql, this.values));
-  }
-}
-
-class MemoryD1 {
-  readonly users = new Map<string, UserRecord>();
-  readonly sessions = new Map<string, SessionRecord>();
-
-  prepare(sql: string): D1PreparedStatement {
-    return new MemoryPreparedStatement(this, sql) as unknown as D1PreparedStatement;
-  }
-
-  first(sql: string, values: unknown[]): UserRecord | SessionRecord | null {
-    if (sql.includes("FROM users WHERE id")) {
-      return this.users.get(String(values[0])) ?? null;
-    }
-    if (sql.includes("FROM users WHERE email")) {
-      return Array.from(this.users.values()).find((user) => user.email === values[0]) ?? null;
-    }
-    if (sql.includes("FROM sessions WHERE token_hash")) {
-      return (
-        Array.from(this.sessions.values()).find(
-          (session) => session.token_hash === values[0] && session.expires_at > String(values[1])
-        ) ?? null
-      );
-    }
-    return null;
-  }
-
-  run(sql: string, values: unknown[]): D1Result {
-    if (sql.startsWith("INSERT INTO users")) {
-      this.users.set(String(values[0]), {
-        id: String(values[0]),
-        email: String(values[1]),
-        password_hash: String(values[2]),
-        display_name: String(values[3]),
-        created_at: String(values[4]),
-        updated_at: String(values[5])
-      });
-    }
-    if (sql.startsWith("INSERT INTO sessions")) {
-      this.sessions.set(String(values[0]), {
-        id: String(values[0]),
-        user_id: String(values[1]),
-        token_hash: String(values[2]),
-        expires_at: String(values[3]),
-        created_at: String(values[4]),
-        last_used_at: String(values[5])
-      });
-    }
-    if (sql.startsWith("DELETE FROM sessions WHERE token_hash")) {
-      for (const [id, session] of this.sessions) {
-        if (session.token_hash === values[0]) this.sessions.delete(id);
-      }
-    }
-    return { success: true, meta: { changes: 1 } } as D1Result;
-  }
-}
-
-const createTestEnv = (): Env =>
+const createTestEnv = (db = new MemoryD1()): Env =>
   ({
-    DB: new MemoryD1() as unknown as D1Database,
+    DB: db as unknown as D1Database,
     ATTACHMENTS: {},
     ASSETS: { fetch: () => Promise.resolve(new Response("asset")) },
-    APP_ENV: "development"
+    APP_ENV: "test",
+    ALLOWED_ORIGINS: "https://example.test,http://localhost:5174"
   }) as unknown as Env;
 
-const postJson = (path: string, body: unknown, cookie?: string): Request =>
+const postJson = (path: string, body: unknown, cookie?: string, origin = "https://example.test") =>
   new Request(`https://example.test${path}`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
+      origin,
       ...(cookie ? { cookie } : {})
     },
     body: JSON.stringify(body)
   });
 
+const patchJson = (path: string, body: unknown, cookie?: string) =>
+  new Request(`https://example.test${path}`, {
+    method: "PATCH",
+    headers: {
+      "content-type": "application/json",
+      origin: "https://example.test",
+      ...(cookie ? { cookie } : {})
+    },
+    body: JSON.stringify(body)
+  });
+
+const cookieFrom = (response: Response): string => response.headers.get("set-cookie") ?? "";
+
+const registerUser = async (
+  env: Env,
+  input = {
+    email: "user@example.com",
+    password: "very-long-password",
+    displayName: "Codex Test"
+  }
+) => {
+  const response = await createApp().fetch(postJson("/api/auth/register", input), env);
+  return { response, cookie: cookieFrom(response) };
+};
+
 describe("worker app auth API", () => {
   it("registers, reads the current user, and logs out", async () => {
     const app = createApp();
-    const env = createTestEnv();
+    const db = new MemoryD1();
+    const env = createTestEnv(db);
     const register = await app.fetch(
       postJson("/api/auth/register", {
         email: " User@Example.COM ",
@@ -127,14 +61,14 @@ describe("worker app auth API", () => {
       }),
       env
     );
-    const cookie = register.headers.get("set-cookie");
+    const cookie = cookieFrom(register);
 
     expect(register.status).toBe(201);
     expect(cookie).toContain("house_todo_session=");
 
     const me = await app.fetch(
       new Request("https://example.test/api/auth/me", {
-        headers: { cookie: cookie ?? "" }
+        headers: { cookie }
       }),
       env
     );
@@ -143,18 +77,12 @@ describe("worker app auth API", () => {
       data: { user: { email: "user@example.com", displayName: "Codex Test" } }
     });
 
-    const logout = await app.fetch(
-      new Request("https://example.test/api/auth/logout", {
-        method: "POST",
-        headers: { cookie: cookie ?? "" }
-      }),
-      env
-    );
+    const logout = await app.fetch(postJson("/api/auth/logout", {}, cookie), env);
     expect(logout.status).toBe(200);
 
     const afterLogout = await app.fetch(
       new Request("https://example.test/api/auth/me", {
-        headers: { cookie: cookie ?? "" }
+        headers: { cookie }
       }),
       env
     );
@@ -183,5 +111,158 @@ describe("worker app auth API", () => {
         )
       ).status
     ).toBe(401);
+  });
+});
+
+describe("worker app state-changing request protection", () => {
+  it("allows configured origins and rejects invalid origins", async () => {
+    const env = createTestEnv();
+    const allowed = await createApp().fetch(
+      postJson("/api/auth/register", {
+        email: "origin@example.com",
+        password: "very-long-password",
+        displayName: "Origin"
+      }),
+      env
+    );
+    expect(allowed.status).toBe(201);
+
+    const rejected = await createApp().fetch(
+      postJson(
+        "/api/auth/register",
+        {
+          email: "blocked@example.com",
+          password: "very-long-password",
+          displayName: "Blocked"
+        },
+        undefined,
+        "https://evil.example"
+      ),
+      env
+    );
+    await expect(rejected.json()).resolves.toMatchObject({
+      ok: false,
+      error: { code: "INVALID_ORIGIN" }
+    });
+    expect(rejected.status).toBe(403);
+  });
+
+  it("allows GET without Origin and rejects non-JSON state changes", async () => {
+    const env = createTestEnv();
+    const get = await createApp().fetch(new Request("https://example.test/api/health"), env);
+    expect(get.status).toBe(200);
+
+    const response = await createApp().fetch(
+      new Request("https://example.test/api/auth/register", {
+        method: "POST",
+        headers: { origin: "https://example.test", "content-type": "text/plain" },
+        body: "nope"
+      }),
+      env
+    );
+    expect(response.status).toBe(400);
+  });
+});
+
+describe("worker app household API", () => {
+  it("creates, reads, and updates the current household as owner", async () => {
+    const app = createApp();
+    const env = createTestEnv();
+    const { cookie } = await registerUser(env);
+
+    const empty = await app.fetch(
+      new Request("https://example.test/api/households/current", { headers: { cookie } }),
+      env
+    );
+    await expect(empty.json()).resolves.toMatchObject({
+      ok: true,
+      data: { household: null }
+    });
+
+    const created = await app.fetch(postJson("/api/households", { name: " わが家 " }, cookie), env);
+    expect(created.status).toBe(201);
+    await expect(created.json()).resolves.toMatchObject({
+      ok: true,
+      data: { household: { name: "わが家", timezone: "Asia/Tokyo", weekStartsOn: 1, role: "owner" } }
+    });
+
+    const duplicate = await app.fetch(postJson("/api/households", { name: "別宅" }, cookie), env);
+    await expect(duplicate.json()).resolves.toMatchObject({
+      ok: false,
+      error: { code: "HOUSEHOLD_LIMIT_REACHED" }
+    });
+
+    const updated = await app.fetch(
+      patchJson("/api/households/current", { name: "新しい家", weekStartsOn: 0 }, cookie),
+      env
+    );
+    await expect(updated.json()).resolves.toMatchObject({
+      ok: true,
+      data: { household: { name: "新しい家", weekStartsOn: 0, role: "owner" } }
+    });
+  });
+
+  it("invites another user, lists members, and rejects member-only owner actions", async () => {
+    const app = createApp();
+    const db = new MemoryD1();
+    const env = createTestEnv(db);
+    const owner = await registerUser(env, {
+      email: "owner@example.com",
+      password: "very-long-password",
+      displayName: "Owner"
+    });
+    await app.fetch(postJson("/api/households", { name: "招待の家" }, owner.cookie), env);
+
+    const inviteResponse = await app.fetch(
+      postJson("/api/households/current/invites", {}, owner.cookie),
+      env
+    );
+    expect(inviteResponse.status).toBe(201);
+    const inviteJson: {
+      data: { invite: { code: string; expiresAt: string } };
+    } = await inviteResponse.json();
+    expect(Array.from(db.invites.values())[0]?.code_hash).not.toBe(inviteJson.data.invite.code);
+
+    const member = await registerUser(env, {
+      email: "member@example.com",
+      password: "very-long-password",
+      displayName: "Member"
+    });
+    const joined = await app.fetch(
+      postJson("/api/households/join", { code: inviteJson.data.invite.code }, member.cookie),
+      env
+    );
+    await expect(joined.json()).resolves.toMatchObject({
+      ok: true,
+      data: { household: { name: "招待の家", role: "member" } }
+    });
+
+    const members = await app.fetch(
+      new Request("https://example.test/api/households/current/members", {
+        headers: { cookie: member.cookie }
+      }),
+      env
+    );
+    await expect(members.json()).resolves.toMatchObject({
+      ok: true,
+      data: {
+        members: [
+          { displayName: "Owner", role: "owner" },
+          { displayName: "Member", role: "member" }
+        ]
+      }
+    });
+
+    const memberUpdate = await app.fetch(
+      patchJson("/api/households/current", { name: "乗っ取り不可" }, member.cookie),
+      env
+    );
+    expect(memberUpdate.status).toBe(403);
+
+    const usedAgain = await app.fetch(
+      postJson("/api/households/join", { code: inviteJson.data.invite.code }, member.cookie),
+      env
+    );
+    expect(usedAgain.status).toBe(409);
   });
 });

@@ -5,4 +5,5 @@ export interface Env {
   ATTACHMENTS: R2Bucket;
   ASSETS: Fetcher;
   APP_ENV?: AppEnvironment;
+  ALLOWED_ORIGINS?: string;
 }

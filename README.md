@@ -84,9 +84,21 @@ POST /api/auth/register
 POST /api/auth/login
 POST /api/auth/logout
 GET  /api/auth/me
+POST /api/households
+GET  /api/households/current
+PATCH /api/households/current
+GET  /api/households/current/members
+POST /api/households/current/invites
+POST /api/households/join
 ```
 
-認証APIは基盤検証用の最小実装です。完成版のログイン画面、新規登録画面、パスワード再設定、メール確認はまだ未実装です。
+認証APIと家庭APIは基盤検証用の最小実装です。完成版のログイン画面、新規登録画面、家庭作成画面、招待参加画面、パスワード再設定、メール確認はまだ未実装です。
+
+Cookie認証を使う状態変更APIでは、`Origin` ヘッダーと `Content-Type: application/json` を検証します。ローカル開発では `.dev.vars` の `ALLOWED_ORIGINS` に以下を設定します。
+
+```text
+ALLOWED_ORIGINS=http://127.0.0.1:5174,http://localhost:5174
+```
 
 停止する場合:
 
@@ -217,14 +229,16 @@ docs/images/household-todo-screen-rough.png
 - React/Vite のプレースホルダー画面を追加済み
 - Worker のルーティング、共通レスポンス、共通エラー処理、入力検証、Repository層を追加済み
 - Worker の `/api/health` と最小認証APIを追加済み
+- 状態変更APIのOrigin検証を追加済み
+- 家庭作成、現在の家庭取得、家庭更新、メンバー一覧、招待コード発行、招待参加APIを追加済み
 - React画面から `/api/health` へ疎通し、接続状態を表示
-- D1 初期マイグレーション案と `sessions.token_hash` 追加マイグレーションを追加済み
+- D1 初期マイグレーション案、`sessions.token_hash`、家庭招待関連インデックス追加マイグレーションを追加済み
 - PBKDF2-SHA-256によるパスワードハッシュ、D1にはセッショントークンハッシュのみ保存する方式を技術検証済み
 - Docker / Dev Container を追加済み
 - Lint、型チェック、テスト、ビルド用 npm scripts を追加済み
 - Dockerコンテナ内で Lint、型チェック、テスト、ビルド、npm audit を確認済み
 
-完成版の認証UI、家庭グループ、タスク、買い物、画像アップロード、Web Push、Cron 通知、本番デプロイは未実装です。
+完成版の認証UI、家庭UI、タスク、買い物、画像アップロード、Web Push、Cron 通知、本番デプロイは未実装です。
 
 ## 今後の開発フェーズ
 

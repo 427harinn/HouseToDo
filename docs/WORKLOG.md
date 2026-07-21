@@ -478,3 +478,227 @@ docker-compose run --rm app npm run db:migrate:local
 - 状態変更API向けのOrigin検証ミドルウェアを追加する。
 - 家庭グループ作成とメンバー所属確認のRepository/Service設計へ進む。
 - PBKDF2反復回数のWorkers環境での実測を行う。
+
+## 2026-07-21 家庭グループとメンバー管理バックエンド基盤
+
+### 作業目的
+
+認証後に利用できる最小APIとして、状態変更APIのOrigin検証、家庭作成、現在の家庭取得、家庭更新、メンバー一覧、招待コード発行、招待参加、家庭所属確認、owner権限確認を実装する。
+
+### 作業前の状態
+
+- ブランチ: `main`
+- 直近コミット: `f0394c6 APIと認証追加`
+- `git status --short`: 差分なし
+- 通常のGitコマンドは dubious ownership で失敗したため、`git -c safe.directory=C:/Users/rinnr/Documents/GitHub/HouseToDo ...` で確認。
+- Worker API基盤、認証API、PBKDF2、D1セッション管理は実装済み。
+- 家庭グループ、招待、Origin検証は未実装。
+
+### 調査内容
+
+- `docs/PROJECT_SPEC.md`、`docs/CODEX_INSTRUCTIONS.md`、`docs/DEVELOPMENT_PLAN.md`、`docs/ARCHITECTURE.md`、`docs/DECISIONS.md`、`docs/WORKLOG.md`、`README.md` を確認した。
+- 画面ラフ `docs/images/household-todo-screen-rough.png` を確認した。今回は画面実装には進まない方針を維持。
+- 既存の `worker/app.ts`、`routes/auth.ts`、`middleware/auth.ts`、`lib/validation.ts`、Repository実装、テスト構成を確認した。
+
+### Origin検証方式
+
+- `POST`、`PUT`、`PATCH`、`DELETE` を状態変更APIとして扱う。
+- 状態変更APIでは `Origin` ヘッダーを必須にし、`ALLOWED_ORIGINS` に含まれないOriginを `INVALID_ORIGIN` の403で拒否する。
+- 状態変更APIでは `Content-Type: application/json` も必須にした。
+- 開発用Originは `http://127.0.0.1:5174,http://localhost:5174`。
+- `Origin` が存在しない状態変更リクエストは拒否する。
+
+### 家庭・メンバー設計
+
+- 家庭は `households`、所属は `household_members`、招待は `household_invites` で管理。
+- 家庭作成者は `owner` として自動参加。
+- 権限は `owner` と `member`。
+- 家庭名はtrim後1文字以上50文字以下。
+- `weekStartsOn` は0から6の整数、初期値は1。
+- タイムゾーンは初期版では `Asia/Tokyo` 固定。
+
+### 招待コード設計
+
+- 招待コードは暗号学的乱数24バイトから生成したURL-safe文字列。
+- 有効期限は24時間。
+- 使用回数は1回。
+- D1には平文コードではなくSHA-256ハッシュのみ保存。
+- レスポンスでは作成直後だけ平文コードを返す。
+- 使用時は `used_at IS NULL` 条件付き更新で同時利用を抑止する。
+
+### MVP制限
+
+- 案Bを採用。DB上は複数家庭所属に拡張できる構造を維持し、MVPの1ユーザー1家庭制限はService層で行う。
+- Service層だけでは同時実行時に完全な二重所属防止にならない可能性があるため、`docs/DECISIONS.md` と `docs/ARCHITECTURE.md` にトレードオフを記録した。
+
+### 作成・変更ファイル
+
+- `.dev.vars.example`
+- `compose.yaml`
+- `wrangler.jsonc`
+- `README.md`
+- `migrations/0003_household_foundation.sql`
+- `worker/app.ts`
+- `worker/lib/constants.ts`
+- `worker/lib/crypto.ts`
+- `worker/lib/date.ts`
+- `worker/lib/errors.ts`
+- `worker/lib/validation.ts`
+- `worker/middleware/security.ts`
+- `worker/middleware/household-auth.ts`
+- `worker/repositories/household-repository.ts`
+- `worker/repositories/household-member-repository.ts`
+- `worker/repositories/household-invite-repository.ts`
+- `worker/services/household-service.ts`
+- `worker/services/household-invite-service.ts`
+- `worker/routes/households.ts`
+- `worker/test-utils/memory-d1.ts`
+- `worker/app.test.ts`
+- `worker/lib/crypto.test.ts`
+- `worker/lib/validation.test.ts`
+- `worker/repositories/repository.test.ts`
+- `worker/types/domain.ts`
+- `worker/types/env.ts`
+- `docs/PROJECT_SPEC.md`
+- `docs/ARCHITECTURE.md`
+- `docs/DECISIONS.md`
+- `docs/DEVELOPMENT_PLAN.md`
+- `docs/WORKLOG.md`
+
+### マイグレーション
+
+`migrations/0003_household_foundation.sql` を追加した。
+
+- `household_invites.used_by` を追加。
+- `household_invites(code_hash)` の一意インデックスを追加。
+- `household_invites(household_id)`、`household_invites(expires_at)` のインデックスを追加。
+- `household_members(user_id)` のインデックスを追加。
+
+### 実装API
+
+- `POST /api/households`
+- `GET /api/households/current`
+- `PATCH /api/households/current`
+- `GET /api/households/current/members`
+- `POST /api/households/current/invites`
+- `POST /api/households/join`
+
+### 追加Repository / Service / Middleware
+
+- `HouseholdRepository`
+- `HouseholdMemberRepository`
+- `HouseholdInviteRepository`
+- `HouseholdService`
+- `HouseholdInviteService`
+- `withStateChangingRequestProtection`
+- `requireCurrentHousehold`
+- `requireHouseholdRole`
+
+### 追加テスト
+
+- Origin検証: 許可Origin、不正Origin、GET許可、非JSON拒否。
+- 家庭作成: 認証済み作成、owner登録、未所属時null、2つ目作成409、更新。
+- 家庭更新: owner更新、member更新403、空更新、不正な週開始曜日。
+- メンバー一覧: owner/member取得、2人表示。
+- 招待: owner発行、平文コードがDB保存されない、有効コード参加、使用済み拒否、member化。
+- Repository: 家庭作成、メンバー追加/検索/一覧、招待作成/検索/使用済み更新。
+- バリデーション: 家庭作成、家庭更新、招待参加。
+
+### PBKDF2計測結果
+
+Wrangler devローカル環境で、認証API経由の往復時間として計測した。実パスワードは出力していない。
+
+```text
+ハッシュ生成を含む登録API: 495.9ms、497.7ms、41.9ms、118.7ms
+照合を含むログインAPI: 34.2ms、32.5ms、31.6ms
+```
+
+この値はローカルWrangler devとローカルD1、PowerShell `Invoke-WebRequest` を含む参考値であり、本番性能の保証ではない。
+
+### 実行コマンド
+
+```bash
+git -c safe.directory=C:/Users/rinnr/Documents/GitHub/HouseToDo status --short
+git -c safe.directory=C:/Users/rinnr/Documents/GitHub/HouseToDo branch --show-current
+git -c safe.directory=C:/Users/rinnr/Documents/GitHub/HouseToDo log --oneline -5
+rg --files
+docker-compose run --rm app npm run lint
+docker-compose run --rm app npm run typecheck
+docker-compose run --rm app npm test
+docker-compose run --rm app npm run build
+docker-compose run --rm app npm audit
+docker-compose run --rm app npm run db:migrate:local
+docker-compose up -d
+docker-compose up -d --force-recreate worker app
+docker-compose up -d --force-recreate worker
+```
+
+### Lint結果
+
+成功。
+
+### 型チェック結果
+
+成功。
+
+### テスト結果
+
+成功。7ファイル、30件が通過。
+
+### ビルド結果
+
+成功。
+
+### npm audit結果
+
+成功。`found 0 vulnerabilities`。
+
+### ローカルD1結果
+
+成功。`0003_household_foundation.sql` がローカルD1へ適用された。最終実行では `No migrations to apply!` を確認。
+
+### 手動確認結果
+
+Wrangler dev環境で以下をAPI手動確認した。
+
+- ユーザーA登録: 201
+- ユーザーAで家庭作成: 201
+- ユーザーAで招待コード発行: 201
+- ユーザーB登録: 201
+- ユーザーBで招待コード参加: 200
+- ユーザーA/Bでメンバー一覧取得: 200
+- メンバー数: 2
+- memberによる家庭更新: 403
+- ownerによる家庭更新: 200
+
+実パスワードと招待コードは記録していない。
+
+### ドキュメント更新
+
+- `docs/PROJECT_SPEC.md`: 家庭APIパス、招待コード方式、Origin/JSON検証要件を更新。
+- `docs/ARCHITECTURE.md`: Origin検証、家庭/メンバー/招待設計、PBKDF2計測結果、MVP制限の注意を追記。
+- `docs/DECISIONS.md`: Origin検証、MVP制限方式、家庭未所属時レスポンス、`auth/me` の責務分離を追記。
+- `docs/DEVELOPMENT_PLAN.md`: Phase 3のWorker API側進捗を追記。
+- `README.md`: 現在のAPI、Origin設定、実装状況を更新。
+- `.dev.vars.example`: `ALLOWED_ORIGINS` 例を追加。
+
+### 未対応事項
+
+- 完成版フロントエンド。
+- 家庭作成/招待参加の画面。
+- タスク、買い物、画像アップロード、R2本実装、Web Push、Cron。
+- パスワード再設定、メール送信。
+- 本番Cloudflareリソース作成、デプロイ、push。
+- 招待参加で、条件付き使用済み更新後にメンバー追加が失敗した場合の完全なロールバック。
+- MVPの1ユーザー1家庭制限をDBで強制しないことによる同時実行時の残余リスク。
+
+### 次回の作業候補
+
+- 家庭作成/招待参加の最小フロントエンド導線を追加する。
+- タスクAPIの設計に進み、家庭所属確認を再利用する。
+- D1の同時実行リスクを本番に近い環境で再検証する。
+
+### Gitの状態
+
+- 作業後の `git status --short` では変更ファイルと新規ファイルが存在。
+- コミット、push、デプロイ、本番リソース作成は行っていない。

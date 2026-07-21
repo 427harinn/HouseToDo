@@ -1,4 +1,4 @@
-import { PBKDF2_ITERATIONS, SESSION_TOKEN_BYTES } from "./constants";
+import { INVITE_CODE_BYTES, PBKDF2_ITERATIONS, SESSION_TOKEN_BYTES } from "./constants";
 
 const encoder = new TextEncoder();
 
@@ -19,6 +19,11 @@ const base64UrlToBytes = (value: string): Uint8Array => {
 
 export const generateSessionToken = (): string => {
   const bytes = crypto.getRandomValues(new Uint8Array(SESSION_TOKEN_BYTES));
+  return bytesToBase64Url(bytes);
+};
+
+export const generateInviteCode = (): string => {
+  const bytes = crypto.getRandomValues(new Uint8Array(INVITE_CODE_BYTES));
   return bytesToBase64Url(bytes);
 };
 

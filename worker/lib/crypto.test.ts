@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { SESSION_TOKEN_BYTES } from "./constants";
-import { generateSessionToken, hashPassword, sha256Hex, verifyPassword } from "./crypto";
+import { INVITE_CODE_BYTES, SESSION_TOKEN_BYTES } from "./constants";
+import {
+  generateInviteCode,
+  generateSessionToken,
+  hashPassword,
+  sha256Hex,
+  verifyPassword
+} from "./crypto";
 
 describe("crypto helpers", () => {
   it("generates a base64url session token with enough entropy", () => {
@@ -12,6 +18,13 @@ describe("crypto helpers", () => {
 
   it("hashes session tokens with sha256 hex", async () => {
     await expect(sha256Hex("token")).resolves.toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  it("generates url-safe invite codes", () => {
+    const code = generateInviteCode();
+
+    expect(code).toMatch(/^[A-Za-z0-9_-]+$/);
+    expect(code.length).toBeGreaterThanOrEqual(INVITE_CODE_BYTES);
   });
 
   it("hashes and verifies passwords with PBKDF2", async () => {
