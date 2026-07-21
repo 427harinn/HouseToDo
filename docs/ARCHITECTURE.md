@@ -157,3 +157,16 @@ Docker Compose の `app` サービスで開発する。
 - Workers Static Assetsのみで進めるか、将来Pagesを併用するか。
 - PBKDF2の反復回数は無料枠CPU時間と実測に応じて見直す可能性がある。
 - MVPの1ユーザー1家庭制限をService層だけで完全に同時実行防止できるか。将来の複数家庭対応と、MVP期間だけの一意インデックス追加のトレードオフを継続検討する。
+## 2026-07-21 フロントエンド基盤
+
+今回、既存Worker APIを操作するReactフロントエンドを追加した。
+
+- `src/api/client.ts`: 共通APIクライアント。`credentials: "include"`、JSON Content-Type、共通レスポンス解析、APIエラー型、ネットワークエラーを扱う。
+- `src/api/auth.ts`: 登録、ログイン、ログアウト、ログイン状態確認。
+- `src/api/households.ts`: 現在の家庭取得、家庭作成、招待コード参加、メンバー一覧、招待コード発行。
+- `src/types.ts`: 認証、家庭、メンバー、招待コード、画面状態のフロント側型。
+- `src/components/ui.tsx`: Button、FormField、TextInput、PasswordInput、Card、PageHeader、LoadingScreen、ErrorMessage、SuccessMessage、EmptyState、MemberAvatar、BottomNavigation、GuestBanner。
+- `src/App.tsx`: 軽量ルーティング、認証ガード、家庭所属ガード、ログイン/登録/ゲスト/オンボーディング/家庭作成/招待参加/仮ホーム/メンバー管理画面。
+- `src/styles.css`: デザイントークン、フォーム、カード、下部ナビ、モバイル幅のレイアウト。
+
+ルーティングはReact Routerを導入せず、`window.history`と内部状態で開始した。今回の必須画面数では十分であり、将来ルート数やネストが増えた段階でルーター導入を再検討する。

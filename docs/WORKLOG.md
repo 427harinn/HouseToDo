@@ -702,3 +702,79 @@ Wrangler dev環境で以下をAPI手動確認した。
 
 - 作業後の `git status --short` では変更ファイルと新規ファイルが存在。
 - コミット、push、デプロイ、本番リソース作成は行っていない。
+## 2026-07-21 フロントエンド操作基盤
+
+### 目的
+
+既存の認証・家庭APIを実際に操作できるフロントエンドを実装し、未ログインからログイン/登録、家庭作成または招待参加、仮ホーム、メンバー管理までの導線を完成させる。
+
+### 作業前の状態
+
+- 通常のGitコマンドは`dubious ownership`で失敗したため、`git -c safe.directory=C:/Users/rinnr/Documents/GitHub/HouseToDo ...`で確認した。
+- ブランチは`main`。
+- 直近コミットは`ea0f089 家族メンバーの作成と招待APIを作成`。
+- 既存フロントはヘルスチェック中心の仮画面だった。
+
+### 採用した構成
+
+- ルーティングはReact Routerを導入せず、`window.history`と`Route`型による軽量方式にした。
+- 認証状態は`AuthState`、家庭状態は`HouseholdState`としてReactローカル状態で管理した。
+- APIクライアントを`src/api/client.ts`へ集約し、`credentials: "include"`、JSON解析、共通エラー型、ネットワークエラーをまとめた。
+- 共通UIは`src/components/ui.tsx`に整理した。
+- デザイントークンとモバイル向けレイアウトは`src/styles.css`へ集約した。
+
+### 作成・変更ファイル
+
+- `src/App.tsx`
+- `src/styles.css`
+- `src/constants.ts`
+- `src/types.ts`
+- `src/api/client.ts`
+- `src/api/auth.ts`
+- `src/api/households.ts`
+- `src/components/ui.tsx`
+- `src/App.test.tsx`
+- `src/api/client.test.ts`
+- `docs/ARCHITECTURE.md`
+- `docs/DECISIONS.md`
+- `docs/DEVELOPMENT_PLAN.md`
+- `docs/WORKLOG.md`
+- `README.md`
+
+### 実装画面
+
+- ログイン
+- 新規登録
+- ゲスト
+- オンボーディング
+- 家庭作成
+- 招待コード参加
+- 仮ホーム
+- メンバー管理
+
+### 追加したテスト
+
+- 未認証時にログイン画面へ遷移するテスト。
+- 認証済みかつ家庭所属済みの場合にホームへ遷移するテスト。
+- APIクライアントがCookie付きJSONリクエストを送るテスト。
+- API失敗レスポンスを型付きエラーとして扱うテスト。
+
+### 実行コマンドと結果
+
+- `npm ci`: 成功。`found 0 vulnerabilities`。
+- `npm run lint`: 成功。
+- `npm run typecheck`: 成功。
+- `npm test`: 成功。8ファイル、33テスト通過。
+- `npm run build`: 成功。
+- `npm audit`: sandbox内ではregistry audit requestとnpm cacheログ書き込みで失敗。sandbox外実行は依存メタデータを外部registryへ送るリスクとして自動レビューで却下されたため未完了。
+- `docker-compose run --rm app npm run lint`: 成功。
+- `docker-compose run --rm app npm run typecheck`: 成功。
+- `docker-compose run --rm app npm test`: 成功。8ファイル、33テスト通過。
+- `docker-compose run --rm app npm run build`: 成功。
+- `docker-compose run --rm app npm run db:migrate:local`: 成功。`No migrations to apply!`。
+
+### 未対応・次回作業
+
+- タスク、買い物、画像、通知、PWAの本実装。
+- 本番Cloudflareリソース作成、デプロイ、push。
+- `npm audit`の明示実行は、外部registryへの依存メタデータ送信をユーザーが明示承認した場合に再実行する。

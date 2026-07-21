@@ -251,3 +251,17 @@ docs/images/household-todo-screen-rough.png
 7. 画像添付
 8. PWA と通知
 9. 品質改善と iPhone 実機確認
+## フロントエンドの現在地
+
+Reactフロントエンドから、既存の認証・家庭APIを操作できます。
+
+- `/login`: ログイン。
+- `/register`: 新規登録。登録後は家庭所属確認へ進みます。
+- `/guest`: サンプルのみのゲスト画面。
+- `/onboarding`: 家庭作成または招待コード参加の選択。
+- `/household/create`: 家庭作成。
+- `/household/join`: 招待コード参加。
+- `/home`: 仮ホーム。タスクと買い物は準備中表示です。
+- `/settings/members`: メンバー一覧、owner向け招待コード発行。
+
+API呼び出しは`src/api/client.ts`に集約し、Cookie認証のため`credentials: "include"`を常に付与します。タスク、買い物、画像、通知、PWAの本実装はまだ行っていません。

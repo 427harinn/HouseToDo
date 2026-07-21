@@ -1,0 +1,30 @@
+import { apiRequest } from "./client";
+import type { CreatedInvite, Household, HouseholdMember } from "../types";
+
+export const getCurrentHousehold = (signal?: AbortSignal) =>
+  apiRequest<{ household: Household | null }>("/api/households/current", { signal });
+
+export const createHousehold = (name: string, signal?: AbortSignal) =>
+  apiRequest<{ household: Household }>("/api/households", {
+    method: "POST",
+    body: JSON.stringify({ name }),
+    signal
+  });
+
+export const joinHousehold = (code: string, signal?: AbortSignal) =>
+  apiRequest<{ household: Household }>("/api/households/join", {
+    method: "POST",
+    body: JSON.stringify({ code }),
+    signal
+  });
+
+export const listMembers = (signal?: AbortSignal) =>
+  apiRequest<{ members: HouseholdMember[] }>("/api/households/current/members", {
+    signal
+  });
+
+export const createInvite = (signal?: AbortSignal) =>
+  apiRequest<{ invite: CreatedInvite }>("/api/households/current/invites", {
+    method: "POST",
+    signal
+  });
