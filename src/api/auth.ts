@@ -27,6 +27,7 @@ export const register = (input: RegisterInput, signal?: AbortSignal) =>
 export const logout = (signal?: AbortSignal) =>
   apiRequest<{ loggedOut: true }>("/api/auth/logout", {
     method: "POST",
+    body: JSON.stringify({}),
     signal
   });
 

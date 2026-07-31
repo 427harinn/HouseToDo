@@ -26,5 +26,6 @@ export const listMembers = (signal?: AbortSignal) =>
 export const createInvite = (signal?: AbortSignal) =>
   apiRequest<{ invite: CreatedInvite }>("/api/households/current/invites", {
     method: "POST",
+    body: JSON.stringify({}),
     signal
   });

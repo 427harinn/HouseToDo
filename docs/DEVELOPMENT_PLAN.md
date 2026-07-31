@@ -452,3 +452,12 @@ Phase 2からPhase 3のフロントエンド最小導線として、以下を実
 - タスク、買い物、画像、通知の本実装は未着手のまま残す。
 
 次フェーズでは、今回追加したAPIクライアント、状態ガード、共通UI、下部ナビを再利用してタスクAPIと画面へ進む。
+## 2026-07-31 Phase 4/5 frontend progress
+
+- Added task API clients and dashboard client.
+- Added real-data home screen with today tasks and weekly task progress.
+- Added task management list grouped by daily, scheduled, weekly, and inactive tasks.
+- Added task create/edit form with recurrence-specific fields.
+- Added task detail/respond screen with start, complete, skip, reset, and history.
+- Added bottom navigation for home, tasks, shopping preparation, and settings.
+- Deferred shopping, image/R2, Web Push, Cron, production deployment, and final Docker quality-gate rerun after Docker Desktop recovers.

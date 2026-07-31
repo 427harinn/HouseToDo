@@ -96,7 +96,7 @@ export function Card({ children, className = "" }: { children: ReactNode; classN
 export function AppLogo() {
   return (
     <div className="app-logo" aria-label="おうちTodo">
-      <span>お</span>
+      <span>家</span>
     </div>
   );
 }
@@ -196,10 +196,10 @@ export function BottomNavigation({
   current: NavigationPath;
   onNavigate: (path: NavigationPath) => void;
 }) {
-  const items: Array<{ path: NavigationPath; label: string; disabled?: boolean }> = [
+  const items: Array<{ path: NavigationPath; label: string; note?: string }> = [
     { path: "/home", label: "ホーム" },
-    { path: "/tasks", label: "タスク", disabled: true },
-    { path: "/shopping", label: "買い物", disabled: true },
+    { path: "/tasks", label: "タスク" },
+    { path: "/shopping", label: "買い物", note: "準備中" },
     { path: "/settings/members", label: "設定" }
   ];
 
@@ -208,13 +208,12 @@ export function BottomNavigation({
       {items.map((item) => (
         <button
           aria-current={current === item.path ? "page" : undefined}
-          disabled={item.disabled}
           key={item.path}
           onClick={() => onNavigate(item.path)}
           type="button"
         >
           <span>{item.label}</span>
-          {item.disabled ? <small>準備中</small> : null}
+          {item.note ? <small>{item.note}</small> : null}
         </button>
       ))}
     </nav>

@@ -119,7 +119,7 @@ POST /api/households/join
 Cookie認証を使う状態変更APIでは、`Origin` ヘッダーと `Content-Type: application/json` を検証します。ローカル開発では `.dev.vars` の `ALLOWED_ORIGINS` に以下を設定します。
 
 ```text
-ALLOWED_ORIGINS=http://127.0.0.1:5174,http://localhost:5174
+ALLOWED_ORIGINS=http://127.0.0.1:5174,http://localhost:5174,http://app:5173
 ```
 
 停止する場合:
@@ -287,3 +287,37 @@ Reactフロントエンドから、既存の認証・家庭APIを操作できま
 - `/settings/members`: メンバー一覧、owner向け招待コード発行。
 
 API呼び出しは`src/api/client.ts`に集約し、Cookie認証のため`credentials: "include"`を常に付与します。タスク、買い物、画像、通知、PWAの本実装はまだ行っていません。
+## 2026-07-31 タスク UI の現在地
+
+React フロントエンドから既存タスク API を利用できるようになりました。
+
+- `/home`: dashboard 実データで今日の未完了、今日のタスク、今週の進捗を表示。
+- `/tasks`: daily / scheduled / weekly / inactive のタスク管理一覧。
+- `/tasks/new`: タスク作成。
+- `/tasks/:taskId`: 詳細、状態操作、履歴。
+- `/tasks/:taskId/edit`: タスク編集。
+- `/tasks/:taskId/respond`: 通知導線向けの回答画面。
+- `/shopping`: 今回は準備中ページ。
+
+品質確認は Docker 内で実行します。
+
+```bash
+docker-compose run --rm app npm run lint
+docker-compose run --rm app npm run typecheck
+docker-compose run --rm app npm test
+docker-compose run --rm app npm run build
+docker-compose run --rm app npm audit
+docker-compose run --rm app npm run db:migrate:local
+```
+
+`npm audit` は 2026-07-31 時点で high vulnerabilities を報告します。`npm audit fix --force` は eslint / wrangler の破壊的更新を伴うため、別作業で影響確認してください。
+
+## Docker Playwright E2E
+
+タスクUIのGUI確認と2ユーザー確認は、ホストへPlaywrightブラウザを入れずに専用Dockerサービスで実行します。
+
+```bash
+docker-compose run --rm e2e npm run test:e2e
+```
+
+成果物は `artifacts/playwright/task-ui/` に保存されます。このディレクトリはGit管理対象外です。

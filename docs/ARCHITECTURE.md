@@ -123,7 +123,7 @@ Docker Compose の `app` サービスで開発する。
 - 対象メソッドは `POST`、`PUT`、`PATCH`、`DELETE` とする。
 - 状態変更APIでは `Origin` ヘッダーが必須。`ALLOWED_ORIGINS` に含まれないOrigin、またはOriginなしの状態変更リクエストは `INVALID_ORIGIN` の403で拒否する。
 - 状態変更APIでは `Content-Type: application/json` のみ受け付ける。
-- ローカル開発の既定許可Originは `http://127.0.0.1:5174` と `http://localhost:5174`。本番では `ALLOWED_ORIGINS` に実際のアプリOriginのみを明示する。
+- ローカル開発の既定許可Originは `http://127.0.0.1:5174`、`http://localhost:5174`、Docker E2E用の `http://app:5173`。本番では `ALLOWED_ORIGINS` に実際のアプリOriginのみを明示する。
 - GETリクエストで状態変更しない。
 - CORSは不要に広げず、同一オリジン構成を基本にする。
 - 将来multipart APIが必要になった場合は、JSON限定とは別の許可条件を個別に設計する。
@@ -203,3 +203,13 @@ Docker Compose の `app` サービスで開発する。
 - `src/styles.css`: デザイントークン、フォーム、カード、下部ナビ、モバイル幅のレイアウト。
 
 ルーティングはReact Routerを導入せず、`window.history`と内部状態で開始した。今回の必須画面数では十分であり、将来ルート数やネストが増えた段階でルーター導入を再検討する。
+## 2026-07-31 Task frontend architecture
+
+The task UI keeps the existing lightweight `window.history` routing instead of adding React Router.
+
+- API clients live in `src/api/tasks.ts` and `src/api/dashboard.ts`.
+- Shared display labels live in `src/task-labels.ts`.
+- Task screen state is local React state with explicit reloads after create, edit, deactivate, start, complete, skip, and reset.
+- Home uses `GET /api/dashboard/today`; task management uses `GET /api/tasks?includeInactive=true`; task detail combines task detail, today/week status, and history APIs.
+- Daily and scheduled task actions send `targetDate`. Weekly task actions send `targetWeekStart`, calculated from the household `weekStartsOn`.
+- The shopping tab routes to a preparation page and does not call shopping APIs in this phase.

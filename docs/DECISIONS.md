@@ -292,7 +292,7 @@ HttpOnly Cookie認証を使うため、SameSiteに加えて状態変更APIの送
 
 ### 影響
 
-- ローカル開発では `ALLOWED_ORIGINS=http://127.0.0.1:5174,http://localhost:5174` を使う。
+- ローカル開発では `ALLOWED_ORIGINS=http://127.0.0.1:5174,http://localhost:5174,http://app:5173` を使う。`http://app:5173` はDocker Compose内のPlaywright E2EからVite dev serverへアクセスするための内部Origin。
 - `curl` 等の手動確認でも状態変更APIには `Origin` と JSON Content-Type が必要になる。
 
 ## 2026-07-21 MVPの1ユーザー1家庭制限はService層で行う
@@ -374,3 +374,13 @@ TanStack Queryなどのサーバー状態管理ライブラリは導入せず、
 
 - 画面間のデータ再取得は明示的な関数呼び出しで行う。
 - タスク、買い物、通知などでキャッシュやmutation管理が増えた段階で、TanStack Queryなどの導入を再検討する。
+## 2026-07-31 Keep lightweight routing for task UI
+
+### Context
+The task frontend adds `/tasks`, `/tasks/new`, `/tasks/:taskId`, `/tasks/:taskId/edit`, and `/tasks/:taskId/respond`.
+
+### Decision
+Do not introduce React Router in this phase. Extend the existing lightweight routing parser with task dynamic paths.
+
+### Rationale
+The route set is still small, existing auth and household guards already work with the local routing model, and avoiding a new dependency keeps the MVP easier to verify. Revisit a router library when nested layouts, route loaders, or broader navigation complexity appears.

@@ -938,3 +938,185 @@ Wrangler dev環境で以下をAPI手動確認した。
 - タスク、買い物、画像、通知、PWAの本実装。
 - 本番Cloudflareリソース作成、デプロイ、push。
 - `npm audit`の明示実行は、外部registryへの依存メタデータ送信をユーザーが明示承認した場合に再実行する。
+## 2026-07-31 タスク管理フロントエンド MVP
+
+### 目的
+既存のタスク API を使い、iPhone PWA を想定したホーム、タスク一覧、作成・編集、詳細・回答、状態操作、履歴表示を追加した。
+
+### 作業前の状態
+- Git は通常コマンドで dubious ownership が出たため、`git -c safe.directory=C:/Users/rinnr/Documents/GitHub/HouseToDo ...` で確認した。
+- ブランチ: `main`
+- 直近コミット: `150d26b add task management backend`
+- 作業開始時の `git status --short`: 変更なし。
+
+### 画面構成
+- `/home`: `GET /api/dashboard/today` の実データで、今日の未完了、今やること、今日のタスク、今週のタスクを表示。
+- `/tasks`: `GET /api/tasks?includeInactive=true` の管理一覧。daily / scheduled / weekly / inactive に分類。
+- `/tasks/new`: タスク作成フォーム。
+- `/tasks/:taskId`: タスク詳細、状態操作、最近の履歴。
+- `/tasks/:taskId/edit`: タスク編集フォーム。
+- `/tasks/:taskId/respond`: 通知からの遷移を想定した簡易回答画面。
+- `/shopping`: 今回は準備中ページのみ。
+
+### 採用した状態管理
+React の `useState` / `useEffect` / `useCallback` によるローカル状態管理を継続。操作成功後は対象 API を再取得し、古い状態を残さない方針にした。ホームは `visibilitychange` でも再取得する。
+
+### API クライアント
+- `src/api/tasks.ts`: タスク一覧、今日、週、作成、更新、無効化、状態変更、履歴取得。
+- `src/api/dashboard.ts`: dashboard today 取得。
+- `src/task-labels.ts`: recurrence / assignment / notification / status / weekday の日本語表示を一元化。
+
+### 実装内容
+- ボトムナビをホーム、タスク、買い物、設定へ更新。買い物は準備中画面へ遷移する。
+- ホームに状態バッジ、タスクカード、weekly プログレスバー、空状態、更新ボタンを追加。
+- タスクフォームは recurrence に応じて項目を切り替え、scheduled は複数曜日、weekly は 1〜7 回を入力できる。
+- daily / scheduled の状態操作は `targetDate`、weekly は `targetWeekStart` を送信。
+- pending / in_progress / completed / skipped の表示と操作ボタン切り替えを追加。
+- 他人が対応中のときは上書き操作を表示しない。
+- reset は `window.confirm` で確認する。
+- 履歴は新しい順で最大 10 件表示。
+- DELETE は「無効化」文言で扱い、復元ボタンは出していない。
+
+### フォーム・アクセシビリティ
+- label と input/select/textarea を関連付け。
+- 必須エラーを文字で表示。
+- field error は `aria-describedby` で関連付け。
+- 曜日ボタンは `aria-pressed` とチェック表示で選択状態を示す。
+- フォーム送信中は `aria-busy` とボタン無効化で二重送信を防止。
+- 状態変更結果は `SuccessMessage` の status 表示で通知。
+
+### 作成・変更ファイル
+- `src/App.tsx`
+- `src/App.test.tsx`
+- `src/api/dashboard.ts`
+- `src/api/tasks.ts`
+- `src/api/tasks.test.ts`
+- `src/components/ui.tsx`
+- `src/styles.css`
+- `src/task-labels.ts`
+- `docs/PROJECT_SPEC.md`
+- `docs/ARCHITECTURE.md`
+- `docs/DECISIONS.md`
+- `docs/DEVELOPMENT_PLAN.md`
+- `docs/WORKLOG.md`
+- `README.md`
+
+### 追加依存関係
+なし。React Router や状態管理ライブラリは追加していない。
+
+### 追加テスト
+- API クライアント: list/today/week/create/update/state/history/dashboard の呼び出し確認。
+- App: 未認証時ログイン表示、dashboard 実データ表示、ボトムナビからタスク一覧表示。
+
+### 確認結果
+- `docker-compose run --rm app npm run lint`: 成功。
+- `docker-compose run --rm app npm run typecheck`: 成功。
+- `docker-compose run --rm app npm test`: 成功。10 files / 42 tests passed。
+- `docker-compose run --rm app npm run build`: 成功。
+- `docker-compose run --rm app npm run db:migrate:local`: 成功。`No migrations to apply!`
+- `docker-compose run --rm app npm audit`: 失敗。`brace-expansion` と `sharp/miniflare/wrangler` 系の high vulnerabilities。提示された修正は `npm audit fix --force` で eslint 10 / wrangler 4.118.0 など破壊的更新を伴うため未実施。
+- ホスト側に `node_modules`、`dist`、`.wrangler` が残っていないことを確認。
+
+### Playwright / 手動確認
+今回の環境には Playwright 設定・依存がなく、ローカルへ直接インストールしない要件があるため、Playwright スクリーンショットと trace は未作成。Docker 内の既存品質確認と Testing Library による主要 UI テストまで実施した。
+2ユーザーの実ブラウザ手動確認も、このターンでは実施できていない。
+
+### 未対応事項
+- Playwright の Docker 再現可能な最小構成追加、スクリーンショット、trace 保存。
+- 実ブラウザでの 2 ユーザー競合確認。
+- 320px / 390px / PC 幅のスクリーンショット確認。
+- `npm audit` の依存更新方針決定。
+- 買い物、画像、R2、Web Push、Cron、本番デプロイは今回未着手。
+
+### 次回候補
+- Playwright 専用 Docker サービスまたは npm script を追加し、`artifacts/playwright/task-ui/` にスクリーンショットと trace を保存する。
+- 実ブラウザで 2 ユーザー家庭を使った競合確認を行う。
+- audit 対応として eslint / wrangler 更新の影響を確認する。
+
+## 2026-07-31 タスクUI Playwright GUI確認・2ユーザー確認
+
+### 目的
+前回未完了だったタスク管理フロントエンドのGUI確認と2ユーザー手動相当確認を、ホストへPlaywrightブラウザや `node_modules` を作らずDocker内で実施する。
+
+### 実装・調整
+- `@playwright/test` をdevDependencyに追加し、`npm run test:e2e` を追加。
+- `e2e` Docker Composeサービスを追加。Playwright公式Dockerイメージを使い、成果物は `artifacts/playwright/task-ui/` に保存する。
+- `playwright.config.ts` と `e2e/task-ui.spec.ts` を追加。
+- Vite 6のhost検証でDocker内部ホスト `app` が403になるため、`vite.config.ts` に `allowedHosts` を追加。
+- Workerの状態変更Origin検証でDocker内部Originが403になるため、`wrangler.jsonc` / `.dev.vars.example` / composeの `ALLOWED_ORIGINS` に `http://app:5173` を追加。
+- フロントAPIの `logout`、`createInvite`、`deactivateTask` が状態変更APIへ空JSON bodyを送らず、`Content-Type: application/json` 検証で失敗する問題を修正。
+- タスク詳細画面で詳細APIの定義情報より today/week 表示モデルを優先し、編集後タイトルが古く見える問題を修正。
+- タスク詳細画面で `getTask` 成功後も today/week/history の遅延に巻き込まれて詳細全体が表示されない問題を緩和し、詳細本体を先に表示するようにした。
+
+### E2E確認結果
+- `docker-compose run --rm e2e npm run test:e2e`: 成功。1 test passed。
+- 2つの独立BrowserContextでユーザーA/Bを作成し、家庭招待・参加、Cookie分離、同一家庭メンバー表示を確認。
+- UI経由で daily / scheduled / weekly / specific assignee タスク作成を確認。
+- APIとUIを組み合わせ、pending / in_progress / completed / skipped、開始、完了、パス、リセット、編集、無効化、競合409、ログアウト後保護ルートを確認。
+- 320px / 390px / 430px / 1280pxで水平スクロールがないことを確認。
+
+### 成果物
+- `artifacts/playwright/task-ui/01-home-empty.png`
+- `artifacts/playwright/task-ui/02-home-multiple-statuses.png`
+- `artifacts/playwright/task-ui/03-task-list.png`
+- `artifacts/playwright/task-ui/04-task-create-daily.png`
+- `artifacts/playwright/task-ui/05-task-create-scheduled.png`
+- `artifacts/playwright/task-ui/06-task-create-weekly.png`
+- `artifacts/playwright/task-ui/07-task-detail-pending.png`
+- `artifacts/playwright/task-ui/08-task-detail-in-progress.png`
+- `artifacts/playwright/task-ui/09-task-detail-completed.png`
+- `artifacts/playwright/task-ui/10-task-detail-skipped.png`
+- `artifacts/playwright/task-ui/11-task-conflict.png`
+- `artifacts/playwright/task-ui/12-mobile-320.png`
+- `artifacts/playwright/task-ui/13-mobile-390.png`
+- `artifacts/playwright/task-ui/mobile-430-check.png`
+- `artifacts/playwright/task-ui/14-desktop.png`
+- `artifacts/playwright/task-ui/html-report/index.html`
+- `artifacts/playwright/task-ui/test-results/.../trace.zip`
+
+### 未完了・注意
+- E2E完走後に `docker-compose run --rm app npm run lint` / `typecheck` / `npm test` を並列で再実行したが、Docker Desktop Linux Engine APIが500を返す状態になり、後続のlint/typecheck/test/build/audit/D1再実行は未完了。
+- Docker Desktop復帰後に、Docker内で `npm run lint`、`npm run typecheck`、`npm test`、`npm run build`、`npm audit`、`npm run db:migrate:local`、`npm run test:e2e` を再実行する。
+- ホスト直下に `node_modules`、`dist`、`.wrangler` は作成されていない。`%USERPROFILE%\AppData\Local\ms-playwright` も作成されていないことを確認済み。
+
+## 2026-08-01 最終品質ゲート再実行
+
+### 目的
+Docker Desktop復帰後、前回未完了だった最終品質ゲートをDocker内で順番に再実行する。新機能追加、コミット、push、デプロイ、本番Cloudflare操作は行わない。
+
+### Docker Engine確認
+- `docker version`: 成功。Client `28.5.1`、Server Docker Desktop `4.49.0 (208700)` / Engine `28.5.1`。
+- `docker info`: 成功。Context `desktop-linux`、Server `28.5.1`、Docker Desktop、Running containers `5`。
+- `docker-compose ps`: 成功。`housetodo-app-1` と `housetodo-worker-1` がUp。
+
+### 品質ゲート結果
+- `docker-compose run --rm app npm run lint`: 成功。
+- `docker-compose run --rm app npm run typecheck`: 成功。
+- `docker-compose run --rm app npm test`: 成功。10 files / 42 tests passed。
+- `docker-compose run --rm app npm run build`: 成功。`dist/client` はDocker volume内に生成。
+- `docker-compose run --rm app npm audit`: 失敗終了。16 high severity vulnerabilities。
+- `docker-compose run --rm app npm run db:migrate:local`: 成功。`No migrations to apply!`
+- `docker-compose run --rm e2e npm run test:e2e`: 初回はE2E待ち不足で失敗したため、テストの待機を最小修正して全ゲートを再実行。最終結果は成功。1 test passed。
+
+### E2E安定化
+- 編集フォームでは初期値読み込み完了を待ってから入力するようにした。
+- レスポンシブ撮影前の `/home` 表示待ちを30秒に延長した。
+- アプリ機能追加はなし。Playwrightの待機条件だけを最小修正した。
+
+### npm audit詳細
+- 件数: high 16件。
+- `brace-expansion <=5.0.7`: DoS via unbounded expansion length。依存経路は `minimatch`、`@eslint/config-array`、`@eslint/eslintrc`、`eslint`、`@typescript-eslint/*`、`typescript-eslint`。主にLint/開発ツール系。修正には `npm audit fix --force` が提示され、`eslint@10.8.0` へのbreaking changeを伴う。
+- `playwright <1.55.1`: ブラウザダウンロード時のSSL証明書検証に関するhigh。依存経路は `@playwright/test -> playwright`。Docker E2E/開発検証用で、本番バンドルやWorker実行環境には含めない。`npm audit fix` で修正可能と表示。
+- `sharp <0.35.0`: libvips由来のCVE群。依存経路は `wrangler -> miniflare -> sharp`。Wrangler/MiniflareのローカルWorker開発・検証系で、本番バンドルには含めないが、Workerローカル実行環境には関係する。修正には `npm audit fix --force` が提示され、`wrangler@4.118.0` への範囲外更新を伴う。
+- `npm audit fix --force` は実行していない。
+
+### 成果物確認
+- `artifacts/playwright/task-ui/01-home-empty.png` から `14-desktop.png` まで、および `mobile-430-check.png` が存在。
+- `artifacts/playwright/task-ui/html-report/index.html`: 存在。
+- `artifacts/playwright/task-ui/test-results/.../trace.zip`: 存在。
+
+### ホスト生成物確認
+- `node_modules=False`
+- `dist=False`
+- `.wrangler=False`
+- `%USERPROFILE%\AppData\Local\ms-playwright=False`

@@ -2691,3 +2691,15 @@ MVP完成と判断する条件は以下。
 など、やさしい案内を心がける。
 
 ユーザーが毎日開いても負担を感じず、生活の中に自然になじむアプリを目指す。
+## 2026-07-31 Task frontend MVP update
+
+The frontend now consumes the task backend API for MVP task management:
+
+- Home displays `GET /api/dashboard/today` data: date, household, members, today summary, today tasks, and weekly task progress.
+- Task management displays `GET /api/tasks?includeInactive=true` grouped by recurrence and active state.
+- Create and edit screens support daily, scheduled, and weekly task inputs.
+- Detail and respond screens support start, complete, skip with optional reason, reset, and recent history.
+- Task display labels are centralized for recurrence type, assignment type, notification slot, weekday, and status.
+- Shopping remains a preparation page for this phase.
+
+Not included in this phase: shopping list implementation, attachments, R2, Web Push, Cron, production Cloudflare resources, deployment, custom domain, rankings, and detailed analytics.
