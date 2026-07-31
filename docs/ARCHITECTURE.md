@@ -1,5 +1,38 @@
 # アーキテクチャ
 
+## 2026-07-31 Task backend architecture
+
+Task management now follows the existing Worker layering:
+
+- Routes: `worker/routes/tasks.ts`
+- Services: `TaskService`, `DashboardService`
+- Repositories: `TaskRepository`, `TaskRecordRepository`
+- Shared date helpers: `worker/lib/date-time.ts`
+
+Routes parse HTTP input and shape responses. Services own household membership checks, assignee checks, recurrence validation, target date/week calculation, status merging, idempotency, and conflict handling. Repositories own D1 SQL.
+
+Task definitions are stored in `tasks`. Scheduled weekdays are stored in `task_weekdays`. User actions create `task_records`; missing records are returned as derived `pending`.
+
+Implemented API surface:
+
+```text
+GET    /api/tasks
+POST   /api/tasks
+GET    /api/tasks/:taskId
+PATCH  /api/tasks/:taskId
+DELETE /api/tasks/:taskId
+GET    /api/tasks/today
+GET    /api/tasks/week
+POST   /api/tasks/:taskId/start
+POST   /api/tasks/:taskId/complete
+POST   /api/tasks/:taskId/skip
+POST   /api/tasks/:taskId/reset
+GET    /api/tasks/:taskId/history
+GET    /api/dashboard/today
+```
+
+Weekly tasks store `target_week_start` and count completed records in that week. D1 partial unique indexes prevent duplicate open weekly `in_progress` and `skipped` rows for the same task/week, while allowing multiple `completed` rows for weekly target counts.
+
 ## 基本方針
 
 本プロジェクトは、Cloudflare Workers Static Assets を使い、React SPA と Worker API を同じWorkerにまとめる構成を基本とする。無料枠を意識し、不要にサービスを分散させない。

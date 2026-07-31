@@ -10,6 +10,16 @@ export type AppErrorCode =
   | "INVITE_EXPIRED"
   | "INVITE_ALREADY_USED"
   | "ALREADY_HOUSEHOLD_MEMBER"
+  | "TASK_NOT_FOUND"
+  | "INVALID_TASK_CONFIGURATION"
+  | "ASSIGNEE_NOT_HOUSEHOLD_MEMBER"
+  | "TASK_ALREADY_COMPLETED"
+  | "TASK_ALREADY_IN_PROGRESS"
+  | "TASK_IN_PROGRESS_BY_OTHER_MEMBER"
+  | "TASK_RECORD_NOT_FOUND"
+  | "TASK_NOT_ACTIVE"
+  | "INVALID_TARGET_DATE"
+  | "INVALID_TARGET_WEEK"
   | "RATE_LIMITED"
   | "INTERNAL_ERROR";
 
@@ -42,6 +52,27 @@ export const validationError = (
     status: 400,
     message,
     details
+  });
+
+export const taskNotFoundError = () =>
+  new AppError({
+    code: "TASK_NOT_FOUND",
+    status: 404,
+    message: "Task was not found."
+  });
+
+export const inactiveTaskError = () =>
+  new AppError({
+    code: "TASK_NOT_ACTIVE",
+    status: 409,
+    message: "Task is inactive."
+  });
+
+export const taskConflictError = (code: AppErrorCode, message: string) =>
+  new AppError({
+    code,
+    status: 409,
+    message
   });
 
 export const unauthenticatedError = () =>

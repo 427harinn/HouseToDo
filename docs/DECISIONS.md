@@ -2,6 +2,49 @@
 
 重要な技術判断や仕様変更理由を、ADRに近い簡潔な形式で記録する。軽微な修正は `docs/WORKLOG.md` のみでよい。
 
+## 2026-07-31 Task templates and records are separated
+
+### Context
+The task phase needs recurring household chores without pre-generating one row per day. Daily, weekday-based, and weekly tasks also need current state and actor history.
+
+### Decision
+Store the task definition once in `tasks`, keep scheduled weekdays in `task_weekdays`, and create `task_records` only when a user starts, completes, skips, or resets a target date/week.
+
+`pending` is not stored in D1. The API derives it when no matching `task_records` row exists.
+
+Weekly tasks use `target_week_start`. Completed weekly work is recorded one row per completion so the app can later show who did each count. Weekly `in_progress` and `skipped` are limited to one open row per task/week by a partial unique index.
+
+### Consequences
+- Today lists include `daily` and scheduled weekday tasks only.
+- Weekly progress is computed from records in the selected week.
+- Reset for weekly tasks currently clears the whole task/week scope.
+- This preserves actor history for weekly counts, but fully serialized concurrent weekly completion still depends on D1 write ordering.
+
+## 2026-07-31 Task state transition policy
+
+### Decision
+State changes are implemented in `TaskService`.
+
+- `pending -> start`: creates `in_progress`.
+- `pending -> complete`: creates `completed`.
+- `pending -> skip`: creates `skipped`.
+- Same user repeating `start` or `complete` returns the existing effective state.
+- Another user cannot overwrite `in_progress`.
+- Completed records are not overwritten by another user.
+- `reset` removes the current date/week record scope and returns the task to derived `pending`.
+- Inactive tasks reject state changes.
+
+### Consequences
+This favors preventing accidental overwrites over allowing aggressive collaboration. A future event-log table can preserve every transition if audit depth becomes important.
+
+## 2026-07-31 Task date calculation uses explicit timezone formatting
+
+### Decision
+Use `worker/lib/date-time.ts` with `Intl.DateTimeFormat` and an explicit household timezone, initially `Asia/Tokyo`. Week boundaries use `households.week_starts_on`.
+
+### Consequences
+Cloudflare Workers runtime timezone does not affect target dates. Temporal or an external date library is not introduced for MVP.
+
 ## 2026-07-21 Workers Static AssetsでSPAとAPIを同居
 
 ### 背景

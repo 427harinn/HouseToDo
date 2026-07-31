@@ -2,6 +2,28 @@
 
 家庭内の家事・買い物・通知を二人で共有するための、モバイルファーストなPWAです。現在は開発環境とWorker API基盤、認証方式の最小技術検証を整備した初期段階です。
 
+## タスク管理バックエンド
+
+Worker APIにはMVPのタスク管理バックエンドを追加済みです。
+
+```text
+GET    /api/tasks
+POST   /api/tasks
+GET    /api/tasks/:taskId
+PATCH  /api/tasks/:taskId
+DELETE /api/tasks/:taskId
+GET    /api/tasks/today
+GET    /api/tasks/week
+POST   /api/tasks/:taskId/start
+POST   /api/tasks/:taskId/complete
+POST   /api/tasks/:taskId/skip
+POST   /api/tasks/:taskId/reset
+GET    /api/tasks/:taskId/history
+GET    /api/dashboard/today
+```
+
+タスクテンプレートと実行記録は分離しています。記録がない対象日・対象週は `pending` として扱い、DBには `in_progress`、`completed`、`skipped` のみ保存します。週内タスクは `target_week_start` を基準に進捗を集計します。
+
 ## 採用技術
 
 - React

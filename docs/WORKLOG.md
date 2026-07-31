@@ -1,5 +1,165 @@
 # 作業記録
 
+## 2026-07-31 Task backend foundation
+
+### Purpose
+Implement the backend/API foundation for household task management: task templates, daily/scheduled/weekly targeting, task records, state changes, history, and home aggregation.
+
+### Starting state
+- Branch: `main`.
+- `git status --short`: clean.
+- Recent commits checked with repository-scoped `safe.directory` because normal Git commands reported dubious ownership.
+- Existing frontend/auth/household flows were present and left in place.
+
+### Implemented structure
+- `tasks`: task template definition.
+- `task_weekdays`: scheduled weekday mapping.
+- `task_records`: action records for target dates and target week starts.
+- `pending` is derived from absence of records and is not stored.
+- Weekly completions are stored one record per completion. Weekly `in_progress` and `skipped` are limited to one open record per task/week.
+
+### Date and week handling
+- Added `worker/lib/date-time.ts`.
+- Uses explicit `Intl.DateTimeFormat` with household timezone, initially `Asia/Tokyo`.
+- Week ranges use `households.week_starts_on`.
+
+### State transition summary
+- `start`, `complete`, `skip`, and `reset` are implemented.
+- Same-user repeat actions are idempotent where practical.
+- Other users cannot overwrite an `in_progress` record.
+- Existing completed records are not overwritten by a different user.
+- Reset deletes the current target date/week scope for MVP.
+
+### Concurrency notes
+- Daily records keep a unique target-date scope.
+- Weekly open states use a partial unique index for `in_progress`/`skipped`.
+- Multiple weekly completions are allowed for target counts.
+- Complete serialization of simultaneous weekly completion remains a known future hardening area.
+
+### Changed files
+- `migrations/0004_task_foundation.sql`
+- `worker/app.ts`
+- `worker/lib/date-time.ts`
+- `worker/lib/date-time.test.ts`
+- `worker/lib/errors.ts`
+- `worker/lib/validation.ts`
+- `worker/repositories/task-repository.ts`
+- `worker/repositories/task-record-repository.ts`
+- `worker/routes/tasks.ts`
+- `worker/services/task-service.ts`
+- `worker/services/dashboard-service.ts`
+- `worker/test-utils/memory-d1.ts`
+- `worker/app.test.ts`
+- `docs/PROJECT_SPEC.md`
+- `docs/ARCHITECTURE.md`
+- `docs/DECISIONS.md`
+- `docs/DEVELOPMENT_PLAN.md`
+- `docs/WORKLOG.md`
+- `README.md`
+
+### Added API
+```text
+GET    /api/tasks
+POST   /api/tasks
+GET    /api/tasks/:taskId
+PATCH  /api/tasks/:taskId
+DELETE /api/tasks/:taskId
+GET    /api/tasks/today
+GET    /api/tasks/week
+POST   /api/tasks/:taskId/start
+POST   /api/tasks/:taskId/complete
+POST   /api/tasks/:taskId/skip
+POST   /api/tasks/:taskId/reset
+GET    /api/tasks/:taskId/history
+GET    /api/dashboard/today
+```
+
+### Added tests
+- Date/time helper tests for JST, week starts, month/year boundaries, leap day, weekday matching, and invalid dates.
+- Worker API tests for task creation, scheduled/specific assignment, weekly progress, today list, state sharing, conflict rejection, history, dashboard aggregation, and rejecting non-household assignees.
+
+### Commands run
+```text
+git -c safe.directory=C:/Users/rinnr/Documents/GitHub/HouseToDo status --short
+git -c safe.directory=C:/Users/rinnr/Documents/GitHub/HouseToDo branch --show-current
+git -c safe.directory=C:/Users/rinnr/Documents/GitHub/HouseToDo log --oneline -5
+npm run typecheck
+docker-compose run --rm app npm run typecheck
+docker-compose run --rm app npm test
+docker-compose run --rm app npm run lint
+```
+
+### Results so far
+- Host `npm run typecheck`: failed because host `node_modules` is intentionally absent.
+- Docker typecheck: passed.
+- Docker test: passed, 39 tests.
+- Docker lint: passed.
+- Docker build: passed.
+- Docker local D1 migration: passed; `0004_task_foundation.sql` applied locally.
+- npm audit: failed with 14 high severity advisories in transitive dev/runtime tooling paths. Reported chains include `brace-expansion` through eslint-related packages and `sharp` through `wrangler`/`miniflare`. Suggested fixes require `npm audit fix --force` and breaking/out-of-range upgrades, so no automatic fix was applied.
+- Host generated artifact check: `node_modules`, `dist`, and `.wrangler` were not created in the workspace root.
+- Manual Wrangler dev API check: passed for two-user household, daily/scheduled/weekly creation, today/week lists, duplicate start conflict 409, completion sharing, skip/reset, history, and dashboard aggregation.
+
+### Frontend compatibility
+- Existing frontend unit tests passed.
+- Manual API flow covered registration/session, household creation/join, member listing, and dashboard-compatible task aggregation.
+- Full browser click-through was not performed in this pass.
+
+### Next candidates
+- Add a small home-screen API status/count display only if needed.
+- Build the full task-management UI in the next phase.
+- Decide whether to upgrade eslint/wrangler-related dependency chains to resolve `npm audit` findings.
+
+## 2026-07-31 Task backend manual regression check
+
+### Purpose
+Before starting task UI implementation, verify the task backend API behavior through Wrangler dev and local D1 only. No new feature implementation, commit, push, deploy, or production Cloudflare operation was performed.
+
+### Environment
+- Wrangler dev endpoint: `http://127.0.0.1:8787`
+- Frontend/dev origin used for state-changing API calls: `http://127.0.0.1:5174`
+- Docker Compose services were already running:
+  - `app`: host port `5174`
+  - `worker`: host port `8787`
+- Test data used temporary `example.test` users and local D1 records only.
+- Session cookies, invite codes, and passwords were not recorded.
+
+### Check Method
+A PowerShell regression script created isolated local test households and users, then called the existing APIs through Wrangler dev. The first script pass reported false failures because single-object PowerShell `.Count` handling and one Monday date value were wrong in the harness. The corrected script was rerun without changing application code.
+
+### Results
+All 14 requested checks passed on the corrected run.
+
+| # | Check | Result | Evidence |
+|---|---|---|---|
+| 1 | daily task appears in today list for an arbitrary date | Passed | `dailyPresent=1; total=2` for `2026-08-15` |
+| 2 | scheduled task appears only on target weekday | Passed | Friday count `1`, Thursday count `0` |
+| 3 | weekly task is excluded from today list and included in week list | Passed | today weekly count `0`, week weekly count `1` |
+| 4 | weekly target count 2 after one completion is 1/2 | Passed | `completed=1/2`, `status=pending` |
+| 5 | weekly target count 2 after two completions is 2/2 completed | Passed | `completed=2/2`, `status=completed` |
+| 6 | inactive daily/weekly tasks are excluded from today/week lists | Passed | disabled daily `0`, disabled weekly `0` |
+| 7 | scheduled weekday update removes old weekday and adds new weekday | Passed | old Friday `0`, new Monday `1` |
+| 8 | another user cannot duplicate-start an in-progress task | Passed | HTTP `409` |
+| 9 | another user cannot overwrite completed actor | Passed | actor remained `Reg2 A` after user B complete retry |
+| 10 | reset returns task to pending | Passed | `status=pending` |
+| 11 | another household taskId is inaccessible for detail/update/state/history | Passed | detail/update/state/history all returned `404` |
+| 12 | `week_starts_on` Monday/Sunday changes week range | Passed | Monday `2026-07-27..2026-08-02`, Sunday `2026-07-26..2026-08-01` |
+| 13 | month and year boundary week ranges are correct | Passed | month `2026-07-27..2026-08-02`, year `2026-12-28..2027-01-03` |
+| 14 | dashboard summary matches task statuses | Passed | summary and computed counts both `total=5`, `pending=2`, `inProgress=1`, `completed=1`, `skipped=1` |
+
+### Defects
+No application defect was found during this regression pass. No code fix or additional automated test was required.
+
+### Commands
+```text
+git -c safe.directory=C:/Users/rinnr/Documents/GitHub/HouseToDo status --short
+docker-compose ps
+PowerShell API regression script against http://127.0.0.1:8787
+```
+
+### Quality Commands
+Because no application code was changed for a defect fix, lint/typecheck/test/build/local D1 migration were not rerun in this manual regression-only pass. The previous task backend implementation pass had already completed those checks, except `npm audit`, which remained failed due to upstream advisories requiring breaking or out-of-range upgrades.
+
 Codexが作業した内容は、このファイルへ追記する。過去の記録を安易に削除・上書きしない。
 
 ## 記録テンプレート

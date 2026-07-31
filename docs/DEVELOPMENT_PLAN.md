@@ -1,5 +1,30 @@
 # 開発計画
 
+## 2026-07-31 Phase 4 backend progress
+
+Completed in this phase:
+
+- Task database foundation migration `0004_task_foundation.sql`.
+- Task template CRUD API.
+- Daily, scheduled weekday, and weekly task support.
+- Today task API.
+- Weekly progress API.
+- Start, complete, skip, and reset APIs.
+- Task history API.
+- Dashboard today aggregation API.
+- Explicit timezone/date helper tests.
+- Worker API tests for core task creation, status sharing, conflict rejection, history, and dashboard aggregation.
+
+Remaining for later phases:
+
+- Full task creation/list/detail UI.
+- Drag ordering and sort-order mutation UI.
+- Task duplication.
+- Attachment and R2 workflows.
+- Web Push, Cron notifications, and notification preferences.
+- Stronger transaction/serialization strategy for highly concurrent weekly completions.
+- Production Cloudflare resources and deployment.
+
 本計画は `docs/PROJECT_SPEC.md` の実装順序を、依存関係に沿って整理したものです。
 
 ## Phase 0: 開発土台

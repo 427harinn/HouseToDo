@@ -266,3 +266,187 @@ describe("worker app household API", () => {
     expect(usedAgain.status).toBe(409);
   });
 });
+
+describe("worker app task API", () => {
+  it("creates tasks, lists today/week scopes, changes state, and aggregates dashboard data", async () => {
+    const app = createApp();
+    const db = new MemoryD1();
+    const env = createTestEnv(db);
+    const owner = await registerUser(env, {
+      email: "task-owner@example.com",
+      password: "very-long-password",
+      displayName: "Owner"
+    });
+    await app.fetch(postJson("/api/households", { name: "Task House" }, owner.cookie), env);
+
+    const inviteResponse = await app.fetch(
+      postJson("/api/households/current/invites", {}, owner.cookie),
+      env
+    );
+    const inviteJson: { data: { invite: { code: string } } } = await inviteResponse.json();
+    const member = await registerUser(env, {
+      email: "task-member@example.com",
+      password: "very-long-password",
+      displayName: "Member"
+    });
+    await app.fetch(postJson("/api/households/join", { code: inviteJson.data.invite.code }, member.cookie), env);
+
+    const memberId = Array.from(db.users.values()).find((user) => user.email === "task-member@example.com")!.id;
+    const dailyResponse = await app.fetch(
+      postJson(
+        "/api/tasks",
+        {
+          title: "Morning food",
+          description: "Check water too",
+          recurrenceType: "daily",
+          assignmentType: "anyone",
+          scheduledTime: "09:00",
+          notificationSlot: "morning"
+        },
+        owner.cookie
+      ),
+      env
+    );
+    expect(dailyResponse.status).toBe(201);
+    const dailyJson: { data: { task: { id: string } } } = await dailyResponse.json();
+
+    const scheduled = await app.fetch(
+      postJson(
+        "/api/tasks",
+        {
+          title: "Sheets",
+          recurrenceType: "scheduled",
+          assignmentType: "specific",
+          assignedUserId: memberId,
+          notificationSlot: "none",
+          weekdays: [5]
+        },
+        owner.cookie
+      ),
+      env
+    );
+    expect(scheduled.status).toBe(201);
+
+    const weekly = await app.fetch(
+      postJson(
+        "/api/tasks",
+        {
+          title: "Cleaning",
+          recurrenceType: "weekly",
+          assignmentType: "anyone",
+          notificationSlot: "none",
+          weeklyTargetCount: 2
+        },
+        owner.cookie
+      ),
+      env
+    );
+    expect(weekly.status).toBe(201);
+
+    const today = await app.fetch(
+      new Request("https://example.test/api/tasks/today?date=2026-07-31", {
+        headers: { cookie: owner.cookie }
+      }),
+      env
+    );
+    await expect(today.json()).resolves.toMatchObject({
+      ok: true,
+      data: { tasks: [{ title: "Morning food" }, { title: "Sheets" }] }
+    });
+
+    const week = await app.fetch(
+      new Request("https://example.test/api/tasks/week?weekStart=2026-07-27", {
+        headers: { cookie: owner.cookie }
+      }),
+      env
+    );
+    await expect(week.json()).resolves.toMatchObject({
+      ok: true,
+      data: { tasks: [{ title: "Cleaning", targetCount: 2, completedCount: 0 }] }
+    });
+
+    const start = await app.fetch(
+      postJson(`/api/tasks/${dailyJson.data.task.id}/start`, { targetDate: "2026-07-31" }, owner.cookie),
+      env
+    );
+    expect(start.status).toBe(200);
+
+    const duplicateStart = await app.fetch(
+      postJson(`/api/tasks/${dailyJson.data.task.id}/start`, { targetDate: "2026-07-31" }, member.cookie),
+      env
+    );
+    expect(duplicateStart.status).toBe(409);
+
+    const complete = await app.fetch(
+      postJson(`/api/tasks/${dailyJson.data.task.id}/complete`, { targetDate: "2026-07-31" }, owner.cookie),
+      env
+    );
+    expect(complete.status).toBe(200);
+
+    const history = await app.fetch(
+      new Request(`https://example.test/api/tasks/${dailyJson.data.task.id}/history`, {
+        headers: { cookie: member.cookie }
+      }),
+      env
+    );
+    await expect(history.json()).resolves.toMatchObject({
+      ok: true,
+      data: { records: [{ status: "completed", actedBy: { displayName: "Owner" } }] }
+    });
+
+    const dashboard = await app.fetch(
+      new Request("https://example.test/api/dashboard/today?date=2026-07-31", {
+        headers: { cookie: member.cookie }
+      }),
+      env
+    );
+    await expect(dashboard.json()).resolves.toMatchObject({
+      ok: true,
+      data: {
+        summary: { total: 2, completed: 1, pending: 1 },
+        weeklyTasks: [{ title: "Cleaning" }],
+        members: [{ displayName: "Owner" }, { displayName: "Member" }]
+      }
+    });
+  });
+
+  it("rejects assigning a task to another household member", async () => {
+    const app = createApp();
+    const env = createTestEnv();
+    const owner = await registerUser(env, {
+      email: "task-a@example.com",
+      password: "very-long-password",
+      displayName: "Owner A"
+    });
+    await app.fetch(postJson("/api/households", { name: "A" }, owner.cookie), env);
+    const outsider = await registerUser(env, {
+      email: "task-b@example.com",
+      password: "very-long-password",
+      displayName: "Owner B"
+    });
+    const outsiderId = Array.from((env.DB as unknown as MemoryD1).users.values()).find(
+      (user) => user.email === "task-b@example.com"
+    )!.id;
+
+    const response = await app.fetch(
+      postJson(
+        "/api/tasks",
+        {
+          title: "Specific",
+          recurrenceType: "daily",
+          assignmentType: "specific",
+          assignedUserId: outsiderId,
+          notificationSlot: "none"
+        },
+        owner.cookie
+      ),
+      env
+    );
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      error: { code: "ASSIGNEE_NOT_HOUSEHOLD_MEMBER" }
+    });
+    expect(outsider.cookie).toContain("house_todo_session=");
+  });
+});

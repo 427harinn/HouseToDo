@@ -13,11 +13,41 @@ import {
   joinHouseholdRoute,
   updateCurrentHouseholdRoute
 } from "./routes/households";
+import {
+  changeTaskStateRoute,
+  createTaskRoute,
+  dashboardTodayRoute,
+  deleteTaskRoute,
+  getTaskRoute,
+  listTasksRoute,
+  taskHistoryRoute,
+  todayTasksRoute,
+  updateTaskRoute,
+  weekTasksRoute
+} from "./routes/tasks";
 import type { Env } from "./types/env";
 
 const routeApi = withErrorHandling(withStateChangingRequestProtection((context) => {
   const url = new URL(context.request.url);
   const key = `${context.request.method} ${url.pathname}`;
+  const taskPath = url.pathname.match(/^\/api\/tasks\/([^/]+)(?:\/([^/]+))?$/);
+
+  if (taskPath && taskPath[1] !== "today" && taskPath[1] !== "week") {
+    const taskId = decodeURIComponent(taskPath[1]);
+    const action = taskPath[2];
+    if (!action && context.request.method === "GET") return getTaskRoute(taskId)(context);
+    if (!action && context.request.method === "PATCH") return updateTaskRoute(taskId)(context);
+    if (!action && context.request.method === "DELETE") return deleteTaskRoute(taskId)(context);
+    if (action === "history" && context.request.method === "GET") {
+      return taskHistoryRoute(taskId)(context);
+    }
+    if (
+      context.request.method === "POST" &&
+      (action === "start" || action === "complete" || action === "skip" || action === "reset")
+    ) {
+      return changeTaskStateRoute(taskId, action)(context);
+    }
+  }
 
   switch (key) {
     case "GET /api/health":
@@ -42,6 +72,16 @@ const routeApi = withErrorHandling(withStateChangingRequestProtection((context) 
       return createHouseholdInviteRoute(context);
     case "POST /api/households/join":
       return joinHouseholdRoute(context);
+    case "GET /api/tasks":
+      return listTasksRoute(context);
+    case "POST /api/tasks":
+      return createTaskRoute(context);
+    case "GET /api/tasks/today":
+      return todayTasksRoute(context);
+    case "GET /api/tasks/week":
+      return weekTasksRoute(context);
+    case "GET /api/dashboard/today":
+      return dashboardTodayRoute(context);
     default:
       throw notFoundError();
   }

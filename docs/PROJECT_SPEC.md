@@ -1,5 +1,22 @@
 # 家庭用Todoアプリ 開発引き継ぎ仕様書
 
+## 2026-07-31 Task backend MVP update
+
+The backend now supports the core task-management model for MVP:
+
+- Task template creation, listing, detail, update, and logical delete.
+- Recurrence types: `daily`, `scheduled`, `weekly`.
+- Assignment types: `anyone`, `specific`; specific assignees must be members of the same household.
+- Optional `scheduled_time` in `HH:mm`.
+- Notification slot values: `morning`, `night`, `none`.
+- Task record states: `in_progress`, `completed`, `skipped`.
+- `pending` is not stored. It is derived when no record exists for the target date/week.
+- Today target calculation includes daily tasks and scheduled tasks for the target weekday.
+- Weekly task progress uses the household `week_starts_on` setting and explicit `Asia/Tokyo` date calculation.
+- Home aggregation is available from `GET /api/dashboard/today`.
+
+Not included in this phase: complete task-management screens, drag sorting, duplication, images, R2, shopping list work, PWA completion, Web Push, Cron notifications, production Cloudflare resources, production deployment, custom domain, rankings, and detailed chore analytics.
+
 ## 1. このドキュメントの目的
 
 本ドキュメントは、家庭内で共有して使用するTodo・家事管理Webアプリの設計、技術構成、画面構成、デザイン方針をまとめたものである。

@@ -54,3 +54,45 @@ export type HouseholdInvite = {
   usedBy: string | null;
   createdAt: string;
 };
+
+export type TaskRecurrenceType = "daily" | "scheduled" | "weekly";
+export type TaskAssignmentType = "anyone" | "specific";
+export type NotificationSlot = "morning" | "night" | "none";
+export type TaskRecordStatus = "in_progress" | "completed" | "skipped";
+export type TaskDisplayStatus = TaskRecordStatus | "pending";
+
+export type Task = {
+  id: string;
+  householdId: string;
+  title: string;
+  description: string | null;
+  recurrenceType: TaskRecurrenceType;
+  assignmentType: TaskAssignmentType;
+  assignedUserId: string | null;
+  scheduledTime: string | null;
+  notificationSlot: NotificationSlot;
+  weeklyTargetCount: number | null;
+  active: boolean;
+  sortOrder: number;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  weekdays: number[];
+};
+
+export type TaskRecord = {
+  id: string;
+  householdId: string;
+  taskId: string;
+  targetDate: string | null;
+  targetWeekStart: string | null;
+  status: TaskRecordStatus;
+  actedBy: string;
+  actedByDisplayName: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  skippedAt: string | null;
+  note: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
