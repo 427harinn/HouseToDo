@@ -450,3 +450,176 @@ describe("worker app task API", () => {
     expect(outsider.cookie).toContain("house_todo_session=");
   });
 });
+
+describe("worker app shopping API", () => {
+  it("shares shopping items, preserves purchaser, clears purchased, and uses templates", async () => {
+    const app = createApp();
+    const db = new MemoryD1();
+    const env = createTestEnv(db);
+    const owner = await registerUser(env, {
+      email: "shop-owner@example.com",
+      password: "very-long-password",
+      displayName: "Shop Owner"
+    });
+    await app.fetch(postJson("/api/households", { name: "Shopping House" }, owner.cookie), env);
+    const inviteResponse = await app.fetch(
+      postJson("/api/households/current/invites", {}, owner.cookie),
+      env
+    );
+    const inviteJson: { data: { invite: { code: string } } } = await inviteResponse.json();
+    const member = await registerUser(env, {
+      email: "shop-member@example.com",
+      password: "very-long-password",
+      displayName: "Shop Member"
+    });
+    await app.fetch(postJson("/api/households/join", { code: inviteJson.data.invite.code }, member.cookie), env);
+
+    const milk = await app.fetch(
+      postJson(
+        "/api/shopping/items",
+        { name: " 牛乳 ", quantity: "1本", note: "低脂肪ではないもの" },
+        owner.cookie
+      ),
+      env
+    );
+    expect(milk.status).toBe(201);
+    const milkJson: { data: { item: { id: string } } } = await milk.json();
+    await app.fetch(postJson("/api/shopping/items", { name: "卵", quantity: "1パック" }, owner.cookie), env);
+
+    const memberList = await app.fetch(
+      new Request("https://example.test/api/shopping/items", { headers: { cookie: member.cookie } }),
+      env
+    );
+    await expect(memberList.json()).resolves.toMatchObject({
+      ok: true,
+      data: { pending: [{ name: "牛乳", quantity: "1本" }, { name: "卵" }], purchased: [] }
+    });
+
+    const purchased = await app.fetch(
+      postJson(`/api/shopping/items/${milkJson.data.item.id}/purchase`, {}, owner.cookie),
+      env
+    );
+    await expect(purchased.json()).resolves.toMatchObject({
+      ok: true,
+      data: { item: { status: "purchased", purchasedBy: { displayName: "Shop Owner" } } }
+    });
+
+    const repurchase = await app.fetch(
+      postJson(`/api/shopping/items/${milkJson.data.item.id}/purchase`, {}, member.cookie),
+      env
+    );
+    await expect(repurchase.json()).resolves.toMatchObject({
+      ok: true,
+      data: { item: { status: "purchased", purchasedBy: { displayName: "Shop Owner" } } }
+    });
+
+    await app.fetch(postJson(`/api/shopping/items/${milkJson.data.item.id}/unpurchase`, {}, member.cookie), env);
+    const pendingAgain = await app.fetch(
+      new Request(`https://example.test/api/shopping/items/${milkJson.data.item.id}`, {
+        headers: { cookie: owner.cookie }
+      }),
+      env
+    );
+    await expect(pendingAgain.json()).resolves.toMatchObject({
+      ok: true,
+      data: { item: { status: "pending", purchasedBy: null, purchasedAt: null } }
+    });
+
+    const template = await app.fetch(
+      postJson("/api/shopping/templates", { name: "牛乳", quantity: "2本", note: "いつものメーカー" }, owner.cookie),
+      env
+    );
+    expect(template.status).toBe(201);
+    const templateJson: { data: { template: { id: string } } } = await template.json();
+    const added = await app.fetch(
+      postJson(`/api/shopping/templates/${templateJson.data.template.id}/add`, {}, member.cookie),
+      env
+    );
+    const addedJson: { data: { item: { id: string } } } = await added.json();
+    expect(addedJson).toMatchObject({
+      ok: true,
+      data: { item: { name: "牛乳", quantity: "2本", note: "いつものメーカー", status: "pending" } }
+    });
+
+    await app.fetch(
+      patchJson(
+        `/api/shopping/templates/${templateJson.data.template.id}`,
+        { quantity: "1本", note: "変更後" },
+        owner.cookie
+      ),
+      env
+    );
+    const copiedItem = await app.fetch(
+      new Request(`https://example.test/api/shopping/items/${addedJson.data.item.id}`, {
+        headers: { cookie: member.cookie }
+      }),
+      env
+    );
+    await expect(copiedItem.json()).resolves.toMatchObject({
+      ok: true,
+      data: { item: { quantity: "2本", note: "いつものメーカー" } }
+    });
+
+    await app.fetch(
+      new Request(`https://example.test/api/shopping/templates/${templateJson.data.template.id}`, {
+        method: "DELETE",
+        headers: { "content-type": "application/json", origin: "https://example.test", cookie: owner.cookie },
+        body: "{}"
+      }),
+      env
+    );
+    const inactiveAdd = await app.fetch(
+      postJson(`/api/shopping/templates/${templateJson.data.template.id}/add`, {}, member.cookie),
+      env
+    );
+    expect(inactiveAdd.status).toBe(409);
+
+    await app.fetch(postJson(`/api/shopping/items/${milkJson.data.item.id}/purchase`, {}, owner.cookie), env);
+    const cleared = await app.fetch(postJson("/api/shopping/items/clear-purchased", {}, member.cookie), env);
+    await expect(cleared.json()).resolves.toMatchObject({
+      ok: true,
+      data: { clearedCount: 1 }
+    });
+
+    const dashboard = await app.fetch(
+      new Request("https://example.test/api/dashboard/today?date=2026-07-31", {
+        headers: { cookie: owner.cookie }
+      }),
+      env
+    );
+    const dashboardJson: { data: { shopping: { pendingCount: number; previewItems: Array<{ name: string }> } } } =
+      await dashboard.json();
+    expect(dashboardJson.data.shopping.pendingCount).toBe(2);
+    expect(dashboardJson.data.shopping.previewItems.map((item) => item.name)).toContain("卵");
+  });
+
+  it("rejects validation errors and hides another household shopping data", async () => {
+    const app = createApp();
+    const env = createTestEnv();
+    const ownerA = await registerUser(env, {
+      email: "shop-a@example.com",
+      password: "very-long-password",
+      displayName: "A"
+    });
+    await app.fetch(postJson("/api/households", { name: "A House" }, ownerA.cookie), env);
+    const ownerB = await registerUser(env, {
+      email: "shop-b@example.com",
+      password: "very-long-password",
+      displayName: "B"
+    });
+    await app.fetch(postJson("/api/households", { name: "B House" }, ownerB.cookie), env);
+
+    const invalid = await app.fetch(postJson("/api/shopping/items", { name: "   " }, ownerA.cookie), env);
+    expect(invalid.status).toBe(400);
+
+    const item = await app.fetch(postJson("/api/shopping/items", { name: "別家庭の牛乳" }, ownerA.cookie), env);
+    const itemJson: { data: { item: { id: string } } } = await item.json();
+    const hidden = await app.fetch(
+      new Request(`https://example.test/api/shopping/items/${itemJson.data.item.id}`, {
+        headers: { cookie: ownerB.cookie }
+      }),
+      env
+    );
+    expect(hidden.status).toBe(404);
+  });
+});

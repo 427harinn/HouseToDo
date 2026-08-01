@@ -1,5 +1,150 @@
 # 作業記録
 
+## 2026-08-01 買い物バックエンド基盤
+
+### 目的
+家庭内で共有する買い物項目と、繰り返し使う買い物テンプレートのバックエンド、D1、API、テスト、最小フロント接続表示を実装する。完成版の買い物UI、画像、R2、本番Cloudflare操作、デプロイ、push、コミットは行わない。
+
+### 作業前の状態
+- ブランチ: `main`
+- `git status --short`: 変更なし。
+- 直近コミット: `12a2db1 タスク管理UIとPlaywright E2Eを追加`
+- `docs/PROJECT_SPEC.md`、`docs/CODEX_INSTRUCTIONS.md`、`docs/DEVELOPMENT_PLAN.md`、`docs/ARCHITECTURE.md`、`docs/DECISIONS.md`、`docs/WORKLOG.md`、`README.md` を確認。
+
+### 採用したデータ構造
+- `shopping_items`: `id`, `household_id`, `name`, `quantity`, `note`, `status`, `added_by`, `purchased_by`, `purchased_at`, `sort_order`, `created_at`, `updated_at`。
+- `shopping_templates`: `id`, `household_id`, `name`, `quantity`, `note`, `active`, `sort_order`, `created_by`, `created_at`, `updated_at`。
+- 既存の初期マイグレーションに古い買い物テーブル案があったため、`migrations/0005_shopping_foundation.sql` でテーブルをリネーム、再作成、既存列からコピーする方式にした。
+
+### 仕様判断
+- 数量は `TEXT | NULL`。`1本`、`500ml`、`適量` をそのまま扱うため、数値と単位へ分解しない。
+- メモは `TEXT | NULL`。空白のみは `null`。
+- 買い物項目は物理削除。短期的なリスト項目で、現時点では購入履歴画面がないため。
+- テンプレートは `active = 0` の論理削除。過去にコピー済みの買い物項目へ影響させないため。
+- `purchase` 再送は200で現在状態を返し、既存の `purchased_by` を上書きしない。
+- `unpurchase` は家庭メンバーなら可能。MVPでは共同編集性を優先する。
+- テンプレートからの追加は案A、つまりテンプレート内容をそのままコピーする。数量・メモ上書きAPIは次フェーズ以降。
+
+### 実装API
+```text
+GET    /api/shopping/items
+POST   /api/shopping/items
+GET    /api/shopping/items/:itemId
+PATCH  /api/shopping/items/:itemId
+DELETE /api/shopping/items/:itemId
+POST   /api/shopping/items/:itemId/purchase
+POST   /api/shopping/items/:itemId/unpurchase
+POST   /api/shopping/items/clear-purchased
+GET    /api/shopping/templates
+POST   /api/shopping/templates
+GET    /api/shopping/templates/:templateId
+PATCH  /api/shopping/templates/:templateId
+DELETE /api/shopping/templates/:templateId
+POST   /api/shopping/templates/:templateId/add
+```
+
+### 変更ファイル
+- `migrations/0005_shopping_foundation.sql`
+- `worker/app.ts`
+- `worker/routes/shopping.ts`
+- `worker/services/shopping-service.ts`
+- `worker/services/shopping-template-service.ts`
+- `worker/repositories/shopping-item-repository.ts`
+- `worker/repositories/shopping-template-repository.ts`
+- `worker/services/dashboard-service.ts`
+- `worker/lib/errors.ts`
+- `worker/lib/validation.ts`
+- `worker/types/domain.ts`
+- `worker/test-utils/memory-d1.ts`
+- `worker/app.test.ts`
+- `src/api/shopping.ts`
+- `src/api/shopping.test.ts`
+- `src/api/dashboard.ts`
+- `src/App.tsx`
+- `src/App.test.tsx`
+- `src/styles.css`
+- `docs/PROJECT_SPEC.md`
+- `docs/ARCHITECTURE.md`
+- `docs/DECISIONS.md`
+- `docs/DEVELOPMENT_PLAN.md`
+- `docs/WORKLOG.md`
+- `README.md`
+
+### Dashboard変更
+`GET /api/dashboard/today` に後方互換的に以下を追加した。
+
+```json
+{
+  "shopping": {
+    "pendingCount": 0,
+    "previewItems": []
+  }
+}
+```
+
+### テスト
+- Worker APIテストで、2ユーザー家庭での項目共有、作成、一覧、購入済み、購入者上書き防止、未購入戻し、テンプレート作成、テンプレートから追加、テンプレート更新後もコピー済み項目が変わらないこと、テンプレート無効化後の追加拒否、一括整理、Dashboard買い物情報、入力検証、家庭外アクセス拒否を確認。
+- フロントAPIクライアントテストで、買い物項目・テンプレートAPIのURLとHTTPメソッドを確認。
+
+### 実行コマンド
+```bash
+git -c safe.directory=C:/Users/rinnr/Documents/GitHub/HouseToDo status --short
+git -c safe.directory=C:/Users/rinnr/Documents/GitHub/HouseToDo branch --show-current
+git -c safe.directory=C:/Users/rinnr/Documents/GitHub/HouseToDo log --oneline -5
+docker-compose run --rm app npm run typecheck
+docker-compose run --rm app npm test
+docker-compose run --rm app npm run lint
+```
+
+### 確認結果
+- 型チェック: 成功。
+- Lint: 成功。
+- テスト: 成功。11 files / 46 tests passed。
+- ビルド: 成功。Vite buildで `dist/client` はDocker volume内に生成。
+- npm audit: 失敗終了。16 high severity vulnerabilities。経路は `brace-expansion` / eslint系、`playwright <1.55.1`、`sharp <0.35.0` / miniflare / wrangler系。`npm audit fix --force` は実行していない。今回新規依存は追加していない。
+- ローカルD1 migration: 成功。`0005_shopping_foundation.sql` 適用。
+- E2E: 成功。1 test passed。
+- ホスト生成物確認: `node_modules=False`, `dist=False`, `.wrangler=False`, `%USERPROFILE%\AppData\Local\ms-playwright=False`。
+
+### 手動API確認
+Wrangler dev `http://127.0.0.1:8787` とローカルD1で確認した。PowerShell 5の既定エンコードでは日本語JSON本文が壊れるため、UTF-8 bytesで送信した。実メール、パスワード、Cookie、招待コードは記録していない。
+
+- ユーザーAで `牛乳 / 1本 / メモあり`、`卵 / 1パック`、`キッチンペーパー / 数量なし` を作成。
+- ユーザーBの一覧で3件共有を確認。
+- ユーザーAが牛乳を購入済みにし、購入者Aと購入時刻が返ることを確認。
+- ユーザーBの再purchaseで購入者がAのまま上書きされないことを確認。
+- ユーザーBが未購入へ戻せることを確認。
+- ユーザーBが卵の数量を `2パック` へ更新できることを確認。
+- ユーザーAが牛乳テンプレートを作成し、ユーザーBが一覧・テンプレートから追加できることを確認。
+- テンプレート編集後も、追加済み項目のメモが変わらないことを確認。
+- テンプレート無効化後、追加APIが409で拒否されることを確認。
+- 複数項目を購入済みにし、一括整理で購入済みだけが消え、未購入が残ることを確認。
+- 別家庭ユーザーから項目詳細にアクセスできず404になることを確認。
+
+### 最小フロント確認
+- 既存E2Eでログイン、家庭取得、ホーム、タスク一覧、タスク詳細、メンバー管理、ログアウト系の既存導線が通過。
+- `/shopping` は本格UIではなく、買い物API接続済みと未購入件数だけ表示する。
+
+### ドキュメント更新
+- `docs/PROJECT_SPEC.md`: 買い物バックエンド基盤の実装状況を追記。
+- `docs/ARCHITECTURE.md`: 買い物のRoute/Service/Repository構成、API一覧、Dashboard追加を追記。
+- `docs/DECISIONS.md`: 数量保存方式、項目削除方式、テンプレート論理削除、購入済み再送、別ユーザーunpurchase、テンプレートコピー方式を追記。
+- `docs/DEVELOPMENT_PLAN.md`: Phase 6 backend progressを追記。
+- `README.md`: 買い物バックエンドAPI一覧と未実装範囲を追記。
+
+### 未対応事項
+- 完成版の買い物UI。
+- 画像アップロード、R2、画像削除Cron。
+- バーコード、価格、店舗、カテゴリ、在庫、通知。
+- 本番Cloudflareリソース作成、デプロイ、push、コミット。
+- 購入履歴を長期保存するイベントログ。
+
+### 次回候補
+- 買い物画面の本実装。
+- テンプレート管理UI。
+- 画像/R2設計。
+- Playwrightで買い物API接続表示を含む画面回帰確認。
+
 ## 2026-07-31 Task backend foundation
 
 ### Purpose

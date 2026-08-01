@@ -1,15 +1,18 @@
 import { HouseholdMemberRepository } from "../repositories/household-member-repository";
+import { ShoppingItemRepository } from "../repositories/shopping-item-repository";
 import { HouseholdService } from "./household-service";
 import { TaskService } from "./task-service";
 
 export class DashboardService {
   private readonly households: HouseholdService;
   private readonly members: HouseholdMemberRepository;
+  private readonly shoppingItems: ShoppingItemRepository;
   private readonly tasks: TaskService;
 
   constructor(db: D1Database) {
     this.households = new HouseholdService(db);
     this.members = new HouseholdMemberRepository(db);
+    this.shoppingItems = new ShoppingItemRepository(db);
     this.tasks = new TaskService(db);
   }
 
@@ -18,6 +21,10 @@ export class DashboardService {
     const today = await this.tasks.listToday(userId, date);
     const week = await this.tasks.listWeek(userId);
     const members = await this.members.listByHouseholdId(household.id);
+    const [shoppingPendingCount, shoppingPreviewItems] = await Promise.all([
+      this.shoppingItems.countPending(household.id),
+      this.shoppingItems.listPendingPreview(household.id, 3)
+    ]);
     const summary = today.tasks.reduce(
       (acc, task) => {
         acc.total += 1;
@@ -39,6 +46,14 @@ export class DashboardService {
       summary,
       todayTasks: today.tasks,
       weeklyTasks: week.tasks,
+      shopping: {
+        pendingCount: shoppingPendingCount,
+        previewItems: shoppingPreviewItems.map((item) => ({
+          id: item.id,
+          name: item.name,
+          quantity: item.quantity
+        }))
+      },
       members: members.map((member) => ({
         userId: member.userId,
         displayName: member.displayName,

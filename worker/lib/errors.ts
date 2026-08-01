@@ -20,6 +20,13 @@ export type AppErrorCode =
   | "TASK_NOT_ACTIVE"
   | "INVALID_TARGET_DATE"
   | "INVALID_TARGET_WEEK"
+  | "SHOPPING_ITEM_NOT_FOUND"
+  | "SHOPPING_ITEM_ALREADY_PURCHASED"
+  | "SHOPPING_ITEM_NOT_PURCHASED"
+  | "INVALID_SHOPPING_ITEM"
+  | "SHOPPING_TEMPLATE_NOT_FOUND"
+  | "SHOPPING_TEMPLATE_NOT_ACTIVE"
+  | "INVALID_SHOPPING_TEMPLATE"
   | "RATE_LIMITED"
   | "INTERNAL_ERROR";
 
@@ -73,6 +80,27 @@ export const taskConflictError = (code: AppErrorCode, message: string) =>
     code,
     status: 409,
     message
+  });
+
+export const shoppingItemNotFoundError = () =>
+  new AppError({
+    code: "SHOPPING_ITEM_NOT_FOUND",
+    status: 404,
+    message: "Shopping item was not found."
+  });
+
+export const shoppingTemplateNotFoundError = () =>
+  new AppError({
+    code: "SHOPPING_TEMPLATE_NOT_FOUND",
+    status: 404,
+    message: "Shopping template was not found."
+  });
+
+export const inactiveShoppingTemplateError = () =>
+  new AppError({
+    code: "SHOPPING_TEMPLATE_NOT_ACTIVE",
+    status: 409,
+    message: "Shopping template is inactive."
   });
 
 export const unauthenticatedError = () =>

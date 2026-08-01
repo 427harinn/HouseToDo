@@ -17,6 +17,14 @@ export type DashboardToday = {
   };
   todayTasks: TodayTask[];
   weeklyTasks: WeeklyTask[];
+  shopping: {
+    pendingCount: number;
+    previewItems: Array<{
+      id: string;
+      name: string;
+      quantity: string | null;
+    }>;
+  };
   members: Array<Pick<HouseholdMember, "userId" | "displayName" | "role" | "color">>;
 };
 

@@ -314,6 +314,16 @@ textarea[aria-invalid="true"] {
   font-size: 1.55rem;
 }
 
+.shopping-preview {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.shopping-preview ul {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+
 .section-heading {
   display: flex;
   align-items: center;

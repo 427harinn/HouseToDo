@@ -24,6 +24,29 @@ GET    /api/dashboard/today
 
 タスクテンプレートと実行記録は分離しています。記録がない対象日・対象週は `pending` として扱い、DBには `in_progress`、`completed`、`skipped` のみ保存します。週内タスクは `target_week_start` を基準に進捗を集計します。
 
+## 買い物バックエンド
+
+Worker APIにはMVPの買い物バックエンド基盤を追加済みです。
+
+```text
+GET    /api/shopping/items
+POST   /api/shopping/items
+GET    /api/shopping/items/:itemId
+PATCH  /api/shopping/items/:itemId
+DELETE /api/shopping/items/:itemId
+POST   /api/shopping/items/:itemId/purchase
+POST   /api/shopping/items/:itemId/unpurchase
+POST   /api/shopping/items/clear-purchased
+GET    /api/shopping/templates
+POST   /api/shopping/templates
+GET    /api/shopping/templates/:templateId
+PATCH  /api/shopping/templates/:templateId
+DELETE /api/shopping/templates/:templateId
+POST   /api/shopping/templates/:templateId/add
+```
+
+買い物項目は家庭内共有で、数量とメモはnullable textとして保存します。購入済み操作は購入者と時刻を記録し、再送時に購入者を上書きしません。テンプレートは `active = 0` で無効化し、テンプレートから追加した項目はコピーとして独立します。完成版の買い物UI、画像、R2は未実装です。
+
 ## 採用技術
 
 - React
@@ -297,7 +320,7 @@ React フロントエンドから既存タスク API を利用できるように
 - `/tasks/:taskId`: 詳細、状態操作、履歴。
 - `/tasks/:taskId/edit`: タスク編集。
 - `/tasks/:taskId/respond`: 通知導線向けの回答画面。
-- `/shopping`: 今回は準備中ページ。
+- `/shopping`: 準備中ページ。買い物API接続済み表示と未購入件数のみ表示。
 
 品質確認は Docker 内で実行します。
 

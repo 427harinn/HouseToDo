@@ -1,5 +1,37 @@
 # アーキテクチャ
 
+## 2026-08-01 Shopping backend architecture
+
+Shopping follows the existing Worker layering.
+
+- Routes: `worker/routes/shopping.ts`
+- Services: `ShoppingService`, `ShoppingTemplateService`
+- Repositories: `ShoppingItemRepository`, `ShoppingTemplateRepository`
+- Migration: `migrations/0005_shopping_foundation.sql`
+
+Routes parse HTTP input and shape responses. Services own household membership checks, input normalization, idempotent purchase/unpurchase behavior, template activity checks, and template-to-item copying. Repositories own D1 SQL and always include `household_id` in household data queries.
+
+Implemented API surface:
+
+```text
+GET    /api/shopping/items
+POST   /api/shopping/items
+GET    /api/shopping/items/:itemId
+PATCH  /api/shopping/items/:itemId
+DELETE /api/shopping/items/:itemId
+POST   /api/shopping/items/:itemId/purchase
+POST   /api/shopping/items/:itemId/unpurchase
+POST   /api/shopping/items/clear-purchased
+GET    /api/shopping/templates
+POST   /api/shopping/templates
+GET    /api/shopping/templates/:templateId
+PATCH  /api/shopping/templates/:templateId
+DELETE /api/shopping/templates/:templateId
+POST   /api/shopping/templates/:templateId/add
+```
+
+`shopping_items` are physically deleted because MVP shopping items are short-lived list entries and no durable purchase history screen exists yet. `shopping_templates` use `active = 0` so repeated-use definitions can be hidden without affecting copied shopping items. Dashboard aggregation adds `shopping.pendingCount` and `shopping.previewItems` without changing existing task fields.
+
 ## 2026-07-31 Task backend architecture
 
 Task management now follows the existing Worker layering:
@@ -212,4 +244,4 @@ The task UI keeps the existing lightweight `window.history` routing instead of a
 - Task screen state is local React state with explicit reloads after create, edit, deactivate, start, complete, skip, and reset.
 - Home uses `GET /api/dashboard/today`; task management uses `GET /api/tasks?includeInactive=true`; task detail combines task detail, today/week status, and history APIs.
 - Daily and scheduled task actions send `targetDate`. Weekly task actions send `targetWeekStart`, calculated from the household `weekStartsOn`.
-- The shopping tab routes to a preparation page and does not call shopping APIs in this phase.
+- The shopping tab routes to a preparation page and only calls shopping APIs for a minimal connection/count check. Full shopping UI remains deferred.

@@ -66,6 +66,7 @@ const dashboard = {
   summary: { total: 1, pending: 1, inProgress: 0, completed: 0, skipped: 0 },
   todayTasks: [todayTask],
   weeklyTasks: [weeklyTask],
+  shopping: { pendingCount: 1, previewItems: [{ id: "shop-1", name: "牛乳", quantity: "1本" }] },
   members
 };
 
@@ -87,6 +88,7 @@ const mockAuthedFetch = () =>
     if (url.endsWith("/api/auth/me")) return Promise.resolve(ok({ user }));
     if (url.endsWith("/api/households/current")) return Promise.resolve(ok({ household }));
     if (url.endsWith("/api/dashboard/today")) return Promise.resolve(ok(dashboard));
+    if (url.endsWith("/api/shopping/items")) return Promise.resolve(ok({ pending: [], purchased: [] }));
     if (url.endsWith("/api/tasks?includeInactive=true")) {
       return Promise.resolve(ok({ tasks: [todayTask, weeklyTask] }));
     }

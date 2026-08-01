@@ -46,6 +46,18 @@ export type TaskStateInput = {
   note?: string | null;
 };
 
+export type ShoppingWriteInput = {
+  name: string;
+  quantity: string | null;
+  note: string | null;
+};
+
+export type ShoppingUpdateInput = {
+  name?: string;
+  quantity?: string | null;
+  note?: string | null;
+};
+
 const recurrenceTypes = new Set(["daily", "scheduled", "weekly"]);
 const assignmentTypes = new Set(["anyone", "specific"]);
 const notificationSlots = new Set(["morning", "night", "none"]);
@@ -201,6 +213,58 @@ export const validateLimitQuery = (request: Request, defaultLimit = 20, maxLimit
     throw validationError({ limit: `limit must be an integer from 1 to ${maxLimit}.` });
   }
   return parsed;
+};
+
+export const validateShoppingWriteInput = (value: unknown, label = "買い物項目"): ShoppingWriteInput => {
+  const input = asObject(value);
+  const name = requiredString(input, "name", "商品名", 100).trim();
+  const details: Record<string, string> = {};
+  if (name.length === 0) details.name = "商品名を入力してください。";
+  const quantity = optionalString(input, "quantity", 50);
+  const note = optionalString(input, "note", 500);
+  if (Object.keys(details).length > 0) {
+    throw validationError(details, `${label}の入力内容を確認してください。`);
+  }
+  return { name, quantity, note };
+};
+
+export const validateShoppingUpdateInput = (value: unknown, label = "買い物項目"): ShoppingUpdateInput => {
+  const input = asObject(value);
+  const output: ShoppingUpdateInput = {};
+  const details: Record<string, string> = {};
+
+  if ("name" in input) {
+    if (typeof input.name !== "string") {
+      details.name = "商品名は文字列で入力してください。";
+    } else {
+      const name = input.name.trim();
+      if (name.length === 0) details.name = "商品名を入力してください。";
+      if (name.length > 100) details.name = "商品名は100文字以内で入力してください。";
+      if (!details.name) output.name = name;
+    }
+  }
+
+  if ("quantity" in input) {
+    if (input.quantity === null) output.quantity = null;
+    else if (typeof input.quantity !== "string") details.quantity = "数量は文字列またはnullで入力してください。";
+    else if (input.quantity.length > 50) details.quantity = "数量は50文字以内で入力してください。";
+    else output.quantity = input.quantity.trim().length > 0 ? input.quantity.trim() : null;
+  }
+
+  if ("note" in input) {
+    if (input.note === null) output.note = null;
+    else if (typeof input.note !== "string") details.note = "メモは文字列またはnullで入力してください。";
+    else if (input.note.length > 500) details.note = "メモは500文字以内で入力してください。";
+    else output.note = input.note.trim().length > 0 ? input.note.trim() : null;
+  }
+
+  if (Object.keys(details).length > 0) {
+    throw validationError(details, `${label}の入力内容を確認してください。`);
+  }
+  if (!("name" in output) && !("quantity" in output) && !("note" in output)) {
+    throw validationError({ body: "更新する項目を少なくとも1つ指定してください。" });
+  }
+  return output;
 };
 
 export const normalizeEmail = (email: string): string => email.trim().toLowerCase();

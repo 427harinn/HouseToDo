@@ -2,6 +2,26 @@
 
 重要な技術判断や仕様変更理由を、ADRに近い簡潔な形式で記録する。軽微な修正は `docs/WORKLOG.md` のみでよい。
 
+## 2026-08-01 Shopping item and template MVP policy
+
+### Context
+The shopping phase needs a household-shared list and reusable templates, while images, R2, categories, stores, and inventory remain out of scope.
+
+### Decision
+- Store item quantity as `TEXT | NULL`, not numeric/unit columns.
+- Store item status as `pending` or `purchased`.
+- Physically delete shopping items, including purchased-item clearing.
+- Logically delete templates with `active = 0`.
+- Repeated `purchase` returns the current purchased item and does not overwrite `purchased_by`.
+- Any household member may `unpurchase` another member's purchased item for MVP.
+- Adding from a template copies the template fields as-is into a new pending item. Overrides are deferred.
+
+### Rationale
+Household shopping quantities are often natural language (`1本`, `500ml`, `適量`), so splitting values now would add complexity without improving the MVP. Shopping items are operational and short-lived, while templates are reusable configuration. Idempotent purchase avoids mobile double-tap problems and prevents accidental purchaser overwrites.
+
+### Consequences
+There is no durable purchase history after item deletion or clearing. A future history/audit feature would require an event table or logical deletion for items. Template edits do not affect already-created items, which keeps list entries stable after copying.
+
 ## 2026-07-31 Task templates and records are separated
 
 ### Context

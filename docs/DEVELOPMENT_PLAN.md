@@ -1,5 +1,22 @@
 # 開発計画
 
+## 2026-08-01 Phase 6 backend progress
+
+Completed in this phase:
+
+- Shopping item and shopping template schema migration.
+- Shopping item CRUD, purchase, unpurchase, and purchased-item clearing APIs.
+- Shopping template CRUD and template-to-item add API.
+- Household member authorization for all shopping APIs.
+- Dashboard shopping pending count and preview.
+- Minimal `/shopping` API connection/count display.
+
+Remaining for later phases:
+
+- Complete shopping list UI and template management UI.
+- Images, R2, barcode scanning, prices, stores, categories, inventory, notifications, and production deployment.
+- Stronger audit/history model if shopping purchase history becomes important.
+
 ## 2026-07-31 Phase 4 backend progress
 
 Completed in this phase:

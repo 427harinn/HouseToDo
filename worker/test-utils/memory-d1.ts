@@ -5,6 +5,7 @@ import type {
   TaskRecurrenceType,
   TaskRecordStatus
 } from "../types/domain";
+import type { ShoppingItemStatus } from "../types/domain";
 
 const toText = (value: unknown): string => {
   if (typeof value === "string") return value;
@@ -102,6 +103,34 @@ export type TaskRecordDbRecord = {
   updated_at: string;
 };
 
+export type ShoppingItemDbRecord = {
+  id: string;
+  household_id: string;
+  name: string;
+  quantity: string | null;
+  note: string | null;
+  status: ShoppingItemStatus;
+  added_by: string;
+  purchased_by: string | null;
+  purchased_at: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ShoppingTemplateDbRecord = {
+  id: string;
+  household_id: string;
+  name: string;
+  quantity: string | null;
+  note: string | null;
+  active: number;
+  sort_order: number;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+};
+
 class MemoryPreparedStatement {
   private values: unknown[] = [];
 
@@ -141,6 +170,8 @@ export class MemoryD1 {
   readonly tasks = new Map<string, TaskDbRecord>();
   readonly taskWeekdays = new Map<string, TaskWeekdayRecord>();
   readonly taskRecords = new Map<string, TaskRecordDbRecord>();
+  readonly shoppingItems = new Map<string, ShoppingItemDbRecord>();
+  readonly shoppingTemplates = new Map<string, ShoppingTemplateDbRecord>();
 
   prepare(sql: string): D1PreparedStatement {
     return new MemoryPreparedStatement(this, sql) as unknown as D1PreparedStatement;
@@ -165,6 +196,8 @@ export class MemoryD1 {
     | HouseholdInviteRecord
     | TaskDbRecord
     | TaskRecordDbRecord
+    | ShoppingItemDbRecord
+    | ShoppingTemplateDbRecord
     | null {
     if (sql.includes("FROM users WHERE id")) {
       return this.users.get(String(values[0])) ?? null;
@@ -239,6 +272,41 @@ export class MemoryD1 {
       if (!record || record.household_id !== values[0]) return null;
       return this.withActedByName(record);
     }
+    if (sql.includes("COUNT(*) AS count FROM shopping_items")) {
+      return {
+        count: Array.from(this.shoppingItems.values()).filter(
+          (item) => item.household_id === values[0] && item.status === "pending"
+        ).length
+      } as unknown as ShoppingItemDbRecord;
+    }
+    if (sql.includes("MAX(sort_order)") && sql.includes("FROM shopping_items")) {
+      const max = Math.max(
+        0,
+        ...Array.from(this.shoppingItems.values())
+          .filter((item) => item.household_id === values[0])
+          .map((item) => item.sort_order)
+      );
+      return { max_sort_order: max } as unknown as ShoppingItemDbRecord;
+    }
+    if (sql.includes("FROM shopping_items si") && sql.includes("WHERE si.household_id = ? AND si.id = ?")) {
+      const item = this.shoppingItems.get(toText(values[1]));
+      if (!item || item.household_id !== values[0]) return null;
+      return this.withPurchasedByName(item);
+    }
+    if (sql.includes("MAX(sort_order)") && sql.includes("FROM shopping_templates")) {
+      const max = Math.max(
+        0,
+        ...Array.from(this.shoppingTemplates.values())
+          .filter((template) => template.household_id === values[0])
+          .map((template) => template.sort_order)
+      );
+      return { max_sort_order: max } as unknown as ShoppingTemplateDbRecord;
+    }
+    if (sql.includes("FROM shopping_templates") && sql.includes("WHERE household_id = ? AND id = ?")) {
+      const template = this.shoppingTemplates.get(toText(values[1]));
+      if (!template || template.household_id !== values[0]) return null;
+      return template;
+    }
     return null;
   }
 
@@ -280,6 +348,30 @@ export class MemoryD1 {
         .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
         .slice(0, Number(values[2]))
         .map((item) => this.withActedByName(item));
+    }
+    if (sql.includes("FROM shopping_items si")) {
+      let rows = Array.from(this.shoppingItems.values()).filter((item) => item.household_id === values[0]);
+      if (sql.includes("si.status = 'pending'") || sql.includes("status = 'pending'")) {
+        rows = rows.filter((item) => item.status === "pending");
+      }
+      if (sql.includes("LIMIT ?")) rows = rows.slice(0, Number(values[1]));
+      return rows
+        .sort((a, b) =>
+          a.status === b.status
+            ? a.status === "pending"
+              ? a.sort_order - b.sort_order || a.created_at.localeCompare(b.created_at)
+              : (b.purchased_at ?? "").localeCompare(a.purchased_at ?? "")
+            : a.status === "pending"
+              ? -1
+              : 1
+        )
+        .map((item) => this.withPurchasedByName(item));
+    }
+    if (sql.includes("FROM shopping_templates") && sql.includes("WHERE household_id = ?")) {
+      return Array.from(this.shoppingTemplates.values())
+        .filter((template) => template.household_id === values[0])
+        .filter((template) => (sql.includes("AND active = 1") ? template.active === 1 : true))
+        .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
     }
     return [];
   }
@@ -477,6 +569,109 @@ export class MemoryD1 {
       }
       changes = before - this.taskRecords.size;
     }
+    if (sql.startsWith("INSERT INTO shopping_items")) {
+      this.shoppingItems.set(toText(values[0]), {
+        id: toText(values[0]),
+        household_id: toText(values[1]),
+        name: toText(values[2]),
+        quantity: toNullableText(values[3]),
+        note: toNullableText(values[4]),
+        status: "pending",
+        added_by: toText(values[5]),
+        purchased_by: null,
+        purchased_at: null,
+        sort_order: Number(values[6]),
+        created_at: toText(values[7]),
+        updated_at: toText(values[8])
+      });
+    }
+    if (sql.startsWith("UPDATE shopping_items") && sql.includes("SET name")) {
+      const item = this.shoppingItems.get(toText(values[5]));
+      if (item && item.household_id === values[4]) {
+        this.shoppingItems.set(item.id, {
+          ...item,
+          name: toText(values[0]),
+          quantity: toNullableText(values[1]),
+          note: toNullableText(values[2]),
+          updated_at: toText(values[3])
+        });
+      } else {
+        changes = 0;
+      }
+    }
+    if (sql.startsWith("UPDATE shopping_items") && sql.includes("status = 'purchased'")) {
+      const item = this.shoppingItems.get(toText(values[4]));
+      if (item && item.household_id === values[3] && item.status === "pending") {
+        this.shoppingItems.set(item.id, {
+          ...item,
+          status: "purchased",
+          purchased_by: toText(values[0]),
+          purchased_at: toText(values[1]),
+          updated_at: toText(values[2])
+        });
+      } else {
+        changes = 0;
+      }
+    }
+    if (sql.startsWith("UPDATE shopping_items") && sql.includes("status = 'pending'")) {
+      const item = this.shoppingItems.get(toText(values[2]));
+      if (item && item.household_id === values[1]) {
+        this.shoppingItems.set(item.id, {
+          ...item,
+          status: "pending",
+          purchased_by: null,
+          purchased_at: null,
+          updated_at: toText(values[0])
+        });
+      } else {
+        changes = 0;
+      }
+    }
+    if (sql.startsWith("DELETE FROM shopping_items")) {
+      const before = this.shoppingItems.size;
+      for (const [id, item] of this.shoppingItems) {
+        const matchesItemDelete = sql.includes("AND id = ?") && item.household_id === values[0] && item.id === values[1];
+        const matchesClear = sql.includes("status = 'purchased'") && item.household_id === values[0] && item.status === "purchased";
+        if (matchesItemDelete || matchesClear) this.shoppingItems.delete(id);
+      }
+      changes = before - this.shoppingItems.size;
+    }
+    if (sql.startsWith("INSERT INTO shopping_templates")) {
+      this.shoppingTemplates.set(toText(values[0]), {
+        id: toText(values[0]),
+        household_id: toText(values[1]),
+        name: toText(values[2]),
+        quantity: toNullableText(values[3]),
+        note: toNullableText(values[4]),
+        active: 1,
+        sort_order: Number(values[5]),
+        created_by: toText(values[6]),
+        created_at: toText(values[7]),
+        updated_at: toText(values[8])
+      });
+    }
+    if (sql.startsWith("UPDATE shopping_templates") && sql.includes("SET name")) {
+      const template = this.shoppingTemplates.get(toText(values[5]));
+      if (template && template.household_id === values[4]) {
+        this.shoppingTemplates.set(template.id, {
+          ...template,
+          name: toText(values[0]),
+          quantity: toNullableText(values[1]),
+          note: toNullableText(values[2]),
+          updated_at: toText(values[3])
+        });
+      } else {
+        changes = 0;
+      }
+    }
+    if (sql.startsWith("UPDATE shopping_templates") && sql.includes("active = 0")) {
+      const template = this.shoppingTemplates.get(toText(values[2]));
+      if (template && template.household_id === values[1]) {
+        this.shoppingTemplates.set(template.id, { ...template, active: 0, updated_at: toText(values[0]) });
+      } else {
+        changes = 0;
+      }
+    }
 
     return { success: true, meta: { changes } } as D1Result;
   }
@@ -485,6 +680,13 @@ export class MemoryD1 {
     return {
       ...record,
       acted_by_display_name: this.users.get(record.acted_by)?.display_name ?? null
+    };
+  }
+
+  private withPurchasedByName(item: ShoppingItemDbRecord) {
+    return {
+      ...item,
+      purchased_by_display_name: item.purchased_by ? this.users.get(item.purchased_by)?.display_name ?? null : null
     };
   }
 }

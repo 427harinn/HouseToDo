@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { login, logout, me, register } from "./api/auth";
 import { ApiError, apiMessage } from "./api/client";
 import { getDashboardToday, type DashboardToday } from "./api/dashboard";
+import { listShoppingItems } from "./api/shopping";
 import {
   createHousehold,
   createInvite,
@@ -660,6 +661,21 @@ function HomeScreen({ household, user, onNavigate, onLogout }: {
           </div>
         )}
       </SectionCard>
+      <SectionCard title="買い物" loading={loading}>
+        <div className="shopping-preview">
+          <strong>未購入 {data?.shopping.pendingCount ?? 0}件</strong>
+          {(data?.shopping.previewItems ?? []).length > 0 ? (
+            <ul>
+              {data!.shopping.previewItems.map((item) => (
+                <li key={item.id}>{item.name}{item.quantity ? ` / ${item.quantity}` : ""}</li>
+              ))}
+            </ul>
+          ) : (
+            <p>今のところ買うものはありません。</p>
+          )}
+          <Button variant="secondary" onClick={() => onNavigate("/shopping")}>買い物を確認</Button>
+        </div>
+      </SectionCard>
     </AppFrame>
   );
 }
@@ -1186,10 +1202,28 @@ function MembersScreen({ household, onNavigate, onLogout }: {
 }
 
 function ShoppingSoonScreen({ onNavigate }: { onNavigate: (route: NavigationPath) => void }) {
+  const [pendingCount, setPendingCount] = useState<number | null>(null);
+  const [message, setMessage] = useState("");
+  useEffect(() => {
+    const controller = new AbortController();
+    listShoppingItems(controller.signal)
+      .then((result) => setPendingCount(result.pending.length))
+      .catch((error) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setMessage(apiErrorMessage(error));
+      });
+    return () => controller.abort();
+  }, []);
   return (
     <AppFrame current="/shopping" onNavigate={onNavigate}>
-      <PageHeader title="買い物" description="買い物機能は次のフェーズで追加します。" />
-      <Card><EmptyState title="準備中です" description="今はホームとタスク管理を使えます。" /></Card>
+      <PageHeader title="買い物" description="買い物画面は次のフェーズで追加します。" />
+      <ErrorMessage message={message} />
+      <Card>
+        <EmptyState
+          title="買い物API接続済み"
+          description={`未購入件数: ${pendingCount === null ? "確認中" : `${pendingCount}件`}。本格的な買い物画面は次のフェーズで実装予定です。`}
+        />
+      </Card>
     </AppFrame>
   );
 }

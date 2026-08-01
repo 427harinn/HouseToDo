@@ -1,5 +1,21 @@
 # 家庭用Todoアプリ 開発引き継ぎ仕様書
 
+## 2026-08-01 Shopping backend foundation update
+
+The backend now supports the MVP shopping-list foundation:
+
+- Household-scoped shopping item CRUD at `/api/shopping/items`.
+- Item fields: `name`, `quantity`, `note`, `status`, `added_by`, `purchased_by`, `purchased_at`, `sort_order`.
+- `quantity` is stored as nullable text to support values such as `1本`, `500ml`, and `適量`.
+- Item status is `pending` or `purchased`; purchasing records the acting user and timestamp.
+- Repeated purchase calls are idempotent and do not overwrite an existing purchaser.
+- Household members may unpurchase items, delete items, and clear purchased items.
+- Shopping templates are separate records with `active` logical deletion.
+- Template add copies the current template fields into a new pending item. Later template edits do not update existing items.
+- `GET /api/dashboard/today` includes shopping pending count and up to three pending preview items.
+
+Not included in this phase: complete shopping UI, images, R2, barcode scanning, price/store/category/inventory management, notifications, production Cloudflare resources, deployment, custom domain, and push.
+
 ## 2026-07-31 Task backend MVP update
 
 The backend now supports the core task-management model for MVP:

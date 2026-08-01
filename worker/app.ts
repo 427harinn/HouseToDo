@@ -14,6 +14,22 @@ import {
   updateCurrentHouseholdRoute
 } from "./routes/households";
 import {
+  addShoppingItemFromTemplateRoute,
+  clearPurchasedShoppingItemsRoute,
+  createShoppingItemRoute,
+  createShoppingTemplateRoute,
+  deleteShoppingItemRoute,
+  deleteShoppingTemplateRoute,
+  getShoppingItemRoute,
+  getShoppingTemplateRoute,
+  listShoppingItemsRoute,
+  listShoppingTemplatesRoute,
+  purchaseShoppingItemRoute,
+  unpurchaseShoppingItemRoute,
+  updateShoppingItemRoute,
+  updateShoppingTemplateRoute
+} from "./routes/shopping";
+import {
   changeTaskStateRoute,
   createTaskRoute,
   dashboardTodayRoute,
@@ -31,6 +47,8 @@ const routeApi = withErrorHandling(withStateChangingRequestProtection((context) 
   const url = new URL(context.request.url);
   const key = `${context.request.method} ${url.pathname}`;
   const taskPath = url.pathname.match(/^\/api\/tasks\/([^/]+)(?:\/([^/]+))?$/);
+  const shoppingItemPath = url.pathname.match(/^\/api\/shopping\/items\/([^/]+)(?:\/([^/]+))?$/);
+  const shoppingTemplatePath = url.pathname.match(/^\/api\/shopping\/templates\/([^/]+)(?:\/([^/]+))?$/);
 
   if (taskPath && taskPath[1] !== "today" && taskPath[1] !== "week") {
     const taskId = decodeURIComponent(taskPath[1]);
@@ -46,6 +64,31 @@ const routeApi = withErrorHandling(withStateChangingRequestProtection((context) 
       (action === "start" || action === "complete" || action === "skip" || action === "reset")
     ) {
       return changeTaskStateRoute(taskId, action)(context);
+    }
+  }
+
+  if (shoppingItemPath && shoppingItemPath[1] !== "purchased") {
+    const itemId = decodeURIComponent(shoppingItemPath[1]);
+    const action = shoppingItemPath[2];
+    if (!action && context.request.method === "GET") return getShoppingItemRoute(itemId)(context);
+    if (!action && context.request.method === "PATCH") return updateShoppingItemRoute(itemId)(context);
+    if (!action && context.request.method === "DELETE") return deleteShoppingItemRoute(itemId)(context);
+    if (action === "purchase" && context.request.method === "POST") {
+      return purchaseShoppingItemRoute(itemId)(context);
+    }
+    if (action === "unpurchase" && context.request.method === "POST") {
+      return unpurchaseShoppingItemRoute(itemId)(context);
+    }
+  }
+
+  if (shoppingTemplatePath) {
+    const templateId = decodeURIComponent(shoppingTemplatePath[1]);
+    const action = shoppingTemplatePath[2];
+    if (!action && context.request.method === "GET") return getShoppingTemplateRoute(templateId)(context);
+    if (!action && context.request.method === "PATCH") return updateShoppingTemplateRoute(templateId)(context);
+    if (!action && context.request.method === "DELETE") return deleteShoppingTemplateRoute(templateId)(context);
+    if (action === "add" && context.request.method === "POST") {
+      return addShoppingItemFromTemplateRoute(templateId)(context);
     }
   }
 
@@ -82,6 +125,16 @@ const routeApi = withErrorHandling(withStateChangingRequestProtection((context) 
       return weekTasksRoute(context);
     case "GET /api/dashboard/today":
       return dashboardTodayRoute(context);
+    case "GET /api/shopping/items":
+      return listShoppingItemsRoute(context);
+    case "POST /api/shopping/items":
+      return createShoppingItemRoute(context);
+    case "POST /api/shopping/items/clear-purchased":
+      return clearPurchasedShoppingItemsRoute(context);
+    case "GET /api/shopping/templates":
+      return listShoppingTemplatesRoute(context);
+    case "POST /api/shopping/templates":
+      return createShoppingTemplateRoute(context);
     default:
       throw notFoundError();
   }

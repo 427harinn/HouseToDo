@@ -96,3 +96,34 @@ export type TaskRecord = {
   createdAt: string;
   updatedAt: string;
 };
+
+export type ShoppingItemStatus = "pending" | "purchased";
+
+export type ShoppingItem = {
+  id: string;
+  householdId: string;
+  name: string;
+  quantity: string | null;
+  note: string | null;
+  status: ShoppingItemStatus;
+  addedBy: string;
+  purchasedBy: string | null;
+  purchasedByDisplayName: string | null;
+  purchasedAt: string | null;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ShoppingTemplate = {
+  id: string;
+  householdId: string;
+  name: string;
+  quantity: string | null;
+  note: string | null;
+  active: boolean;
+  sortOrder: number;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+};
