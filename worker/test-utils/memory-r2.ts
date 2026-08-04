@@ -1,5 +1,6 @@
 export class MemoryR2 {
   readonly objects = new Map<string, { body: ArrayBuffer; contentType: string; etag: string }>();
+  readonly deleteFailures = new Map<string, Error>();
 
   async put(key: string, value: ArrayBuffer | ArrayBufferView | string | ReadableStream | Blob, options?: R2PutOptions): Promise<void> {
     let body: ArrayBuffer;
@@ -18,6 +19,6 @@ export class MemoryR2 {
     return Promise.resolve({ body: new Response(stored.body).body!, httpEtag: stored.etag, httpMetadata: { contentType: stored.contentType }, key, size: stored.body.byteLength } as R2ObjectBody);
   }
 
-  delete(key: string): Promise<void> { this.objects.delete(key); return Promise.resolve(); }
+  delete(key: string): Promise<void> { const failure = this.deleteFailures.get(key) ?? this.deleteFailures.get("*"); if (failure) return Promise.reject(failure); this.objects.delete(key); return Promise.resolve(); }
   head(key: string): Promise<R2Object | null> { return Promise.resolve(this.objects.has(key) ? ({ key } as R2Object) : null); }
 }

@@ -1523,3 +1523,43 @@ Quality gates after stabilization:
 - Host checks still found no `node_modules`, `dist`, `.wrangler`, or user Playwright cache on the host.
 
 Remaining constraint: Wrangler 4.114.0 has an intermittent runtime/esbuild termination in this Docker environment. The final clean-start run passed with the health-gated, serial configuration, but the toolchain issue remains a separate follow-up; no automatic retry or hidden success handling was added.
+
+## 2026-08-04 Orphan R2 cleanup implementation
+
+Purpose: record failed R2 object deletions for later, bounded cleanup without deleting valid referenced images. Before work, Git was clean on `main` at `ae0f06c`; `git diff --check` passed when run with an explicit repository path.
+
+Official Cloudflare specification checked: Cron Triggers use a five-field expression, execute on UTC, call the module `scheduled(controller, env, ctx)` handler, and can be tested locally through Wrangler's `/__scheduled` route when `--test-scheduled` is used. The handler uses `ctx.waitUntil`; local scheduled testing does not require waiting for the cron clock.
+
+Adopted policy: only failed R2 deletes are queued. Normal images with a current `shopping_item_images.r2_key` reference are never age-deleted. The queue retains candidates for 30 days, uses batch size 50, retries after 1/3/7/14 days, and marks the fifth failure `abandoned`. A missing R2 object is success. D1 reference recheck is performed before every delete, with household metadata preserved in the queue and key namespace.
+
+Migration/table: added `migrations/0007_orphan_r2_cleanup.sql` with `orphan_r2_objects`, unique `r2_key`, status/attempt/error timestamps, and due/household/source indexes. Added `worker/repositories/orphan-r2-object-repository.ts` with duplicate-safe enqueue, due ordering/filtering, retry/abandoned updates, and deletion.
+
+Service/handler: added `worker/services/orphan-r2-cleanup-service.ts`; added `scheduled` to `worker/index.ts`; configured daily `0 18 * * *` UTC in `wrangler.jsonc`. No public cleanup endpoint was added. Structured logs include event, timestamps, counts, duration, and per-record queue/source/error fields without credentials or image data.
+
+Existing image integration: replacement, image delete, item delete, and clear-purchased now use the shared delete-or-enqueue path. Major D1 updates are not made to fail solely because the subsequent R2 delete failed. Queue-registration failure is logged as `QUEUE_UPDATE_FAILED` after the major update and remains an R2/D1 consistency risk.
+
+Tests and local checks: extended MemoryD1/MemoryR2 for queue records and delete failure injection; added repository and cleanup service tests covering due windows, duplicate keys, reference protection, missing objects, retry, and abandoned behavior. Docker lint and typecheck passed before the final test-file addition. The subsequent Docker `npm test` attempt timed out after 124 seconds without test output; Docker Engine then returned HTTP 500 for `docker-compose ps` and `docker version`. This is recorded as unverified, not as success.
+
+Quality-gate blocker: Docker-dependent npm test, build, audit, local D1 migration, Wrangler dev, Scheduled route, and all Playwright E2E could not be completed after the Engine became unavailable. No automatic retry or success substitution was used. Host checks found no `node_modules`, `dist`, `.wrangler`, or `%USERPROFILE%\\AppData\\Local\\ms-playwright`.
+
+## 2026-08-04 Verification continuation after Docker recovery
+
+Docker recovery: `docker version` returned Client and Server (Docker Desktop 4.49.0, Engine 28.5.1); `docker info` returned a healthy Linux/WSL2 Engine; `docker-compose ps` showed app and worker healthy. No Docker data reset or initialization was performed.
+
+Pre-check Git: existing uncommitted orphan-cleanup implementation was preserved on `main`, based at `ae0f06c`; `git diff --check` passed.
+
+Timeout diagnosis: default Vitest parallel execution again produced no output and exceeded 180 seconds. Repository test alone passed 5/5; Cleanup Service test alone passed 3/3; Worker app test passed 11/11. Running all tests with one Vitest worker passed 13 files/55 tests. The minimal fix was changing the existing `npm test` script to `vitest run --maxWorkers=1 --minWorkers=1`; the normal `npm test` then passed 14 files/56 tests after adding the Scheduled Handler test.
+
+Additional tests: added `worker/scheduled.test.ts` (1 test), expanded Cleanup Service retry assertions, and corrected the Repository test to preserve the existing duplicate key's first due time. Final focused Scheduled/Service tests passed 2 files/4 tests; Repository tests passed 5/5.
+
+Quality gates: Docker lint passed, typecheck passed, normal unit/integration tests passed 14 files/56 tests, build passed, and audit reported only the known 3 vulnerabilities through `undici -> miniflare -> wrangler` (2 moderate, 1 high). `npm audit fix --force` was not run.
+
+D1: local `0007_orphan_r2_cleanup.sql` applied successfully; rerun returned `No migrations to apply`. Schema query confirmed the table, unique `r2_key`, due/household/source indexes, status checks, and retry columns.
+
+Local Scheduled: Wrangler 4.114.0 `--test-scheduled` was started in a temporary local-only container. `/__scheduled` was intercepted by SPA not-found handling in this asset configuration; the supported route `/cdn-cgi/handler/scheduled?cron=0+18+*+*+*&format=json` returned HTTP 200 `{"outcome":"ok","noRetry":false}`. A due queue/object produced structured counts `scanned:1, deleted:1`; D1 queue was removed and R2 get returned key-not-found. A D1-referenced key produced `scanned:1, skippedReferenced:1`; queue was removed and R2 get succeeded, proving the referenced object remained. Structured logs included event, timestamps, all counts, and duration. Temporary test records and objects were removed afterward.
+
+Playwright: the required combined command ran with 3 tests/1 worker. First run failed all three after the Worker stopped. After Worker restart, the image spec passed, but shopping/task health checks failed after the same Worker deadlock. Worker logs captured `fatal error: all goroutines are asleep - deadlock!`, `ExitCode=1`, `OOMKilled=false`, followed by app `ENOTFOUND worker`. An isolated shopping spec reproduced the deadlock. This is an environment/toolchain failure, not treated as E2E success; no automatic retry was used. Failure artifacts remain under `artifacts/playwright/all-e2e`.
+
+Wrangler deadlock: reproduced multiple times during E2E, with the existing esbuild stack and Wrangler 4.114.0 warning that 4.118.0 is available. No Wrangler upgrade or dependency change was made.
+
+No new dependency was added. Production Cron registration, production R2 operations, deployment, commit, and push were not performed.

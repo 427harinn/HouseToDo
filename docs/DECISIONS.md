@@ -432,3 +432,13 @@ Keep `workers: 1` and `fullyParallel: false`. Require app and Worker healthcheck
 ### Rationale and limitation
 
 This removes startup races and screenshot overwrites without adding fixed sleeps or automatic retries. During validation, Wrangler 4.114.0 also exhibited an intermittent runtime/esbuild deadlock and exited with code 1; `--no-bundle` was tested but cannot resolve this TypeScript module graph in the current configuration, and the suggested Wrangler 4.118.0 update had a peer dependency conflict. The final run succeeded after a clean Worker restart, but the underlying Wrangler instability remains an environment/tooling risk.
+
+## 2026-08-04 Queue failed R2 deletions instead of deleting referenced images
+
+### Decision
+
+Complete the major D1 mutation first, then attempt the R2 delete through one shared helper. If only R2 deletion fails, return the user operation as successful and enqueue the key for deletion after 30 days. The cleanup service must recheck `shopping_item_images.r2_key` immediately before deletion; any live reference wins over the queue and removes the queue record without touching R2. Missing R2 objects are successful cleanup, retry delays are 1/3/7/14 days, and the fifth failure is retained as `abandoned`.
+
+### Consequences
+
+This prioritizes preventing deletion of a valid image over complete orphan recovery. A queue-registration failure after a successful D1 mutation is logged as a structural consistency risk and remains an operational follow-up; no public cleanup endpoint or production Cron registration is added.

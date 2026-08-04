@@ -504,3 +504,7 @@ Remaining out of scope:
 ## 2026-08-04 Phase 7 shopping item images
 
 Completed browser-side processing, WebP conversion, EXIF-stripping re-encode, 10MB source/1MB output limits, private R2 storage, D1 metadata migration `0006_shopping_item_images.sql`, authenticated image APIs, replacement, item/clear-purchased cleanup, metadata responses, previews, thumbnails, loading/error states, and Docker tests. Production R2 creation, deployment, 30-day Cron, and image-specific Playwright fixture/screenshot coverage remain follow-up work.
+
+## 2026-08-04 Orphan R2 cleanup
+
+Implemented migration `0007_orphan_r2_cleanup.sql`, duplicate-safe orphan queue repository, shared R2 delete/enqueue behavior, D1 reference recheck, bounded cleanup service, retry backoff, `abandoned` state, and a Worker Scheduled Handler. Direct service tests are present; Wrangler scheduled-route validation remains pending until Docker Engine is available. Production Cron registration and production R2 are intentionally deferred.

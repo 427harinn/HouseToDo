@@ -4,6 +4,8 @@ import { ShoppingItemImageRepository } from "../repositories/shopping-item-image
 import { ShoppingItemRepository } from "../repositories/shopping-item-repository";
 import type { ShoppingItemImage } from "../types/domain";
 import { HouseholdService } from "./household-service";
+import { OrphanR2ObjectRepository, type OrphanSourceType } from "../repositories/orphan-r2-object-repository";
+import { ORPHAN_R2_RETENTION_DAYS } from "../lib/constants";
 
 export const MAX_IMAGE_BYTES = 1024 * 1024;
 export const MAX_IMAGE_DIMENSION = 1280;
@@ -16,11 +18,26 @@ export class ShoppingItemImageService {
   private readonly households: HouseholdService;
   private readonly items: ShoppingItemRepository;
   private readonly images: ShoppingItemImageRepository;
+  private readonly orphanQueue: OrphanR2ObjectRepository;
 
   constructor(private readonly db: D1Database, private readonly bucket: R2Bucket) {
     this.households = new HouseholdService(db);
     this.items = new ShoppingItemRepository(db);
     this.images = new ShoppingItemImageRepository(db);
+    this.orphanQueue = new OrphanR2ObjectRepository(db);
+  }
+
+  private async deleteR2ObjectOrEnqueueCleanup(r2Key: string, input: { sourceType: OrphanSourceType; sourceId: string; householdId: string; reason: string }): Promise<void> {
+    try { await this.bucket.delete(r2Key); }
+    catch (error) {
+      const now = new Date().toISOString();
+      try { await this.orphanQueue.enqueue({ id: crypto.randomUUID(), r2Key, ...input, firstFailedAt: now, nextAttemptAt: new Date(new Date(now).getTime() + ORPHAN_R2_RETENTION_DAYS * 86400000).toISOString(), now }); }
+      catch (queueError) { console.error(JSON.stringify({ event: "orphan_r2_queue_failed", sourceType: input.sourceType, sourceId: input.sourceId, errorCode: "QUEUE_UPDATE_FAILED", originalError: String(error instanceof Error ? error.message : error).slice(0, 500), queueError: String(queueError instanceof Error ? queueError.message : queueError).slice(0, 500) })); }
+    }
+  }
+
+  async deleteKnownImage(image: ShoppingItemImage, sourceType: OrphanSourceType, reason: string): Promise<void> {
+    await this.deleteR2ObjectOrEnqueueCleanup(image.r2Key, { sourceType, sourceId: image.shoppingItemId, householdId: image.householdId, reason });
   }
 
   async listMetadata(userId: string): Promise<Map<string, ShoppingItemImage>> {
@@ -52,7 +69,7 @@ export class ShoppingItemImageService {
       await this.bucket.delete(r2Key);
       throw error;
     }
-    if (old) await this.bucket.delete(old.r2Key);
+    if (old) await this.deleteKnownImage(old, "shopping_item_image_replace", "old image after replacement");
     return image;
   }
 
@@ -71,21 +88,21 @@ export class ShoppingItemImageService {
     if (!(await this.items.findByIdForHousehold(household.id, itemId))) throw shoppingItemNotFoundError();
     const image = await this.images.findByItemForHousehold(household.id, itemId);
     if (!image) return;
-    await this.bucket.delete(image.r2Key);
     await this.images.deleteForItem(household.id, itemId);
+    await this.deleteKnownImage(image, "shopping_item_image_delete", "image metadata deleted");
   }
 
   async deleteForHouseholdItem(householdId: string, itemId: string): Promise<void> {
     const image = await this.images.findByItemForHousehold(householdId, itemId);
     if (!image) return;
-    await this.bucket.delete(image.r2Key);
     await this.images.deleteForItem(householdId, itemId);
+    await this.deleteKnownImage(image, "shopping_item_delete", "shopping item deleted");
   }
 
   async deletePurchased(householdId: string): Promise<void> {
     for (const image of await this.images.listPurchasedByHousehold(householdId)) {
-      await this.bucket.delete(image.r2Key);
       await this.images.deleteForItem(householdId, image.shoppingItemId);
+      await this.deleteKnownImage(image, "shopping_clear_purchased", "purchased shopping items cleared");
     }
   }
 }

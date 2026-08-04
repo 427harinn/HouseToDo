@@ -255,4 +255,8 @@ Images and R2 are intentionally not represented as active controls in the UI. Ca
 
 ## 2026-08-04 Shopping item image architecture
 
-`src/lib/image-processing.ts` validates JPEG/PNG/WebP input, prefers orientation-aware `createImageBitmap`, falls back to `Image`, draws to Canvas, strips EXIF through re-encoding, and emits WebP. `worker/routes/shopping-images.ts` owns HTTP parsing while `ShoppingItemImageService` owns household/item authorization, WebP signature/size/dimension checks, R2 writes, D1 metadata, replacement, rollback, and deletion. Reads are private Worker responses with ETag; no public R2 URL is exposed. Item deletion and clear-purchased cleanup delete the R2 object and metadata before deleting the item.
+`src/lib/image-processing.ts` validates JPEG/PNG/WebP input, prefers orientation-aware `createImageBitmap`, falls back to `Image`, draws to Canvas, strips EXIF through re-encoding, and emits WebP. `worker/routes/shopping-images.ts` owns HTTP parsing while `ShoppingItemImageService` owns household/item authorization, WebP signature/size/dimension checks, R2 writes, D1 metadata, replacement, rollback, and deletion. Reads are private Worker responses with ETag; no public R2 URL is exposed. Item deletion and clear-purchased cleanup remove D1 references with the major mutation, then delete the R2 object or enqueue it for cleanup.
+
+## 2026-08-04 Orphan R2 cleanup architecture
+
+`orphan_r2_objects` stores only failed R2 deletions. The image service completes the relevant D1 mutation first, then calls the shared delete-or-enqueue helper. The cleanup service is callable directly by tests or by the Worker `scheduled` handler. Each due record is rechecked against `shopping_item_images.r2_key`; a live reference removes the queue record without touching R2. The batch is capped at 50, holds candidates for 30 days, retries at 1/3/7/14 days, and preserves the fifth failure as `abandoned`.

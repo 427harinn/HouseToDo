@@ -2730,3 +2730,7 @@ The frontend now includes the complete MVP shopping list UI using the existing `
 Routes added for this phase: `/shopping`, `/shopping/new`, `/shopping/items/:itemId`, `/shopping/items/:itemId/edit`, `/shopping/templates`, `/shopping/templates/new`, and `/shopping/templates/:templateId/edit`.
 
 Still out of scope: image upload, compression, WebP, R2, image URLs, image deletion/Cron, barcode reading, price, store, category, inventory, notifications, production Cloudflare resources, deployment, custom domain, commit, and push.
+
+### Orphan R2 cleanup (2026-08-04)
+
+Normal images referenced by `shopping_item_images` are never deleted by age. Only failed R2 deletions are queued in `orphan_r2_objects` with a unique `r2_key`. Candidates become due after 30 days, then the daily `0 18 * * *` UTC Scheduled Handler processes at most 50 records. It rechecks D1 references, treats missing R2 objects as success, retries after 1/3/7/14 days, and preserves the fifth failure as `abandoned`. Major D1 mutations succeed even when the subsequent R2 delete fails; queue-registration failures are structured errors. Production Cron registration, production R2 operations, deployment, commit, and push remain out of scope.

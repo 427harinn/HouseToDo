@@ -359,3 +359,7 @@ The MVP shopping UI now uses the existing shopping APIs.
 - `/shopping/templates/new` and `/shopping/templates/:templateId/edit`: create and edit templates.
 
 Playwright shopping artifacts are configured under `artifacts/playwright/shopping-ui/` when `npm run test:e2e` is run in Docker. Image upload, R2, barcode, price/store/category/inventory, notifications, production Cloudflare resources, deployment, push, and commit are not part of this phase.
+
+### Orphan R2 cleanup
+
+Only R2 objects whose deletion failed after the corresponding D1 operation are queued in `orphan_r2_objects`. Referenced images are never deleted by this job, including images older than 30 days. Queue records become due after 30 days, are processed in batches of 50 by the daily `0 18 * * *` UTC Cron, and retry after 1, 3, 7, and 14 days before becoming `abandoned` on the fifth failed attempt. The scheduled handler rechecks `shopping_item_images.r2_key`; missing R2 objects are treated as successful cleanup. Production Cron registration, R2 operations, deployment, commit, and push are not performed in this phase.

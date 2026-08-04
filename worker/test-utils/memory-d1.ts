@@ -135,6 +135,7 @@ export type ShoppingItemImageDbRecord = {
   id: string; shopping_item_id: string; household_id: string; r2_key: string; content_type: "image/webp";
   size_bytes: number; width: number; height: number; created_by: string; created_at: string; updated_at: string;
 };
+export type OrphanR2ObjectDbRecord = { id: string; r2_key: string; source_type: string; source_id: string | null; household_id: string | null; reason: string; status: string; attempt_count: number; first_failed_at: string; last_attempted_at: string | null; next_attempt_at: string; last_error_code: string | null; last_error_message: string | null; created_at: string; updated_at: string };
 
 class MemoryPreparedStatement {
   private values: unknown[] = [];
@@ -178,6 +179,7 @@ export class MemoryD1 {
   readonly shoppingItems = new Map<string, ShoppingItemDbRecord>();
   readonly shoppingTemplates = new Map<string, ShoppingTemplateDbRecord>();
   readonly shoppingItemImages = new Map<string, ShoppingItemImageDbRecord>();
+  readonly orphanR2Objects = new Map<string, OrphanR2ObjectDbRecord>();
 
   prepare(sql: string): D1PreparedStatement {
     return new MemoryPreparedStatement(this, sql) as unknown as D1PreparedStatement;
@@ -205,6 +207,7 @@ export class MemoryD1 {
     | ShoppingItemDbRecord
     | ShoppingTemplateDbRecord
     | ShoppingItemImageDbRecord
+    | OrphanR2ObjectDbRecord
     | null {
     if (sql.includes("FROM users WHERE id")) {
       return this.users.get(String(values[0])) ?? null;
@@ -317,6 +320,8 @@ export class MemoryD1 {
     if (sql.includes("FROM shopping_item_images") && sql.includes("shopping_item_id = ?")) {
       return Array.from(this.shoppingItemImages.values()).find((image) => image.household_id === values[0] && image.shopping_item_id === values[1]) ?? null;
     }
+    if (sql.includes("FROM shopping_item_images") && sql.includes("r2_key = ?")) return Array.from(this.shoppingItemImages.values()).find((image) => image.r2_key === values[0]) ?? null;
+    if (sql.includes("FROM orphan_r2_objects") && sql.includes("r2_key = ?")) return Array.from(this.orphanR2Objects.values()).find((row) => row.r2_key === values[0]) ?? null;
     return null;
   }
 
@@ -387,6 +392,9 @@ export class MemoryD1 {
       let rows = Array.from(this.shoppingItemImages.values()).filter((image) => image.household_id === values[0]);
       if (sql.includes("si.status = 'purchased'")) rows = rows.filter((image) => this.shoppingItems.get(image.shopping_item_id)?.status === "purchased");
       return rows;
+    }
+    if (sql.includes("FROM orphan_r2_objects")) {
+      return Array.from(this.orphanR2Objects.values()).filter((row) => (row.status === "pending" || row.status === "retry") && row.next_attempt_at <= String(values[0]) && row.attempt_count < Number(values[1])).sort((a, b) => a.next_attempt_at.localeCompare(b.next_attempt_at) || a.first_failed_at.localeCompare(b.first_failed_at)).slice(0, Number(values[2]));
     }
     return [];
   }
@@ -659,6 +667,14 @@ export class MemoryD1 {
     if (sql.startsWith("DELETE FROM shopping_item_images")) {
       for (const [key, image] of this.shoppingItemImages) if (image.household_id === values[0] && image.shopping_item_id === values[1]) this.shoppingItemImages.delete(key);
     }
+    if (sql.startsWith("INSERT INTO orphan_r2_objects")) {
+      const existing = Array.from(this.orphanR2Objects.values()).find((row) => row.r2_key === values[1]);
+      if (existing) this.orphanR2Objects.set(existing.id, { ...existing, source_type: String(values[2]), source_id: values[3] as string | null, household_id: values[4] as string | null, reason: String(values[5]), updated_at: String(values[9]) });
+      else this.orphanR2Objects.set(String(values[0]), { id: String(values[0]), r2_key: String(values[1]), source_type: String(values[2]), source_id: values[3] as string | null, household_id: values[4] as string | null, reason: String(values[5]), status: "pending", attempt_count: 0, first_failed_at: String(values[6]), last_attempted_at: null, next_attempt_at: String(values[7]), last_error_code: null, last_error_message: null, created_at: String(values[8]), updated_at: String(values[9]) });
+    }
+    if (sql.startsWith("UPDATE orphan_r2_objects SET status = 'retry'")) { const row = this.orphanR2Objects.get(String(values[6])); if (row) this.orphanR2Objects.set(row.id, { ...row, status: "retry", attempt_count: Number(values[0]), last_attempted_at: String(values[1]), next_attempt_at: String(values[2]), last_error_code: String(values[3]), last_error_message: String(values[4]), updated_at: String(values[5]) }); }
+    if (sql.startsWith("UPDATE orphan_r2_objects SET status = 'abandoned'")) { const row = this.orphanR2Objects.get(String(values[5])); if (row) this.orphanR2Objects.set(row.id, { ...row, status: "abandoned", attempt_count: Number(values[0]), last_attempted_at: String(values[1]), last_error_code: String(values[2]), last_error_message: String(values[3]), updated_at: String(values[4]) }); }
+    if (sql.startsWith("DELETE FROM orphan_r2_objects")) this.orphanR2Objects.delete(String(values[0]));
     if (sql.startsWith("INSERT INTO shopping_templates")) {
       this.shoppingTemplates.set(toText(values[0]), {
         id: toText(values[0]),

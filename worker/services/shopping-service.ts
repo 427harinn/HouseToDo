@@ -75,9 +75,10 @@ export class ShoppingService {
 
   async deleteItem(userId: string, itemId: string): Promise<void> {
     const household = await this.households.requireCurrentHousehold(userId);
-    if (this.imageService) await this.imageService.deleteForHouseholdItem(household.id, itemId);
+    const image = await this.imageRepository.findByItemForHousehold(household.id, itemId);
     const deleted = await this.items.deleteOrDeactivate(household.id, itemId);
     if (!deleted) throw shoppingItemNotFoundError();
+    if (image && this.imageService) await this.imageService.deleteKnownImage(image, "shopping_item_delete", "shopping item deleted");
   }
 
   async markPurchased(userId: string, itemId: string): Promise<ShoppingItem> {
@@ -106,8 +107,10 @@ export class ShoppingService {
 
   async clearPurchased(userId: string): Promise<number> {
     const household = await this.households.requireCurrentHousehold(userId);
-    if (this.imageService) await this.imageService.deletePurchased(household.id);
-    return this.items.clearPurchased(household.id);
+    const images = await this.imageRepository.listPurchasedByHousehold(household.id);
+    const cleared = await this.items.clearPurchased(household.id);
+    if (this.imageService) for (const image of images) await this.imageService.deleteKnownImage(image, "shopping_clear_purchased", "purchased shopping items cleared");
+    return cleared;
   }
 
   async addFromTemplate(userId: string, templateId: string): Promise<ShoppingItem> {

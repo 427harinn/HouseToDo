@@ -6,6 +6,7 @@ import { HouseholdRepository } from "./household-repository";
 import { SessionRepository } from "./session-repository";
 import { MemoryD1 } from "../test-utils/memory-d1";
 import { UserRepository } from "./user-repository";
+import { OrphanR2ObjectRepository } from "./orphan-r2-object-repository";
 
 describe("repositories", () => {
   it("creates and finds users by email", async () => {
@@ -113,5 +114,15 @@ describe("repositories", () => {
     await expect(
       repository.markUsed("invite-1", "member-2", "2026-07-21T01:01:00.000Z")
     ).resolves.toBe(false);
+  });
+
+  it("deduplicates orphan R2 keys and lists only due records in order", async () => {
+    const db = new MemoryD1();
+    const repository = new OrphanR2ObjectRepository(db as unknown as D1Database);
+    await repository.enqueue({ id: "orphan-1", r2Key: "key-1", sourceType: "manual_reconciliation", sourceId: "source-1", householdId: "household-1", reason: "first", firstFailedAt: "2026-01-01T00:00:00.000Z", nextAttemptAt: "2026-01-02T00:00:00.000Z", now: "2026-01-01T00:00:00.000Z" });
+    await repository.enqueue({ id: "orphan-2", r2Key: "key-1", sourceType: "manual_reconciliation", sourceId: "source-2", householdId: "household-1", reason: "updated", firstFailedAt: "2026-01-03T00:00:00.000Z", nextAttemptAt: "2026-01-04T00:00:00.000Z", now: "2026-01-03T00:00:00.000Z" });
+    await repository.enqueue({ id: "orphan-3", r2Key: "key-2", sourceType: "manual_reconciliation", sourceId: "source-3", householdId: "household-2", reason: "second", firstFailedAt: "2026-01-01T01:00:00.000Z", nextAttemptAt: "2026-01-01T02:00:00.000Z", now: "2026-01-01T00:00:00.000Z" });
+    const due = await repository.listDue("2026-01-03T00:00:00.000Z", 50);
+    expect(db.orphanR2Objects.size).toBe(2); expect(due.map((item) => item.r2Key)).toEqual(["key-2", "key-1"]); expect(due[1]?.firstFailedAt).toBe("2026-01-01T00:00:00.000Z");
   });
 });
