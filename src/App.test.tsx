@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 
@@ -92,6 +93,152 @@ const mockFetch = (householdData: typeof household | null = household) =>
 
 beforeEach(() => {
   window.history.replaceState({}, "", "/");
+});
+
+describe("App task form payload", () => {
+  it("ignores the StrictMode abort from the first edit load", async () => {
+    const task = {
+      id: "task-1",
+      title: "Daily task",
+      description: null,
+      recurrenceType: "daily",
+      assignmentType: "anyone",
+      assignedUserId: null,
+      assignment: { type: "anyone", user: null },
+      scheduledTime: "09:00",
+      notificationSlot: "none",
+      weekdays: [],
+      weeklyTargetCount: null,
+      active: true,
+      sortOrder: 1,
+      createdBy: user.id,
+      createdAt: "2026-08-01T00:00:00Z",
+      updatedAt: "2026-08-01T00:00:00Z"
+    };
+    let taskLoads = 0;
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.endsWith("/api/auth/me")) return Promise.resolve(ok({ user }));
+      if (url.endsWith("/api/households/current")) return Promise.resolve(ok({ household }));
+      if (url.endsWith("/api/households/current/members")) return Promise.resolve(ok({ members }));
+      if (url.endsWith("/api/tasks/task-1")) {
+        taskLoads += 1;
+        return taskLoads === 1
+          ? Promise.reject(new DOMException("The operation was aborted.", "AbortError"))
+          : Promise.resolve(ok({ task }));
+      }
+      return Promise.resolve(failure("NOT_FOUND", 404));
+    });
+    window.history.replaceState({}, "", "/tasks/task-1/edit");
+
+    const { container } = render(
+      <StrictMode>
+        <App />
+      </StrictMode>
+    );
+
+    await waitFor(() => expect(container.querySelector("#task-time")).toHaveValue("09:00"));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  }, 15000);
+
+  it("sends the daily scheduled time from the time input", async () => {
+    let capturedPayload: Record<string, unknown> | null = null;
+    const task = {
+      id: "task-1",
+      title: "Daily task",
+      description: null,
+      recurrenceType: "daily",
+      assignmentType: "anyone",
+      assignedUserId: null,
+      assignment: { type: "anyone", user: null },
+      scheduledTime: "09:00",
+      notificationSlot: "none",
+      weekdays: [],
+      weeklyTargetCount: null,
+      active: true,
+      sortOrder: 1,
+      createdBy: user.id,
+      createdAt: "2026-08-01T00:00:00Z",
+      updatedAt: "2026-08-01T00:00:00Z"
+    };
+    vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.endsWith("/api/auth/me")) return Promise.resolve(ok({ user }));
+      if (url.endsWith("/api/households/current")) return Promise.resolve(ok({ household }));
+      if (url.endsWith("/api/households/current/members")) return Promise.resolve(ok({ members }));
+      if (url.endsWith("/api/tasks") && init?.method === "POST") {
+        capturedPayload = JSON.parse(init.body as string) as Record<string, unknown>;
+        return Promise.resolve(ok({ task }, 201));
+      }
+      if (url.endsWith("/api/tasks/task-1")) return Promise.resolve(ok({ task }));
+      return Promise.resolve(failure("NOT_FOUND", 404));
+    });
+    window.history.replaceState({}, "", "/tasks/new");
+
+    const { container } = render(<App />);
+    await waitFor(() => expect(container.querySelector("#task-time")).toBeInTheDocument());
+    fireEvent.change(container.querySelector("#task-title")!, { target: { value: "Daily task" } });
+    fireEvent.input(container.querySelector("#task-time")!, { target: { value: "09:00" } });
+    fireEvent.submit(container.querySelector("form")!);
+
+    await waitFor(() => expect(capturedPayload).not.toBeNull());
+    expect(capturedPayload).toMatchObject({
+      recurrenceType: "daily",
+      scheduledTime: "09:00"
+    });
+  }, 15000);
+
+  it("sends edited and cleared scheduled times", async () => {
+    const task = {
+      id: "task-1",
+      title: "Daily task",
+      description: null,
+      recurrenceType: "daily",
+      assignmentType: "anyone",
+      assignedUserId: null,
+      assignment: { type: "anyone", user: null },
+      scheduledTime: "09:00",
+      notificationSlot: "none",
+      weekdays: [],
+      weeklyTargetCount: null,
+      active: true,
+      sortOrder: 1,
+      createdBy: user.id,
+      createdAt: "2026-08-01T00:00:00Z",
+      updatedAt: "2026-08-01T00:00:00Z"
+    };
+    const patchPayloads: Array<Record<string, unknown>> = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.endsWith("/api/auth/me")) return Promise.resolve(ok({ user }));
+      if (url.endsWith("/api/households/current")) return Promise.resolve(ok({ household }));
+      if (url.endsWith("/api/households/current/members")) return Promise.resolve(ok({ members }));
+      if (url.endsWith("/api/tasks/task-1") && init?.method === "PATCH") {
+        patchPayloads.push(JSON.parse(init.body as string) as Record<string, unknown>);
+        return Promise.resolve(ok({ task: { ...task, scheduledTime: patchPayloads.at(-1)?.scheduledTime ?? null } }));
+      }
+      if (url.endsWith("/api/tasks/task-1")) return Promise.resolve(ok({ task }));
+      return Promise.resolve(failure("NOT_FOUND", 404));
+    });
+    window.history.replaceState({}, "", "/tasks/task-1/edit");
+
+    const { container } = render(<App />);
+    await waitFor(() => expect(container.querySelector("#task-time")).toHaveValue("09:00"));
+    fireEvent.input(container.querySelector("#task-time")!, { target: { value: "10:30" } });
+    fireEvent.submit(container.querySelector("form")!);
+    await waitFor(() => expect(patchPayloads).toHaveLength(1));
+    expect(patchPayloads[0].scheduledTime).toBe("10:30");
+
+    act(() => {
+      window.history.pushState({}, "", "/tasks/task-1/edit");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    await waitFor(() => expect(container.querySelector("#task-time")).toHaveValue("09:00"));
+    fireEvent.input(container.querySelector("#task-time")!, { target: { value: "" } });
+    fireEvent.submit(container.querySelector("form")!);
+    await waitFor(() => expect(patchPayloads).toHaveLength(2));
+    expect(patchPayloads[1].scheduledTime).toBeNull();
+  }, 15000);
 });
 
 afterEach(() => {

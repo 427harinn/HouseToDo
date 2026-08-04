@@ -918,7 +918,10 @@ function TaskFormScreen({ household, mode, taskId, onNavigate }: {
     if (mode === "edit" && taskId) {
       getTask(taskId, controller.signal)
         .then((result) => setForm(taskToInput(result.task)))
-        .catch((error) => setMessage(apiErrorMessage(error)))
+        .catch((error) => {
+          if (error instanceof DOMException && error.name === "AbortError") return;
+          setMessage(apiErrorMessage(error));
+        })
         .finally(() => setLoading(false));
     }
     return () => controller.abort();
@@ -974,7 +977,7 @@ function TaskFormScreen({ household, mode, taskId, onNavigate }: {
           ) : null}
           {form.recurrenceType !== "weekly" ? (
             <FormField id="task-time" label="予定時刻" error={errors.scheduledTime}>
-              <input id="task-time" type="time" value={form.scheduledTime ?? ""} onChange={(event) => setField("scheduledTime", event.target.value || null)} aria-describedby={errors.scheduledTime ? "task-time-error" : undefined} />
+              <input id="task-time" type="time" value={form.scheduledTime ?? ""} onChange={(event) => setField("scheduledTime", event.target.value || null)} onInput={(event) => setField("scheduledTime", event.currentTarget.value || null)} aria-describedby={errors.scheduledTime ? "task-time-error" : undefined} />
             </FormField>
           ) : null}
           <SelectField id="task-notification" label="通知枠" value={form.notificationSlot} onChange={(value) => setField("notificationSlot", value as NotificationSlot)}>

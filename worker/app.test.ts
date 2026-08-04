@@ -382,7 +382,52 @@ describe("worker app task API", () => {
       env
     );
     expect(dailyResponse.status).toBe(201);
-    const dailyJson: { data: { task: { id: string } } } = await dailyResponse.json();
+    const dailyJson: { data: { task: { id: string; scheduledTime: string | null } } } = await dailyResponse.json();
+    expect(dailyJson.data.task.scheduledTime).toBe("09:00");
+    expect(db.tasks.get(dailyJson.data.task.id)?.scheduled_time).toBe("09:00");
+
+    const dailyDetail = await app.fetch(
+      new Request(`https://example.test/api/tasks/${dailyJson.data.task.id}`, {
+        headers: { cookie: owner.cookie }
+      }),
+      env
+    );
+    await expect(dailyDetail.json()).resolves.toMatchObject({
+      ok: true,
+      data: { task: { scheduledTime: "09:00" } }
+    });
+
+    const noTime = {
+      title: "Morning food",
+      description: "Check water too",
+      recurrenceType: "daily",
+      assignmentType: "anyone",
+      assignedUserId: null,
+      scheduledTime: null,
+      notificationSlot: "morning",
+      weekdays: [],
+      weeklyTargetCount: null
+    };
+    const changedTime = { ...noTime, scheduledTime: "10:30" };
+    const updateWithoutTime = await app.fetch(
+      patchJson(`/api/tasks/${dailyJson.data.task.id}`, noTime, owner.cookie),
+      env
+    );
+    expect(updateWithoutTime.status).toBe(200);
+    await expect(updateWithoutTime.json()).resolves.toMatchObject({
+      ok: true,
+      data: { task: { scheduledTime: null } }
+    });
+    const updateWithTime = await app.fetch(
+      patchJson(`/api/tasks/${dailyJson.data.task.id}`, changedTime, owner.cookie),
+      env
+    );
+    expect(updateWithTime.status).toBe(200);
+    await expect(updateWithTime.json()).resolves.toMatchObject({
+      ok: true,
+      data: { task: { scheduledTime: "10:30" } }
+    });
+    expect(db.tasks.get(dailyJson.data.task.id)?.scheduled_time).toBe("10:30");
 
     const scheduled = await app.fetch(
       postJson(
@@ -416,6 +461,9 @@ describe("worker app task API", () => {
       env
     );
     expect(weekly.status).toBe(201);
+    const weeklyJson: { data: { task: { id: string; scheduledTime: string | null } } } = await weekly.json();
+    expect(weeklyJson.data.task.scheduledTime).toBeNull();
+    expect(db.tasks.get(weeklyJson.data.task.id)?.scheduled_time).toBeNull();
 
     const today = await app.fetch(
       new Request("https://example.test/api/tasks/today?date=2026-07-31", {
