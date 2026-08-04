@@ -1,6 +1,8 @@
 import { apiRequest } from "./client";
+import type { ProcessedImage } from "../lib/image-processing";
 
 export type ShoppingItemStatus = "pending" | "purchased";
+export type ShoppingItemImage = { available: true; width: number; height: number; size: number; updatedAt: string };
 
 export type ShoppingItem = {
   id: string;
@@ -14,6 +16,7 @@ export type ShoppingItem = {
   sortOrder: number;
   createdAt: string;
   updatedAt: string;
+  image: ShoppingItemImage | null;
 };
 
 export type ShoppingTemplate = {
@@ -137,3 +140,17 @@ export const addShoppingItemFromTemplate = (templateId: string, signal?: AbortSi
     body: JSON.stringify({}),
     signal
   });
+
+export const uploadShoppingItemImage = (itemId: string, image: ProcessedImage, signal?: AbortSignal) => {
+  const body = new FormData();
+  body.append("image", image.blob, "shopping-item.webp");
+  body.append("width", String(image.width));
+  body.append("height", String(image.height));
+  return apiRequest<{ item: ShoppingItem }>(`/api/shopping/items/${itemId}/image`, { method: "PUT", body, signal });
+};
+
+export const deleteShoppingItemImage = (itemId: string, signal?: AbortSignal) =>
+  apiRequest<void>(`/api/shopping/items/${itemId}/image`, { method: "DELETE", body: JSON.stringify({}), signal });
+
+export const getShoppingItemImageUrl = (itemId: string, updatedAt?: string) =>
+  `/api/shopping/items/${encodeURIComponent(itemId)}/image${updatedAt ? `?v=${encodeURIComponent(updatedAt)}` : ""}`;

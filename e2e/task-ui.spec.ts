@@ -2,7 +2,10 @@ import { expect, test, type Browser, type Page } from "@playwright/test";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 
-const artifactDir = process.env.PLAYWRIGHT_ARTIFACT_DIR ?? "artifacts/playwright/task-ui";
+const artifactRoot = process.env.PLAYWRIGHT_ARTIFACT_DIR ?? "artifacts/playwright/task-ui";
+const artifactDir = artifactRoot.endsWith("/all-e2e") || artifactRoot.endsWith("\\all-e2e")
+  ? path.join(artifactRoot, "task-ui")
+  : artifactRoot;
 const password = "very-long-password";
 
 type TestUser = {

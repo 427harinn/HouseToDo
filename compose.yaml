@@ -39,6 +39,11 @@ services:
     env_file:
       - path: ./.dev.vars
         required: false
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5173/').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
     networks:
       default:
         aliases:
@@ -82,13 +87,20 @@ services:
     env_file:
       - path: ./.dev.vars
         required: false
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8787/api/health').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
   e2e:
     image: mcr.microsoft.com/playwright:v1.62.1-noble
     working_dir: /workspace
     command: npm run test:e2e
     depends_on:
-      - app
-      - worker
+      app:
+        condition: service_healthy
+      worker:
+        condition: service_healthy
     volumes:
       - ./src:/workspace/src
       - ./worker:/workspace/worker

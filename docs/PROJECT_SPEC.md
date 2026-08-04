@@ -2719,6 +2719,10 @@ The frontend now consumes the task backend API for MVP task management:
 - Shopping remains a preparation page for this phase.
 
 Not included in this phase: shopping list implementation, attachments, R2, Web Push, Cron, production Cloudflare resources, deployment, custom domain, rankings, and detailed analytics.
+## 2026-08-04 Shopping item image specification
+
+One optional image is supported per shopping item. JPEG, PNG, and WebP inputs are accepted up to 10MB. The browser converts them to WebP with Canvas, removes EXIF through re-encoding, limits the long side to 1280px, and enforces a final 1MB limit. The authenticated APIs are `PUT/GET/DELETE /api/shopping/items/:itemId/image`; R2 remains private and D1 metadata is stored in `shopping_item_images`. R2 and D1 are not one transaction, so orphan cleanup risk after external R2 failures is documented. Production R2, public URLs, CDN, 30-day Cron, and deployment are not included.
+
 ## 2026-08-04 Shopping UI scope update
 
 The frontend now includes the complete MVP shopping list UI using the existing `/api/shopping/*` APIs. Users can view pending and purchased items, add/edit/delete items, mark purchased, return to pending, clear purchased items, manage reusable shopping templates, add items from templates, and see purchaser/time information after refresh.

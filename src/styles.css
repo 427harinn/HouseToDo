@@ -377,6 +377,21 @@ textarea[aria-invalid="true"] {
   text-align: left;
 }
 
+.shopping-item__thumbnail {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  float: left;
+  margin-right: 8px;
+}
+
+.shopping-item__image-error { color: var(--color-text-muted); font-size: .78rem; }
+.shopping-image-field { display: grid; gap: 8px; }
+.shopping-image-field > label { font-weight: 800; }
+.shopping-image-preview, .shopping-detail-image { max-width: 100%; width: min(100%, 420px); max-height: 360px; border-radius: var(--radius-sm); object-fit: contain; background: #f3f7f5; }
+.shopping-image-field small { color: var(--color-text-muted); }
+
 .shopping-item__body strong {
   color: var(--color-text);
   line-height: 1.35;

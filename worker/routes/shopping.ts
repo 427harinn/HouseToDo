@@ -17,7 +17,7 @@ const requireUser = (user: AuthenticatedUser | undefined): AuthenticatedUser => 
   return user;
 };
 
-const itemResponse = (item: ShoppingItem) => ({
+export const itemResponse = (item: ShoppingItem) => ({
   id: item.id,
   name: item.name,
   quantity: item.quantity,
@@ -30,7 +30,8 @@ const itemResponse = (item: ShoppingItem) => ({
   purchasedAt: item.purchasedAt,
   sortOrder: item.sortOrder,
   createdAt: item.createdAt,
-  updatedAt: item.updatedAt
+  updatedAt: item.updatedAt,
+  image: item.image
 });
 
 const templateResponse = (template: ShoppingTemplate) => ({
@@ -47,7 +48,7 @@ const templateResponse = (template: ShoppingTemplate) => ({
 
 export const listShoppingItemsRoute: Handler = requireAuth(async (context) => {
   const user = requireUser(context.user);
-  const data = await new ShoppingService(context.env.DB).listItems(user.id);
+  const data = await new ShoppingService(context.env.DB, context.env.ATTACHMENTS).listItems(user.id);
   return okJson(
     {
       pending: data.pending.map(itemResponse),
@@ -60,14 +61,14 @@ export const listShoppingItemsRoute: Handler = requireAuth(async (context) => {
 export const createShoppingItemRoute: Handler = requireAuth(async (context) => {
   const user = requireUser(context.user);
   const input = validateShoppingWriteInput(await parseJsonBody(context.request));
-  const item = await new ShoppingService(context.env.DB).createItem(user.id, input);
+  const item = await new ShoppingService(context.env.DB, context.env.ATTACHMENTS).createItem(user.id, input);
   return okJson({ item: itemResponse(item) }, context.requestId, { status: 201 });
 });
 
 export const getShoppingItemRoute = (itemId: string): Handler =>
   requireAuth(async (context) => {
     const user = requireUser(context.user);
-    const item = await new ShoppingService(context.env.DB).getItem(user.id, itemId);
+    const item = await new ShoppingService(context.env.DB, context.env.ATTACHMENTS).getItem(user.id, itemId);
     return okJson({ item: itemResponse(item) }, context.requestId);
   });
 
@@ -75,14 +76,14 @@ export const updateShoppingItemRoute = (itemId: string): Handler =>
   requireAuth(async (context) => {
     const user = requireUser(context.user);
     const input = validateShoppingUpdateInput(await parseJsonBody(context.request));
-    const item = await new ShoppingService(context.env.DB).updateItem(user.id, itemId, input);
+    const item = await new ShoppingService(context.env.DB, context.env.ATTACHMENTS).updateItem(user.id, itemId, input);
     return okJson({ item: itemResponse(item) }, context.requestId);
   });
 
 export const deleteShoppingItemRoute = (itemId: string): Handler =>
   requireAuth(async (context) => {
     const user = requireUser(context.user);
-    await new ShoppingService(context.env.DB).deleteItem(user.id, itemId);
+    await new ShoppingService(context.env.DB, context.env.ATTACHMENTS).deleteItem(user.id, itemId);
     return okJson({ deleted: true }, context.requestId);
   });
 
@@ -90,7 +91,7 @@ export const purchaseShoppingItemRoute = (itemId: string): Handler =>
   requireAuth(async (context) => {
     const user = requireUser(context.user);
     await parseJsonBody(context.request);
-    const item = await new ShoppingService(context.env.DB).markPurchased(user.id, itemId);
+    const item = await new ShoppingService(context.env.DB, context.env.ATTACHMENTS).markPurchased(user.id, itemId);
     return okJson({ item: itemResponse(item) }, context.requestId);
   });
 
@@ -98,14 +99,14 @@ export const unpurchaseShoppingItemRoute = (itemId: string): Handler =>
   requireAuth(async (context) => {
     const user = requireUser(context.user);
     await parseJsonBody(context.request);
-    const item = await new ShoppingService(context.env.DB).markPending(user.id, itemId);
+    const item = await new ShoppingService(context.env.DB, context.env.ATTACHMENTS).markPending(user.id, itemId);
     return okJson({ item: itemResponse(item) }, context.requestId);
   });
 
 export const clearPurchasedShoppingItemsRoute: Handler = requireAuth(async (context) => {
   const user = requireUser(context.user);
   await parseJsonBody(context.request);
-  const clearedCount = await new ShoppingService(context.env.DB).clearPurchased(user.id);
+  const clearedCount = await new ShoppingService(context.env.DB, context.env.ATTACHMENTS).clearPurchased(user.id);
   return okJson({ clearedCount }, context.requestId);
 });
 
@@ -148,6 +149,6 @@ export const addShoppingItemFromTemplateRoute = (templateId: string): Handler =>
   requireAuth(async (context) => {
     const user = requireUser(context.user);
     await parseJsonBody(context.request);
-    const item = await new ShoppingService(context.env.DB).addFromTemplate(user.id, templateId);
+    const item = await new ShoppingService(context.env.DB, context.env.ATTACHMENTS).addFromTemplate(user.id, templateId);
     return okJson({ item: itemResponse(item) }, context.requestId, { status: 201 });
   });

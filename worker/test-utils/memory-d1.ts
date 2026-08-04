@@ -131,6 +131,11 @@ export type ShoppingTemplateDbRecord = {
   updated_at: string;
 };
 
+export type ShoppingItemImageDbRecord = {
+  id: string; shopping_item_id: string; household_id: string; r2_key: string; content_type: "image/webp";
+  size_bytes: number; width: number; height: number; created_by: string; created_at: string; updated_at: string;
+};
+
 class MemoryPreparedStatement {
   private values: unknown[] = [];
 
@@ -172,6 +177,7 @@ export class MemoryD1 {
   readonly taskRecords = new Map<string, TaskRecordDbRecord>();
   readonly shoppingItems = new Map<string, ShoppingItemDbRecord>();
   readonly shoppingTemplates = new Map<string, ShoppingTemplateDbRecord>();
+  readonly shoppingItemImages = new Map<string, ShoppingItemImageDbRecord>();
 
   prepare(sql: string): D1PreparedStatement {
     return new MemoryPreparedStatement(this, sql) as unknown as D1PreparedStatement;
@@ -198,6 +204,7 @@ export class MemoryD1 {
     | TaskRecordDbRecord
     | ShoppingItemDbRecord
     | ShoppingTemplateDbRecord
+    | ShoppingItemImageDbRecord
     | null {
     if (sql.includes("FROM users WHERE id")) {
       return this.users.get(String(values[0])) ?? null;
@@ -307,6 +314,9 @@ export class MemoryD1 {
       if (!template || template.household_id !== values[0]) return null;
       return template;
     }
+    if (sql.includes("FROM shopping_item_images") && sql.includes("shopping_item_id = ?")) {
+      return Array.from(this.shoppingItemImages.values()).find((image) => image.household_id === values[0] && image.shopping_item_id === values[1]) ?? null;
+    }
     return null;
   }
 
@@ -372,6 +382,11 @@ export class MemoryD1 {
         .filter((template) => template.household_id === values[0])
         .filter((template) => (sql.includes("AND active = 1") ? template.active === 1 : true))
         .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
+    }
+    if (sql.includes("FROM shopping_item_images") && sql.includes("WHERE household_id = ?")) {
+      let rows = Array.from(this.shoppingItemImages.values()).filter((image) => image.household_id === values[0]);
+      if (sql.includes("si.status = 'purchased'")) rows = rows.filter((image) => this.shoppingItems.get(image.shopping_item_id)?.status === "purchased");
+      return rows;
     }
     return [];
   }
@@ -635,6 +650,14 @@ export class MemoryD1 {
         if (matchesItemDelete || matchesClear) this.shoppingItems.delete(id);
       }
       changes = before - this.shoppingItems.size;
+    }
+    if (sql.startsWith("INSERT INTO shopping_item_images")) {
+      const record = { id: toText(values[0]), shopping_item_id: toText(values[1]), household_id: toText(values[2]), r2_key: toText(values[3]), content_type: values[4] as "image/webp", size_bytes: Number(values[5]), width: Number(values[6]), height: Number(values[7]), created_by: toText(values[8]), created_at: toText(values[9]), updated_at: toText(values[10]) };
+      for (const [key, image] of this.shoppingItemImages) if (image.shopping_item_id === record.shopping_item_id) this.shoppingItemImages.delete(key);
+      this.shoppingItemImages.set(record.id, record);
+    }
+    if (sql.startsWith("DELETE FROM shopping_item_images")) {
+      for (const [key, image] of this.shoppingItemImages) if (image.household_id === values[0] && image.shopping_item_id === values[1]) this.shoppingItemImages.delete(key);
     }
     if (sql.startsWith("INSERT INTO shopping_templates")) {
       this.shoppingTemplates.set(toText(values[0]), {

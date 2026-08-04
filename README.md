@@ -335,6 +335,10 @@ docker-compose run --rm app npm run db:migrate:local
 
 `npm audit` は 2026-07-31 時点で high vulnerabilities を報告します。`npm audit fix --force` は eslint / wrangler の破壊的更新を伴うため、別作業で影響確認してください。
 
+### Shopping item images (2026-08-04)
+
+Shopping items support one optional private image. JPEG, PNG, and WebP sources up to 10MB are processed in the browser with Canvas, EXIF is removed by re-encoding, and output is WebP up to 1280px on the long side and 1MB. The authenticated Worker API stores only processed WebP data in the existing private `ATTACHMENTS` R2 binding and stores metadata in D1. Image URLs are never public; household membership is checked for upload, read, and delete. Production R2 creation, deployment, and the 30-day cleanup Cron remain out of scope.
+
 ## Docker Playwright E2E
 
 タスクUIのGUI確認と2ユーザー確認は、ホストへPlaywrightブラウザを入れずに専用Dockerサービスで実行します。

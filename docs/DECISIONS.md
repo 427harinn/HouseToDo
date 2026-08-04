@@ -414,3 +414,21 @@ Use initial fetch, manual refresh, post-mutation refetch, and `visibilitychange`
 
 ### Consequences
 Two users can share state by refreshing or returning focus to the shopping screen. The UI avoids extra infrastructure and background traffic. True realtime collaboration remains a later enhancement.
+
+## 2026-08-04 Store shopping images in a separate D1 table
+
+Use `shopping_item_images` with `UNIQUE(shopping_item_id)` and household/item indexes. Reuse the existing private `ATTACHMENTS` R2 binding with keys `households/{householdId}/shopping/{itemId}/{imageId}.webp`. This separates replaceable metadata from the shopping item and keeps one-image enforcement in D1. Replacement is new R2 object, D1 upsert, then old-object deletion; failed D1 updates remove the new object where possible. R2 and D1 are not transactional, so orphan cleanup remains a documented operational risk. Public URLs, CDN, production R2, and the 30-day Cron remain out of scope.
+
+## 2026-08-04 Run Docker E2E serially against one local Worker
+
+### Context
+
+The Docker E2E suite uses one shared Vite app, Wrangler dev Worker, local D1, and local R2. The Playwright configuration already uses one worker and `fullyParallel: false`; parallel test execution would create avoidable shared-state and artifact races.
+
+### Decision
+
+Keep `workers: 1` and `fullyParallel: false`. Require app and Worker healthchecks before starting the E2E container. Wait for `/api/health` from each spec before registration, and place screenshots under spec-specific subdirectories when the shared `all-e2e` artifact root is used.
+
+### Rationale and limitation
+
+This removes startup races and screenshot overwrites without adding fixed sleeps or automatic retries. During validation, Wrangler 4.114.0 also exhibited an intermittent runtime/esbuild deadlock and exited with code 1; `--no-bundle` was tested but cannot resolve this TypeScript module graph in the current configuration, and the suggested Wrangler 4.118.0 update had a peer dependency conflict. The final run succeeded after a clean Worker restart, but the underlying Wrangler instability remains an environment/tooling risk.

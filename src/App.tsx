@@ -11,6 +11,7 @@ import {
   deleteShoppingItem,
   deleteShoppingTemplate,
   getShoppingItem,
+  getShoppingItemImageUrl,
   getShoppingTemplate,
   listShoppingItems,
   listShoppingTemplates,
@@ -18,6 +19,8 @@ import {
   unpurchaseShoppingItem,
   updateShoppingItem,
   updateShoppingTemplate,
+  uploadShoppingItemImage,
+  deleteShoppingItemImage,
   type CreateShoppingItemInput,
   type CreateShoppingTemplateInput,
   type ShoppingItem,
@@ -25,6 +28,7 @@ import {
   type UpdateShoppingItemInput,
   type UpdateShoppingTemplateInput
 } from "./api/shopping";
+import { processShoppingImage, type ProcessedImage } from "./lib/image-processing";
 import {
   createHousehold,
   createInvite,
@@ -1524,6 +1528,7 @@ function ShoppingItemCard({ item, members, busy, onPrimary, onOpen, onEdit, onDe
         {busy ? "…" : purchased ? "✓" : ""}
       </button>
       <button className="shopping-item__body" onClick={onOpen} type="button">
+        {item.image ? <ShoppingThumbnail item={item} /> : null}
         <strong>{item.name}</strong>
         <span>{[item.quantity, item.note].filter(Boolean).join(" / ")}</span>
         <small>
@@ -1538,6 +1543,12 @@ function ShoppingItemCard({ item, members, busy, onPrimary, onOpen, onEdit, onDe
       </div>
     </article>
   );
+}
+
+function ShoppingThumbnail({ item }: { item: ShoppingItem }) {
+  const [failed, setFailed] = useState(false);
+  if (!item.image || failed) return failed ? <span className="shopping-item__image-error">画像を表示できません</span> : null;
+  return <img className="shopping-item__thumbnail" src={getShoppingItemImageUrl(item.id, item.image.updatedAt)} alt={`${item.name}の写真`} onError={() => setFailed(true)} />;
 }
 
 function ShoppingItemDetailScreen({ itemId, onNavigate }: {
@@ -1571,6 +1582,7 @@ function ShoppingItemDetailScreen({ itemId, onNavigate }: {
       <PageHeader title={item.name} description={item.status === "purchased" ? "購入済み" : "未購入"} />
       <ErrorMessage message={message} />
       <Card>
+        {item.image ? <img className="shopping-detail-image" src={getShoppingItemImageUrl(item.id, item.image.updatedAt)} alt={`${item.name}の写真`} /> : null}
         <dl className="detail-grid">
           {item.quantity ? <div><dt>数量</dt><dd>{item.quantity}</dd></div> : null}
           {item.note ? <div><dt>メモ</dt><dd>{item.note}</dd></div> : null}
@@ -1599,17 +1611,51 @@ function ShoppingItemFormScreen({ household, mode, itemId, onNavigate }: {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(mode === "edit");
   const [submitting, setSubmitting] = useState(false);
+  const [existingImage, setExistingImage] = useState<ShoppingItem["image"]>(null);
+  const [selectedImage, setSelectedImage] = useState<ProcessedImage | null>(null);
+  const [previewUrl, setPreviewUrl] = useState("");
+  const [imageStatus, setImageStatus] = useState<"idle" | "processing" | "uploading" | "deleting">("idle");
+  const [imageMessage, setImageMessage] = useState("");
   useEffect(() => {
     if (mode !== "edit" || !itemId) return;
     const controller = new AbortController();
     getShoppingItem(itemId, controller.signal)
-      .then((result) => setForm({ name: result.item.name, quantity: result.item.quantity, note: result.item.note }))
+      .then((result) => { setForm({ name: result.item.name, quantity: result.item.quantity, note: result.item.note }); setExistingImage(result.item.image); })
       .catch((error) => {
         if (!(error instanceof DOMException && error.name === "AbortError")) setMessage(shoppingErrorMessage(error));
       })
       .finally(() => setLoading(false));
     return () => controller.abort();
   }, [mode, itemId]);
+  useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl); }, [previewUrl]);
+  const selectImage = async (file: File | undefined) => {
+    if (!file) return;
+    setImageStatus("processing");
+    setImageMessage("");
+    try {
+      const processed = await processShoppingImage(file);
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      setSelectedImage(processed);
+      setPreviewUrl(URL.createObjectURL(processed.blob));
+    } catch (error) {
+      const messages: Record<string, string> = {
+        "unsupported-image-type": "この画像形式には対応していません。JPEG、PNG、WebPを選択してください。",
+        "source-image-too-large": "写真のサイズが大きすぎます。10MB以下の写真を選択してください。",
+        "processed-image-too-large": "圧縮後も写真のサイズが大きすぎます。別の写真を選択してください。",
+        "image-load-failed": "画像を読み込めませんでした。別の写真を選択してください。",
+        "webp-conversion-failed": "WebP変換に失敗しました。別の写真を選択してください。"
+      };
+      setImageMessage(messages[error instanceof Error ? error.message : ""] ?? "写真の準備に失敗しました。別の写真を選択してください。");
+    } finally { setImageStatus("idle"); }
+  };
+  const removeSelectedImage = () => { if (previewUrl) URL.revokeObjectURL(previewUrl); setPreviewUrl(""); setSelectedImage(null); };
+  const removeExistingImage = async () => {
+    if (!itemId || !window.confirm("この写真を削除しますか？")) return;
+    setImageStatus("deleting"); setImageMessage("");
+    try { await deleteShoppingItemImage(itemId); setExistingImage(null); }
+    catch { setImageMessage("画像削除に失敗しました。もう一度お試しください。"); }
+    finally { setImageStatus("idle"); }
+  };
   const setField = <K extends keyof CreateShoppingItemInput>(key: K, value: CreateShoppingItemInput[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
   };
@@ -1625,6 +1671,12 @@ function ShoppingItemFormScreen({ household, mode, itemId, onNavigate }: {
       const result = mode === "edit" && itemId
         ? await updateShoppingItem(itemId, payload)
         : await createShoppingItem(payload as CreateShoppingItemInput);
+      if (selectedImage) {
+        setImageStatus("uploading");
+        try { await uploadShoppingItemImage(result.item.id, selectedImage); }
+        catch { setMessage("商品は追加されましたが、写真の保存に失敗しました。編集画面から再度追加できます。"); setImageStatus("idle"); return; }
+        setImageStatus("idle");
+      }
       onNavigate(`/shopping/items/${result.item.id}`);
     } catch (error) {
       setMessage(shoppingErrorMessage(error));
@@ -1649,6 +1701,20 @@ function ShoppingItemFormScreen({ household, mode, itemId, onNavigate }: {
           <FormField id="shopping-note" label="メモ" error={errors.note}>
             <textarea id="shopping-note" aria-describedby={errors.note ? "shopping-note-error" : undefined} aria-invalid={errors.note ? "true" : "false"} maxLength={500} placeholder="いつものメーカー / セールなら2つ" value={form.note ?? ""} onChange={(event) => setField("note", event.target.value)} />
           </FormField>
+          <div className="shopping-image-field" aria-live="polite">
+            <label htmlFor="shopping-image">商品の写真（任意）</label>
+            {previewUrl ? <img className="shopping-image-preview" src={previewUrl} alt={`${form.name || "商品の"}写真のプレビュー`} /> : existingImage ? <img className="shopping-image-preview" src={getShoppingItemImageUrl(itemId!, existingImage.updatedAt)} alt={`${form.name || "商品の"}写真`} /> : null}
+            {selectedImage ? <small>縮小後: {(selectedImage.size / 1024).toFixed(0)}KB / {selectedImage.width}×{selectedImage.height}px</small> : null}
+            <input id="shopping-image" accept="image/jpeg,image/png,image/webp" capture="environment" disabled={imageStatus !== "idle" || submitting} onChange={(event) => void selectImage(event.target.files?.[0])} type="file" />
+            <div className="inline-actions">
+              {selectedImage ? <Button variant="ghost" disabled={imageStatus !== "idle"} onClick={removeSelectedImage}>選択解除</Button> : null}
+              {existingImage && !selectedImage ? <Button variant="danger" disabled={imageStatus !== "idle" || submitting} onClick={() => void removeExistingImage()}>写真を削除</Button> : null}
+            </div>
+            {imageStatus === "processing" ? <p role="status">写真を準備しています…</p> : null}
+            {imageStatus === "uploading" ? <p role="status">写真を保存しています…</p> : null}
+            {imageStatus === "deleting" ? <p role="status">画像削除中…</p> : null}
+            {imageMessage ? <p className="form-error" id="shopping-image-error" role="alert">{imageMessage}</p> : null}
+          </div>
           <Button disabled={submitting} type="submit">{submitting ? <InlineLoading /> : "保存"}</Button>
           <Button variant="ghost" onClick={() => onNavigate("/shopping")}>一覧へ戻る</Button>
         </form>

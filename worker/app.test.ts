@@ -2,11 +2,13 @@ import { describe, expect, it } from "vitest";
 import { createApp } from "./app";
 import { MemoryD1 } from "./test-utils/memory-d1";
 import type { Env } from "./types/env";
+import { MemoryR2 } from "./test-utils/memory-r2";
+import { ShoppingItemImageService } from "./services/shopping-item-image-service";
 
 const createTestEnv = (db = new MemoryD1()): Env =>
   ({
     DB: db as unknown as D1Database,
-    ATTACHMENTS: {},
+    ATTACHMENTS: new MemoryR2(),
     ASSETS: { fetch: () => Promise.resolve(new Response("asset")) },
     APP_ENV: "test",
     ALLOWED_ORIGINS: "https://example.test,http://localhost:5174"
@@ -111,6 +113,32 @@ describe("worker app auth API", () => {
         )
       ).status
     ).toBe(401);
+  });
+});
+
+describe("worker shopping image API", () => {
+  it("uploads, replaces, serves, and deletes a private shopping image", async () => {
+    const app = createApp();
+    const env = createTestEnv();
+    const { cookie } = await registerUser(env, { email: "image@example.com", password: "very-long-password", displayName: "Image" });
+    await app.fetch(postJson("/api/households", { name: "Image home" }, cookie), env);
+    const created = await app.fetch(postJson("/api/shopping/items", { name: "Milk" }, cookie), env);
+    const createdJson: { data: { item: { id: string } } } = await created.json();
+    const itemId = createdJson.data.item.id;
+    const webp = new Uint8Array([82, 73, 70, 70, 8, 0, 0, 0, 87, 69, 66, 80, 0, 0, 0, 0]);
+    const userId = Array.from((env.DB as unknown as MemoryD1).users.keys())[0];
+    const imageService = new ShoppingItemImageService(env.DB, env.ATTACHMENTS);
+    await imageService.upload(userId, itemId, { body: new Uint8Array([...webp, 1]).buffer, width: 80, height: 60 });
+    const first = (env.ATTACHMENTS as unknown as MemoryR2).objects.size;
+    expect(first).toBe(1);
+    await imageService.upload(userId, itemId, { body: new Uint8Array([...webp, 2]).buffer, width: 80, height: 60 });
+    expect((env.ATTACHMENTS as unknown as MemoryR2).objects.size).toBe(1);
+    const image = await app.fetch(new Request(`https://example.test/api/shopping/items/${itemId}/image`, { headers: { cookie } }), env);
+    expect(image.status).toBe(200);
+    expect(image.headers.get("cache-control")).toContain("private");
+    expect((await image.arrayBuffer()).byteLength).toBe(17);
+    expect((await app.fetch(new Request(`https://example.test/api/shopping/items/${itemId}/image`, { method: "DELETE", headers: { origin: "https://example.test", cookie, "content-type": "application/json" }, body: "{}" }), env)).status).toBe(200);
+    expect((await app.fetch(new Request(`https://example.test/api/shopping/items/${itemId}/image`, { headers: { cookie } }), env)).status).toBe(404);
   });
 });
 

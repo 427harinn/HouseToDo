@@ -6,24 +6,36 @@ import {
 } from "../lib/errors";
 import type { ShoppingUpdateInput, ShoppingWriteInput } from "../lib/validation";
 import { ShoppingItemRepository } from "../repositories/shopping-item-repository";
+import { ShoppingItemImageRepository } from "../repositories/shopping-item-image-repository";
 import { ShoppingTemplateRepository } from "../repositories/shopping-template-repository";
 import type { ShoppingItem } from "../types/domain";
 import { HouseholdService } from "./household-service";
+import { ShoppingItemImageService } from "./shopping-item-image-service";
 
 export class ShoppingService {
   private readonly households: HouseholdService;
   private readonly items: ShoppingItemRepository;
   private readonly templates: ShoppingTemplateRepository;
+  private readonly imageRepository: ShoppingItemImageRepository;
+  private readonly imageService?: ShoppingItemImageService;
 
-  constructor(db: D1Database) {
+  constructor(db: D1Database, attachments?: R2Bucket) {
     this.households = new HouseholdService(db);
     this.items = new ShoppingItemRepository(db);
     this.templates = new ShoppingTemplateRepository(db);
+    this.imageRepository = new ShoppingItemImageRepository(db);
+    if (attachments) this.imageService = new ShoppingItemImageService(db, attachments);
   }
 
   async listItems(userId: string): Promise<{ pending: ShoppingItem[]; purchased: ShoppingItem[] }> {
     const household = await this.households.requireCurrentHousehold(userId);
     const items = await this.items.listByHouseholdId(household.id, { includePurchased: true });
+    const images = await this.imageRepository.listByHousehold(household.id);
+    const imageMap = new Map(images.map((image) => [image.shoppingItemId, image]));
+    for (const item of items) {
+      const image = imageMap.get(item.id);
+      item.image = image ? { available: true, width: image.width, height: image.height, size: image.sizeBytes, updatedAt: image.updatedAt } : null;
+    }
     return {
       pending: items.filter((item) => item.status === "pending"),
       purchased: items.filter((item) => item.status === "purchased")
@@ -34,6 +46,8 @@ export class ShoppingService {
     const household = await this.households.requireCurrentHousehold(userId);
     const item = await this.items.findByIdForHousehold(household.id, itemId);
     if (!item) throw shoppingItemNotFoundError();
+    const image = await this.imageRepository.findByItemForHousehold(household.id, itemId);
+    item.image = image ? { available: true, width: image.width, height: image.height, size: image.sizeBytes, updatedAt: image.updatedAt } : null;
     return item;
   }
 
@@ -54,11 +68,14 @@ export class ShoppingService {
     const household = await this.households.requireCurrentHousehold(userId);
     const updated = await this.items.update(household.id, itemId, { ...input, now: nowIso() });
     if (!updated) throw shoppingItemNotFoundError();
+    const image = await this.imageRepository.findByItemForHousehold(household.id, itemId);
+    updated.image = image ? { available: true, width: image.width, height: image.height, size: image.sizeBytes, updatedAt: image.updatedAt } : null;
     return updated;
   }
 
   async deleteItem(userId: string, itemId: string): Promise<void> {
     const household = await this.households.requireCurrentHousehold(userId);
+    if (this.imageService) await this.imageService.deleteForHouseholdItem(household.id, itemId);
     const deleted = await this.items.deleteOrDeactivate(household.id, itemId);
     if (!deleted) throw shoppingItemNotFoundError();
   }
@@ -70,6 +87,8 @@ export class ShoppingService {
     if (existing.status === "purchased") return existing;
     const updated = await this.items.markPurchased(household.id, itemId, userId, nowIso());
     if (!updated) throw shoppingItemNotFoundError();
+    const image = await this.imageRepository.findByItemForHousehold(household.id, itemId);
+    updated.image = image ? { available: true, width: image.width, height: image.height, size: image.sizeBytes, updatedAt: image.updatedAt } : null;
     return updated;
   }
 
@@ -80,11 +99,14 @@ export class ShoppingService {
     if (existing.status === "pending") return existing;
     const updated = await this.items.markPending(household.id, itemId, nowIso());
     if (!updated) throw shoppingItemNotFoundError();
+    const image = await this.imageRepository.findByItemForHousehold(household.id, itemId);
+    updated.image = image ? { available: true, width: image.width, height: image.height, size: image.sizeBytes, updatedAt: image.updatedAt } : null;
     return updated;
   }
 
   async clearPurchased(userId: string): Promise<number> {
     const household = await this.households.requireCurrentHousehold(userId);
+    if (this.imageService) await this.imageService.deletePurchased(household.id);
     return this.items.clearPurchased(household.id);
   }
 

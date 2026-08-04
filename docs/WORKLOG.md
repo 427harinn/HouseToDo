@@ -1460,6 +1460,66 @@ Documents:
 - Updated `docs/DEVELOPMENT_PLAN.md` to replace the Docker-recovery pending note with the completed validation result.
 - Appended this WORKLOG entry.
 
+## 2026-08-04 Shopping item image foundation
+
+Purpose: add one optional product image to shopping items without changing existing task, shopping, auth, or household flows. Adopted JPEG/PNG/WebP input, 10MB source limit, Canvas WebP re-encode with EXIF removal, 1280px long-side limit, bounded quality/dimension retries, and 1MB output limit. Reused private `ATTACHMENTS` R2 with `households/{householdId}/shopping/{itemId}/{imageId}.webp`; added `0006_shopping_item_images.sql`, metadata Repository/Service, authenticated multipart PUT/private GET/idempotent DELETE APIs, replacement and cleanup for item deletion and clear-purchased. Added frontend preview, thumbnails, image status/error states, API/image-processing tests, and MemoryR2.
+
+Validation: Docker lint, typecheck, 12 test files/50 tests, build, and local D1 migration passed. Audit remains the known 3-advisory `undici -> miniflare -> wrangler` path; no force fix or dependency was added. Host `node_modules`, `dist`, `.wrangler`, and user Playwright cache were absent. Existing Playwright image-specific fixture/flow, screenshots, and Trace were not completed in this phase; production R2, deployment, Cron, commit, and push were not performed. R2/D1 are not transactional, so orphan risk after external R2 failures remains documented.
+
+Next: add a valid fixture and dedicated Docker Playwright flow for image create/replace/delete/two-user/foreign-household/mobile screenshots, then manually verify Wrangler dev upload/get/delete.
+
+## 2026-08-04 Image E2E, Wrangler dev, and local R2 verification
+
+Docker Engine: Client/Server both available (Docker Desktop 4.49.0, Engine 28.5.1); no data initialization or cleanup was performed. Added synthetic fixtures `e2e/fixtures/shopping-item-landscape.jpg` (960x540), `shopping-item-portrait.png` (540x960), and `shopping-item-replacement.webp` (640x400), containing only generated shapes.
+
+Added `e2e/shopping-image.spec.ts`. The image suite passed independently and generated the requested 11 screenshots, HTML report, and Trace under `artifacts/playwright/shopping-image/`. It covered browser JPEG processing/preview, WebP response headers, edit preservation, replacement, purchased display, two-user sharing, image deletion, item deletion, purchased cleanup, pending-image retention, foreign-household 404, and 320/390/430/1280 viewports. Existing shopping and task E2E also passed independently. A combined 3-suite run was attempted twice; Wrangler dev intermittently terminated with `Connection reset by peer`, causing the combined run to fail. This is recorded as an environment/process stability issue, not treated as a full-suite success.
+
+Wrangler dev manual verification against local D1/R2 succeeded: register, household/item creation, WebP upload, GET `image/webp` with `private, max-age=300` and ETag, replacement, DELETE, and post-delete 404. Local R2 blobs were observed inside the named Docker `.wrangler` volume; no host `.wrangler` was created. The temporary manual verification script and temporary cookie/header/image files were removed.
+
+Discovered and fixed a real client issue: `apiRequest` was applying `Content-Type: application/json` to FormData, causing image PUT to return 400. FormData now leaves the browser boundary header untouched, with a regression test. Final Docker gates passed: lint, typecheck, 51 tests, build, and local D1 (`No migrations to apply`). Audit remains the known 3-advisory `undici -> miniflare -> wrangler` chain; no force fix was run. No commit, push, deployment, production R2, Cron, or production Cloudflare operation was performed.
+
 Remaining items:
 - Audit remediation remains a separate dependency update task, especially `playwright`, `postcss`, and `wrangler/miniflare` paths.
 - Image upload/compression/WebP/R2/image cleanup/barcode/price/store/category/inventory/notifications/production deployment remain out of scope.
+
+## 2026-08-04 Stabilize Docker E2E and complete the combined run
+
+Purpose: stabilize only the existing task, shopping, and shopping-image Playwright execution. No image specification, production R2, Cron, deployment, commit, or push changes were introduced.
+
+Before work, the repository was on `main` at `9943957`; the existing image implementation, E2E, fixtures, and documentation changes were uncommitted and preserved. Docker Client/Server were available: Docker Desktop 4.49.0, Engine 28.5.1.
+
+E2E configuration confirmed:
+- `playwright.config.ts` uses one Chromium project, `workers: 1`, `fullyParallel: false`, `trace: "on"`, and shared `PLAYWRIGHT_ARTIFACT_DIR` output.
+- The three specs run serially in Playwright's discovered order: `shopping-image.spec.ts`, `shopping-ui.spec.ts`, `task-ui.spec.ts`.
+- `e2e` uses `PLAYWRIGHT_BASE_URL=http://web:5173`; Vite app proxies `/api` to `worker:8787`.
+- Compose originally waited only for `service_started`; all specs shared the same local D1/R2 volume but generated unique users, household names, and entity names with a timestamp/random suffix. Browser contexts were created per user and closed at the end of each spec.
+
+Reproduction and diagnosis:
+- The first post-change combined run completed all 3 tests successfully in 2.5 minutes.
+- A later run reproduced Worker termination. The task spec timed out after `POST /api/tasks/:id/skip`; Worker logs showed `fatal error: all goroutines are asleep - deadlock!` in Wrangler/esbuild, `OOMKilled=false`, Worker exit code 1, then Vite logged `ENOTFOUND worker`/`ECONNREFUSED`.
+- Another run showed the same Worker exit pattern without the full stack trace; app logs recorded `socket hang up` and repeated `ENOTFOUND worker`. The test failures were therefore not treated as application assertions or fixed with sleeps.
+- `wrangler dev --no-bundle` was tested, but the current TypeScript entry graph failed with `No such module "app"`; it was reverted. Wrangler 4.118.0 was not applied because npm reported a peer conflict with the existing `@cloudflare/workers-types`; no force install was used.
+
+Stabilization applied:
+- Added app and Worker Docker healthchecks that perform actual HTTP fetches to `http://127.0.0.1:5173/` and `http://127.0.0.1:8787/api/health`.
+- Changed the E2E service dependency to `service_healthy` for both app and Worker.
+- Added `/api/health` readiness polling to the image spec.
+- Isolated screenshots under `all-e2e/task-ui`, `all-e2e/shopping-ui`, and `all-e2e/shopping-image` to avoid same-name overwrites.
+- Added the portrait PNG fixture to the browser flow: select PNG, show processed preview, save, verify the thumbnail, then continue with WebP replacement. No fixed sleeps or automatic retries were added.
+
+Results:
+- Image spec with JPEG, PNG, and WebP browser inputs: passed, 1 test.
+- Final combined command: `docker-compose run --rm -e PLAYWRIGHT_ARTIFACT_DIR=artifacts/playwright/all-e2e e2e npm run test:e2e` passed: 3 tests in 2.6 minutes. Final order was image, shopping, task; Worker remained healthy.
+- The successful run generated the combined HTML report, traces, and spec-separated screenshots. Failure logs and state from the reproduced Worker stop are retained in `artifacts/playwright/all-e2e/worker.log`, `app.log`, `worker-state.json`, and `compose-ps.log`.
+- Existing per-suite artifact directories were not deleted.
+
+Quality gates after stabilization:
+- Lint passed.
+- Typecheck passed.
+- Unit/integration tests passed: 12 files, 51 tests.
+- Build passed.
+- Local D1 migration passed: `No migrations to apply!`.
+- `npm audit` remains 3 vulnerabilities through `undici -> miniflare -> wrangler` (2 moderate, 1 high); `npm audit fix --force` was not run.
+- Host checks still found no `node_modules`, `dist`, `.wrangler`, or user Playwright cache on the host.
+
+Remaining constraint: Wrangler 4.114.0 has an intermittent runtime/esbuild termination in this Docker environment. The final clean-start run passed with the health-gated, serial configuration, but the toolchain issue remains a separate follow-up; no automatic retry or hidden success handling was added.

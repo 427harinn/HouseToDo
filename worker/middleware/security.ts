@@ -26,7 +26,8 @@ export const validateStateChangingRequest = (request: Request, env: Env): void =
   }
 
   const contentType = request.headers.get("content-type") ?? "";
-  if (!contentType.toLowerCase().includes("application/json")) {
+  const isShoppingImageUpload = request.method === "PUT" && new URL(request.url).pathname.match(/^\/api\/shopping\/items\/[^/]+\/image$/);
+  if (!contentType.toLowerCase().includes("application/json") && !(isShoppingImageUpload && contentType.toLowerCase().includes("multipart/form-data"))) {
     throw validationError({ body: "Content-Typeはapplication/jsonで送信してください。" });
   }
 };

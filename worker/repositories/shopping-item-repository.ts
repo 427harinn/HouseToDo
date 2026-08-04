@@ -53,7 +53,8 @@ const toItem = (row: ShoppingItemRow | null): ShoppingItem | null =>
         purchasedAt: row.purchased_at,
         sortOrder: row.sort_order,
         createdAt: row.created_at,
-        updatedAt: row.updated_at
+        updatedAt: row.updated_at,
+        image: null
       }
     : null;
 

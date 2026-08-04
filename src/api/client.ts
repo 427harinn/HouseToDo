@@ -88,7 +88,7 @@ export const apiRequest = async <T>(
 ): Promise<T> => {
   const headers = new Headers(init.headers);
   const hasBody = init.body !== undefined && init.body !== null;
-  if (hasBody && !headers.has("content-type")) {
+  if (hasBody && !headers.has("content-type") && !(init.body instanceof FormData)) {
     headers.set("content-type", "application/json");
   }
 

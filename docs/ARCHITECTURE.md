@@ -252,3 +252,7 @@ The shopping UI keeps the lightweight `window.history` route parser and React lo
 Shopping state is refreshed on first display, after create/edit/delete/purchase/unpurchase/template-add/clear operations, by a manual update button, and when `visibilitychange` returns to visible. This supports MVP two-user sharing without WebSocket or polling.
 
 Images and R2 are intentionally not represented as active controls in the UI. Cards are structured so a future image area can be added without changing the item API contract.
+
+## 2026-08-04 Shopping item image architecture
+
+`src/lib/image-processing.ts` validates JPEG/PNG/WebP input, prefers orientation-aware `createImageBitmap`, falls back to `Image`, draws to Canvas, strips EXIF through re-encoding, and emits WebP. `worker/routes/shopping-images.ts` owns HTTP parsing while `ShoppingItemImageService` owns household/item authorization, WebP signature/size/dimension checks, R2 writes, D1 metadata, replacement, rollback, and deletion. Reads are private Worker responses with ETag; no public R2 URL is exposed. Item deletion and clear-purchased cleanup delete the R2 object and metadata before deleting the item.

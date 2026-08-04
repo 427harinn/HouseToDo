@@ -54,4 +54,15 @@ describe("apiRequest", () => {
       details: { email: "メールを確認してください。" }
     } satisfies Partial<ApiError>);
   });
+
+  it("leaves the browser boundary content type for FormData", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ ok: true, data: { uploaded: true }, requestId: "req" }), {
+        headers: { "content-type": "application/json" }
+      })
+    );
+    await apiRequest("/api/example", { method: "PUT", body: new FormData() });
+    const init = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(new Headers(init.headers).has("content-type")).toBe(false);
+  });
 });

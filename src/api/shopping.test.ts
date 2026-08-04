@@ -7,6 +7,7 @@ import {
   deleteShoppingItem,
   deleteShoppingTemplate,
   getShoppingItem,
+  getShoppingItemImageUrl,
   getShoppingTemplate,
   listShoppingItems,
   listShoppingTemplates,
@@ -14,7 +15,9 @@ import {
   unpurchaseShoppingItem,
   updateShoppingItem,
   updateShoppingTemplate
+  , uploadShoppingItemImage, deleteShoppingItemImage
 } from "./shopping";
+import type { ProcessedImage } from "../lib/image-processing";
 
 const ok = (data: unknown) =>
   new Response(JSON.stringify({ ok: true, data, requestId: "req" }), {
@@ -72,5 +75,16 @@ describe("shopping api clients", () => {
       ["/api/shopping/templates/t1/add", "POST"],
       ["/api/shopping/templates/t1", "DELETE"]
     ]);
+  });
+
+  it("sends image upload/delete requests and builds versioned URLs", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(ok({ item: { id: "i1" } })));
+    const image: ProcessedImage = { blob: new Blob(["RIFFxxxxWEBP"], { type: "image/webp" }), width: 80, height: 60, contentType: "image/webp", size: 12 };
+    await uploadShoppingItemImage("i1", image);
+    await deleteShoppingItemImage("i1");
+    expect(getShoppingItemImageUrl("i1", "2026-08-01T00:00:00Z")).toContain("/api/shopping/items/i1/image?v=");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ method: "PUT" });
+    expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({ method: "DELETE" });
   });
 });

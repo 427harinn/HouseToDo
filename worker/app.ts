@@ -29,6 +29,7 @@ import {
   updateShoppingItemRoute,
   updateShoppingTemplateRoute
 } from "./routes/shopping";
+import { deleteShoppingItemImageRoute, getShoppingItemImageRoute, uploadShoppingItemImageRoute } from "./routes/shopping-images";
 import {
   changeTaskStateRoute,
   createTaskRoute,
@@ -79,6 +80,9 @@ const routeApi = withErrorHandling(withStateChangingRequestProtection((context) 
     if (action === "unpurchase" && context.request.method === "POST") {
       return unpurchaseShoppingItemRoute(itemId)(context);
     }
+    if (action === "image" && context.request.method === "PUT") return uploadShoppingItemImageRoute(itemId)(context);
+    if (action === "image" && context.request.method === "GET") return getShoppingItemImageRoute(itemId)(context);
+    if (action === "image" && context.request.method === "DELETE") return deleteShoppingItemImageRoute(itemId)(context);
   }
 
   if (shoppingTemplatePath) {

@@ -500,3 +500,7 @@ Validated on 2026-08-04 after Docker Desktop recovered:
 Remaining out of scope:
 
 - Image/R2/barcode/price/store/category/inventory/notification/production deployment work remains out of scope.
+
+## 2026-08-04 Phase 7 shopping item images
+
+Completed browser-side processing, WebP conversion, EXIF-stripping re-encode, 10MB source/1MB output limits, private R2 storage, D1 metadata migration `0006_shopping_item_images.sql`, authenticated image APIs, replacement, item/clear-purchased cleanup, metadata responses, previews, thumbnails, loading/error states, and Docker tests. Production R2 creation, deployment, 30-day Cron, and image-specific Playwright fixture/screenshot coverage remain follow-up work.

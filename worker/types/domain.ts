@@ -113,6 +113,29 @@ export type ShoppingItem = {
   sortOrder: number;
   createdAt: string;
   updatedAt: string;
+  image: ShoppingItemImageMetadata | null;
+};
+
+export type ShoppingItemImageMetadata = {
+  available: true;
+  width: number;
+  height: number;
+  size: number;
+  updatedAt: string;
+};
+
+export type ShoppingItemImage = {
+  id: string;
+  shoppingItemId: string;
+  householdId: string;
+  r2Key: string;
+  contentType: "image/webp";
+  sizeBytes: number;
+  width: number;
+  height: number;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type ShoppingTemplate = {
