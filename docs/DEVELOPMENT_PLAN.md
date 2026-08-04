@@ -478,3 +478,25 @@ Phase 2からPhase 3のフロントエンド最小導線として、以下を実
 - Added task detail/respond screen with start, complete, skip, reset, and history.
 - Added bottom navigation for home, tasks, shopping preparation, and settings.
 - Deferred shopping, image/R2, Web Push, Cron, production deployment, and final Docker quality-gate rerun after Docker Desktop recovers.
+## 2026-08-04 Phase 6 frontend progress
+
+Completed in this phase:
+
+- Shopping list UI using existing item APIs.
+- Pending and purchased sections with purchased collapse.
+- Item create, detail, edit, delete, purchase, unpurchase, and clear-purchased flows.
+- Purchaser and purchased-time display.
+- Active shopping template list, create, edit, logical delete, and template-to-item add flows.
+- Shopping tab enabled in bottom navigation.
+- Shopping route guards continue to use existing auth/household guard.
+- Frontend tests and Playwright shopping scenario were added.
+
+Validated on 2026-08-04 after Docker Desktop recovered:
+
+- Docker quality gates completed in Docker: lint, typecheck, unit/integration tests, build, audit recording, and local D1 migration check.
+- Playwright E2E completed in Docker for both the existing task scenario and the shopping scenario.
+- Shopping screenshots, HTML report, and trace were generated under `artifacts/playwright/shopping-ui/`.
+
+Remaining out of scope:
+
+- Image/R2/barcode/price/store/category/inventory/notification/production deployment work remains out of scope.

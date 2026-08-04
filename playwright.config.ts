@@ -1,6 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const artifactDir = process.env.PLAYWRIGHT_ARTIFACT_DIR ?? "artifacts/playwright/task-ui";
+const artifactDir = process.env.PLAYWRIGHT_ARTIFACT_DIR ?? "artifacts/playwright/shopping-ui";
 
 export default defineConfig({
   testDir: "./e2e",

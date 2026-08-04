@@ -1265,3 +1265,92 @@ Docker Desktop復帰後、前回未完了だった最終品質ゲートをDocker
 - `dist=False`
 - `.wrangler=False`
 - `%USERPROFILE%\AppData\Local\ms-playwright=False`
+## 2026-08-04 Shopping UI frontend implementation
+
+Implemented the mobile-first shopping list and shopping template UI using the existing shopping APIs. Added routes for `/shopping`, `/shopping/new`, `/shopping/items/:itemId`, `/shopping/items/:itemId/edit`, `/shopping/templates`, `/shopping/templates/new`, and `/shopping/templates/:templateId/edit`.
+
+The list screen now shows pending items, purchased items, purchaser/time, template chips, refresh behavior, per-action loading state, success/error messages, purchased collapse, deletion confirmation, and clear-purchased confirmation. Item and template forms validate name, quantity, and note with labels, field errors, `aria-describedby`, `aria-invalid`, and `aria-busy`.
+
+Changed files: `src/App.tsx`, `src/api/client.ts`, `src/api/shopping.ts`, `src/api/shopping.test.ts`, `src/App.test.tsx`, `src/components/ui.tsx`, `src/styles.css`, `playwright.config.ts`, `e2e/shopping-ui.spec.ts`, docs, and README. Added dependencies: none.
+
+Added tests for shopping API client coverage, shopping route guards, list rendering, purchaser display, collapse behavior, and a Playwright shopping scenario with two BrowserContexts and planned screenshots under `artifacts/playwright/shopping-ui/`.
+
+Verification: `git diff --check` passed. Docker quality gates and Playwright could not be completed because Docker daemon access failed (`dockerDesktopLinuxEngine` pipe not found). Host `npm run typecheck` could not run because host `node_modules` is intentionally absent (`tsc` not recognized). No production Cloudflare resources, deployment, push, commit, image upload, R2, barcode, price, store, category, inventory, notification, or Cron work was performed.
+
+## 2026-08-04 Shopping UI Docker validation and E2E artifact generation
+
+Purpose: recover/verify Docker Engine and complete the unfinished shopping UI validation only. No new product features, image/R2 work, production Cloudflare operation, deployment, commit, or push were performed.
+
+Pre-work state:
+- Branch: `main`.
+- Git log head: `81de3b2 買い物リストのバックエンド構築`.
+- Worktree already contained uncommitted shopping UI/docs/test changes plus untracked `e2e/shopping-ui.spec.ts`.
+- `git -c safe.directory=C:/Users/rinnr/Documents/GitHub/HouseToDo diff --check` passed with only LF-to-CRLF warnings.
+
+Docker Engine:
+- `docker version`: succeeded. Client `28.5.1`; Server Docker Desktop `4.49.0 (208700)` / Engine `28.5.1`.
+- `docker info`: succeeded. Context `desktop-linux`; Server `28.5.1`; OS Docker Desktop; 5 containers at the time of check.
+- `docker-compose ps`: initially no listed Compose services, later `housetodo-app-1` and `housetodo-worker-1` were running for E2E.
+
+Quality gates:
+- `docker-compose run --rm app npm run lint`: passed.
+- `docker-compose run --rm app npm run typecheck`: passed.
+- `docker-compose run --rm app npm test`: passed. 11 test files, 46 tests.
+- `docker-compose run --rm app npm run build`: passed.
+- `docker-compose run --rm app npm audit`: failed as expected for known dependency advisories; recorded only, no fix run.
+- `docker-compose run --rm app npm run db:migrate:local`: passed, `No migrations to apply!`.
+- `docker-compose run --rm -e PLAYWRIGHT_ARTIFACT_DIR=artifacts/playwright/shopping-ui e2e npm run test:e2e`: passed. 2 tests: shopping UI E2E and existing task UI E2E.
+- `docker-compose run --rm -e PLAYWRIGHT_ARTIFACT_DIR=artifacts/playwright/shopping-ui e2e npx playwright test e2e/shopping-ui.spec.ts`: passed. Re-generated shopping-only screenshots to avoid same-name overwrites from task E2E.
+
+npm audit:
+- Total: 8 vulnerabilities, 1 moderate and 7 high.
+- Paths/advisories shown: `brace-expansion` via eslint/typescript-eslint paths, `playwright` via `@playwright/test`, `postcss`, `sharp` via `wrangler -> miniflare -> sharp`, and `undici` via `wrangler/miniflare`.
+- `npm audit fix --force` was not run.
+
+E2E and two-user confirmation:
+- Existing task E2E passed.
+- Shopping E2E passed.
+- Two isolated BrowserContexts were used for Buyer A and Buyer B.
+- Confirmed item create, quantity/note display, edit, purchase, purchaser display, unpurchase, delete, clear purchased while pending item remains, template create/add/edit/delete, added item not changing after template edit, dashboard preview, responsive sizes, and protected route after logout.
+
+Fixes made during validation:
+- `src/App.tsx`: fixed lint issue by removing a duplicated union constituent in shopping form normalization and suppressing an old unused preparation screen that remains in the file.
+- `src/App.test.tsx`: waited for shopping data before assertions and changed a duplicate text assertion to handle repeated quantity/note display.
+- `e2e/shopping-ui.spec.ts`: added waits for edit-form initial values, shopping list load completion, and responsive screenshot item visibility. These replaced flaky timing assumptions without adding fixed sleeps.
+
+Artifacts:
+- `artifacts/playwright/shopping-ui/01-shopping-empty.png`
+- `artifacts/playwright/shopping-ui/02-shopping-pending.png`
+- `artifacts/playwright/shopping-ui/03-shopping-purchased.png`
+- `artifacts/playwright/shopping-ui/04-shopping-create.png`
+- `artifacts/playwright/shopping-ui/05-shopping-edit.png`
+- `artifacts/playwright/shopping-ui/06-shopping-templates.png`
+- `artifacts/playwright/shopping-ui/07-template-create.png`
+- `artifacts/playwright/shopping-ui/08-template-added-item.png`
+- `artifacts/playwright/shopping-ui/09-dashboard-shopping-preview.png`
+- `artifacts/playwright/shopping-ui/10-two-user-purchase.png`
+- `artifacts/playwright/shopping-ui/11-mobile-320.png`
+- `artifacts/playwright/shopping-ui/12-mobile-390.png`
+- `artifacts/playwright/shopping-ui/13-mobile-430.png`
+- `artifacts/playwright/shopping-ui/14-desktop.png`
+- HTML report: `artifacts/playwright/shopping-ui/html-report/index.html`.
+- Trace: `artifacts/playwright/shopping-ui/test-results/shopping-ui-shopping-UI-E2-631b6-ponsive-sizes-and-two-users-chromium/trace.zip`.
+
+Visual checks:
+- Checked 320x568, 390x844, 430x932, and 1280x800 screenshots.
+- No horizontal scroll, obvious text clipping, broken card layout, template overflow, or major operation overlap was observed.
+- Fixed bottom navigation appears in full-page screenshots at the viewport boundary, but primary shopping actions and item controls remain visible and usable.
+
+Host generated artifacts:
+- `node_modules=False`
+- `dist=False`
+- `.wrangler=False`
+- `%USERPROFILE%\AppData\Local\ms-playwright=False`
+
+Documents:
+- Updated `docs/DEVELOPMENT_PLAN.md` to replace the Docker-recovery pending note with the completed validation result.
+- Appended this WORKLOG entry.
+
+Remaining items:
+- Audit remediation remains a separate dependency update task, especially `playwright`, `postcss`, and `wrangler/miniflare` paths.
+- Image upload/compression/WebP/R2/image cleanup/barcode/price/store/category/inventory/notifications/production deployment remain out of scope.

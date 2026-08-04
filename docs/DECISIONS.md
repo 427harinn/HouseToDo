@@ -404,3 +404,13 @@ Do not introduce React Router in this phase. Extend the existing lightweight rou
 
 ### Rationale
 The route set is still small, existing auth and household guards already work with the local routing model, and avoiding a new dependency keeps the MVP easier to verify. Revisit a router library when nested layouts, route loaders, or broader navigation complexity appears.
+## 2026-08-04 Shopping UI uses explicit refresh instead of realtime sync
+
+### Context
+The shopping UI needs to show changes made by another household member, but the MVP explicitly does not require WebSocket, polling, notifications, or production Cloudflare changes.
+
+### Decision
+Use initial fetch, manual refresh, post-mutation refetch, and `visibilitychange` refetch for the shopping list. Keep state local to React components and continue the existing lightweight routing model.
+
+### Consequences
+Two users can share state by refreshing or returning focus to the shopping screen. The UI avoids extra infrastructure and background traffic. True realtime collaboration remains a later enhancement.

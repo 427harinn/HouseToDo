@@ -2719,3 +2719,10 @@ The frontend now consumes the task backend API for MVP task management:
 - Shopping remains a preparation page for this phase.
 
 Not included in this phase: shopping list implementation, attachments, R2, Web Push, Cron, production Cloudflare resources, deployment, custom domain, rankings, and detailed analytics.
+## 2026-08-04 Shopping UI scope update
+
+The frontend now includes the complete MVP shopping list UI using the existing `/api/shopping/*` APIs. Users can view pending and purchased items, add/edit/delete items, mark purchased, return to pending, clear purchased items, manage reusable shopping templates, add items from templates, and see purchaser/time information after refresh.
+
+Routes added for this phase: `/shopping`, `/shopping/new`, `/shopping/items/:itemId`, `/shopping/items/:itemId/edit`, `/shopping/templates`, `/shopping/templates/new`, and `/shopping/templates/:templateId/edit`.
+
+Still out of scope: image upload, compression, WebP, R2, image URLs, image deletion/Cron, barcode reading, price, store, category, inventory, notifications, production Cloudflare resources, deployment, custom domain, commit, and push.

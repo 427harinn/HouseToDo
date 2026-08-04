@@ -344,3 +344,14 @@ docker-compose run --rm e2e npm run test:e2e
 ```
 
 成果物は `artifacts/playwright/task-ui/` に保存されます。このディレクトリはGit管理対象外です。
+## 2026-08-04 Shopping UI
+
+The MVP shopping UI now uses the existing shopping APIs.
+
+- `/shopping`: list pending items, purchased items, template chips, and clear purchased items.
+- `/shopping/new`: add an item with name, quantity, and note.
+- `/shopping/items/:itemId` and `/shopping/items/:itemId/edit`: view and edit item details.
+- `/shopping/templates`: manage reusable "よく買うもの" templates.
+- `/shopping/templates/new` and `/shopping/templates/:templateId/edit`: create and edit templates.
+
+Playwright shopping artifacts are configured under `artifacts/playwright/shopping-ui/` when `npm run test:e2e` is run in Docker. Image upload, R2, barcode, price/store/category/inventory, notifications, production Cloudflare resources, deployment, push, and commit are not part of this phase.

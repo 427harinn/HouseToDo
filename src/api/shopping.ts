@@ -34,6 +34,16 @@ export type ShoppingWriteInput = {
   note?: string | null;
 };
 
+export type ShoppingItemList = {
+  pending: ShoppingItem[];
+  purchased: ShoppingItem[];
+};
+
+export type CreateShoppingItemInput = ShoppingWriteInput;
+export type UpdateShoppingItemInput = ShoppingUpdateInput;
+export type CreateShoppingTemplateInput = ShoppingWriteInput;
+export type UpdateShoppingTemplateInput = ShoppingUpdateInput;
+
 export type ShoppingUpdateInput = {
   name?: string;
   quantity?: string | null;
@@ -41,16 +51,19 @@ export type ShoppingUpdateInput = {
 };
 
 export const listShoppingItems = (signal?: AbortSignal) =>
-  apiRequest<{ pending: ShoppingItem[]; purchased: ShoppingItem[] }>("/api/shopping/items", { signal });
+  apiRequest<ShoppingItemList>("/api/shopping/items", { signal });
 
-export const createShoppingItem = (input: ShoppingWriteInput, signal?: AbortSignal) =>
+export const getShoppingItem = (itemId: string, signal?: AbortSignal) =>
+  apiRequest<{ item: ShoppingItem }>(`/api/shopping/items/${itemId}`, { signal });
+
+export const createShoppingItem = (input: CreateShoppingItemInput, signal?: AbortSignal) =>
   apiRequest<{ item: ShoppingItem }>("/api/shopping/items", {
     method: "POST",
     body: JSON.stringify(input),
     signal
   });
 
-export const updateShoppingItem = (itemId: string, input: ShoppingUpdateInput, signal?: AbortSignal) =>
+export const updateShoppingItem = (itemId: string, input: UpdateShoppingItemInput, signal?: AbortSignal) =>
   apiRequest<{ item: ShoppingItem }>(`/api/shopping/items/${itemId}`, {
     method: "PATCH",
     body: JSON.stringify(input),
@@ -78,17 +91,22 @@ export const deleteShoppingItem = (itemId: string, signal?: AbortSignal) =>
     signal
   });
 
-export const clearPurchasedShoppingItems = (signal?: AbortSignal) =>
+export const clearPurchasedItems = (signal?: AbortSignal) =>
   apiRequest<{ clearedCount: number }>("/api/shopping/items/clear-purchased", {
     method: "POST",
     body: JSON.stringify({}),
     signal
   });
 
+export const clearPurchasedShoppingItems = clearPurchasedItems;
+
 export const listShoppingTemplates = (signal?: AbortSignal) =>
   apiRequest<{ templates: ShoppingTemplate[] }>("/api/shopping/templates", { signal });
 
-export const createShoppingTemplate = (input: ShoppingWriteInput, signal?: AbortSignal) =>
+export const getShoppingTemplate = (templateId: string, signal?: AbortSignal) =>
+  apiRequest<{ template: ShoppingTemplate }>(`/api/shopping/templates/${templateId}`, { signal });
+
+export const createShoppingTemplate = (input: CreateShoppingTemplateInput, signal?: AbortSignal) =>
   apiRequest<{ template: ShoppingTemplate }>("/api/shopping/templates", {
     method: "POST",
     body: JSON.stringify(input),
@@ -97,7 +115,7 @@ export const createShoppingTemplate = (input: ShoppingWriteInput, signal?: Abort
 
 export const updateShoppingTemplate = (
   templateId: string,
-  input: ShoppingUpdateInput,
+  input: UpdateShoppingTemplateInput,
   signal?: AbortSignal
 ) =>
   apiRequest<{ template: ShoppingTemplate }>(`/api/shopping/templates/${templateId}`, {

@@ -245,3 +245,10 @@ The task UI keeps the existing lightweight `window.history` routing instead of a
 - Home uses `GET /api/dashboard/today`; task management uses `GET /api/tasks?includeInactive=true`; task detail combines task detail, today/week status, and history APIs.
 - Daily and scheduled task actions send `targetDate`. Weekly task actions send `targetWeekStart`, calculated from the household `weekStartsOn`.
 - The shopping tab routes to a preparation page and only calls shopping APIs for a minimal connection/count check. Full shopping UI remains deferred.
+## 2026-08-04 Shopping frontend architecture
+
+The shopping UI keeps the lightweight `window.history` route parser and React local state model used by the task UI. Shopping screens call `src/api/shopping.ts` only; components do not call `fetch` directly. The list screen loads shopping items, active templates, and household members together so cards can show human-readable added/purchased actors.
+
+Shopping state is refreshed on first display, after create/edit/delete/purchase/unpurchase/template-add/clear operations, by a manual update button, and when `visibilitychange` returns to visible. This supports MVP two-user sharing without WebSocket or polling.
+
+Images and R2 are intentionally not represented as active controls in the UI. Cards are structured so a future image area can be added without changing the item API contract.

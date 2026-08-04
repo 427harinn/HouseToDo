@@ -196,10 +196,10 @@ export function BottomNavigation({
   current: NavigationPath;
   onNavigate: (path: NavigationPath) => void;
 }) {
-  const items: Array<{ path: NavigationPath; label: string; note?: string }> = [
+  const items: Array<{ path: NavigationPath; label: string }> = [
     { path: "/home", label: "ホーム" },
     { path: "/tasks", label: "タスク" },
-    { path: "/shopping", label: "買い物", note: "準備中" },
+    { path: "/shopping", label: "買い物" },
     { path: "/settings/members", label: "設定" }
   ];
 
@@ -213,7 +213,6 @@ export function BottomNavigation({
           type="button"
         >
           <span>{item.label}</span>
-          {item.note ? <small>{item.note}</small> : null}
         </button>
       ))}
     </nav>

@@ -3,7 +3,28 @@ import type { ReactNode } from "react";
 import { login, logout, me, register } from "./api/auth";
 import { ApiError, apiMessage } from "./api/client";
 import { getDashboardToday, type DashboardToday } from "./api/dashboard";
-import { listShoppingItems } from "./api/shopping";
+import {
+  addShoppingItemFromTemplate,
+  clearPurchasedItems,
+  createShoppingItem,
+  createShoppingTemplate,
+  deleteShoppingItem,
+  deleteShoppingTemplate,
+  getShoppingItem,
+  getShoppingTemplate,
+  listShoppingItems,
+  listShoppingTemplates,
+  purchaseShoppingItem,
+  unpurchaseShoppingItem,
+  updateShoppingItem,
+  updateShoppingTemplate,
+  type CreateShoppingItemInput,
+  type CreateShoppingTemplateInput,
+  type ShoppingItem,
+  type ShoppingTemplate,
+  type UpdateShoppingItemInput,
+  type UpdateShoppingTemplateInput
+} from "./api/shopping";
 import {
   createHousehold,
   createInvite,
@@ -78,23 +99,35 @@ type StaticRoute =
   | "/settings/members"
   | "/tasks"
   | "/tasks/new"
-  | "/shopping";
+  | "/shopping"
+  | "/shopping/new"
+  | "/shopping/templates"
+  | "/shopping/templates/new";
 
 type Route =
   | { name: StaticRoute }
   | { name: "/tasks/:taskId"; taskId: string }
   | { name: "/tasks/:taskId/edit"; taskId: string }
-  | { name: "/tasks/:taskId/respond"; taskId: string };
+  | { name: "/tasks/:taskId/respond"; taskId: string }
+  | { name: "/shopping/items/:itemId"; itemId: string }
+  | { name: "/shopping/items/:itemId/edit"; itemId: string }
+  | { name: "/shopping/templates/:templateId/edit"; templateId: string };
 
 type NavigationPath =
   | "/home"
   | "/tasks"
   | "/tasks/new"
   | "/shopping"
+  | "/shopping/new"
+  | "/shopping/templates"
+  | "/shopping/templates/new"
   | "/settings/members"
   | `/tasks/${string}`
   | `/tasks/${string}/edit`
-  | `/tasks/${string}/respond`;
+  | `/tasks/${string}/respond`
+  | `/shopping/items/${string}`
+  | `/shopping/items/${string}/edit`
+  | `/shopping/templates/${string}/edit`;
 
 type FormErrors = Record<string, string>;
 
@@ -110,7 +143,10 @@ const staticRoutes = new Set<StaticRoute>([
   "/settings/members",
   "/tasks",
   "/tasks/new",
-  "/shopping"
+  "/shopping",
+  "/shopping/new",
+  "/shopping/templates",
+  "/shopping/templates/new"
 ]);
 
 const parseRoute = (pathname: string): Route => {
@@ -121,6 +157,12 @@ const parseRoute = (pathname: string): Route => {
   if (taskRespond) return { name: "/tasks/:taskId/respond", taskId: decodeURIComponent(taskRespond[1]) };
   const taskDetail = pathname.match(/^\/tasks\/([^/]+)$/);
   if (taskDetail) return { name: "/tasks/:taskId", taskId: decodeURIComponent(taskDetail[1]) };
+  const shoppingItemEdit = pathname.match(/^\/shopping\/items\/([^/]+)\/edit$/);
+  if (shoppingItemEdit) return { name: "/shopping/items/:itemId/edit", itemId: decodeURIComponent(shoppingItemEdit[1]) };
+  const shoppingItemDetail = pathname.match(/^\/shopping\/items\/([^/]+)$/);
+  if (shoppingItemDetail) return { name: "/shopping/items/:itemId", itemId: decodeURIComponent(shoppingItemDetail[1]) };
+  const shoppingTemplateEdit = pathname.match(/^\/shopping\/templates\/([^/]+)\/edit$/);
+  if (shoppingTemplateEdit) return { name: "/shopping/templates/:templateId/edit", templateId: decodeURIComponent(shoppingTemplateEdit[1]) };
   return { name: "/" };
 };
 
@@ -138,6 +180,11 @@ const isAppRoute = (route: Route) =>
   route.name === "/tasks" ||
   route.name === "/tasks/new" ||
   route.name === "/shopping" ||
+  route.name === "/shopping/new" ||
+  route.name === "/shopping/templates" ||
+  route.name === "/shopping/templates/new" ||
+  route.name.startsWith("/shopping/items/:itemId") ||
+  route.name.startsWith("/shopping/templates/:templateId") ||
   route.name.startsWith("/tasks/:taskId");
 
 const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
@@ -348,7 +395,13 @@ export function App() {
   if (route.name === "/tasks/:taskId/edit") return <TaskFormScreen {...shellProps} mode="edit" taskId={route.taskId} />;
   if (route.name === "/tasks/:taskId") return <TaskDetailScreen {...shellProps} taskId={route.taskId} compact={false} />;
   if (route.name === "/tasks/:taskId/respond") return <TaskDetailScreen {...shellProps} taskId={route.taskId} compact />;
-  if (route.name === "/shopping") return <ShoppingSoonScreen onNavigate={navigate} />;
+  if (route.name === "/shopping") return <ShoppingListScreen {...shellProps} />;
+  if (route.name === "/shopping/new") return <ShoppingItemFormScreen {...shellProps} mode="create" />;
+  if (route.name === "/shopping/items/:itemId") return <ShoppingItemDetailScreen {...shellProps} itemId={route.itemId} />;
+  if (route.name === "/shopping/items/:itemId/edit") return <ShoppingItemFormScreen {...shellProps} mode="edit" itemId={route.itemId} />;
+  if (route.name === "/shopping/templates") return <ShoppingTemplateListScreen {...shellProps} />;
+  if (route.name === "/shopping/templates/new") return <ShoppingTemplateFormScreen {...shellProps} mode="create" />;
+  if (route.name === "/shopping/templates/:templateId/edit") return <ShoppingTemplateFormScreen {...shellProps} mode="edit" templateId={route.templateId} />;
   return <HomeScreen {...shellProps} />;
 }
 
@@ -1201,6 +1254,570 @@ function MembersScreen({ household, onNavigate, onLogout }: {
   );
 }
 
+function shoppingErrorMessage(error: unknown) {
+  if (error instanceof ApiError && error.code === "NOT_FOUND") {
+    return "この商品は見つかりませんでした。すでに削除された可能性があります。";
+  }
+  if (error instanceof ApiError && error.code === "SHOPPING_TEMPLATE_NOT_ACTIVE") {
+    return "この「よく買うもの」は利用できません。画面を更新してください。";
+  }
+  if (error instanceof ApiError && error.code === "NETWORK_ERROR") {
+    return "通信に失敗しました。接続を確認して、もう一度お試しください。";
+  }
+  return apiMessage(error) || "処理に失敗しました。時間をおいて、もう一度お試しください。";
+}
+
+const emptyShoppingForm: CreateShoppingItemInput = { name: "", quantity: null, note: null };
+
+const normalizeShoppingForm = <T extends { name: string; quantity?: string | null; note?: string | null }>(form: T): T => ({
+  ...form,
+  name: form.name.trim(),
+  quantity: form.quantity?.trim() ? form.quantity.trim() : null,
+  note: form.note?.trim() ? form.note.trim() : null
+});
+
+const validateShoppingForm = (form: CreateShoppingItemInput) => {
+  const errors: FormErrors = {};
+  const normalized = normalizeShoppingForm(form);
+  if (normalized.name.length === 0) errors.name = "商品名を入力してください。";
+  if (normalized.name.length > 100) errors.name = "商品名は100文字以内で入力してください。";
+  if ((normalized.quantity?.length ?? 0) > 50) errors.quantity = "数量は50文字以内で入力してください。";
+  if ((normalized.note?.length ?? 0) > 500) errors.note = "メモは500文字以内で入力してください。";
+  return errors;
+};
+
+const memberName = (members: HouseholdMember[], userId: string | null | undefined) =>
+  members.find((member) => member.userId === userId)?.displayName ?? (userId ? "メンバー" : "");
+
+const shoppingTime = (value: string | null) =>
+  value
+    ? new Intl.DateTimeFormat("ja-JP", {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: "Asia/Tokyo"
+      }).format(new Date(value))
+    : "";
+
+function useShoppingData() {
+  const [pending, setPending] = useState<ShoppingItem[]>([]);
+  const [purchased, setPurchased] = useState<ShoppingItem[]>([]);
+  const [templates, setTemplates] = useState<ShoppingTemplate[]>([]);
+  const [members, setMembers] = useState<HouseholdMember[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
+  const refresh = useCallback(async (signal?: AbortSignal) => {
+    setLoading(true);
+    setMessage("");
+    try {
+      const [itemsResult, templatesResult, membersResult] = await Promise.all([
+        listShoppingItems(signal),
+        listShoppingTemplates(signal),
+        listMembers(signal)
+      ]);
+      setPending(itemsResult.pending);
+      setPurchased(itemsResult.purchased);
+      setTemplates(templatesResult.templates.filter((template) => template.active));
+      setMembers(membersResult.members);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      setMessage(shoppingErrorMessage(error));
+    } finally {
+      if (!signal?.aborted) setLoading(false);
+    }
+  }, []);
+  useEffect(() => {
+    const controller = new AbortController();
+    void refresh(controller.signal);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void refresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      controller.abort();
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [refresh]);
+  return { pending, purchased, templates, members, loading, message, setMessage, refresh };
+}
+
+function ShoppingListScreen({ household, onNavigate }: {
+  household: Household;
+  user: AuthUser;
+  onNavigate: (route: NavigationPath) => void;
+  onLogout: () => void;
+}) {
+  const { pending, purchased, templates, members, loading, message, setMessage, refresh } = useShoppingData();
+  const [success, setSuccess] = useState("");
+  const [busyItem, setBusyItem] = useState<string | null>(null);
+  const [busyTemplate, setBusyTemplate] = useState<string | null>(null);
+  const [clearing, setClearing] = useState(false);
+  const [showPurchased, setShowPurchased] = useState(true);
+
+  const runItemAction = async (itemId: string, action: "purchase" | "unpurchase" | "delete") => {
+    if (action === "delete" && !window.confirm("この商品を買い物リストから削除しますか？\n削除すると元に戻せません。")) return;
+    setBusyItem(itemId);
+    setMessage("");
+    setSuccess("");
+    try {
+      if (action === "purchase") await purchaseShoppingItem(itemId);
+      if (action === "unpurchase") await unpurchaseShoppingItem(itemId);
+      if (action === "delete") await deleteShoppingItem(itemId);
+      await refresh();
+      setSuccess(action === "purchase" ? "購入済みにしました。" : action === "unpurchase" ? "未購入へ戻しました。" : "商品を削除しました。");
+    } catch (error) {
+      setMessage(shoppingErrorMessage(error));
+      await refresh();
+    } finally {
+      setBusyItem(null);
+    }
+  };
+
+  const addFromTemplate = async (template: ShoppingTemplate) => {
+    setBusyTemplate(template.id);
+    setMessage("");
+    setSuccess("");
+    try {
+      await addShoppingItemFromTemplate(template.id);
+      await refresh();
+      setSuccess(`${template.name}を買い物リストへ追加しました。`);
+    } catch (error) {
+      setMessage(shoppingErrorMessage(error));
+      await refresh();
+    } finally {
+      setBusyTemplate(null);
+    }
+  };
+
+  const clearPurchased = async () => {
+    if (!window.confirm("購入済みの商品をリストから削除します。\nこの操作は元に戻せません。")) return;
+    setClearing(true);
+    setMessage("");
+    setSuccess("");
+    try {
+      const result = await clearPurchasedItems();
+      await refresh();
+      setSuccess(`購入済みの商品を${result.clearedCount}件整理しました。`);
+    } catch (error) {
+      setMessage(shoppingErrorMessage(error));
+      await refresh();
+    } finally {
+      setClearing(false);
+    }
+  };
+
+  return (
+    <AppFrame current="/shopping" onNavigate={onNavigate}>
+      <PageHeader
+        title="買い物リスト"
+        description={`${household.name} / ${loading ? "読み込み中" : pending.length === 0 ? "買うものはありません" : `あと${pending.length}つ`}`}
+        action={<Button variant="ghost" onClick={() => void refresh()}>更新</Button>}
+      />
+      <div className="shopping-actions">
+        <Button onClick={() => onNavigate("/shopping/new")}>商品を追加</Button>
+        <Button variant="secondary" onClick={() => onNavigate("/shopping/templates")}>よく買うもの</Button>
+      </div>
+      <ErrorMessage message={message} />
+      <SuccessMessage message={success} />
+
+      <Card>
+        <div className="section-heading"><h2>テンプレートから追加</h2><span>{templates.length}件</span></div>
+        {templates.length === 0 ? (
+          <EmptyState title="よく買うものはまだありません" description="よく買う商品を登録すると、ここから追加できます。" />
+        ) : (
+          <div className="template-chip-list">
+            {templates.slice(0, 8).map((template) => (
+              <button
+                aria-label={`${template.name}を買い物リストへ追加`}
+                disabled={busyTemplate === template.id}
+                key={template.id}
+                onClick={() => void addFromTemplate(template)}
+                type="button"
+              >
+                + {template.name}
+                {template.quantity ? <small>{template.quantity}</small> : null}
+              </button>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      <Card>
+        <div className="section-heading"><h2>未購入</h2><span>{pending.length}件</span></div>
+        {loading ? <p role="status">買い物リストを読み込んでいます。</p> : pending.length === 0 ? (
+          <EmptyState title="買うものはありません" description="追加された商品はここに表示されます。" />
+        ) : (
+          <div className="shopping-item-list">
+            {pending.map((item) => (
+              <ShoppingItemCard
+                busy={busyItem === item.id}
+                item={item}
+                key={item.id}
+                members={members}
+                onDelete={() => void runItemAction(item.id, "delete")}
+                onEdit={() => onNavigate(`/shopping/items/${item.id}/edit`)}
+                onOpen={() => onNavigate(`/shopping/items/${item.id}`)}
+                onPrimary={() => void runItemAction(item.id, "purchase")}
+              />
+            ))}
+          </div>
+        )}
+      </Card>
+
+      <Card>
+        <button
+          aria-expanded={showPurchased}
+          className="collapse-toggle"
+          onClick={() => setShowPurchased((value) => !value)}
+          type="button"
+        >
+          <span>購入済み {purchased.length}件</span>
+          <span aria-hidden="true">{showPurchased ? "⌄" : "›"}</span>
+        </button>
+        {showPurchased ? (
+          purchased.length === 0 ? <EmptyState title="購入済みはありません" description="購入済みにした商品はここで確認できます。" /> : (
+            <>
+              <div className="shopping-item-list shopping-item-list--purchased">
+                {purchased.map((item) => (
+                  <ShoppingItemCard
+                    busy={busyItem === item.id}
+                    item={item}
+                    key={item.id}
+                    members={members}
+                    onDelete={() => void runItemAction(item.id, "delete")}
+                    onEdit={() => onNavigate(`/shopping/items/${item.id}/edit`)}
+                    onOpen={() => onNavigate(`/shopping/items/${item.id}`)}
+                    onPrimary={() => void runItemAction(item.id, "unpurchase")}
+                  />
+                ))}
+              </div>
+              <Button variant="danger" disabled={clearing} onClick={() => void clearPurchased()}>
+                {clearing ? <InlineLoading label="整理中" /> : "購入済みを整理"}
+              </Button>
+            </>
+          )
+        ) : null}
+      </Card>
+    </AppFrame>
+  );
+}
+
+function ShoppingItemCard({ item, members, busy, onPrimary, onOpen, onEdit, onDelete }: {
+  item: ShoppingItem;
+  members: HouseholdMember[];
+  busy: boolean;
+  onPrimary: () => void;
+  onOpen: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const purchased = item.status === "purchased";
+  const purchaser = item.purchasedBy?.displayName ?? memberName(members, item.purchasedBy?.userId);
+  return (
+    <article className={`shopping-item ${purchased ? "shopping-item--purchased" : ""}`}>
+      <button
+        aria-label={purchased ? `${item.name}を未購入へ戻す` : `${item.name}を購入済みにする`}
+        className="shopping-check"
+        disabled={busy}
+        onClick={onPrimary}
+        type="button"
+      >
+        {busy ? "…" : purchased ? "✓" : ""}
+      </button>
+      <button className="shopping-item__body" onClick={onOpen} type="button">
+        <strong>{item.name}</strong>
+        <span>{[item.quantity, item.note].filter(Boolean).join(" / ")}</span>
+        <small>
+          {purchased && item.purchasedAt
+            ? `${purchaser || "メンバー"}さんが購入 ${shoppingTime(item.purchasedAt)}`
+            : `追加: ${memberName(members, item.addedBy) || "メンバー"}`}
+        </small>
+      </button>
+      <div className="shopping-item__actions">
+        <button aria-label={`${item.name}を編集`} onClick={onEdit} type="button">編集</button>
+        <button aria-label={`${item.name}を削除`} disabled={busy} onClick={onDelete} type="button">削除</button>
+      </div>
+    </article>
+  );
+}
+
+function ShoppingItemDetailScreen({ itemId, onNavigate }: {
+  household: Household;
+  user: AuthUser;
+  itemId: string;
+  onNavigate: (route: NavigationPath) => void;
+  onLogout: () => void;
+}) {
+  const [item, setItem] = useState<ShoppingItem | null>(null);
+  const [members, setMembers] = useState<HouseholdMember[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
+  useEffect(() => {
+    const controller = new AbortController();
+    Promise.all([getShoppingItem(itemId, controller.signal), listMembers(controller.signal)])
+      .then(([itemResult, membersResult]) => {
+        setItem(itemResult.item);
+        setMembers(membersResult.members);
+      })
+      .catch((error) => {
+        if (!(error instanceof DOMException && error.name === "AbortError")) setMessage(shoppingErrorMessage(error));
+      })
+      .finally(() => setLoading(false));
+    return () => controller.abort();
+  }, [itemId]);
+  if (loading) return <LoadingScreen message="商品を読み込んでいます。" />;
+  if (!item) return <AppFrame current="/shopping" onNavigate={onNavigate}><ErrorMessage message={message || "この商品は見つかりませんでした。すでに削除された可能性があります。"} /></AppFrame>;
+  return (
+    <AppFrame current="/shopping" onNavigate={onNavigate}>
+      <PageHeader title={item.name} description={item.status === "purchased" ? "購入済み" : "未購入"} />
+      <ErrorMessage message={message} />
+      <Card>
+        <dl className="detail-grid">
+          {item.quantity ? <div><dt>数量</dt><dd>{item.quantity}</dd></div> : null}
+          {item.note ? <div><dt>メモ</dt><dd>{item.note}</dd></div> : null}
+          <div><dt>追加者</dt><dd>{memberName(members, item.addedBy) || "メンバー"}</dd></div>
+          {item.purchasedBy ? <div><dt>購入者</dt><dd>{item.purchasedBy.displayName ?? memberName(members, item.purchasedBy.userId)} / {shoppingTime(item.purchasedAt)}</dd></div> : null}
+        </dl>
+        <div className="inline-actions">
+          <Button variant="secondary" onClick={() => onNavigate(`/shopping/items/${item.id}/edit`)}>編集</Button>
+          <Button variant="ghost" onClick={() => onNavigate("/shopping")}>一覧へ戻る</Button>
+        </div>
+      </Card>
+    </AppFrame>
+  );
+}
+
+function ShoppingItemFormScreen({ household, mode, itemId, onNavigate }: {
+  household: Household;
+  user: AuthUser;
+  mode: "create" | "edit";
+  itemId?: string;
+  onNavigate: (route: NavigationPath) => void;
+  onLogout: () => void;
+}) {
+  const [form, setForm] = useState<CreateShoppingItemInput>(emptyShoppingForm);
+  const [errors, setErrors] = useState<FormErrors>({});
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(mode === "edit");
+  const [submitting, setSubmitting] = useState(false);
+  useEffect(() => {
+    if (mode !== "edit" || !itemId) return;
+    const controller = new AbortController();
+    getShoppingItem(itemId, controller.signal)
+      .then((result) => setForm({ name: result.item.name, quantity: result.item.quantity, note: result.item.note }))
+      .catch((error) => {
+        if (!(error instanceof DOMException && error.name === "AbortError")) setMessage(shoppingErrorMessage(error));
+      })
+      .finally(() => setLoading(false));
+    return () => controller.abort();
+  }, [mode, itemId]);
+  const setField = <K extends keyof CreateShoppingItemInput>(key: K, value: CreateShoppingItemInput[K]) => {
+    setForm((current) => ({ ...current, [key]: value }));
+  };
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    const nextErrors = validateShoppingForm(form);
+    setErrors(nextErrors);
+    setMessage("");
+    if (Object.keys(nextErrors).length > 0) return;
+    setSubmitting(true);
+    try {
+      const payload = normalizeShoppingForm(form) as UpdateShoppingItemInput;
+      const result = mode === "edit" && itemId
+        ? await updateShoppingItem(itemId, payload)
+        : await createShoppingItem(payload as CreateShoppingItemInput);
+      onNavigate(`/shopping/items/${result.item.id}`);
+    } catch (error) {
+      setMessage(shoppingErrorMessage(error));
+      if (error instanceof ApiError && error.details) setErrors(error.details);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+  if (loading) return <LoadingScreen message="商品を読み込んでいます。" />;
+  return (
+    <AppFrame current="/shopping" onNavigate={onNavigate}>
+      <PageHeader title={mode === "create" ? "商品を追加" : "商品を編集"} description={household.name} />
+      <Card>
+        <form className="stack" aria-busy={submitting} onSubmit={(event) => void submit(event)}>
+          <ErrorMessage message={message} />
+          <FormField id="shopping-name" label="商品名（必須）" error={errors.name}>
+            <TextInput id="shopping-name" error={errors.name} value={form.name} onChange={(value) => setField("name", value)} />
+          </FormField>
+          <FormField id="shopping-quantity" label="数量" error={errors.quantity}>
+            <TextInput id="shopping-quantity" error={errors.quantity} placeholder="1本 / 2袋 / 500ml / 適量" value={form.quantity ?? ""} onChange={(value) => setField("quantity", value)} />
+          </FormField>
+          <FormField id="shopping-note" label="メモ" error={errors.note}>
+            <textarea id="shopping-note" aria-describedby={errors.note ? "shopping-note-error" : undefined} aria-invalid={errors.note ? "true" : "false"} maxLength={500} placeholder="いつものメーカー / セールなら2つ" value={form.note ?? ""} onChange={(event) => setField("note", event.target.value)} />
+          </FormField>
+          <Button disabled={submitting} type="submit">{submitting ? <InlineLoading /> : "保存"}</Button>
+          <Button variant="ghost" onClick={() => onNavigate("/shopping")}>一覧へ戻る</Button>
+        </form>
+      </Card>
+    </AppFrame>
+  );
+}
+
+function ShoppingTemplateListScreen({ household, onNavigate }: {
+  household: Household;
+  user: AuthUser;
+  onNavigate: (route: NavigationPath) => void;
+  onLogout: () => void;
+}) {
+  const [templates, setTemplates] = useState<ShoppingTemplate[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
+  const [success, setSuccess] = useState("");
+  const [busy, setBusy] = useState<string | null>(null);
+  const refresh = useCallback(async (signal?: AbortSignal) => {
+    setLoading(true);
+    try {
+      const result = await listShoppingTemplates(signal);
+      setTemplates(result.templates.filter((template) => template.active));
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === "AbortError")) setMessage(shoppingErrorMessage(error));
+    } finally {
+      if (!signal?.aborted) setLoading(false);
+    }
+  }, []);
+  useEffect(() => {
+    const controller = new AbortController();
+    void refresh(controller.signal);
+    return () => controller.abort();
+  }, [refresh]);
+  const addTemplate = async (template: ShoppingTemplate) => {
+    setBusy(template.id);
+    setMessage("");
+    setSuccess("");
+    try {
+      await addShoppingItemFromTemplate(template.id);
+      setSuccess(`${template.name}を買い物リストへ追加しました。`);
+    } catch (error) {
+      setMessage(shoppingErrorMessage(error));
+      await refresh();
+    } finally {
+      setBusy(null);
+    }
+  };
+  const deactivate = async (template: ShoppingTemplate) => {
+    if (!window.confirm("この商品を「よく買うもの」から削除しますか？\nすでに買い物リストへ追加した商品には影響しません。")) return;
+    setBusy(template.id);
+    setMessage("");
+    setSuccess("");
+    try {
+      await deleteShoppingTemplate(template.id);
+      await refresh();
+      setSuccess("よく買うものから削除しました。");
+    } catch (error) {
+      setMessage(shoppingErrorMessage(error));
+      await refresh();
+    } finally {
+      setBusy(null);
+    }
+  };
+  return (
+    <AppFrame current="/shopping" onNavigate={onNavigate}>
+      <PageHeader title="よく買うもの" description={household.name} action={<Button onClick={() => onNavigate("/shopping/templates/new")}>登録</Button>} />
+      <ErrorMessage message={message} />
+      <SuccessMessage message={success} />
+      <Card>
+        {loading ? <p role="status">よく買うものを読み込んでいます。</p> : templates.length === 0 ? (
+          <EmptyState title="よく買うものはまだありません" description="繰り返し買う商品を登録できます。" />
+        ) : (
+          <div className="template-list">
+            {templates.map((template) => (
+              <article className="management-card" key={template.id}>
+                <div>
+                  <strong>{template.name}</strong>
+                  <small>{[template.quantity, template.note].filter(Boolean).join(" / ") || "数量・メモなし"}</small>
+                </div>
+                <div className="inline-actions">
+                  <Button disabled={busy === template.id} onClick={() => void addTemplate(template)}>リストへ追加</Button>
+                  <Button variant="secondary" onClick={() => onNavigate(`/shopping/templates/${template.id}/edit`)}>編集</Button>
+                  <Button variant="danger" disabled={busy === template.id} onClick={() => void deactivate(template)}>削除</Button>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </Card>
+      <Button variant="ghost" onClick={() => onNavigate("/shopping")}>買い物リストへ戻る</Button>
+    </AppFrame>
+  );
+}
+
+function ShoppingTemplateFormScreen({ household, mode, templateId, onNavigate }: {
+  household: Household;
+  user: AuthUser;
+  mode: "create" | "edit";
+  templateId?: string;
+  onNavigate: (route: NavigationPath) => void;
+  onLogout: () => void;
+}) {
+  const [form, setForm] = useState<CreateShoppingTemplateInput>(emptyShoppingForm);
+  const [errors, setErrors] = useState<FormErrors>({});
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(mode === "edit");
+  const [submitting, setSubmitting] = useState(false);
+  useEffect(() => {
+    if (mode !== "edit" || !templateId) return;
+    const controller = new AbortController();
+    getShoppingTemplate(templateId, controller.signal)
+      .then((result) => setForm({ name: result.template.name, quantity: result.template.quantity, note: result.template.note }))
+      .catch((error) => {
+        if (!(error instanceof DOMException && error.name === "AbortError")) setMessage(shoppingErrorMessage(error));
+      })
+      .finally(() => setLoading(false));
+    return () => controller.abort();
+  }, [mode, templateId]);
+  const setField = <K extends keyof CreateShoppingTemplateInput>(key: K, value: CreateShoppingTemplateInput[K]) => {
+    setForm((current) => ({ ...current, [key]: value }));
+  };
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    const nextErrors = validateShoppingForm(form);
+    setErrors(nextErrors);
+    setMessage("");
+    if (Object.keys(nextErrors).length > 0) return;
+    setSubmitting(true);
+    try {
+      const payload = normalizeShoppingForm(form) as UpdateShoppingTemplateInput;
+      await (mode === "edit" && templateId
+        ? updateShoppingTemplate(templateId, payload)
+        : createShoppingTemplate(payload as CreateShoppingTemplateInput));
+      onNavigate("/shopping/templates");
+    } catch (error) {
+      setMessage(shoppingErrorMessage(error));
+      if (error instanceof ApiError && error.details) setErrors(error.details);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+  if (loading) return <LoadingScreen message="よく買うものを読み込んでいます。" />;
+  return (
+    <AppFrame current="/shopping" onNavigate={onNavigate}>
+      <PageHeader title={mode === "create" ? "よく買うものに登録" : "よく買うものを編集"} description={household.name} />
+      <Card>
+        <form className="stack" aria-busy={submitting} onSubmit={(event) => void submit(event)}>
+          <ErrorMessage message={message} />
+          {mode === "edit" ? <p className="form-note">すでに追加済みの商品には反映されません。</p> : null}
+          <FormField id="template-name" label="商品名（必須）" error={errors.name}>
+            <TextInput id="template-name" error={errors.name} value={form.name} onChange={(value) => setField("name", value)} />
+          </FormField>
+          <FormField id="template-quantity" label="数量" error={errors.quantity}>
+            <TextInput id="template-quantity" error={errors.quantity} placeholder="1本 / 2袋 / 500ml / 適量" value={form.quantity ?? ""} onChange={(value) => setField("quantity", value)} />
+          </FormField>
+          <FormField id="template-note" label="メモ" error={errors.note}>
+            <textarea id="template-note" aria-describedby={errors.note ? "template-note-error" : undefined} aria-invalid={errors.note ? "true" : "false"} maxLength={500} placeholder="いつものメーカー / セールなら2つ" value={form.note ?? ""} onChange={(event) => setField("note", event.target.value)} />
+          </FormField>
+          <Button disabled={submitting} type="submit">{submitting ? <InlineLoading /> : "保存"}</Button>
+          <Button variant="ghost" onClick={() => onNavigate("/shopping/templates")}>一覧へ戻る</Button>
+        </form>
+      </Card>
+    </AppFrame>
+  );
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function ShoppingSoonScreen({ onNavigate }: { onNavigate: (route: NavigationPath) => void }) {
   const [pendingCount, setPendingCount] = useState<number | null>(null);
   const [message, setMessage] = useState("");
