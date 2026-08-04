@@ -34,11 +34,15 @@ services:
     environment:
       NODE_ENV: development
       APP_ENV: development
-      ALLOWED_ORIGINS: http://127.0.0.1:5174,http://localhost:5174,http://app:5173
+      ALLOWED_ORIGINS: http://127.0.0.1:5174,http://localhost:5174,http://app:5173,http://web:5173
       CHOKIDAR_USEPOLLING: "true"
     env_file:
       - path: ./.dev.vars
         required: false
+    networks:
+      default:
+        aliases:
+          - web
   worker:
     build:
       context: .
@@ -74,12 +78,12 @@ services:
     environment:
       NODE_ENV: development
       APP_ENV: development
-      ALLOWED_ORIGINS: http://127.0.0.1:5174,http://localhost:5174,http://app:5173
+      ALLOWED_ORIGINS: http://127.0.0.1:5174,http://localhost:5174,http://app:5173,http://web:5173
     env_file:
       - path: ./.dev.vars
         required: false
   e2e:
-    image: mcr.microsoft.com/playwright:v1.54.2-noble
+    image: mcr.microsoft.com/playwright:v1.62.1-noble
     working_dir: /workspace
     command: npm run test:e2e
     depends_on:
@@ -113,7 +117,7 @@ services:
       - e2e_playwright_cache:/ms-playwright
     environment:
       NODE_ENV: development
-      PLAYWRIGHT_BASE_URL: http://app:5173
+      PLAYWRIGHT_BASE_URL: http://web:5173
       PLAYWRIGHT_ARTIFACT_DIR: artifacts/playwright/task-ui
       HOME: /tmp/playwright-home
 

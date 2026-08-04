@@ -1,5 +1,114 @@
 # 作業記録
 
+## 2026-08-04 npm audit dependency update
+
+### 作業目的
+現在の `npm audit` を正確に取得し、破壊的変更を避けながら安全に更新できる依存だけを更新する。新機能、UI変更、API仕様変更、DB仕様変更、`npm audit fix --force`、コミット、push、デプロイ、本番Cloudflare操作は行わない。
+
+### 作業前のGit状態
+- Branch: `main`
+- `git status --short`: clean
+- Recent commits: `6be90c5`, `81de3b2`, `12a2db1`, `150d26b`, `a0190f9`
+- `git -c safe.directory=C:/Users/rinnr/Documents/GitHub/HouseToDo diff --check`: passed
+- 通常の `git diff --check` は作業ツリー認識に失敗したため、safe.directory 指定で確認した。
+
+### 作業前のaudit結果
+- `docker-compose run --rm app npm audit`: failed with 8 vulnerabilities
+- 件数: total 8 / moderate 1 / high 7 / critical 0
+- 不要なトークン、Cookie、実パスワード、実メール、招待コードは audit 出力に含まれていないことを確認した。
+
+### 脆弱性と依存経路
+- `brace-expansion`: high。推移的依存。`eslint@9.30.1 -> minimatch@3.1.5 -> brace-expansion@1.1.16` と `typescript-eslint@8.35.1 -> @typescript-eslint/typescript-estree@8.35.1 -> minimatch@9.0.9 -> brace-expansion@2.1.2`。Lint/開発ツール用途。本番フロントバンドル、Worker本番コード、E2E実行には含めない。
+- `playwright`: high。推移的依存。`@playwright/test@1.54.2 -> playwright@1.54.2`。E2E専用。本番フロントバンドル、Worker本番コードには含めない。
+- `@playwright/test`: high。直接 devDependency。E2E専用。修正下限は `playwright >=1.55.1`。
+- `postcss`: moderate。推移的依存。`vite@6.4.3 -> postcss@8.5.21`。ビルド処理で使用され、成果物生成に影響し得るがブラウザへライブラリとして配信しない。
+- `sharp`: high。推移的依存。`wrangler@4.112.0 -> miniflare@4.20260714.0 -> sharp@0.34.5`。ローカルWorker開発用。本番Workerコードには含めない。
+- `undici`: high。推移的依存。`wrangler@4.112.0 -> miniflare@4.20260714.0 -> undici@7.28.0`。ローカルWorker開発用。本番Workerコードには含めない。
+- `miniflare`: high。推移的依存。`wrangler -> miniflare` が `sharp` / `undici` の影響を受ける。ローカルWorker開発用。
+- `wrangler`: high。直接依存。ローカルWorker開発、D1 migration、build/dev確認で使用。本番Worker実行時のバンドルには含めない。
+
+### 調査した更新候補
+- Playwright: `@playwright/test` / `playwright` 最新 `1.62.1`。Node engine `>=20`。現行 Dockerfile Node 22.17.1 と整合。公式 Docker image は Playwright バージョン一致が推奨されるため `mcr.microsoft.com/playwright:v1.62.1-noble` へ合わせる。
+- PostCSS: 最新 `8.5.25`。`vite@6.4.3` の要求 `^8.5.3` 範囲内。lockfile更新のみで対応可能。
+- brace-expansion: `1.1.18` と `2.1.4` が既存 `minimatch` 範囲内。ESLint 10 への更新は不要。
+- Wrangler: 最新 `4.118.0` は Node `>=22.0.0` だが `miniflare@5.20260730.0-alpha` へ進むため見送り。最小候補 `4.114.0` は Node `>=22.0.0`、`miniflare@4.20260722.0` のまま、`sharp@0.35.2` へ上がるため採用。peerOptional 要件に合わせて `@cloudflare/workers-types@5.20260722.1` へ最小更新した。
+
+### 実際に更新した依存
+- `@playwright/test`: `^1.54.2` -> `^1.62.1`
+- `playwright` / `playwright-core`: `1.54.2` -> `1.62.1`
+- Playwright Docker image: `mcr.microsoft.com/playwright:v1.54.2-noble` -> `mcr.microsoft.com/playwright:v1.62.1-noble`
+- `postcss`: `8.5.21` -> `8.5.25`
+- `brace-expansion`: `1.1.16` -> `1.1.18`
+- nested `brace-expansion`: `2.1.2` -> `2.1.4`
+- `wrangler`: `4.112.0` -> `4.114.0`
+- `@cloudflare/workers-types`: `5.20260721.1` -> `5.20260722.1`
+- Wrangler transitive updates included `miniflare 4.20260714.0 -> 4.20260722.0`, `sharp 0.34.5 -> 0.35.2`, and `workerd 1.20260714.1 -> 1.20260722.1`; `undici` stayed `7.28.0`.
+
+### 設定調整
+- Playwright 1.62.1 / Chromium 151 では Docker 内ホスト名 `app` への `http://app:5173` が HTTPS へ上げられ `ERR_SSL_PROTOCOL_ERROR` になったため、Compose network alias `web` を追加し、E2E baseURL を `http://web:5173` に変更した。
+- `vite.config.ts` の `allowedHosts`、`compose.yaml` / `wrangler.jsonc` / `.dev.vars.example` / docs のローカル `ALLOWED_ORIGINS` に `http://web:5173` を追加した。
+- `npm test` が E2E spec を拾う状態になったため、Vitest の `exclude` に `e2e/**` を追加した。
+- Playwright HTML report 生成物を lint 対象から外すため、ESLint ignores に `artifacts`、`e2e`、`playwright.config.ts` を追加した。
+
+### 更新を見送った依存
+- `eslint` / `@eslint/js` の 10系更新: 現在の範囲外かつメジャー更新のため見送り。
+- `vite` のメジャー更新: 不要かつ今回の対象外。
+- `wrangler@4.118.0`: 同一メジャーだが Miniflare 5 alpha へ進むため、ローカルD1/Worker dev影響を避けて見送り。
+- `npm audit fix --force` の提示する `wrangler@4.35.0`: 破壊的扱いかつダウングレードになるため実行しない。
+- `overrides` による `sharp` / `undici` 強制差し替え: 上位パッケージの正式対応確認なしでは行わない方針のため見送り。
+
+### 更新後のaudit結果
+- `docker-compose run --rm app npm audit`: failed with remaining vulnerabilities
+- 件数: total 3 / moderate 2 / high 1 / critical 0
+- 残件: `undici@7.28.0 -> miniflare@4.20260722.0 -> wrangler@4.114.0`
+- 解消: Playwright系 2件、PostCSS 1件、brace-expansion 1件、sharp系 1件、Wrangler high 表示の一部。
+- 新規: なし。Wrangler/Miniflareの残件は `undici` 経路として残存。
+
+### 検証結果
+- Playwright更新直後: `npm run typecheck` passed、`npm test` passed、E2E passed after image/cache/baseURL adjustment。
+- PostCSS更新後: `npm run typecheck` passed、`npm test` passed。
+- brace-expansion更新後: `npm run typecheck` passed、`npm test` passed。
+- Wrangler更新後: `npm run typecheck` passed、`npm test` passed、`npm run db:migrate:local` passed with Wrangler 4.114.0。
+- Wrangler dev API manual check: passed for `GET /api/health`, registration, login, current household, task list, shopping list, and dashboard. Temporary `example.test` data was used; real email/password/Cookie/invite code were not logged.
+- Docker Desktop returned temporary API 500 during one test rerun; `docker desktop restart` restored the engine.
+
+### 最終品質ゲート
+- `docker-compose run --rm app npm run lint`: passed
+- `docker-compose run --rm app npm run typecheck`: passed
+- `docker-compose run --rm app npm test`: passed, 11 files / 46 tests
+- `docker-compose run --rm app npm run build`: passed
+- `docker-compose run --rm app npm audit`: failed as expected, remaining 3 vulnerabilities
+- `docker-compose run --rm app npm run db:migrate:local`: passed, no migrations to apply
+- `docker-compose run --rm e2e npm run test:e2e`: passed, 2 tests
+
+### E2E成果物確認
+- `artifacts/playwright/task-ui/`: screenshots, `html-report`, `test-results`, trace artifacts exist.
+- `artifacts/playwright/shopping-ui/`: screenshots, `html-report`, `test-results`, trace artifacts exist.
+- Playwright 1.62.1 用 Chromium 151 / browser revision 1234 was installed into Docker volume `e2e_playwright_cache`; old Playwright browser cache in that Docker volume was removed by `npx playwright install chromium`.
+
+### ホスト生成物確認
+- Host `node_modules`: false
+- Host `dist`: false
+- Host `.wrangler`: false
+- Host `%USERPROFILE%\AppData\Local\ms-playwright`: false
+
+### 変更ファイル
+- `package.json`
+- `package-lock.json`
+- `compose.yaml`
+- `vite.config.ts`
+- `eslint.config.js`
+- `wrangler.jsonc`
+- `.dev.vars.example`
+- `README.md`
+- `docs/ARCHITECTURE.md`
+- `docs/DECISIONS.md`
+- `docs/WORKLOG.md`
+
+### 未対応リスクと次回候補
+- `undici@7.28.0` 経路は残る。現時点で `npm audit` の提示修正は `npm audit fix --force` と `wrangler@4.35.0` への破壊的扱いなので見送り。
+- 次回は Cloudflare/Wrangler 側で `undici >=7.29.0` を取り込む安定版が出た時点で、Wrangler/Miniflareの更新範囲、D1、Static Assets、Workers API型、wrangler dev互換性を改めて確認する。
+
 ## 2026-08-01 買い物バックエンド基盤
 
 ### 目的

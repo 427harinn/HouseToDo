@@ -312,7 +312,7 @@ HttpOnly Cookie認証を使うため、SameSiteに加えて状態変更APIの送
 
 ### 影響
 
-- ローカル開発では `ALLOWED_ORIGINS=http://127.0.0.1:5174,http://localhost:5174,http://app:5173` を使う。`http://app:5173` はDocker Compose内のPlaywright E2EからVite dev serverへアクセスするための内部Origin。
+- ローカル開発では `ALLOWED_ORIGINS=http://127.0.0.1:5174,http://localhost:5174,http://app:5173,http://web:5173` を使う。`http://app:5173` と `http://web:5173` はDocker Compose内のPlaywright E2EからVite dev serverへアクセスするための内部Origin。
 - `curl` 等の手動確認でも状態変更APIには `Origin` と JSON Content-Type が必要になる。
 
 ## 2026-07-21 MVPの1ユーザー1家庭制限はService層で行う

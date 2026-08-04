@@ -1,5 +1,5 @@
 import react from "@vitejs/plugin-react";
-import { defineConfig } from "vite";
+import { configDefaults, defineConfig } from "vitest/config";
 
 export default defineConfig({
   plugins: [react()],
@@ -11,7 +11,7 @@ export default defineConfig({
     port: 5173,
     strictPort: false,
     host: "0.0.0.0",
-    allowedHosts: ["app", "localhost", "127.0.0.1"],
+    allowedHosts: ["app", "web", "localhost", "127.0.0.1"],
     proxy: {
       "/api": {
         target: "http://worker:8787",
@@ -21,6 +21,7 @@ export default defineConfig({
   },
   test: {
     environment: "jsdom",
+    exclude: [...configDefaults.exclude, "e2e/**"],
     globals: true,
     setupFiles: "./src/test/setup.ts"
   }

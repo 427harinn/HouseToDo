@@ -155,7 +155,7 @@ Docker Compose の `app` サービスで開発する。
 - 対象メソッドは `POST`、`PUT`、`PATCH`、`DELETE` とする。
 - 状態変更APIでは `Origin` ヘッダーが必須。`ALLOWED_ORIGINS` に含まれないOrigin、またはOriginなしの状態変更リクエストは `INVALID_ORIGIN` の403で拒否する。
 - 状態変更APIでは `Content-Type: application/json` のみ受け付ける。
-- ローカル開発の既定許可Originは `http://127.0.0.1:5174`、`http://localhost:5174`、Docker E2E用の `http://app:5173`。本番では `ALLOWED_ORIGINS` に実際のアプリOriginのみを明示する。
+- ローカル開発の既定許可Originは `http://127.0.0.1:5174`、`http://localhost:5174`、Docker E2E用の `http://app:5173` と `http://web:5173`。本番では `ALLOWED_ORIGINS` に実際のアプリOriginのみを明示する。
 - GETリクエストで状態変更しない。
 - CORSは不要に広げず、同一オリジン構成を基本にする。
 - 将来multipart APIが必要になった場合は、JSON限定とは別の許可条件を個別に設計する。

@@ -142,7 +142,7 @@ POST /api/households/join
 Cookie認証を使う状態変更APIでは、`Origin` ヘッダーと `Content-Type: application/json` を検証します。ローカル開発では `.dev.vars` の `ALLOWED_ORIGINS` に以下を設定します。
 
 ```text
-ALLOWED_ORIGINS=http://127.0.0.1:5174,http://localhost:5174,http://app:5173
+ALLOWED_ORIGINS=http://127.0.0.1:5174,http://localhost:5174,http://app:5173,http://web:5173
 ```
 
 停止する場合:
