@@ -1211,7 +1211,13 @@ function MembersScreen({ household, onNavigate, onLogout }: {
   const [issuing, setIssuing] = useState(false);
   useEffect(() => {
     const controller = new AbortController();
-    listMembers(controller.signal).then((result) => setMembers(result.members)).catch((error) => setMessage(apiErrorMessage(error))).finally(() => setLoading(false));
+    listMembers(controller.signal)
+      .then((result) => setMembers(result.members))
+      .catch((error) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setMessage(apiErrorMessage(error));
+      })
+      .finally(() => setLoading(false));
     return () => controller.abort();
   }, []);
   const issueInvite = async () => {

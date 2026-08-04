@@ -241,6 +241,71 @@ describe("App task form payload", () => {
   }, 15000);
 });
 
+describe("App members UI", () => {
+  it("ignores the StrictMode abort from the first members load", async () => {
+    let memberLoads = 0;
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.endsWith("/api/auth/me")) return Promise.resolve(ok({ user }));
+      if (url.endsWith("/api/households/current")) return Promise.resolve(ok({ household }));
+      if (url.endsWith("/api/households/current/members")) {
+        memberLoads += 1;
+        return memberLoads === 1
+          ? Promise.reject(new DOMException("The operation was aborted.", "AbortError"))
+          : Promise.resolve(ok({ members: members.slice(0, 1) }));
+      }
+      return Promise.resolve(failure("NOT_FOUND", 404));
+    });
+    window.history.replaceState({}, "", "/settings/members");
+
+    render(
+      <StrictMode>
+        <App />
+      </StrictMode>
+    );
+
+    expect(await screen.findByText(members[0].displayName)).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  }, 15000);
+
+  it("shows the existing error for a members API failure", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.endsWith("/api/auth/me")) return Promise.resolve(ok({ user }));
+      if (url.endsWith("/api/households/current")) return Promise.resolve(ok({ household }));
+      if (url.endsWith("/api/households/current/members")) return Promise.resolve(failure("INTERNAL_ERROR", 500));
+      return Promise.resolve(failure("NOT_FOUND", 404));
+    });
+    window.history.replaceState({}, "", "/settings/members");
+
+    render(<App />);
+
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+  }, 15000);
+
+  it("renders the owner member screen successfully", async () => {
+    mockFetch();
+    window.history.replaceState({}, "", "/settings/members");
+
+    render(<App />);
+
+    expect(await screen.findByText(members[0].displayName)).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "招待コードを発行" })).toBeInTheDocument();
+  }, 15000);
+
+  it("does not show the invite action for a member", async () => {
+    const memberHousehold = { ...household, role: "member" };
+    mockFetch(memberHousehold);
+    window.history.replaceState({}, "", "/settings/members");
+
+    render(<App />);
+
+    expect(await screen.findByText(members[0].displayName)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "招待コードを発行" })).not.toBeInTheDocument();
+  }, 15000);
+});
+
 afterEach(() => {
   vi.restoreAllMocks();
 });
