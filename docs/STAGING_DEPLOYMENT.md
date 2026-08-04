@@ -1,5 +1,22 @@
 # HouseToDo staging deployment runbook
 
+## 2026-08-04 staging completion record
+
+- Worker: `house-to-do-staging`
+- Worker URL and `ALLOWED_ORIGINS`: `https://house-to-do-staging.427harinn.workers.dev`
+- D1: `house-to-do-staging`
+- R2: `house-to-do-attachments-staging`
+- Remote migrations `0001` through `0007`: applied and verified
+- Cron: one trigger, `0 18 * * *` UTC
+- Workers Observability: enabled for staging only
+- Latest verified Version ID: `15d0cd3d-9244-4e9f-a570-f02647c74a55`
+
+The staging registration 500 was caused by Cloudflare Workers Web Crypto rejecting PBKDF2 `120,000` iterations as above the supported limit of `100,000`. The failure occurred in `hashPassword` before the users INSERT. `PBKDF2_ITERATIONS` is now `100_000`.
+
+The stored format remains `pbkdf2-sha256$iterations$salt$hash`, and `verifyPassword` reads iterations from the stored value, preserving compatibility. Staging registration returned HTTP 201 and created users/sessions rows. Browser checks confirmed registration, login, logout, cookie attributes, and Origin checks.
+
+Page-reload persistence was not strictly verified, full remote E2E was not run, and detailed successful Workers Logs stages were not confirmed. Quality gates passed: lint, typecheck, 15 files / 60 tests, build, local migration, and `git diff --check`. Production was not operated on, no migration was added, and API Token contents were not stored.
+
 この手順は、Cloudflare上のstagingだけを初回作成・検証する次回作業用です。この準備フェーズでは、D1/R2作成、remote migration、Worker deploy、Cron登録、Secret登録、カスタムドメイン、commit/pushを実行しません。
 
 ## 構成と固定値

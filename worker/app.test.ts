@@ -114,6 +114,52 @@ describe("worker app auth API", () => {
       ).status
     ).toBe(401);
   });
+
+  it("returns a safe 500 when the users insert fails", async () => {
+    const db = new MemoryD1((sql) => {
+      if (sql.startsWith("INSERT INTO users")) {
+        throw new Error("D1 insert failed for secret-user@example.invalid");
+      }
+    });
+    const response = await createApp().fetch(
+      postJson("/api/auth/register", {
+        email: "secret-user@example.invalid",
+        password: "very-long-password",
+        displayName: "Codex Test"
+      }),
+      createTestEnv(db)
+    );
+    const body = await response.text();
+
+    expect(response.status).toBe(500);
+    expect(body).toContain('"code":"INTERNAL_ERROR"');
+    expect(body).not.toContain("secret-user@example.invalid");
+    expect(body).not.toContain("very-long-password");
+    expect(response.headers.get("set-cookie")).toBeNull();
+  });
+
+  it("returns a safe 500 when the sessions insert fails", async () => {
+    const db = new MemoryD1((sql) => {
+      if (sql.startsWith("INSERT INTO sessions")) {
+        throw new Error("D1 session insert failed for secret-session@example.invalid");
+      }
+    });
+    const response = await createApp().fetch(
+      postJson("/api/auth/register", {
+        email: "secret-session@example.invalid",
+        password: "very-long-password",
+        displayName: "Codex Test"
+      }),
+      createTestEnv(db)
+    );
+    const body = await response.text();
+
+    expect(response.status).toBe(500);
+    expect(body).toContain('"code":"INTERNAL_ERROR"');
+    expect(body).not.toContain("secret-session@example.invalid");
+    expect(body).not.toContain("very-long-password");
+    expect(response.headers.get("set-cookie")).toBeNull();
+  });
 });
 
 describe("worker shopping image API", () => {

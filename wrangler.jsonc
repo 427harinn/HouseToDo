@@ -37,13 +37,17 @@
       "workers_dev": true,
       "vars": {
         "APP_ENV": "staging",
-        "ALLOWED_ORIGINS": "__STAGING_WORKERS_DEV_ORIGIN__"
+        "ALLOWED_ORIGINS": "https://house-to-do-staging.427harinn.workers.dev"
+      },
+      "observability": {
+        "enabled": true,
+        "head_sampling_rate": 1
       },
       "d1_databases": [
         {
           "binding": "DB",
           "database_name": "house-to-do-staging",
-          "database_id": "__STAGING_D1_DATABASE_ID__",
+          "database_id": "17e73ab2-78e1-4e18-87d4-21a4ccef3216",
           "migrations_dir": "migrations"
         }
       ],

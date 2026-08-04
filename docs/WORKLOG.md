@@ -1,5 +1,19 @@
 # 作業記録
 
+## 2026-08-04 Staging authentication completion
+
+- Completed staging Worker/D1/R2 setup and deployment for `house-to-do-staging`.
+- Worker URL and `ALLOWED_ORIGINS`: `https://house-to-do-staging.427harinn.workers.dev`.
+- Remote migrations `0001` through `0007` were applied and the remote schema was verified.
+- Cron: exactly one trigger, `0 18 * * *` UTC.
+- Observability is enabled only in `env.staging`.
+- Root cause of the staging registration 500: Workers rejected PBKDF2 with 120,000 iterations as above the 100,000 runtime limit; failure occurred in `hashPassword` before users INSERT.
+- Fixed `PBKDF2_ITERATIONS` to `100_000`; retained the `pbkdf2-sha256$iterations$salt$hash` format and stored-iterations verification.
+- Post-fix staging registration returned 201 and created users/sessions rows. Browser verification covered registration, login, logout, cookie attributes, and Origin checks.
+- Page-reload persistence, full remote E2E, and detailed successful Workers Logs stages remain unconfirmed.
+- Quality gates passed: lint, typecheck, 15 files / 60 tests, build, local migration, and `git diff --check`.
+- Production was not operated on. No migration was added. API Token contents were not stored.
+
 ## 2026-08-04 npm audit dependency update
 
 ### 作業目的

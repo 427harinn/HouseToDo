@@ -5,18 +5,34 @@ import { parseJsonBody, validateLoginInput, validateRegisterInput } from "../lib
 import { AuthService } from "../services/auth-service";
 import type { Handler } from "../middleware/error-handler";
 import { requireAuth } from "../middleware/auth";
+import { logRegisterFailure, logRegisterStage } from "../lib/safe-logging";
 
 export const registerRoute: Handler = async (context) => {
-  const input = validateRegisterInput(await parseJsonBody(context.request));
-  const result = await new AuthService(context.env.DB).register(input);
-  return okJson(
-    { user: result.user },
-    context.requestId,
-    {
-      status: 201,
-      headers: { "set-cookie": createSessionCookie(result.token, context.env.APP_ENV) }
-    }
-  );
+  let stage = "request-start";
+  const setStage = (nextStage: string) => {
+    stage = nextStage;
+    logRegisterStage(stage);
+  };
+
+  try {
+    const input = validateRegisterInput(await parseJsonBody(context.request));
+    setStage("validation-complete");
+    const result = await new AuthService(context.env.DB).register(input, setStage);
+    setStage("cookie-create-start");
+    const sessionCookie = createSessionCookie(result.token, context.env.APP_ENV);
+    setStage("cookie-created");
+    return okJson(
+      { user: result.user },
+      context.requestId,
+      {
+        status: 201,
+        headers: { "set-cookie": sessionCookie }
+      }
+    );
+  } catch (error) {
+    logRegisterFailure(error, stage);
+    throw error;
+  }
 };
 
 export const loginRoute: Handler = async (context) => {

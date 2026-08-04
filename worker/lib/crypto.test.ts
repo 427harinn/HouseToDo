@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { INVITE_CODE_BYTES, SESSION_TOKEN_BYTES } from "./constants";
+import { INVITE_CODE_BYTES, PBKDF2_ITERATIONS, SESSION_TOKEN_BYTES } from "./constants";
 import {
   generateInviteCode,
   generateSessionToken,
@@ -29,8 +29,12 @@ describe("crypto helpers", () => {
 
   it("hashes and verifies passwords with PBKDF2", async () => {
     const passwordHash = await hashPassword("very-long-password");
+    const [, iterations] = passwordHash.split("$");
 
     expect(passwordHash).toMatch(/^pbkdf2-sha256\$/);
+    expect(PBKDF2_ITERATIONS).toBe(100_000);
+    expect(Number(iterations)).toBe(PBKDF2_ITERATIONS);
+    expect(PBKDF2_ITERATIONS).toBeLessThanOrEqual(100_000);
     await expect(verifyPassword("very-long-password", passwordHash)).resolves.toBe(true);
     await expect(verifyPassword("wrong-password", passwordHash)).resolves.toBe(false);
   });

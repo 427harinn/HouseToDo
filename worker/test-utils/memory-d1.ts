@@ -163,6 +163,7 @@ class MemoryPreparedStatement {
   }
 
   run(): Promise<D1Result> {
+    this.db.beforeRun(this.sql);
     return Promise.resolve(this.db.run(this.sql, this.values));
   }
 }
@@ -180,6 +181,12 @@ export class MemoryD1 {
   readonly shoppingTemplates = new Map<string, ShoppingTemplateDbRecord>();
   readonly shoppingItemImages = new Map<string, ShoppingItemImageDbRecord>();
   readonly orphanR2Objects = new Map<string, OrphanR2ObjectDbRecord>();
+
+  constructor(private readonly failure?: (sql: string) => void) {}
+
+  beforeRun(sql: string): void {
+    this.failure?.(sql);
+  }
 
   prepare(sql: string): D1PreparedStatement {
     return new MemoryPreparedStatement(this, sql) as unknown as D1PreparedStatement;

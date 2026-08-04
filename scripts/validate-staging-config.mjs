@@ -15,7 +15,8 @@ if (!has(/"binding"\s*:\s*"ATTACHMENTS"[\s\S]*"bucket_name"\s*:\s*"house-to-do-a
 if (!has(/"APP_ENV"\s*:\s*"staging"/)) failures.push("APP_ENV is not staging");
 const origin = stagingValueAfter("ALLOWED_ORIGINS");
 if (!origin || origin.includes("__") || origin === "*") failures.push("staging origin is not configured");
-if (!has(/"crons"\s*:\s*\[\s*"0 18 \* \* \*"\s*\]/)) failures.push("staging Cron is not 0 18 * * * UTC");
+const stagingCronMatches = stagingSection.match(/"crons"\s*:\s*\[\s*"0 18 \* \* \*"\s*\]/g) ?? [];
+if (stagingCronMatches.length !== 1) failures.push("staging Cron must contain exactly one 0 18 * * * UTC trigger");
 if (/house-to-do-production|__PRODUCTION_/.test(config)) failures.push("production resource configuration must not be present");
 
 if (failures.length > 0) {

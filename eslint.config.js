@@ -37,5 +37,22 @@ export default tseslint.config(
       ],
       "@typescript-eslint/no-explicit-any": "error"
     }
+  },
+  {
+    files: ["scripts/**/*.mjs"],
+    ...tseslint.configs.disableTypeChecked,
+    languageOptions: {
+      ecmaVersion: "latest",
+      sourceType: "module",
+      parserOptions: {
+        project: false,
+        projectService: false
+      },
+      globals: {
+        console: "readonly",
+        process: "readonly",
+        URL: "readonly"
+      }
+    }
   }
 );

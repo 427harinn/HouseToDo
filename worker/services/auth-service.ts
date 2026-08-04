@@ -8,6 +8,8 @@ import { UserRepository } from "../repositories/user-repository";
 import type { AuthenticatedUser } from "../types/api";
 import type { User } from "../types/domain";
 
+export type RegisterStageLogger = (stage: string) => void;
+
 export type AuthSessionResult = {
   user: AuthenticatedUser;
   token: string;
@@ -32,20 +34,26 @@ export class AuthService {
     email: string;
     password: string;
     displayName: string;
-  }): Promise<AuthSessionResult> {
+  }, onStage?: RegisterStageLogger): Promise<AuthSessionResult> {
+    onStage?.("user-lookup-start");
     const existing = await this.users.findByEmail(input.email);
     if (existing) throw conflictError("このメールアドレスはすでに登録されています。");
 
     const now = nowIso();
+    onStage?.("password-hash-start");
+    const passwordHash = await hashPassword(input.password);
+    onStage?.("password-hash-complete");
+    onStage?.("user-insert-start");
     const user = await this.users.create({
       id: crypto.randomUUID(),
       email: input.email,
-      passwordHash: await hashPassword(input.password),
+      passwordHash,
       displayName: input.displayName,
       now
     });
+    onStage?.("user-insert-complete");
 
-    return this.createSession(user);
+    return this.createSession(user, onStage);
   }
 
   async login(email: string, password: string): Promise<AuthSessionResult> {
@@ -77,9 +85,10 @@ export class AuthService {
     return toAuthenticatedUser(user);
   }
 
-  private async createSession(user: User): Promise<AuthSessionResult> {
+  private async createSession(user: User, onStage?: RegisterStageLogger): Promise<AuthSessionResult> {
     const now = nowIso();
     const token = generateSessionToken();
+    onStage?.("session-insert-start");
     await this.sessions.create({
       id: crypto.randomUUID(),
       userId: user.id,
@@ -87,6 +96,7 @@ export class AuthService {
       expiresAt: sessionExpiresAt(new Date(now)),
       now
     });
+    onStage?.("session-insert-complete");
 
     return { user: toAuthenticatedUser(user), token };
   }

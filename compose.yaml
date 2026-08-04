@@ -7,6 +7,7 @@ services:
     ports:
       - "5174:5173"
     volumes:
+      - wrangler_config:/root/.config/.wrangler
       - ./src:/workspace/src
       - ./worker:/workspace/worker
       - ./migrations:/workspace/migrations
@@ -140,4 +141,5 @@ volumes:
   node_modules:
   build_dist:
   wrangler_state:
+  wrangler_config:
   e2e_playwright_cache:

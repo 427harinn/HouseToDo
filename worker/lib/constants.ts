@@ -6,7 +6,8 @@ export const EMAIL_MAX_LENGTH = 254;
 export const DISPLAY_NAME_MAX_LENGTH = 80;
 export const PASSWORD_MIN_LENGTH = 12;
 export const PASSWORD_MAX_LENGTH = 128;
-export const PBKDF2_ITERATIONS = 120_000;
+// Cloudflare Workers Web Crypto supports PBKDF2 iteration counts up to 100,000.
+export const PBKDF2_ITERATIONS = 100_000;
 export const HOUSEHOLD_NAME_MAX_LENGTH = 50;
 export const INVITE_CODE_BYTES = 24;
 export const INVITE_CODE_MAX_LENGTH = 128;
