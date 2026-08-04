@@ -3,8 +3,8 @@ import { SESSION_COOKIE_NAME, SESSION_TTL_SECONDS } from "./constants";
 import { createExpiredSessionCookie, createSessionCookie, readCookie } from "./cookies";
 
 describe("cookie helpers", () => {
-  it("uses Secure in production", () => {
-    const cookie = createSessionCookie("token", "production");
+  it.each(["staging", "production"] as const)("uses Secure in %s", (environment) => {
+    const cookie = createSessionCookie("token", environment);
 
     expect(cookie).toContain(`${SESSION_COOKIE_NAME}=token`);
     expect(cookie).toContain("HttpOnly");

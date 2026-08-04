@@ -442,3 +442,7 @@ Complete the major D1 mutation first, then attempt the R2 delete through one sha
 ### Consequences
 
 This prioritizes preventing deletion of a valid image over complete orphan recovery. A queue-registration failure after a successful D1 mutation is logged as a structural consistency risk and remains an operational follow-up; no public cleanup endpoint or production Cron registration is added.
+
+## 2026-08-04 Prepare staging before production
+
+Use a Wrangler `staging` environment before production. Keep staging and production D1/R2 resources separate, use workers.dev for the first staging deployment, keep R2 private and serve images through the Worker API, and manage secrets per environment only when a real secret is required. Apply Cron only after HTTP/API and manual Scheduled checks. `APP_ENV=staging` is a secure-cookie environment; only local development omits `Secure`. Production remains documentation-only until staging is accepted.

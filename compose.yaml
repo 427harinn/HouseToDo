@@ -11,6 +11,7 @@ services:
       - ./worker:/workspace/worker
       - ./migrations:/workspace/migrations
       - ./docs:/workspace/docs
+      - ./scripts:/workspace/scripts
       - ./.git:/workspace/.git
       - ./index.html:/workspace/index.html
       - ./README.md:/workspace/README.md
@@ -60,6 +61,7 @@ services:
       - ./worker:/workspace/worker
       - ./migrations:/workspace/migrations
       - ./docs:/workspace/docs
+      - ./scripts:/workspace/scripts
       - ./.git:/workspace/.git
       - ./index.html:/workspace/index.html
       - ./README.md:/workspace/README.md
@@ -106,6 +108,7 @@ services:
       - ./worker:/workspace/worker
       - ./migrations:/workspace/migrations
       - ./docs:/workspace/docs
+      - ./scripts:/workspace/scripts
       - ./e2e:/workspace/e2e
       - ./artifacts:/workspace/artifacts
       - ./index.html:/workspace/index.html

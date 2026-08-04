@@ -30,5 +30,32 @@
   ],
   "triggers": {
     "crons": ["0 18 * * *"]
+  },
+  "env": {
+    "staging": {
+      "name": "house-to-do-staging",
+      "workers_dev": true,
+      "vars": {
+        "APP_ENV": "staging",
+        "ALLOWED_ORIGINS": "__STAGING_WORKERS_DEV_ORIGIN__"
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "house-to-do-staging",
+          "database_id": "__STAGING_D1_DATABASE_ID__",
+          "migrations_dir": "migrations"
+        }
+      ],
+      "r2_buckets": [
+        {
+          "binding": "ATTACHMENTS",
+          "bucket_name": "house-to-do-attachments-staging"
+        }
+      ],
+      "triggers": {
+        "crons": ["0 18 * * *"]
+      }
+    }
   }
 }

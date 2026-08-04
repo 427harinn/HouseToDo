@@ -1,7 +1,7 @@
 import { SESSION_COOKIE_NAME, SESSION_TTL_SECONDS } from "./constants";
 import type { AppEnvironment } from "../types/env";
 
-const isProduction = (appEnv?: AppEnvironment): boolean => appEnv === "production";
+const isSecureEnvironment = (appEnv?: AppEnvironment): boolean => appEnv === "staging" || appEnv === "production";
 
 export const createSessionCookie = (token: string, appEnv?: AppEnvironment): string => {
   const attributes = [
@@ -11,7 +11,7 @@ export const createSessionCookie = (token: string, appEnv?: AppEnvironment): str
     "Path=/",
     `Max-Age=${SESSION_TTL_SECONDS}`
   ];
-  if (isProduction(appEnv)) attributes.push("Secure");
+  if (isSecureEnvironment(appEnv)) attributes.push("Secure");
   return attributes.join("; ");
 };
 
@@ -23,7 +23,7 @@ export const createExpiredSessionCookie = (appEnv?: AppEnvironment): string => {
     "Path=/",
     "Max-Age=0"
   ];
-  if (isProduction(appEnv)) attributes.push("Secure");
+  if (isSecureEnvironment(appEnv)) attributes.push("Secure");
   return attributes.join("; ");
 };
 

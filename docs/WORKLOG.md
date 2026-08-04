@@ -1563,3 +1563,29 @@ Playwright: the required combined command ran with 3 tests/1 worker. First run f
 Wrangler deadlock: reproduced multiple times during E2E, with the existing esbuild stack and Wrangler 4.114.0 warning that 4.118.0 is available. No Wrangler upgrade or dependency change was made.
 
 No new dependency was added. Production Cron registration, production R2 operations, deployment, commit, and push were not performed.
+
+## 2026-08-04 Staging preparation
+
+目的: Cloudflare限定デプロイ前に、staging環境の設定分離、実行手順、検証方法を準備する。作業前Gitは`main`、status clean、直近は`e654ffc 孤児R2画像の定期削除機能を追加`、リポジトリ内`git diff --check`も問題なし。commit/pushは実行していない。
+
+公式仕様確認: Cloudflare公式の Environments、Workers deploy/versions upload、D1 Wrangler commands/migrations、R2 bucket creation/Worker binding、environment variables、Secrets、Cron Triggers、Scheduled handler、Static Assets SPA、Custom Domainsを確認した。採用判断は、`env.staging`はWorker名を`house-to-do-staging`として分離、`workers_dev: true`で初回URLを取得、vars/bindings/triggersはenvironment側へ明示、D1/R2は非共有、R2はprivate、CronはUTC、SPAは`single-page-application`+`run_worker_first: ["/api/*"]`維持、dry-runはlive deployしない、というもの。
+
+既存設定監査: Worker `house-to-do`、entrypoint `worker/index.ts`、Assets `./dist/client`/`ASSETS`、D1 `DB`/`house-to-do`/ゼロUUID仮ID/`migrations`、R2 `ATTACHMENTS`/`house-to-do-attachments`、local APP_ENVとOrigin、Cron `0 18 * * *`、compatibility_date `2026-07-21`を確認。Static Assetsでは`/api/*`をWorker first、その他をSPA fallback。Scheduled handlerは`worker/index.ts`に存在する。production設定はWranglerへ追加せず文書化のみ。
+
+採用構成: localは既存の127.0.0.1:5174/web:5173とlocal D1/R2、stagingはWorker/D1/R2をそれぞれ`house-to-do-staging`/`house-to-do-staging`/`house-to-do-attachments-staging`、productionは将来`house-to-do`/`house-to-do-production`/`house-to-do-attachments-production`。staging D1 IDとOriginは未確定なので明示placeholderのまま、検証scriptはexpected failureを返す。
+
+APP_ENV/Cookie: 現状はproductionのみSecureだったため、`staging`をAppEnvironmentへ追加し、staging/productionでSecure、HttpOnly、SameSite=Laxとなる最小修正と単体テストを追加した。Secretsは現状実利用の追加不要。既存のSESSION_SECRET/VAPID keysはlocal `.dev.vars`のみで、Cloudflare Secret登録は未実行。
+
+追加: `env.staging`、staging専用の安全なnpm scripts、`scripts/validate-staging-config.mjs`、`docs/STAGING_DEPLOYMENT.md`、Decision追記。remote変更scriptは名前にstaging/remoteを含め、今回実行しない。
+
+Cloudflare読み取り専用確認: `whoami`/D1 list/R2 listはDocker daemon権限不足で未実行。認証や外部アクセスが必要なコマンドであり、ブラウザ認証は開始していない。既存リソース衝突は未確認。
+
+品質確認: Docker Engineが`//./pipe/docker_engine`へのアクセス拒否で、指定されたlint/typecheck/test/build/audit/local D1とWrangler CLI help/dry-runは未実行。audit既知残件は`undici -> miniflare -> wrangler`。E2Eは本作業で成功扱いにしていない。Wrangler 4.114.0の既知local esbuild deadlockは依存更新せず文書化。
+
+未実行remote操作: D1/R2 create、remote migration、Worker upload/deploy、Cron登録、Secrets登録、custom domain、本番R2、backup/export、commit、push。次回はDocker権限を確保し、品質ゲート、Cloudflare read-only確認、D1/R2作成、ID/Origin設定、dry-run、migration list/apply、deploy、smoke、Scheduled、最後にCronの順で実施する。
+
+追記: Docker Engine復旧後に再実行した結果、lint、typecheck、`npm test`（14 files/57 tests）、build、local D1（No migrations to apply）は成功。`npm audit`は既知の3 vulnerabilities（2 moderate/1 high、`undici -> miniflare -> wrangler`）で終了コード1、force修正なし。Wrangler CLIは4.114.0。deploy/versions uploadの`--dry-run`、D1 create、R2 bucket createのhelpで実構文を確認。staging validationはD1 ID/Origin未設定を期待どおり検出。staging dry-runはassets 4 filesを読み、staging bindingsを表示後`--dry-run: exiting now`で完了し、live upload/deployなし。Composeへ`scripts`マウントを追加した。
+
+Cloudflare読み取り確認は`whoami`が未認証、D1/R2 listは非対話環境で`CLOUDFLARE_API_TOKEN`が必要となり未確認。ブラウザ認証・API Token設定は行っていない。最終`git diff --check`成功。ホスト生成物はnode_modules/dist/.wrangler/ms-playwrightすべてなし。E2Eは今回再実行していないため成功扱いにせず、既知deadlockを継続記録する。
+
+E2E追記: Cookie変更後の`docker-compose run --rm e2e npm run test:e2e`を試行したが、184秒でtoolchain/Worker出力なしのtimeout（終了コード124）となった。成功扱いにせず、既知Wrangler/esbuild deadlock疑いの環境障害として記録する。staging runtimeでの回帰確認が必要。

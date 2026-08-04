@@ -14,6 +14,11 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "cf:dev": "wrangler dev --ip 0.0.0.0",
+    "cf:whoami": "wrangler whoami",
+    "cf:deploy:staging:dry-run": "wrangler deploy --env staging --dry-run",
+    "cf:validate:staging": "node scripts/validate-staging-config.mjs",
+    "cf:d1:migrations:list:staging:remote": "wrangler d1 migrations list DB --env staging --remote",
+    "cf:d1:migrations:apply:staging:remote": "wrangler d1 migrations apply DB --env staging --remote",
     "db:migrate:local": "wrangler d1 migrations apply house-to-do --local",
     "db:migrate:remote": "wrangler d1 migrations apply house-to-do --remote"
   },

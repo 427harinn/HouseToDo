@@ -1,4 +1,4 @@
-export type AppEnvironment = "development" | "production" | "test";
+export type AppEnvironment = "development" | "staging" | "production" | "test";
 
 export interface Env {
   DB: D1Database;
