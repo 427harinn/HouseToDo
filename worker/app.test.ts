@@ -50,6 +50,32 @@ const registerUser = async (
   return { response, cookie: cookieFrom(response) };
 };
 
+describe("household image usage API", () => {
+  it("returns current-household usage for owner and member without touching R2", async () => {
+    const app = createApp();
+    const env = createTestEnv();
+    const owner = await registerUser(env, { email: "usage-owner@example.com", password: "very-long-password", displayName: "Usage Owner" });
+    const member = await registerUser(env, { email: "usage-member@example.com", password: "very-long-password", displayName: "Usage Member" });
+    await app.fetch(postJson("/api/households", { name: "Usage House" }, owner.cookie), env);
+    const invite = await app.fetch(postJson("/api/households/current/invites", {}, owner.cookie), env);
+    const inviteBody: unknown = await invite.json();
+    if (typeof inviteBody !== "object" || inviteBody === null || !("data" in inviteBody) || typeof inviteBody.data !== "object" || inviteBody.data === null || !("invite" in inviteBody.data) || typeof inviteBody.data.invite !== "object" || inviteBody.data.invite === null || !("code" in inviteBody.data.invite) || typeof inviteBody.data.invite.code !== "string") throw new Error("invite response was malformed");
+    await app.fetch(postJson("/api/households/join", { code: inviteBody.data.invite.code }, member.cookie), env);
+
+    const ownerResponse = await app.fetch(new Request("https://example.test/api/households/current/image-usage", { headers: { cookie: owner.cookie } }), env);
+    const memberResponse = await app.fetch(new Request("https://example.test/api/households/current/image-usage", { headers: { cookie: member.cookie } }), env);
+    expect(ownerResponse.status).toBe(200);
+    expect(memberResponse.status).toBe(200);
+    const ownerBody: unknown = await ownerResponse.json();
+    const memberBody: unknown = await memberResponse.json();
+    expect(ownerBody).toMatchObject({ ok: true, data: { activeCount: 0, activeBytes: 0, reservedCount: 0, reservedBytes: 0, storedBytesKnown: true, activeCountLimit: 50, activeBytesLimit: 52428800, storedBytesLimit: 78643200, dailyUploadLimit: 20 } });
+    expect(memberBody).toMatchObject({ ok: true, data: { activeCount: 0, activeBytes: 0 } });
+    expect(typeof (ownerBody as { requestId?: unknown }).requestId).toBe("string");
+    expect(typeof (memberBody as { requestId?: unknown }).requestId).toBe("string");
+    await expect(app.fetch(new Request("https://example.test/api/households/current/image-usage"), env)).resolves.toMatchObject({ status: 401 });
+  });
+});
+
 describe("worker app auth API", () => {
   it("registers, reads the current user, and logs out", async () => {
     const app = createApp();

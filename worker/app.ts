@@ -5,6 +5,7 @@ import { createRequestContext } from "./middleware/request-context";
 import { withStateChangingRequestProtection } from "./middleware/security";
 import { loginRoute, logoutRoute, meRoute, registerRoute } from "./routes/auth";
 import { healthRoute } from "./routes/health";
+import { currentHouseholdImageUsageRoute } from "./routes/household-image-usage";
 import {
   createHouseholdInviteRoute,
   createHouseholdRoute,
@@ -115,6 +116,8 @@ const routeApi = withErrorHandling(withStateChangingRequestProtection((context) 
       return updateCurrentHouseholdRoute(context);
     case "GET /api/households/current/members":
       return currentHouseholdMembersRoute(context);
+    case "GET /api/households/current/image-usage":
+      return currentHouseholdImageUsageRoute(context);
     case "POST /api/households/current/invites":
       return createHouseholdInviteRoute(context);
     case "POST /api/households/join":

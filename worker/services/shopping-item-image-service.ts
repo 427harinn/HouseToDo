@@ -27,7 +27,7 @@ export class ShoppingItemImageService {
     this.orphanQueue = new OrphanR2ObjectRepository(db);
   }
 
-  private async deleteR2ObjectOrEnqueueCleanup(r2Key: string, input: { sourceType: OrphanSourceType; sourceId: string; householdId: string; reason: string }): Promise<void> {
+  private async deleteR2ObjectOrEnqueueCleanup(r2Key: string, input: { sourceType: OrphanSourceType; sourceId: string; householdId: string; byteSize?: number | null; reason: string }): Promise<void> {
     try { await this.bucket.delete(r2Key); }
     catch (error) {
       const now = new Date().toISOString();
@@ -37,7 +37,7 @@ export class ShoppingItemImageService {
   }
 
   async deleteKnownImage(image: ShoppingItemImage, sourceType: OrphanSourceType, reason: string): Promise<void> {
-    await this.deleteR2ObjectOrEnqueueCleanup(image.r2Key, { sourceType, sourceId: image.shoppingItemId, householdId: image.householdId, reason });
+    await this.deleteR2ObjectOrEnqueueCleanup(image.r2Key, { sourceType, sourceId: image.shoppingItemId, householdId: image.householdId, byteSize: image.sizeBytes, reason });
   }
 
   async listMetadata(userId: string): Promise<Map<string, ShoppingItemImage>> {

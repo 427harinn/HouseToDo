@@ -260,3 +260,13 @@ Images and R2 are intentionally not represented as active controls in the UI. Ca
 ## 2026-08-04 Orphan R2 cleanup architecture
 
 `orphan_r2_objects` stores only failed R2 deletions. The image service completes the relevant D1 mutation first, then calls the shared delete-or-enqueue helper. The cleanup service is callable directly by tests or by the Worker `scheduled` handler. Each due record is rechecked against `shopping_item_images.r2_key`; a live reference removes the queue record without touching R2. The batch is capped at 50, holds candidates for 30 days, retries at 1/3/7/14 days, and preserves the fifth failure as `abandoned`.
+
+## 2026-08-05 Image usage foundation
+
+Migration `0008_image_usage_reservations.sql` adds `household_image_usage` and `image_upload_reservations`, and adds nullable `byte_size` to `orphan_r2_objects`. Active usage is derived from `shopping_item_images`; reserved usage is derived from active reservation rows; known pending-cleanup usage is derived from non-null orphan byte sizes. Existing orphan rows with a null byte size remain unknown and are never treated as zero.
+
+`GET /api/households/current/image-usage` exposes household-scoped usage and environment-derived limits to both owners and members. It resets the UTC daily counter date when necessary but does not recalculate counters on every read, access R2, or expose reservation IDs/R2 keys. `storedBytes` is `activeBytes + reservedBytes + pendingCleanupBytes`; `storedBytesKnown` is false when an active cleanup queue row has an unknown byte size.
+
+The reservation repository enforces one active reservation per shopping item through a SQLite partial unique index. Reservation creation is intentionally not connected to `ShoppingItemImageService` yet, so the existing upload order, R2 put/delete behavior, and upload acceptance policy are unchanged. Explicit repair APIs recalculate active, reservation, and known pending-cleanup counters; daily successful upload count is not repairable because no upload event history exists. Upload limits are not enforced in this milestone.
+
+Completed reservation rows are not retained as history: the future finalize/release path is expected to call `deleteReservation`. The shopping-item foreign key uses `ON DELETE CASCADE`, so an item deletion cannot leave a reservation row behind; the future connected upload flow must separately handle any R2 object associated with an in-flight reservation.

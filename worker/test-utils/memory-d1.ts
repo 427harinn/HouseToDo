@@ -135,7 +135,9 @@ export type ShoppingItemImageDbRecord = {
   id: string; shopping_item_id: string; household_id: string; r2_key: string; content_type: "image/webp";
   size_bytes: number; width: number; height: number; created_by: string; created_at: string; updated_at: string;
 };
-export type OrphanR2ObjectDbRecord = { id: string; r2_key: string; source_type: string; source_id: string | null; household_id: string | null; reason: string; status: string; attempt_count: number; first_failed_at: string; last_attempted_at: string | null; next_attempt_at: string; last_error_code: string | null; last_error_message: string | null; created_at: string; updated_at: string };
+export type OrphanR2ObjectDbRecord = { id: string; r2_key: string; source_type: string; source_id: string | null; household_id: string | null; byte_size: number | null; reason: string; status: string; attempt_count: number; first_failed_at: string; last_attempted_at: string | null; next_attempt_at: string; last_error_code: string | null; last_error_message: string | null; created_at: string; updated_at: string };
+export type HouseholdImageUsageDbRecord = { household_id: string; active_count: number; active_bytes: number; reserved_count: number; reserved_bytes: number; pending_cleanup_bytes: number; daily_upload_date: string | null; daily_upload_count: number; updated_at: string };
+export type ImageUploadReservationDbRecord = { id: string; household_id: string; shopping_item_id: string; operation: string; status: string; r2_key: string; byte_size: number; old_image_id: string | null; old_r2_key: string | null; old_size_bytes: number | null; expires_at: string; created_at: string; updated_at: string };
 
 class MemoryPreparedStatement {
   private values: unknown[] = [];
@@ -181,6 +183,8 @@ export class MemoryD1 {
   readonly shoppingTemplates = new Map<string, ShoppingTemplateDbRecord>();
   readonly shoppingItemImages = new Map<string, ShoppingItemImageDbRecord>();
   readonly orphanR2Objects = new Map<string, OrphanR2ObjectDbRecord>();
+  readonly householdImageUsage = new Map<string, HouseholdImageUsageDbRecord>();
+  readonly imageUploadReservations = new Map<string, ImageUploadReservationDbRecord>();
 
   constructor(private readonly failure?: (sql: string) => void) {}
 
@@ -215,6 +219,9 @@ export class MemoryD1 {
     | ShoppingTemplateDbRecord
     | ShoppingItemImageDbRecord
     | OrphanR2ObjectDbRecord
+    | HouseholdImageUsageDbRecord
+    | ImageUploadReservationDbRecord
+    | { count: number }
     | null {
     if (sql.includes("FROM users WHERE id")) {
       return this.users.get(String(values[0])) ?? null;
@@ -329,6 +336,11 @@ export class MemoryD1 {
     }
     if (sql.includes("FROM shopping_item_images") && sql.includes("r2_key = ?")) return Array.from(this.shoppingItemImages.values()).find((image) => image.r2_key === values[0]) ?? null;
     if (sql.includes("FROM orphan_r2_objects") && sql.includes("r2_key = ?")) return Array.from(this.orphanR2Objects.values()).find((row) => row.r2_key === values[0]) ?? null;
+    if (sql.includes("FROM household_image_usage") && sql.includes("WHERE household_id = ?")) return this.householdImageUsage.get(String(values[0])) ?? null;
+    if (sql.includes("FROM image_upload_reservations") && sql.includes("WHERE id = ?")) return this.imageUploadReservations.get(String(values[0])) ?? null;
+    if (sql.includes("FROM image_upload_reservations") && sql.includes("shopping_item_id = ?")) return Array.from(this.imageUploadReservations.values()).find((row) => row.shopping_item_id === values[0] && ["reserved", "r2_written", "cleanup_pending"].includes(row.status)) ?? null;
+    if (sql.includes("COUNT(*) AS count FROM orphan_r2_objects")) return { count: Array.from(this.orphanR2Objects.values()).filter((row) => row.household_id === values[0] && row.byte_size === null && ["pending", "retry", "abandoned"].includes(row.status)).length };
+    if (sql.includes("COUNT(*) FROM image_upload_reservations") || sql.includes("COUNT(*) AS count FROM image_upload_reservations")) return { count: Array.from(this.imageUploadReservations.values()).filter((row) => row.household_id === values[0] && ["reserved", "r2_written", "cleanup_pending"].includes(row.status)).length };
     return null;
   }
 
@@ -403,6 +415,7 @@ export class MemoryD1 {
     if (sql.includes("FROM orphan_r2_objects")) {
       return Array.from(this.orphanR2Objects.values()).filter((row) => (row.status === "pending" || row.status === "retry") && row.next_attempt_at <= String(values[0]) && row.attempt_count < Number(values[1])).sort((a, b) => a.next_attempt_at.localeCompare(b.next_attempt_at) || a.first_failed_at.localeCompare(b.first_failed_at)).slice(0, Number(values[2]));
     }
+    if (sql.includes("FROM image_upload_reservations")) return Array.from(this.imageUploadReservations.values()).filter((row) => ["reserved", "r2_written", "cleanup_pending"].includes(row.status) && row.expires_at <= String(values[0])).sort((a, b) => a.expires_at.localeCompare(b.expires_at));
     return [];
   }
 
@@ -676,12 +689,37 @@ export class MemoryD1 {
     }
     if (sql.startsWith("INSERT INTO orphan_r2_objects")) {
       const existing = Array.from(this.orphanR2Objects.values()).find((row) => row.r2_key === values[1]);
-      if (existing) this.orphanR2Objects.set(existing.id, { ...existing, source_type: String(values[2]), source_id: values[3] as string | null, household_id: values[4] as string | null, reason: String(values[5]), updated_at: String(values[9]) });
-      else this.orphanR2Objects.set(String(values[0]), { id: String(values[0]), r2_key: String(values[1]), source_type: String(values[2]), source_id: values[3] as string | null, household_id: values[4] as string | null, reason: String(values[5]), status: "pending", attempt_count: 0, first_failed_at: String(values[6]), last_attempted_at: null, next_attempt_at: String(values[7]), last_error_code: null, last_error_message: null, created_at: String(values[8]), updated_at: String(values[9]) });
+      if (existing) this.orphanR2Objects.set(existing.id, { ...existing, source_type: String(values[2]), source_id: values[3] as string | null, household_id: values[4] as string | null, byte_size: values[5] as number | null ?? existing.byte_size, reason: String(values[6]), updated_at: String(values[10]) });
+      else this.orphanR2Objects.set(String(values[0]), { id: String(values[0]), r2_key: String(values[1]), source_type: String(values[2]), source_id: values[3] as string | null, household_id: values[4] as string | null, reason: String(values[6]), status: "pending", attempt_count: 0, first_failed_at: String(values[7]), last_attempted_at: null, next_attempt_at: String(values[8]), last_error_code: null, last_error_message: null, created_at: String(values[9]), updated_at: String(values[10]), byte_size: values[5] as number | null });
     }
     if (sql.startsWith("UPDATE orphan_r2_objects SET status = 'retry'")) { const row = this.orphanR2Objects.get(String(values[6])); if (row) this.orphanR2Objects.set(row.id, { ...row, status: "retry", attempt_count: Number(values[0]), last_attempted_at: String(values[1]), next_attempt_at: String(values[2]), last_error_code: String(values[3]), last_error_message: String(values[4]), updated_at: String(values[5]) }); }
     if (sql.startsWith("UPDATE orphan_r2_objects SET status = 'abandoned'")) { const row = this.orphanR2Objects.get(String(values[5])); if (row) this.orphanR2Objects.set(row.id, { ...row, status: "abandoned", attempt_count: Number(values[0]), last_attempted_at: String(values[1]), last_error_code: String(values[2]), last_error_message: String(values[3]), updated_at: String(values[4]) }); }
     if (sql.startsWith("DELETE FROM orphan_r2_objects")) this.orphanR2Objects.delete(String(values[0]));
+    if (sql.startsWith("INSERT INTO household_image_usage")) {
+      if (!this.householdImageUsage.has(String(values[0]))) this.householdImageUsage.set(String(values[0]), { household_id: String(values[0]), active_count: 0, active_bytes: 0, reserved_count: 0, reserved_bytes: 0, pending_cleanup_bytes: 0, daily_upload_date: null, daily_upload_count: 0, updated_at: String(values[1]) });
+    }
+    if (sql.startsWith("UPDATE household_image_usage") && sql.includes("daily_upload_date =")) {
+      const row = this.householdImageUsage.get(String(values[2]));
+      if (row && (row.daily_upload_date === null || row.daily_upload_date !== values[3])) this.householdImageUsage.set(row.household_id, { ...row, daily_upload_date: String(values[0]), daily_upload_count: 0, updated_at: String(values[1]) });
+    }
+    if (sql.startsWith("UPDATE household_image_usage") && sql.includes("active_count =")) {
+      const householdId = String(values[3]); const row = this.householdImageUsage.get(householdId);
+      if (row) { const images = Array.from(this.shoppingItemImages.values()).filter((image) => image.household_id === householdId); this.householdImageUsage.set(householdId, { ...row, active_count: images.length, active_bytes: images.reduce((sum, image) => sum + image.size_bytes, 0), updated_at: String(values[2]) }); }
+    }
+    if (sql.startsWith("UPDATE household_image_usage") && sql.includes("pending_cleanup_bytes =")) {
+      const householdId = String(values[2]); const row = this.householdImageUsage.get(householdId);
+      if (row) { const bytes = Array.from(this.orphanR2Objects.values()).filter((item) => item.household_id === householdId && item.byte_size !== null && ["pending", "retry", "abandoned"].includes(item.status)).reduce((sum, item) => sum + (item.byte_size ?? 0), 0); this.householdImageUsage.set(householdId, { ...row, pending_cleanup_bytes: bytes, updated_at: String(values[1]) }); }
+    }
+    if (sql.startsWith("UPDATE household_image_usage") && sql.includes("reserved_count =")) {
+      const householdId = String(values[3]); const row = this.householdImageUsage.get(householdId);
+      if (row) { const reservations = Array.from(this.imageUploadReservations.values()).filter((item) => item.household_id === householdId && ["reserved", "r2_written", "cleanup_pending"].includes(item.status)); this.householdImageUsage.set(householdId, { ...row, reserved_count: reservations.length, reserved_bytes: reservations.reduce((sum, item) => sum + item.byte_size, 0), updated_at: String(values[2]) }); }
+    }
+    if (sql.startsWith("INSERT INTO image_upload_reservations")) {
+      if (Array.from(this.imageUploadReservations.values()).some((row) => row.shopping_item_id === values[2] && ["reserved", "r2_written", "cleanup_pending"].includes(row.status))) throw new Error("UNIQUE constraint failed");
+      this.imageUploadReservations.set(String(values[0]), { id: String(values[0]), household_id: String(values[1]), shopping_item_id: String(values[2]), operation: String(values[3]), status: String(values[4]), r2_key: String(values[5]), byte_size: Number(values[6]), old_image_id: values[7] as string | null, old_r2_key: values[8] as string | null, old_size_bytes: values[9] as number | null, expires_at: String(values[10]), created_at: String(values[11]), updated_at: String(values[12]) });
+    }
+    if (sql.startsWith("UPDATE image_upload_reservations SET status")) { const row = this.imageUploadReservations.get(String(values[2])); if (row) this.imageUploadReservations.set(row.id, { ...row, status: String(values[0]), updated_at: String(values[1]) }); }
+    if (sql.startsWith("DELETE FROM image_upload_reservations")) { const row = this.imageUploadReservations.get(String(values[0])); if (row && (!sql.includes("expires_at") || row.expires_at <= String(values[1]))) this.imageUploadReservations.delete(String(values[0])); }
     if (sql.startsWith("INSERT INTO shopping_templates")) {
       this.shoppingTemplates.set(toText(values[0]), {
         id: toText(values[0]),

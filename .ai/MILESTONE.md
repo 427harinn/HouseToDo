@@ -25,3 +25,11 @@ Date: 2026-08-04
 - Page-reload session persistence was not strictly verified.
 - Full remote E2E and detailed successful Workers Logs stage review remain unconfirmed.
 - Production was not operated on; no migration was added; no API Token was stored.
+
+## 2026-08-05 Image usage foundation
+
+- Added local migration `0008_image_usage_reservations.sql` for household usage, upload reservations, and nullable orphan byte sizes.
+- Added environment-derived image limit defaults and `GET /api/households/current/image-usage`.
+- Added explicit usage repair and reservation repository foundations.
+- Existing image upload/R2 behavior remains unchanged and limits are not enforced.
+- Remote migration, deploy, production, Cron, UI, staging E2E, commit, and push remain out of scope.

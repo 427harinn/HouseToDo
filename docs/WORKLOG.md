@@ -1603,3 +1603,10 @@ Cloudflare読み取り専用確認: `whoami`/D1 list/R2 listはDocker daemon権�
 Cloudflare読み取り確認は`whoami`が未認証、D1/R2 listは非対話環境で`CLOUDFLARE_API_TOKEN`が必要となり未確認。ブラウザ認証・API Token設定は行っていない。最終`git diff --check`成功。ホスト生成物はnode_modules/dist/.wrangler/ms-playwrightすべてなし。E2Eは今回再実行していないため成功扱いにせず、既知deadlockを継続記録する。
 
 E2E追記: Cookie変更後の`docker-compose run --rm e2e npm run test:e2e`を試行したが、184秒でtoolchain/Worker出力なしのtimeout（終了コード124）となった。成功扱いにせず、既知Wrangler/esbuild deadlock疑いの環境障害として記録する。staging runtimeでの回帰確認が必要。
+## 2026-08-05 Image usage foundation milestone
+
+Implemented only the D1/configuration/usage API foundation for future household image limits. Added migration `0008_image_usage_reservations.sql` with `household_image_usage`, `image_upload_reservations`, initialization for all existing households, active-image aggregation, known orphan byte aggregation, non-negative checks, foreign keys, reservation status checks, and a partial unique index preventing multiple active reservations for one shopping item. Added nullable `orphan_r2_objects.byte_size` support while preserving unknown existing sizes as NULL.
+
+Added positive-integer environment parsing with standard defaults: active count 50, active bytes 52,428,800, stored bytes 78,643,200, daily uploads 20, and reservation TTL 900 seconds. Added usage and reservation repositories, idempotent explicit repair functions, UTC daily counter reset support, usage service, and `GET /api/households/current/image-usage` for owners and members. The API does not repair on every read, access R2, expose reservation details, or enforce limits.
+
+The existing `ShoppingItemImageService` upload order and R2 put/delete behavior remain unchanged; reservations are not connected and uploads are not rejected. Only the cleanup queue metadata path now carries the known image byte size when available. No UI, staging/production Wrangler configuration, Cron, remote migration, deploy, production operation, or push was performed.

@@ -16,6 +16,8 @@
 - [ ] Strictly verify login persistence after a browser page reload.
 - [ ] Run full remote E2E when separately approved.
 - [ ] Review successful Workers Logs stages when Dashboard access is available.
+- [ ] Connect image upload reservations and usage counters to the existing upload flow.
+- [ ] Add image limit rejection, UI usage display, and staging remote E2E coverage.
 
 ## Constraints
 
