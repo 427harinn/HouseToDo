@@ -7,6 +7,7 @@ import { SessionRepository } from "./session-repository";
 import { MemoryD1 } from "../test-utils/memory-d1";
 import { UserRepository } from "./user-repository";
 import { OrphanR2ObjectRepository } from "./orphan-r2-object-repository";
+import { ShoppingItemImageRepository } from "./shopping-item-image-repository";
 
 describe("repositories", () => {
   it("creates and finds users by email", async () => {
@@ -124,5 +125,24 @@ describe("repositories", () => {
     await repository.enqueue({ id: "orphan-3", r2Key: "key-2", sourceType: "manual_reconciliation", sourceId: "source-3", householdId: "household-2", reason: "second", firstFailedAt: "2026-01-01T01:00:00.000Z", nextAttemptAt: "2026-01-01T02:00:00.000Z", now: "2026-01-01T00:00:00.000Z" });
     const due = await repository.listDue("2026-01-03T00:00:00.000Z", 50);
     expect(db.orphanR2Objects.size).toBe(2); expect(due.map((item) => item.r2Key)).toEqual(["key-2", "key-1"]); expect(due[1]?.firstFailedAt).toBe("2026-01-01T00:00:00.000Z");
+  });
+
+  it("atomically deletes image metadata and active usage, and is idempotent", async () => {
+    const image = { id: "image-1", shoppingItemId: "item-1", householdId: "house-1", r2Key: "key-1", contentType: "image/webp" as const, sizeBytes: 17, width: 80, height: 60, createdBy: "user-1", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" };
+    const db = new MemoryD1();
+    db.shoppingItemImages.set(image.id, { id: image.id, shopping_item_id: image.shoppingItemId, household_id: image.householdId, r2_key: image.r2Key, content_type: image.contentType, size_bytes: image.sizeBytes, width: image.width, height: image.height, created_by: image.createdBy, created_at: image.createdAt, updated_at: image.updatedAt });
+    db.householdImageUsage.set(image.householdId, { household_id: image.householdId, active_count: 1, active_bytes: image.sizeBytes, reserved_count: 0, reserved_bytes: 0, pending_cleanup_bytes: 0, daily_upload_date: null, daily_upload_count: 3, updated_at: image.updatedAt });
+    const repository = new ShoppingItemImageRepository(db as unknown as D1Database);
+    await expect(repository.deleteMetadataAndUpdateUsage(image.householdId, image.shoppingItemId, image, "2026-01-02T00:00:00.000Z")).resolves.toBe(true);
+    await expect(repository.deleteMetadataAndUpdateUsage(image.householdId, image.shoppingItemId, image, "2026-01-02T00:00:01.000Z")).resolves.toBe(false);
+    expect(db.shoppingItemImages.size).toBe(0);
+    expect(db.householdImageUsage.get(image.householdId)).toMatchObject({ active_count: 0, active_bytes: 0, reserved_count: 0, reserved_bytes: 0, daily_upload_count: 3 });
+
+    const failing = new MemoryD1((sql) => { if (sql.includes("active_count = MAX(0, active_count -")) throw new Error("usage update failed"); });
+    failing.shoppingItemImages.set(image.id, { id: image.id, shopping_item_id: image.shoppingItemId, household_id: image.householdId, r2_key: image.r2Key, content_type: image.contentType, size_bytes: image.sizeBytes, width: image.width, height: image.height, created_by: image.createdBy, created_at: image.createdAt, updated_at: image.updatedAt });
+    failing.householdImageUsage.set(image.householdId, { household_id: image.householdId, active_count: 1, active_bytes: image.sizeBytes, reserved_count: 0, reserved_bytes: 0, pending_cleanup_bytes: 0, daily_upload_date: null, daily_upload_count: 3, updated_at: image.updatedAt });
+    await expect(new ShoppingItemImageRepository(failing as unknown as D1Database).deleteMetadataAndUpdateUsage(image.householdId, image.shoppingItemId, image, "2026-01-02T00:00:00.000Z")).rejects.toThrow("usage update failed");
+    expect(failing.shoppingItemImages.size).toBe(1);
+    expect(failing.householdImageUsage.get(image.householdId)).toMatchObject({ active_count: 1, active_bytes: image.sizeBytes, daily_upload_count: 3 });
   });
 });

@@ -1,4 +1,4 @@
-import type { ShoppingItem, ShoppingItemStatus } from "../types/domain";
+import type { ShoppingItem, ShoppingItemImage, ShoppingItemStatus } from "../types/domain";
 
 type ShoppingItemRow = {
   id: string;
@@ -211,11 +211,78 @@ export class ShoppingItemRepository {
     return (result.meta.changes ?? 0) > 0;
   }
 
+  async deleteOrDeactivateWithImage(householdId: string, itemId: string, image: ShoppingItemImage, now: string): Promise<boolean> {
+    const result = await this.db.batch([
+      this.db.prepare(
+        `INSERT INTO household_image_usage (household_id, updated_at) VALUES (?, ?)
+         ON CONFLICT(household_id) DO NOTHING`
+      ).bind(householdId, now),
+      this.db.prepare(
+        `DELETE FROM shopping_items
+         WHERE household_id = ? AND id = ? AND EXISTS (
+           SELECT 1 FROM shopping_item_images
+           WHERE household_id = ? AND shopping_item_id = ? AND id = ? AND size_bytes = ?
+         )`
+      ).bind(householdId, itemId, householdId, itemId, image.id, image.sizeBytes),
+      this.db.prepare(
+        `UPDATE household_image_usage
+         SET active_count = MAX(0, active_count - 1),
+             active_bytes = MAX(0, active_bytes - ?),
+             updated_at = ?
+         WHERE household_id = ? AND changes() > 0`
+      ).bind(image.sizeBytes, now, householdId)
+    ]);
+    return (result[1]?.meta.changes ?? 0) > 0;
+  }
+
   async clearPurchased(householdId: string): Promise<number> {
     const result = await this.db
       .prepare("DELETE FROM shopping_items WHERE household_id = ? AND status = 'purchased'")
       .bind(householdId)
       .run();
     return result.meta.changes ?? 0;
+  }
+
+  async clearPurchasedWithImages(householdId: string, images: ShoppingItemImage[], now: string): Promise<number> {
+    if (images.length === 0) return this.clearPurchased(householdId);
+    const statements: D1PreparedStatement[] = [
+      this.db.prepare(
+        `INSERT INTO household_image_usage (household_id, updated_at) VALUES (?, ?)
+         ON CONFLICT(household_id) DO NOTHING`
+      ).bind(householdId, now)
+    ];
+    for (const image of images) {
+      statements.push(
+        this.db.prepare(
+          `DELETE FROM shopping_items
+           WHERE household_id = ? AND id = ? AND status = 'purchased' AND EXISTS (
+             SELECT 1 FROM shopping_item_images
+             WHERE household_id = ? AND shopping_item_id = ? AND id = ? AND size_bytes = ?
+           )`
+        ).bind(householdId, image.shoppingItemId, householdId, image.shoppingItemId, image.id, image.sizeBytes),
+        this.db.prepare(
+          `UPDATE household_image_usage
+           SET active_count = MAX(0, active_count - 1),
+               active_bytes = MAX(0, active_bytes - ?),
+               updated_at = ?
+           WHERE household_id = ? AND changes() > 0`
+        ).bind(image.sizeBytes, now, householdId)
+      );
+    }
+    statements.push(
+      this.db.prepare(
+        `DELETE FROM shopping_items
+         WHERE household_id = ? AND status = 'purchased'
+           AND NOT EXISTS (
+             SELECT 1 FROM shopping_item_images
+             WHERE household_id = ? AND shopping_item_id = shopping_items.id
+           )`
+      ).bind(householdId, householdId)
+    );
+    const result = await this.db.batch(statements);
+    let deleted = 0;
+    for (let index = 1; index < result.length - 1; index += 2) deleted += result[index]?.meta.changes ?? 0;
+    deleted += result[statements.length - 1]?.meta.changes ?? 0;
+    return deleted;
   }
 }

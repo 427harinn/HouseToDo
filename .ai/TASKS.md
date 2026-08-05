@@ -19,7 +19,8 @@
 - [x] Connect image upload reservations and usage counters to the existing upload flow.
 - [ ] Add reservation TTL recovery and finalize reconciliation audits.
   - [x] Recalculate pending cleanup bytes when cleanup queue rows are successfully removed.
-- [x] Recover expired upload reservations and recompute orphan cleanup usage.
+  - [x] Recover expired upload reservations and recompute orphan cleanup usage.
+  - [x] Keep image deletion and shopping-item cascade paths aligned with active image usage.
 - [ ] Add image limit rejection, UI usage display, and staging remote E2E coverage.
 
 ## Constraints

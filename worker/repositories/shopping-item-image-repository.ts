@@ -31,6 +31,27 @@ const toImage = (row: ImageRow | null): ShoppingItemImage | null => row ? {
 export class ShoppingItemImageRepository {
   constructor(private readonly db: D1Database) {}
 
+  async deleteMetadataAndUpdateUsage(householdId: string, itemId: string, image: ShoppingItemImage, now: string): Promise<boolean> {
+    const result = await this.db.batch([
+      this.db.prepare(
+        `INSERT INTO household_image_usage (household_id, updated_at) VALUES (?, ?)
+         ON CONFLICT(household_id) DO NOTHING`
+      ).bind(householdId, now),
+      this.db.prepare(
+        `DELETE FROM shopping_item_images
+         WHERE household_id = ? AND shopping_item_id = ? AND id = ? AND size_bytes = ?`
+      ).bind(householdId, itemId, image.id, image.sizeBytes),
+      this.db.prepare(
+        `UPDATE household_image_usage
+         SET active_count = MAX(0, active_count - 1),
+             active_bytes = MAX(0, active_bytes - ?),
+             updated_at = ?
+         WHERE household_id = ? AND changes() > 0`
+      ).bind(image.sizeBytes, now, householdId)
+    ]);
+    return (result[1]?.meta.changes ?? 0) > 0;
+  }
+
   async findByItemForHousehold(householdId: string, itemId: string): Promise<ShoppingItemImage | null> {
     const row = await this.db.prepare(
       "SELECT id, shopping_item_id, household_id, r2_key, content_type, size_bytes, width, height, created_by, created_at, updated_at FROM shopping_item_images WHERE household_id = ? AND shopping_item_id = ?"

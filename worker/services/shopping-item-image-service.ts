@@ -36,7 +36,10 @@ export class ShoppingItemImageService {
     catch (error) {
       const now = new Date().toISOString();
       try { await this.orphanQueue.enqueue({ id: crypto.randomUUID(), r2Key, ...input, firstFailedAt: now, nextAttemptAt: new Date(new Date(now).getTime() + ORPHAN_R2_RETENTION_DAYS * 86400000).toISOString(), now }); }
-      catch (queueError) { console.error(JSON.stringify({ event: "orphan_r2_queue_failed", sourceType: input.sourceType, sourceIdSuffix: input.sourceId.slice(-8), errorCode: "QUEUE_UPDATE_FAILED", originalError: String(error instanceof Error ? error.message : error).slice(0, 500), queueError: String(queueError instanceof Error ? queueError.message : queueError).slice(0, 500) })); }
+      catch (queueError) {
+        console.error(JSON.stringify({ event: "orphan_r2_queue_failed", sourceType: input.sourceType, sourceIdSuffix: input.sourceId.slice(-8), errorCode: "QUEUE_UPDATE_FAILED", originalError: String(error instanceof Error ? error.message : error).slice(0, 500), queueError: String(queueError instanceof Error ? queueError.message : queueError).slice(0, 500) }));
+        throw new AppError({ code: "INTERNAL_ERROR", status: 500, message: "Image cleanup could not be scheduled." });
+      }
     }
   }
 
@@ -101,20 +104,20 @@ export class ShoppingItemImageService {
     if (!(await this.items.findByIdForHousehold(household.id, itemId))) throw shoppingItemNotFoundError();
     const image = await this.images.findByItemForHousehold(household.id, itemId);
     if (!image) return;
-    await this.images.deleteForItem(household.id, itemId);
+    await this.images.deleteMetadataAndUpdateUsage(household.id, itemId, image, nowIso());
     await this.deleteKnownImage(image, "shopping_item_image_delete", "image metadata deleted");
   }
 
   async deleteForHouseholdItem(householdId: string, itemId: string): Promise<void> {
     const image = await this.images.findByItemForHousehold(householdId, itemId);
     if (!image) return;
-    await this.images.deleteForItem(householdId, itemId);
+    await this.images.deleteMetadataAndUpdateUsage(householdId, itemId, image, nowIso());
     await this.deleteKnownImage(image, "shopping_item_delete", "shopping item deleted");
   }
 
   async deletePurchased(householdId: string): Promise<void> {
     for (const image of await this.images.listPurchasedByHousehold(householdId)) {
-      await this.images.deleteForItem(householdId, image.shoppingItemId);
+      await this.images.deleteMetadataAndUpdateUsage(householdId, image.shoppingItemId, image, nowIso());
       await this.deleteKnownImage(image, "shopping_clear_purchased", "purchased shopping items cleared");
     }
   }

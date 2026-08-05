@@ -38,6 +38,12 @@ const patchJson = (path: string, body: unknown, cookie?: string) =>
 
 const cookieFrom = (response: Response): string => response.headers.get("set-cookie") ?? "";
 
+const itemIdFrom = async (response: Response): Promise<string> => {
+  const body: unknown = await response.json();
+  if (typeof body !== "object" || body === null || !("data" in body) || typeof body.data !== "object" || body.data === null || !("item" in body.data) || typeof body.data.item !== "object" || body.data.item === null || !("id" in body.data.item) || typeof body.data.item.id !== "string") throw new Error("item response was malformed");
+  return body.data.item.id;
+};
+
 const registerUser = async (
   env: Env,
   input = {
@@ -205,12 +211,60 @@ describe("worker shopping image API", () => {
     expect(first).toBe(1);
     await imageService.upload(userId, itemId, { body: new Uint8Array([...webp, 2]).buffer, width: 80, height: 60 });
     expect((env.ATTACHMENTS as unknown as MemoryR2).objects.size).toBe(1);
+    expect((env.DB as unknown as MemoryD1).householdImageUsage.get(Array.from((env.DB as unknown as MemoryD1).households.keys())[0])).toMatchObject({ active_count: 1, active_bytes: 17, reserved_count: 0, reserved_bytes: 0, daily_upload_count: 2 });
     const image = await app.fetch(new Request(`https://example.test/api/shopping/items/${itemId}/image`, { headers: { cookie } }), env);
     expect(image.status).toBe(200);
     expect(image.headers.get("cache-control")).toContain("private");
     expect((await image.arrayBuffer()).byteLength).toBe(17);
     expect((await app.fetch(new Request(`https://example.test/api/shopping/items/${itemId}/image`, { method: "DELETE", headers: { origin: "https://example.test", cookie, "content-type": "application/json" }, body: "{}" }), env)).status).toBe(200);
+    expect((env.DB as unknown as MemoryD1).householdImageUsage.get(Array.from((env.DB as unknown as MemoryD1).households.keys())[0])).toMatchObject({ active_count: 0, active_bytes: 0, reserved_count: 0, reserved_bytes: 0, daily_upload_count: 2 });
     expect((await app.fetch(new Request(`https://example.test/api/shopping/items/${itemId}/image`, { headers: { cookie } }), env)).status).toBe(404);
+  });
+
+  it("updates active usage when an item or purchased batch deletes its images", async () => {
+    const app = createApp();
+    const env = createTestEnv();
+    const { cookie } = await registerUser(env, { email: "image-delete@example.com", password: "very-long-password", displayName: "Image delete" });
+    await app.fetch(postJson("/api/households", { name: "Image delete home" }, cookie), env);
+    const userId = Array.from((env.DB as unknown as MemoryD1).users.keys())[0];
+    const imageService = new ShoppingItemImageService(env.DB, env.ATTACHMENTS);
+    const webp = new Uint8Array([82, 73, 70, 70, 8, 0, 0, 0, 87, 69, 66, 80, 0, 0, 0, 0, 1]);
+    const first = await app.fetch(postJson("/api/shopping/items", { name: "Delete me" }, cookie), env);
+    const firstId = await itemIdFrom(first);
+    await imageService.upload(userId, firstId, { body: webp.buffer, width: 80, height: 60 });
+    await app.fetch(new Request(`https://example.test/api/shopping/items/${firstId}`, { method: "DELETE", headers: { origin: "https://example.test", cookie, "content-type": "application/json" }, body: "{}" }), env);
+    expect((env.DB as unknown as MemoryD1).householdImageUsage.get(Array.from((env.DB as unknown as MemoryD1).households.keys())[0])).toMatchObject({ active_count: 0, active_bytes: 0 });
+    const second = await app.fetch(postJson("/api/shopping/items", { name: "Purchased one" }, cookie), env);
+    const secondId = await itemIdFrom(second);
+    await imageService.upload(userId, secondId, { body: webp.buffer, width: 80, height: 60 });
+    await app.fetch(postJson(`/api/shopping/items/${secondId}/purchase`, {}, cookie), env);
+    const third = await app.fetch(postJson("/api/shopping/items", { name: "Purchased two" }, cookie), env);
+    const thirdId = await itemIdFrom(third);
+    await imageService.upload(userId, thirdId, { body: webp.buffer, width: 80, height: 60 });
+    await app.fetch(postJson(`/api/shopping/items/${thirdId}/purchase`, {}, cookie), env);
+    const householdId = Array.from((env.DB as unknown as MemoryD1).households.keys())[0];
+    expect((env.DB as unknown as MemoryD1).householdImageUsage.get(householdId)).toMatchObject({ active_count: 2, active_bytes: 34 });
+    await app.fetch(postJson("/api/shopping/items/clear-purchased", {}, cookie), env);
+    expect((env.DB as unknown as MemoryD1).householdImageUsage.get(householdId)).toMatchObject({ active_count: 0, active_bytes: 0 });
+    expect((env.ATTACHMENTS as unknown as MemoryR2).objects.size).toBe(0);
+  });
+
+  it("queues a failed image delete and still removes it from active usage", async () => {
+    const app = createApp();
+    const env = createTestEnv();
+    const { cookie } = await registerUser(env, { email: "image-delete-failure@example.com", password: "very-long-password", displayName: "Image delete failure" });
+    await app.fetch(postJson("/api/households", { name: "Image delete failure home" }, cookie), env);
+    const userId = Array.from((env.DB as unknown as MemoryD1).users.keys())[0];
+    const itemResponse = await app.fetch(postJson("/api/shopping/items", { name: "Queue delete" }, cookie), env);
+    const itemId = await itemIdFrom(itemResponse);
+    const image = await new ShoppingItemImageService(env.DB, env.ATTACHMENTS).upload(userId, itemId, { body: new Uint8Array([82, 73, 70, 70, 8, 0, 0, 0, 87, 69, 66, 80, 0, 0, 0, 0, 1]).buffer, width: 80, height: 60 });
+    (env.ATTACHMENTS as unknown as MemoryR2).deleteFailures.set(image.r2Key, new Error("injected delete failure"));
+    const response = await app.fetch(new Request(`https://example.test/api/shopping/items/${itemId}/image`, { method: "DELETE", headers: { origin: "https://example.test", cookie, "content-type": "application/json" }, body: "{}" }), env);
+    const householdId = Array.from((env.DB as unknown as MemoryD1).households.keys())[0];
+    expect(response.status).toBe(200);
+    expect((env.DB as unknown as MemoryD1).householdImageUsage.get(householdId)).toMatchObject({ active_count: 0, active_bytes: 0, pending_cleanup_bytes: 17 });
+    expect(Array.from((env.DB as unknown as MemoryD1).orphanR2Objects.values())).toHaveLength(1);
+    expect(Array.from((env.DB as unknown as MemoryD1).orphanR2Objects.values())[0]).toMatchObject({ byte_size: 17, household_id: householdId });
   });
 });
 

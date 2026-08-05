@@ -419,7 +419,7 @@ export class MemoryD1 {
         .filter((template) => (sql.includes("AND active = 1") ? template.active === 1 : true))
         .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
     }
-    if (sql.includes("FROM shopping_item_images") && sql.includes("WHERE household_id = ?")) {
+    if (sql.includes("FROM shopping_item_images") && (sql.includes("WHERE household_id = ?") || sql.includes("WHERE sii.household_id = ?"))) {
       let rows = Array.from(this.shoppingItemImages.values()).filter((image) => image.household_id === values[0]);
       if (sql.includes("si.status = 'purchased'")) rows = rows.filter((image) => this.shoppingItems.get(image.shopping_item_id)?.status === "purchased");
       return rows;
@@ -685,9 +685,9 @@ export class MemoryD1 {
     if (sql.startsWith("DELETE FROM shopping_items")) {
       const before = this.shoppingItems.size;
       for (const [id, item] of this.shoppingItems) {
-        const matchesItemDelete = sql.includes("AND id = ?") && item.household_id === values[0] && item.id === values[1];
-        const matchesClear = sql.includes("status = 'purchased'") && item.household_id === values[0] && item.status === "purchased";
-        if (matchesItemDelete || matchesClear) this.shoppingItems.delete(id);
+        const matchesItemDelete = sql.includes("AND id = ?") && item.household_id === values[0] && item.id === values[1] && (!sql.includes("EXISTS") || Array.from(this.shoppingItemImages.values()).some((image) => image.household_id === values[2] && image.shopping_item_id === values[3] && image.id === values[4] && image.size_bytes === Number(values[5])));
+        const matchesClear = sql.includes("status = 'purchased'") && item.household_id === values[0] && item.status === "purchased" && (sql.includes("NOT EXISTS") ? !Array.from(this.shoppingItemImages.values()).some((image) => image.household_id === values[1] && image.shopping_item_id === item.id) : (!sql.includes("EXISTS") || Array.from(this.shoppingItemImages.values()).some((image) => image.household_id === values[2] && image.shopping_item_id === values[3] && image.id === values[4] && image.size_bytes === Number(values[5]))));
+        if (matchesItemDelete || matchesClear) { this.shoppingItems.delete(id); for (const [imageId, image] of this.shoppingItemImages) if (image.shopping_item_id === id) this.shoppingItemImages.delete(imageId); }
       }
       changes = before - this.shoppingItems.size;
     }
@@ -698,7 +698,9 @@ export class MemoryD1 {
       this.shoppingItemImages.set(record.id, record);
     }
     if (sql.startsWith("DELETE FROM shopping_item_images")) {
-      for (const [key, image] of this.shoppingItemImages) if (image.household_id === values[0] && image.shopping_item_id === values[1]) this.shoppingItemImages.delete(key);
+      const before = this.shoppingItemImages.size;
+      for (const [key, image] of this.shoppingItemImages) if (image.household_id === values[0] && image.shopping_item_id === values[1] && (!sql.includes("AND id = ?") || (image.id === values[2] && image.size_bytes === Number(values[3])))) this.shoppingItemImages.delete(key);
+      changes = before - this.shoppingItemImages.size;
     }
     if (sql.startsWith("INSERT INTO orphan_r2_objects")) {
       const existing = Array.from(this.orphanR2Objects.values()).find((row) => row.r2_key === values[1]);
@@ -724,7 +726,11 @@ export class MemoryD1 {
         this.householdImageUsage.set(row.household_id, { ...row, active_count: Math.max(0, row.active_count + Number(values[0])), active_bytes: Math.max(0, row.active_bytes + Number(values[1])), reserved_count: Math.max(0, row.reserved_count - 1), reserved_bytes: Math.max(0, row.reserved_bytes - Number(values[2])), daily_upload_date: row.daily_upload_date === date ? row.daily_upload_date : date, daily_upload_count: row.daily_upload_date === date ? row.daily_upload_count + 1 : 1, updated_at: String(values[6]) });
       } else changes = 0;
     }
-    if (sql.startsWith("UPDATE household_image_usage") && sql.includes("active_count =") && !sql.includes("daily_upload_date = CASE")) {
+    if (sql.startsWith("UPDATE household_image_usage") && sql.includes("active_count = MAX(0, active_count -")) {
+      const householdId = String(values[2]); const row = this.householdImageUsage.get(householdId);
+      if (row && this.lastChanges > 0) this.householdImageUsage.set(householdId, { ...row, active_count: Math.max(0, row.active_count - this.lastChanges), active_bytes: Math.max(0, row.active_bytes - Number(values[0])), updated_at: String(values[1]) }); else changes = 0;
+    }
+    if (sql.startsWith("UPDATE household_image_usage") && sql.includes("active_count =") && !sql.includes("daily_upload_date = CASE") && !sql.includes("active_count = MAX(0, active_count -")) {
       const householdId = String(values[3]); const row = this.householdImageUsage.get(householdId);
       if (row) { const images = Array.from(this.shoppingItemImages.values()).filter((image) => image.household_id === householdId); this.householdImageUsage.set(householdId, { ...row, active_count: images.length, active_bytes: images.reduce((sum, image) => sum + image.size_bytes, 0), updated_at: String(values[2]) }); }
     }

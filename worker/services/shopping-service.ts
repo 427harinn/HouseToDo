@@ -1,4 +1,3 @@
-import { nowIso } from "../lib/date";
 import {
   inactiveShoppingTemplateError,
   shoppingItemNotFoundError,
@@ -11,6 +10,7 @@ import { ShoppingTemplateRepository } from "../repositories/shopping-template-re
 import type { ShoppingItem } from "../types/domain";
 import { HouseholdService } from "./household-service";
 import { ShoppingItemImageService } from "./shopping-item-image-service";
+import { nowIso } from "../lib/date";
 
 export class ShoppingService {
   private readonly households: HouseholdService;
@@ -76,7 +76,9 @@ export class ShoppingService {
   async deleteItem(userId: string, itemId: string): Promise<void> {
     const household = await this.households.requireCurrentHousehold(userId);
     const image = await this.imageRepository.findByItemForHousehold(household.id, itemId);
-    const deleted = await this.items.deleteOrDeactivate(household.id, itemId);
+    const deleted = image
+      ? await this.items.deleteOrDeactivateWithImage(household.id, itemId, image, nowIso())
+      : await this.items.deleteOrDeactivate(household.id, itemId);
     if (!deleted) throw shoppingItemNotFoundError();
     if (image && this.imageService) await this.imageService.deleteKnownImage(image, "shopping_item_delete", "shopping item deleted");
   }
@@ -108,7 +110,7 @@ export class ShoppingService {
   async clearPurchased(userId: string): Promise<number> {
     const household = await this.households.requireCurrentHousehold(userId);
     const images = await this.imageRepository.listPurchasedByHousehold(household.id);
-    const cleared = await this.items.clearPurchased(household.id);
+    const cleared = await this.items.clearPurchasedWithImages(household.id, images, nowIso());
     if (this.imageService) for (const image of images) await this.imageService.deleteKnownImage(image, "shopping_clear_purchased", "purchased shopping items cleared");
     return cleared;
   }

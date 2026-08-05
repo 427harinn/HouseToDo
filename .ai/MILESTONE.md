@@ -43,3 +43,7 @@ Cleanup success-side pending-capacity decrement/recalculation is not yet connect
 Added 50-record expired reservation cleanup before orphan cleanup in the existing UTC scheduled handler. Active expired reservations safely delete or queue R2 objects, release reserved usage by household recomputation, and continue independently on errors. Orphan queue state changes recalculate known pending cleanup bytes; abandoned rows remain stored capacity and NULL byte sizes remain unknown. No schedule, migration, UI, staging E2E, deploy, remote, production, or push changes were made.
 
 Pending cleanup bytes are recalculated on every queue deletion or retry/abandoned transition. The remaining repair extension is category A: a broader household-wide active-image repair tool is future operational work; this milestone does not leave a known pending-byte, reserved-counter, or missing-usage-row cleanup path unresolved.
+
+## 2026-08-05 Image deletion active usage consistency
+
+Image metadata deletion and active count/bytes updates are now atomic and idempotent for image DELETE. Shopping item deletion and purchased-item bulk deletion also update active usage before the subsequent R2 cleanup. R2 failures move capacity to the orphan queue/pending cleanup without restoring active usage; queue registration failure is surfaced as an internal error. Household deletion remains dependent on existing FK cascades, with no new migration. The staging stop condition caused by stale active counters is resolved; next step is staging migration/deploy pre-review.
