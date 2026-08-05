@@ -17,8 +17,9 @@
 - [ ] Run full remote E2E when separately approved.
 - [ ] Review successful Workers Logs stages when Dashboard access is available.
 - [x] Connect image upload reservations and usage counters to the existing upload flow.
-- [ ] Add reservation TTL recovery and finalize/cleanup reconciliation audits.
-- [ ] Recalculate pending cleanup bytes when cleanup queue rows are successfully removed.
+- [ ] Add reservation TTL recovery and finalize reconciliation audits.
+  - [x] Recalculate pending cleanup bytes when cleanup queue rows are successfully removed.
+- [x] Recover expired upload reservations and recompute orphan cleanup usage.
 - [ ] Add image limit rejection, UI usage display, and staging remote E2E coverage.
 
 ## Constraints

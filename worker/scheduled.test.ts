@@ -14,7 +14,7 @@ describe("scheduled handler", () => {
     worker.scheduled({ cron: "0 18 * * *", scheduledTime: Date.now(), type: "scheduled", noRetry: () => undefined } as unknown as ScheduledController, env, context);
     expect(pending).toBeDefined();
     await pending;
-    expect(log).toHaveBeenCalledWith(expect.stringContaining('"event":"orphan_r2_cleanup"'));
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('"event":"image_cleanup_cycle"'));
     log.mockRestore();
     await expect(worker.fetch(new Request("https://example.test/api/health"), env)).resolves.toMatchObject({ status: 200 });
   });

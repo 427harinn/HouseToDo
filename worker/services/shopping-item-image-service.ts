@@ -36,7 +36,7 @@ export class ShoppingItemImageService {
     catch (error) {
       const now = new Date().toISOString();
       try { await this.orphanQueue.enqueue({ id: crypto.randomUUID(), r2Key, ...input, firstFailedAt: now, nextAttemptAt: new Date(new Date(now).getTime() + ORPHAN_R2_RETENTION_DAYS * 86400000).toISOString(), now }); }
-      catch (queueError) { console.error(JSON.stringify({ event: "orphan_r2_queue_failed", sourceType: input.sourceType, sourceId: input.sourceId, errorCode: "QUEUE_UPDATE_FAILED", originalError: String(error instanceof Error ? error.message : error).slice(0, 500), queueError: String(queueError instanceof Error ? queueError.message : queueError).slice(0, 500) })); }
+      catch (queueError) { console.error(JSON.stringify({ event: "orphan_r2_queue_failed", sourceType: input.sourceType, sourceIdSuffix: input.sourceId.slice(-8), errorCode: "QUEUE_UPDATE_FAILED", originalError: String(error instanceof Error ? error.message : error).slice(0, 500), queueError: String(queueError instanceof Error ? queueError.message : queueError).slice(0, 500) })); }
     }
   }
 

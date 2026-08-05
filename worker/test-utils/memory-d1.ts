@@ -427,7 +427,7 @@ export class MemoryD1 {
     if (sql.includes("FROM orphan_r2_objects")) {
       return Array.from(this.orphanR2Objects.values()).filter((row) => (row.status === "pending" || row.status === "retry") && row.next_attempt_at <= String(values[0]) && row.attempt_count < Number(values[1])).sort((a, b) => a.next_attempt_at.localeCompare(b.next_attempt_at) || a.first_failed_at.localeCompare(b.first_failed_at)).slice(0, Number(values[2]));
     }
-    if (sql.includes("FROM image_upload_reservations")) return Array.from(this.imageUploadReservations.values()).filter((row) => ["reserved", "r2_written", "cleanup_pending"].includes(row.status) && row.expires_at <= String(values[0])).sort((a, b) => a.expires_at.localeCompare(b.expires_at));
+    if (sql.includes("FROM image_upload_reservations")) return Array.from(this.imageUploadReservations.values()).filter((row) => ["reserved", "r2_written", "cleanup_pending"].includes(row.status) && row.expires_at <= String(values[0])).sort((a, b) => a.expires_at.localeCompare(b.expires_at)).slice(0, sql.includes("LIMIT ?") ? Number(values[1]) : undefined);
     return [];
   }
 
@@ -757,7 +757,7 @@ export class MemoryD1 {
     }
     if (sql.startsWith("UPDATE image_upload_reservations SET status = 'finalized'")) { const row = this.imageUploadReservations.get(String(values[1])); if (row && this.lastChanges > 0) this.imageUploadReservations.set(row.id, { ...row, status: "finalized", updated_at: String(values[0]) }); else changes = 0; }
     if (sql.startsWith("UPDATE image_upload_reservations SET status") && !sql.includes("status = 'finalized'")) { const row = this.imageUploadReservations.get(String(values[2])); if (row) this.imageUploadReservations.set(row.id, { ...row, status: String(values[0]), updated_at: String(values[1]) }); }
-    if (sql.startsWith("DELETE FROM image_upload_reservations")) { const row = this.imageUploadReservations.get(String(values[0])); this.lastDeletedReservation = Boolean(row && (!sql.includes("expires_at") || row.expires_at <= String(values[1]))); if (this.lastDeletedReservation) this.imageUploadReservations.delete(String(values[0])); else changes = 0; }
+    if (sql.startsWith("DELETE FROM image_upload_reservations")) { const row = this.imageUploadReservations.get(String(values[0])); this.lastDeletedReservation = Boolean(row && (!sql.includes("expires_at") || row.expires_at <= String(values[values.length - 1]))); if (this.lastDeletedReservation) this.imageUploadReservations.delete(String(values[0])); else changes = 0; }
     if (sql.startsWith("INSERT INTO shopping_templates")) {
       this.shoppingTemplates.set(toText(values[0]), {
         id: toText(values[0]),

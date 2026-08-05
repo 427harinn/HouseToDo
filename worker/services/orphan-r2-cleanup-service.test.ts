@@ -33,4 +33,12 @@ describe("OrphanR2CleanupService", () => {
     for (let attempt = 2; attempt <= 5; attempt++) { db.orphanR2Objects.get("queue-bad")!.next_attempt_at = `2026-02-01T00:00:0${attempt}.000Z`; await service.run(`2026-02-01T00:00:0${attempt}.000Z`); if (attempt < 5) expect(db.orphanR2Objects.get("queue-bad")?.next_attempt_at).toBe(expectedNext[attempt - 2]); }
     expect(db.orphanR2Objects.get("queue-bad")?.status).toBe("abandoned");
   });
+
+  it("recalculates pending cleanup bytes after queue deletion and ensures missing usage rows", async () => {
+    const db = new MemoryD1(); const bucket = new MemoryR2();
+    db.households.set("household-1", { id: "household-1", name: "House", timezone: "UTC", week_starts_on: 1, created_by: "user-1", created_at: "2026-01-01T00:00:00.000Z", updated_at: "2026-01-01T00:00:00.000Z" });
+    await new OrphanR2ObjectRepository(db as unknown as D1Database).enqueue({ id: "orphan-usage", r2Key: "missing-usage", sourceType: "manual_reconciliation", sourceId: "source-1", householdId: "household-1", byteSize: 25, reason: "test", firstFailedAt: "2026-01-01T00:00:00.000Z", nextAttemptAt: "2026-02-01T00:00:00.000Z", now: "2026-01-01T00:00:00.000Z" });
+    const result = await new OrphanR2CleanupService(db as unknown as D1Database, bucket as unknown as R2Bucket).run("2026-02-01T00:00:00.000Z");
+    expect(result).toMatchObject({ missingObjects: 1, usageRecalculated: 1 }); expect(db.householdImageUsage.get("household-1")).toMatchObject({ pending_cleanup_bytes: 0 });
+  });
 });

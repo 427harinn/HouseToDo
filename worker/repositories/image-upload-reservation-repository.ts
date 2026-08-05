@@ -60,12 +60,12 @@ export class ImageUploadReservationRepository {
     return (result.meta.changes ?? 0) > 0;
   }
 
-  async listExpiredReservations(now: string): Promise<ImageUploadReservation[]> {
+  async listExpiredReservations(now: string, limit = 50): Promise<ImageUploadReservation[]> {
     const result = await this.db.prepare(
       `SELECT * FROM image_upload_reservations
        WHERE status IN ('reserved', 'r2_written', 'cleanup_pending') AND expires_at <= ?
-       ORDER BY expires_at ASC`
-    ).bind(now).all<Row>();
+       ORDER BY expires_at ASC, created_at ASC, id ASC LIMIT ?`
+    ).bind(now, limit).all<Row>();
     return (result.results ?? []).map((row) => map(row)!);
   }
 
@@ -75,6 +75,20 @@ export class ImageUploadReservationRepository {
        WHERE id = ? AND status IN ('reserved', 'r2_written', 'cleanup_pending') AND expires_at <= ?`
     ).bind(id, now).run();
     return (result.meta.changes ?? 0) > 0;
+  }
+
+  async releaseExpiredAtomically(reservation: ImageUploadReservation, now: string): Promise<boolean> {
+    const result = await this.db.batch([
+      this.db.prepare("DELETE FROM image_upload_reservations WHERE id = ? AND household_id = ? AND status IN ('reserved', 'r2_written', 'cleanup_pending') AND expires_at <= ?").bind(reservation.id, reservation.householdId, now),
+      this.db.prepare(
+        `UPDATE household_image_usage SET reserved_count = (
+           SELECT COUNT(*) FROM image_upload_reservations WHERE household_id = ? AND status IN ('reserved', 'r2_written', 'cleanup_pending')
+         ), reserved_bytes = (
+           SELECT COALESCE(SUM(byte_size), 0) FROM image_upload_reservations WHERE household_id = ? AND status IN ('reserved', 'r2_written', 'cleanup_pending')
+         ), updated_at = ? WHERE household_id = ? AND changes() > 0`
+      ).bind(reservation.householdId, reservation.householdId, now, reservation.householdId)
+    ]);
+    return (result[0]?.meta.changes ?? 0) > 0;
   }
 
   async getUsageSummary(householdId: string, dayStart: string, dayEnd: string): Promise<{ createCount: number; createBytes: number; activeBytes: number; todayCount: number }> {

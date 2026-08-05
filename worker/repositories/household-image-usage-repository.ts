@@ -113,4 +113,12 @@ export class HouseholdImageUsageRepository {
     ).bind(householdId).first<{ count: number }>();
     return Number(row?.count ?? 0);
   }
+
+  async ensureAndRecalculatePendingCleanupUsage(householdId: string, now = nowIso()): Promise<boolean> {
+    const household = await this.db.prepare("SELECT id FROM households WHERE id = ?").bind(householdId).first<{ id: string }>();
+    if (!household) return false;
+    await this.ensureUsageRow(householdId, now);
+    await this.recalculatePendingCleanupUsage(householdId, now);
+    return true;
+  }
 }
