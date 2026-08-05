@@ -185,6 +185,8 @@ export class MemoryD1 {
   readonly orphanR2Objects = new Map<string, OrphanR2ObjectDbRecord>();
   readonly householdImageUsage = new Map<string, HouseholdImageUsageDbRecord>();
   readonly imageUploadReservations = new Map<string, ImageUploadReservationDbRecord>();
+  private lastDeletedReservation = false;
+  private lastChanges = 0;
 
   constructor(private readonly failure?: (sql: string) => void) {}
 
@@ -197,9 +199,14 @@ export class MemoryD1 {
   }
 
   async batch<T = unknown>(statements: D1PreparedStatement[]): Promise<D1Result<T>[]> {
+    const maps: Map<unknown, unknown>[] = [this.users, this.sessions, this.households, this.members, this.invites, this.tasks, this.taskWeekdays, this.taskRecords, this.shoppingItems, this.shoppingTemplates, this.shoppingItemImages, this.orphanR2Objects, this.householdImageUsage, this.imageUploadReservations];
+    const snapshots = maps.map((map) => new Map<unknown, unknown>(map));
     const results: D1Result<T>[] = [];
-    for (const statement of statements) {
-      results.push(await statement.run());
+    try {
+      for (const statement of statements) results.push(await statement.run());
+    } catch (error) {
+      maps.forEach((map, index) => { map.clear(); for (const [key, value] of snapshots[index]) map.set(key, value); });
+      throw error;
     }
     return results;
   }
@@ -221,6 +228,7 @@ export class MemoryD1 {
     | OrphanR2ObjectDbRecord
     | HouseholdImageUsageDbRecord
     | ImageUploadReservationDbRecord
+    | { create_count: number; create_bytes: number; active_bytes: number; today_count: number }
     | { count: number }
     | null {
     if (sql.includes("FROM users WHERE id")) {
@@ -340,6 +348,10 @@ export class MemoryD1 {
     if (sql.includes("FROM image_upload_reservations") && sql.includes("WHERE id = ?")) return this.imageUploadReservations.get(String(values[0])) ?? null;
     if (sql.includes("FROM image_upload_reservations") && sql.includes("shopping_item_id = ?")) return Array.from(this.imageUploadReservations.values()).find((row) => row.shopping_item_id === values[0] && ["reserved", "r2_written", "cleanup_pending"].includes(row.status)) ?? null;
     if (sql.includes("COUNT(*) AS count FROM orphan_r2_objects")) return { count: Array.from(this.orphanR2Objects.values()).filter((row) => row.household_id === values[0] && row.byte_size === null && ["pending", "retry", "abandoned"].includes(row.status)).length };
+    if (sql.includes("SUM(CASE WHEN operation")) {
+      const rows = Array.from(this.imageUploadReservations.values()).filter((row) => row.household_id === values[2] && ["reserved", "r2_written", "cleanup_pending"].includes(row.status));
+      return { create_count: rows.filter((row) => row.operation === "create").length, create_bytes: rows.filter((row) => row.operation === "create").reduce((sum, row) => sum + row.byte_size, 0), active_bytes: rows.reduce((sum, row) => sum + (row.operation === "create" ? row.byte_size : row.byte_size - (row.old_size_bytes ?? 0)), 0), today_count: rows.filter((row) => row.created_at >= String(values[0]) && row.created_at < String(values[1])).length };
+    }
     if (sql.includes("COUNT(*) FROM image_upload_reservations") || sql.includes("COUNT(*) AS count FROM image_upload_reservations")) return { count: Array.from(this.imageUploadReservations.values()).filter((row) => row.household_id === values[0] && ["reserved", "r2_written", "cleanup_pending"].includes(row.status)).length };
     return null;
   }
@@ -680,6 +692,7 @@ export class MemoryD1 {
       changes = before - this.shoppingItems.size;
     }
     if (sql.startsWith("INSERT INTO shopping_item_images")) {
+      if (sql.includes("WHERE EXISTS") && this.imageUploadReservations.get(String(values[11]))?.status !== "finalized") { changes = 0; this.lastChanges = changes; return { success: true, meta: { changes } } as D1Result; }
       const record = { id: toText(values[0]), shopping_item_id: toText(values[1]), household_id: toText(values[2]), r2_key: toText(values[3]), content_type: values[4] as "image/webp", size_bytes: Number(values[5]), width: Number(values[6]), height: Number(values[7]), created_by: toText(values[8]), created_at: toText(values[9]), updated_at: toText(values[10]) };
       for (const [key, image] of this.shoppingItemImages) if (image.shopping_item_id === record.shopping_item_id) this.shoppingItemImages.delete(key);
       this.shoppingItemImages.set(record.id, record);
@@ -702,7 +715,16 @@ export class MemoryD1 {
       const row = this.householdImageUsage.get(String(values[2]));
       if (row && (row.daily_upload_date === null || row.daily_upload_date !== values[3])) this.householdImageUsage.set(row.household_id, { ...row, daily_upload_date: String(values[0]), daily_upload_count: 0, updated_at: String(values[1]) });
     }
-    if (sql.startsWith("UPDATE household_image_usage") && sql.includes("active_count =")) {
+    if (sql.startsWith("UPDATE household_image_usage") && sql.includes("daily_upload_date = CASE")) {
+      const row = this.householdImageUsage.get(String(values[7]));
+      const reservation = this.imageUploadReservations.get(String(values[9]));
+      const active = reservation && ["reserved", "r2_written", "cleanup_pending"].includes(reservation.status) && reservation.household_id === values[10];
+      if (row && active && row.reserved_count > 0 && row.reserved_bytes >= Number(values[8])) {
+        const date = String(values[3]);
+        this.householdImageUsage.set(row.household_id, { ...row, active_count: Math.max(0, row.active_count + Number(values[0])), active_bytes: Math.max(0, row.active_bytes + Number(values[1])), reserved_count: Math.max(0, row.reserved_count - 1), reserved_bytes: Math.max(0, row.reserved_bytes - Number(values[2])), daily_upload_date: row.daily_upload_date === date ? row.daily_upload_date : date, daily_upload_count: row.daily_upload_date === date ? row.daily_upload_count + 1 : 1, updated_at: String(values[6]) });
+      } else changes = 0;
+    }
+    if (sql.startsWith("UPDATE household_image_usage") && sql.includes("active_count =") && !sql.includes("daily_upload_date = CASE")) {
       const householdId = String(values[3]); const row = this.householdImageUsage.get(householdId);
       if (row) { const images = Array.from(this.shoppingItemImages.values()).filter((image) => image.household_id === householdId); this.householdImageUsage.set(householdId, { ...row, active_count: images.length, active_bytes: images.reduce((sum, image) => sum + image.size_bytes, 0), updated_at: String(values[2]) }); }
     }
@@ -714,12 +736,28 @@ export class MemoryD1 {
       const householdId = String(values[3]); const row = this.householdImageUsage.get(householdId);
       if (row) { const reservations = Array.from(this.imageUploadReservations.values()).filter((item) => item.household_id === householdId && ["reserved", "r2_written", "cleanup_pending"].includes(item.status)); this.householdImageUsage.set(householdId, { ...row, reserved_count: reservations.length, reserved_bytes: reservations.reduce((sum, item) => sum + item.byte_size, 0), updated_at: String(values[2]) }); }
     }
+    if (sql.startsWith("UPDATE household_image_usage SET reserved_count = reserved_count + 1")) {
+      const row = this.householdImageUsage.get(String(values[2]));
+      const reservations = Array.from(this.imageUploadReservations.values()).filter((item) => item.household_id === values[2] && ["reserved", "r2_written", "cleanup_pending"].includes(item.status));
+      const creates = reservations.filter((item) => item.operation === "create");
+      const today = reservations.filter((item) => item.created_at >= String(values[12]) && item.created_at < String(values[13])).length;
+      const valid = row && row.active_count + creates.length + Number(values[4]) <= Number(values[5]) && row.active_bytes + reservations.reduce((sum, item) => sum + (item.operation === "create" ? item.byte_size : item.byte_size - (item.old_size_bytes ?? 0)), 0) + Number(values[7]) <= Number(values[8]) && row.active_bytes + row.reserved_bytes + row.pending_cleanup_bytes + Number(values[9]) <= Number(values[10]) && row.daily_upload_count + today < Number(values[14]);
+      if (row && valid) this.householdImageUsage.set(row.household_id, { ...row, reserved_count: row.reserved_count + 1, reserved_bytes: row.reserved_bytes + Number(values[0]), updated_at: String(values[1]) }); else changes = 0;
+    }
+    if (sql.startsWith("UPDATE household_image_usage SET reserved_count = MAX")) {
+      const row = this.householdImageUsage.get(String(values[2]));
+      if (row && row.reserved_count > 0 && this.lastDeletedReservation) this.householdImageUsage.set(row.household_id, { ...row, reserved_count: Math.max(0, row.reserved_count - 1), reserved_bytes: Math.max(0, row.reserved_bytes - Number(values[0])), updated_at: String(values[1]) }); else changes = 0;
+      this.lastDeletedReservation = false;
+    }
     if (sql.startsWith("INSERT INTO image_upload_reservations")) {
+      const usage = this.householdImageUsage.get(String(values[13]));
+      if (sql.includes("WHERE EXISTS") && (!usage || usage.reserved_count !== Number(values[14]) || usage.reserved_bytes !== Number(values[15]))) { changes = 0; this.lastChanges = changes; return { success: true, meta: { changes } } as D1Result; }
       if (Array.from(this.imageUploadReservations.values()).some((row) => row.shopping_item_id === values[2] && ["reserved", "r2_written", "cleanup_pending"].includes(row.status))) throw new Error("UNIQUE constraint failed");
       this.imageUploadReservations.set(String(values[0]), { id: String(values[0]), household_id: String(values[1]), shopping_item_id: String(values[2]), operation: String(values[3]), status: String(values[4]), r2_key: String(values[5]), byte_size: Number(values[6]), old_image_id: values[7] as string | null, old_r2_key: values[8] as string | null, old_size_bytes: values[9] as number | null, expires_at: String(values[10]), created_at: String(values[11]), updated_at: String(values[12]) });
     }
-    if (sql.startsWith("UPDATE image_upload_reservations SET status")) { const row = this.imageUploadReservations.get(String(values[2])); if (row) this.imageUploadReservations.set(row.id, { ...row, status: String(values[0]), updated_at: String(values[1]) }); }
-    if (sql.startsWith("DELETE FROM image_upload_reservations")) { const row = this.imageUploadReservations.get(String(values[0])); if (row && (!sql.includes("expires_at") || row.expires_at <= String(values[1]))) this.imageUploadReservations.delete(String(values[0])); }
+    if (sql.startsWith("UPDATE image_upload_reservations SET status = 'finalized'")) { const row = this.imageUploadReservations.get(String(values[1])); if (row && this.lastChanges > 0) this.imageUploadReservations.set(row.id, { ...row, status: "finalized", updated_at: String(values[0]) }); else changes = 0; }
+    if (sql.startsWith("UPDATE image_upload_reservations SET status") && !sql.includes("status = 'finalized'")) { const row = this.imageUploadReservations.get(String(values[2])); if (row) this.imageUploadReservations.set(row.id, { ...row, status: String(values[0]), updated_at: String(values[1]) }); }
+    if (sql.startsWith("DELETE FROM image_upload_reservations")) { const row = this.imageUploadReservations.get(String(values[0])); this.lastDeletedReservation = Boolean(row && (!sql.includes("expires_at") || row.expires_at <= String(values[1]))); if (this.lastDeletedReservation) this.imageUploadReservations.delete(String(values[0])); else changes = 0; }
     if (sql.startsWith("INSERT INTO shopping_templates")) {
       this.shoppingTemplates.set(toText(values[0]), {
         id: toText(values[0]),
@@ -757,6 +795,7 @@ export class MemoryD1 {
       }
     }
 
+    this.lastChanges = changes;
     return { success: true, meta: { changes } } as D1Result;
   }
 

@@ -18,7 +18,7 @@ const parseUpload = async (request: Request) => {
 };
 
 export const uploadShoppingItemImageRoute = (itemId: string): Handler => requireAuth(async (context) => {
-  const image = await new ShoppingItemImageService(context.env.DB, context.env.ATTACHMENTS).upload(context.user!.id, itemId, await parseUpload(context.request));
+  const image = await new ShoppingItemImageService(context.env.DB, context.env.ATTACHMENTS, context.env).upload(context.user!.id, itemId, await parseUpload(context.request));
   const item = await new ShoppingService(context.env.DB, context.env.ATTACHMENTS).getItem(context.user!.id, itemId);
   item.image = { available: true, width: image.width, height: image.height, size: image.sizeBytes, updatedAt: image.updatedAt };
   return okJson({ item: {

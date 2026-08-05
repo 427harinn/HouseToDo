@@ -60,6 +60,14 @@ export class ShoppingItemImageRepository {
     ).bind(input.id, input.shoppingItemId, input.householdId, input.r2Key, input.contentType, input.sizeBytes, input.width, input.height, input.createdBy, input.createdAt, input.updatedAt).run();
   }
 
+  prepareUpsert(input: ShoppingItemImage): D1PreparedStatement {
+    return this.db.prepare(
+      `INSERT INTO shopping_item_images (id, shopping_item_id, household_id, r2_key, content_type, size_bytes, width, height, created_by, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(shopping_item_id) DO UPDATE SET id = excluded.id, household_id = excluded.household_id, r2_key = excluded.r2_key, content_type = excluded.content_type, size_bytes = excluded.size_bytes, width = excluded.width, height = excluded.height, created_by = excluded.created_by, updated_at = excluded.updated_at`
+    ).bind(input.id, input.shoppingItemId, input.householdId, input.r2Key, input.contentType, input.sizeBytes, input.width, input.height, input.createdBy, input.createdAt, input.updatedAt);
+  }
+
   async deleteForItem(householdId: string, itemId: string): Promise<void> {
     await this.db.prepare("DELETE FROM shopping_item_images WHERE household_id = ? AND shopping_item_id = ?").bind(householdId, itemId).run();
   }

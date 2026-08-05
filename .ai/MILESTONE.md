@@ -33,3 +33,7 @@ Date: 2026-08-04
 - Added explicit usage repair and reservation repository foundations.
 - Existing image upload/R2 behavior remains unchanged and limits are not enforced.
 - Remote migration, deploy, production, Cron, UI, staging E2E, commit, and push remain out of scope.
+## 2026-08-05 Image upload reservation connection
+
+Upload reservations are now connected to `PUT /api/shopping/items/:itemId/image`. The service reserves household usage before R2, enforces create/replace projections and UTC-day reservation-aware daily limits, and rejects unknown stored bytes. Successful metadata upsert and usage finalize are atomic with reservation removal; create/replace active counters and daily success count are updated. Failure paths release reservations, and orphan queue registration updates known pending cleanup bytes. TTL recovery remains next milestone work.
+Cleanup success-side pending-capacity decrement/recalculation is not yet connected and is a required next milestone item. UI, remote migration, deploy, production operations, and Cron changes remain out of scope.

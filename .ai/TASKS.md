@@ -16,7 +16,9 @@
 - [ ] Strictly verify login persistence after a browser page reload.
 - [ ] Run full remote E2E when separately approved.
 - [ ] Review successful Workers Logs stages when Dashboard access is available.
-- [ ] Connect image upload reservations and usage counters to the existing upload flow.
+- [x] Connect image upload reservations and usage counters to the existing upload flow.
+- [ ] Add reservation TTL recovery and finalize/cleanup reconciliation audits.
+- [ ] Recalculate pending cleanup bytes when cleanup queue rows are successfully removed.
 - [ ] Add image limit rejection, UI usage display, and staging remote E2E coverage.
 
 ## Constraints
