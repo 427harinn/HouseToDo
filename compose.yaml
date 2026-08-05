@@ -137,6 +137,32 @@ services:
       PLAYWRIGHT_ARTIFACT_DIR: artifacts/playwright/task-ui
       HOME: /tmp/playwright-home
 
+  staging-e2e:
+    image: mcr.microsoft.com/playwright:v1.62.1-noble
+    profiles: ["staging-e2e"]
+    working_dir: /workspace
+    command: npm run test:e2e:staging
+    volumes:
+      - ./e2e:/workspace/e2e
+      - ./artifacts:/workspace/artifacts
+      - ./package.json:/workspace/package.json
+      - ./package-lock.json:/workspace/package-lock.json
+      - ./playwright.staging.config.ts:/workspace/playwright.staging.config.ts
+      - ./e2e/staging:/workspace/e2e/staging
+      - node_modules:/workspace/node_modules
+      - e2e_playwright_cache:/ms-playwright
+    environment:
+      NODE_ENV: test
+      PLAYWRIGHT_ARTIFACT_DIR: artifacts/playwright/staging-e2e-remaining
+      HOME: /tmp/playwright-home
+      STAGING_E2E_BASE_URL: ${STAGING_E2E_BASE_URL-}
+      STAGING_E2E_OWNER_EMAIL: ${STAGING_E2E_OWNER_EMAIL-}
+      STAGING_E2E_OWNER_PASSWORD: ${STAGING_E2E_OWNER_PASSWORD-}
+      STAGING_E2E_MEMBER_EMAIL: ${STAGING_E2E_MEMBER_EMAIL-}
+      STAGING_E2E_MEMBER_PASSWORD: ${STAGING_E2E_MEMBER_PASSWORD-}
+      STAGING_E2E_CROSS_EMAIL: ${STAGING_E2E_CROSS_EMAIL-}
+      STAGING_E2E_CROSS_PASSWORD: ${STAGING_E2E_CROSS_PASSWORD-}
+
 volumes:
   node_modules:
   build_dist:
