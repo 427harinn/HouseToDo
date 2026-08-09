@@ -75,3 +75,14 @@ Image metadata deletion and active count/bytes updates are now atomic and idempo
 - Existing client validation remains: JPEG/PNG/WebP, WebP conversion, longest side <= 1280px, final WebP <= 1MB.
 - Local Playwright checks passed 4/4 with normal, near-limit, limit-error, unknown-storage, replace, and 320/390/430px plus desktop coverage; screenshots and traces were generated with no pageerror, unexpected console error, or unexpected request failure.
 - Backend, migration, R2, Cron, remote D1, staging, production, deploy, and push were not changed or operated.
+
+## 2026-08-10 Notification milestone 1: PWA / Service Worker foundation
+
+- Added `public/manifest.webmanifest` with the `HouseToDo` app identity, standalone display, scope, start URL, and existing theme colors.
+- Added `public/sw.js` with safe push payload handling and same-origin notification click routing. Offline cache is intentionally not used.
+- Registered the Service Worker only in production builds, which includes staging HTTPS deployments.
+- Added browser capability detection for Service Worker, PushManager, Notification permission, and standalone display mode.
+- Notification permission is only read; no automatic `Notification.requestPermission()` call exists.
+- Added safe notification URL resolution and unit coverage for relative, same-origin, external, malformed, and dangerous URLs.
+- The future notification model is task-level specified-time notification plus user-level evening summary; an evening summary is sent only when at least one task remains incomplete today.
+- D1 schema, PushSubscription, VAPID, push sender, notification UI, task notification UI, deploy, remote migration, production operations, and push remain out of scope.

@@ -27,6 +27,9 @@
 - [x] Add image limit rejection UI and usage display.
 - [x] Improve image upload UX with create/replace handling, client validation messages, backend error mapping, upload/delete refresh, unknown-storage guidance, and responsive local Playwright coverage.
 - [x] Add frontend image usage display, byte formatting, warnings, cleanup guidance, refresh, and responsive local E2E coverage.
+- [x] Add notification milestone 1 PWA manifest and Service Worker foundation.
+- [x] Add capability detection without requesting notification permission automatically.
+- [x] Add safe notification URL validation and Service Worker push/click handling tests.
 - [ ] Run remote purchased-item bulk deletion only in a disposable household with no pre-existing data.
 
 ## Constraints
@@ -35,3 +38,4 @@
 - No additional migration or remote D1/R2 recreation.
 - No API Token contents stored.
 - Push remains pending explicit approval.
+- Notification D1, PushSubscription, VAPID, push sender, and notification UI remain pending.

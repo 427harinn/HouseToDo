@@ -373,36 +373,39 @@ Workers、D1、R2、環境変数、マイグレーションの基礎を整える
 
 通知にはタスク状態とユーザー購読情報が必要。
 
-## Phase 8: PWAとWeb Push通知
+## Phase 8: PWA / Service Worker基盤
 
 ### 目的
 
-iPhoneホーム画面追加、Push購読、朝夜通知、通知タップ導線を実装する。
+iPhoneホーム画面追加に必要なPWA manifestとService Worker基盤を実装する。通知仕様は次フェーズで実装する。
 
 ### 前提条件
 
 - Phase 4が完了している。
-- VAPID keyを用意できる。
+- VAPID keyやPush送信基盤は次フェーズの前提とする。
 
 ### 実施する作業
 
 - `manifest.webmanifest` とService Workerを実装する。
-- Push購読APIを実装する。
-- 通知テストAPIを実装する。
-- Cron Triggerで朝9時、夜21時通知を送る。
-- 二重送信防止を実装する。
+- アプリシェルの最低限のオフラインフォールバックを実装する。
+- 本番ビルド時にService Workerを登録する。
+
+### 次フェーズ以降の通知仕様
+
+- タスク単位の指定時刻通知（通知なし、または指定時刻）。通知時刻は家庭内で共有する。
+- MVPでは家庭でPush通知を有効にしているメンバーへ通知し、タスクごとの通知対象者指定は行わない。
+- ユーザー単位の夜まとめ通知（ON/OFF、時刻、タイムゾーン）。今日の未完了タスクが1件以上ある場合だけ送る。
+- Push購読、VAPID、通知送信、スケジュール実行、通知ログ、設定UIは次フェーズで実装する。
 
 ### 作成・変更予定の主なファイル
 
 - `public/manifest.webmanifest`
 - `public/sw.js` またはVite管理のService Worker
-- `worker/routes/push.ts`
-- `worker/cron.ts`
 
 ### 完了条件
 
-- iPhoneで通知許可と受信ができる。
-- 通知タップで対象画面へ遷移できる。
+- manifestが読み込め、Service Workerが登録・更新される。
+- ネットワーク切断時にキャッシュ済みのアプリシェルへフォールバックできる。
 
 ### 確認方法
 

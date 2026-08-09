@@ -1,0 +1,10 @@
+{
+  "name": "HouseToDo",
+  "short_name": "HouseToDo",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "theme_color": "#39b7a5",
+  "background_color": "#f8fbfa"
+}

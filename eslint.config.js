@@ -12,6 +12,7 @@ export default tseslint.config(
       "node_modules",
       ".wrangler",
       "coverage",
+      "public/sw.js",
       "eslint.config.js",
       "playwright.config.ts",
       "playwright.staging.config.ts"
