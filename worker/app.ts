@@ -44,6 +44,7 @@ import {
   weekTasksRoute
 } from "./routes/tasks";
 import type { Env } from "./types/env";
+import { vapidPublicKeyRoute, registerPushSubscriptionRoute, unregisterPushSubscriptionRoute } from "./routes/notifications";
 
 const routeApi = withErrorHandling(withStateChangingRequestProtection((context) => {
   const url = new URL(context.request.url);
@@ -108,6 +109,12 @@ const routeApi = withErrorHandling(withStateChangingRequestProtection((context) 
       return logoutRoute(context);
     case "GET /api/auth/me":
       return meRoute(context);
+    case "GET /api/notifications/vapid-public-key":
+      return vapidPublicKeyRoute(context);
+    case "POST /api/notifications/subscriptions":
+      return registerPushSubscriptionRoute(context);
+    case "DELETE /api/notifications/subscriptions":
+      return unregisterPushSubscriptionRoute(context);
     case "POST /api/households":
       return createHouseholdRoute(context);
     case "GET /api/households/current":

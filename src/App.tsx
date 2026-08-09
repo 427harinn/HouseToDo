@@ -2,6 +2,7 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { login, logout, me, register } from "./api/auth";
 import { ApiError, apiMessage } from "./api/client";
+import { getVapidPublicKey, registerPushSubscription, unregisterPushSubscription } from "./api/notifications";
 import { getDashboardToday, type DashboardToday } from "./api/dashboard";
 import { imageUploadErrorMessage } from "./api/image-errors";
 import { getCurrentImageUsage, type ImageUsage } from "./api/image-usage";
@@ -93,6 +94,8 @@ import type {
   HouseholdState
 } from "./types";
 import { formatBytes } from "./lib/format";
+import { getBrowserCapabilities, type BrowserCapabilities } from "./lib/capabilities";
+import { urlBase64ToUint8Array } from "./lib/vapid";
 
 type StaticRoute =
   | "/"
@@ -1255,6 +1258,7 @@ function MembersScreen({ household, onNavigate, onLogout }: {
         )}
       </Card>
       <ImageUsageSection />
+      <NotificationSettingsSection />
       <Card>
         <h2>招待コード</h2>
         {household.role === "owner" ? (
@@ -1268,6 +1272,113 @@ function MembersScreen({ household, onNavigate, onLogout }: {
         ) : <p>招待コードを発行できるのは owner だけです。</p>}
       </Card>
     </AppFrame>
+  );
+}
+
+type NotificationUiState = "unsupported" | "default" | "denied" | "enabled";
+
+const getNotificationRegistration = async (): Promise<ServiceWorkerRegistration | null> => {
+  if (typeof navigator === "undefined" || !navigator.serviceWorker?.getRegistration) return null;
+  return (await navigator.serviceWorker.getRegistration()) ?? null;
+};
+
+function NotificationSettingsSection() {
+  const [capabilities, setCapabilities] = useState<BrowserCapabilities>(() => getBrowserCapabilities());
+  const [state, setState] = useState<NotificationUiState>("default");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+
+  const refresh = useCallback(async () => {
+    const next = getBrowserCapabilities();
+    setCapabilities(next);
+    if (!next.serviceWorkerSupported || !next.pushManagerSupported || !next.notificationSupported) {
+      setState("unsupported");
+      return;
+    }
+    if (next.notificationPermission === "denied") {
+      setState("denied");
+      return;
+    }
+    const registration = await getNotificationRegistration();
+    const subscription = registration?.pushManager ? await registration.pushManager.getSubscription() : null;
+    setState(subscription ? "enabled" : "default");
+  }, []);
+
+  useEffect(() => { void refresh().catch(() => setState("unsupported")); }, [refresh]);
+
+  const enable = async () => {
+    setBusy(true);
+    setMessage("");
+    try {
+      const current = getBrowserCapabilities();
+      if (!current.serviceWorkerSupported || !current.pushManagerSupported || !current.notificationSupported) {
+        setState("unsupported");
+        return;
+      }
+      const registration = await getNotificationRegistration();
+      if (!registration) throw new Error("service-worker-unavailable");
+      const permission = await Notification.requestPermission();
+      if (permission === "denied") {
+        setState("denied");
+        setMessage("ブラウザ設定から通知を許可してください。");
+        return;
+      }
+      if (permission !== "granted") {
+        setState("default");
+        return;
+      }
+      const { publicKey } = await getVapidPublicKey();
+      const existing = await registration.pushManager.getSubscription();
+      const subscription = existing ?? await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(publicKey) });
+      try {
+        await registerPushSubscription(subscription);
+      } catch (error) {
+        if (!existing) {
+          try { await subscription.unsubscribe(); } catch { /* best-effort compensation; endpoint is never logged */ }
+        }
+        throw error;
+      }
+      setState("enabled");
+    } catch (error) {
+      setMessage(error instanceof ApiError ? apiMessage(error) : "通知の設定に失敗しました。もう一度お試しください。");
+      setState("default");
+    } finally {
+      setBusy(false);
+      setCapabilities(getBrowserCapabilities());
+    }
+  };
+
+  const disable = async () => {
+    setBusy(true);
+    setMessage("");
+    try {
+      const registration = await getNotificationRegistration();
+      const subscription = registration?.pushManager ? await registration.pushManager.getSubscription() : null;
+      if (subscription) {
+        await unregisterPushSubscription(subscription.endpoint);
+        try { await subscription.unsubscribe(); } catch {
+          setState("default");
+          throw new Error("browser-unsubscribe-failed");
+        }
+      }
+      setState("default");
+    } catch (error) {
+      setMessage(error instanceof ApiError ? apiMessage(error) : "通知をオフにできませんでした。もう一度お試しください。");
+    } finally {
+      setBusy(false);
+      setCapabilities(getBrowserCapabilities());
+    }
+  };
+
+  const status = state === "unsupported" ? "このブラウザでは通知を利用できません" : state === "denied" ? "許可されていません" : state === "enabled" ? "通知ON" : "未設定";
+  return (
+    <Card>
+      <div className="section-heading"><h2>通知</h2><span>{status}</span></div>
+      {capabilities.homeScreenInstallRequired ? <p className="form-note">iPhoneで通知を利用するには、HouseToDoをホーム画面に追加してください。</p> : null}
+      {state === "denied" ? <p className="form-note">ブラウザ設定から通知を許可してください。</p> : null}
+      {message ? <ErrorMessage message={message} /> : null}
+      {state === "enabled" ? <Button disabled={busy} variant="secondary" onClick={() => void disable()}>{busy ? <InlineLoading /> : "通知をオフにする"}</Button> : state !== "unsupported" && state !== "denied" ? <Button disabled={busy} onClick={() => void enable()}>{busy ? <InlineLoading /> : "通知を有効にする"}</Button> : null}
+    </Card>
   );
 }
 

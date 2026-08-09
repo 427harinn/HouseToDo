@@ -6,6 +6,7 @@ export type BrowserCapabilities = {
   notificationSupported: boolean;
   notificationPermission: NotificationPermissionState;
   standalone: boolean;
+  homeScreenInstallRequired: boolean;
 };
 
 export function getBrowserCapabilities(): BrowserCapabilities {
@@ -13,12 +14,17 @@ export function getBrowserCapabilities(): BrowserCapabilities {
   const browserNavigator = typeof navigator === "undefined" ? undefined : navigator;
   const notificationSupported = typeof Notification !== "undefined";
 
+  const standalonePropertySupported = Boolean(browserNavigator && "standalone" in browserNavigator);
   return {
     serviceWorkerSupported: Boolean(browserNavigator && typeof browserNavigator.serviceWorker !== "undefined"),
     pushManagerSupported: Boolean(browserWindow && typeof browserWindow.PushManager !== "undefined"),
     notificationSupported,
     notificationPermission: notificationSupported ? Notification.permission : "unsupported",
     standalone: Boolean(
+      browserWindow?.matchMedia?.("(display-mode: standalone)").matches ||
+        (browserNavigator as Navigator & { standalone?: boolean } | undefined)?.standalone
+    ),
+    homeScreenInstallRequired: standalonePropertySupported && !(
       browserWindow?.matchMedia?.("(display-mode: standalone)").matches ||
         (browserNavigator as Navigator & { standalone?: boolean } | undefined)?.standalone
     )

@@ -1648,3 +1648,16 @@ Added the shared 1024-based byte formatter, lightweight 80%/limit warnings, loca
 - Refreshes image usage after upload/replacement and image deletion without global state.
 - Local Playwright mock checks passed: 4/4 scenarios covering normal, near-limit, limit error, unknown storage, replace, and 320/390/430px plus desktop; screenshots and trace were generated. Expected navigation aborts and the mocked 409 were excluded from unexpected-error reporting; no pageerror, unexpected console error, or unexpected request failure remained.
 - No backend, migration, R2, Cron, remote D1, staging, production, deploy, or push operation was performed.
+## 2026-08-10 Notification milestone 2
+
+Pre-check passed with HEAD `732ad18 feat: add web push pwa foundation`, clean working tree, and clean `git diff --check`.
+
+Implemented local migration `0009_push_subscription_foundation.sql` as a copy-and-replace upgrade to the legacy `push_subscriptions` table. Existing records are copied before the old table is removed, with endpoint/key/timestamp fields preserved and user/household FKs added. D1 has no SQL SHA-256 function, so legacy rows retain a NULL endpoint hash and their existing endpoint UNIQUE constraint; the Worker fills SHA-256 on re-registration. New and re-registered rows use the endpoint hash unique index. No notification settings or delivery-history tables were added.
+
+Added `WEB_PUSH_VAPID_PUBLIC_KEY`, `WEB_PUSH_VAPID_PRIVATE_KEY`, and `WEB_PUSH_SUBJECT` examples. `GET /api/notifications/vapid-public-key` is authenticated and returns only the public key; missing config returns generic 503. `POST /api/notifications/subscriptions` and idempotent `DELETE /api/notifications/subscriptions` validate JSON, Origin, HTTPS endpoint, URL-safe key fields, size limits, and current-household ownership. Repository/service layering keeps D1 SQL out of routes.
+
+Added frontend notification client, URL-safe Base64 conversion helper, and settings UI. Permission is requested only from the enable button. Existing browser subscriptions are read on display without POSTing every load. Enable follows capability → registration → permission → VAPID key → existing subscription/subscribe → backend registration; backend failure compensates with best-effort unsubscribe. Disable unregisters backend first, then browser subscription. iPhone Home Screen guidance uses capability/standalone state without UA parsing.
+
+Final review correction: when backend unregister succeeds but browser unsubscribe fails, UI now returns to `未設定`; the next enable action reuses the existing browser subscription and re-registers it.
+
+Verification: host `npm run typecheck`, `npm run lint`, and `npm test` passed (26 test files / 127 tests after notification tests). Local D1 migration `0009` applied successfully; rerun returned `No migrations to apply`. A local Playwright notification fixture was added for 320/390/430/desktop, supported enable/OFF, and Home Screen guidance; full Playwright execution was not run in this host because the configured app/Worker service is not running. Docker was not used. No VAPID values were generated, no secret was registered, and no remote migration, deploy, production operation, or push was performed.

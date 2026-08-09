@@ -24,7 +24,8 @@ export type ApiErrorCode =
   | "RATE_LIMITED"
   | "INTERNAL_ERROR"
   | "NETWORK_ERROR"
-  | "INVALID_RESPONSE";
+  | "INVALID_RESPONSE"
+  | "PUSH_CONFIG_UNAVAILABLE";
 
 export class ApiError extends Error {
   readonly code: ApiErrorCode;

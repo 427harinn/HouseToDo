@@ -86,3 +86,13 @@ Image metadata deletion and active count/bytes updates are now atomic and idempo
 - Added safe notification URL resolution and unit coverage for relative, same-origin, external, malformed, and dangerous URLs.
 - The future notification model is task-level specified-time notification plus user-level evening summary; an evening summary is sent only when at least one task remains incomplete today.
 - D1 schema, PushSubscription, VAPID, push sender, notification UI, task notification UI, deploy, remote migration, production operations, and push remain out of scope.
+
+## 2026-08-10 Notification milestone 2: subscription foundation
+
+- Added local migration `0009_push_subscription_foundation.sql`, copying legacy rows into an FK-constrained table before replacement. Existing endpoint/key/timestamp data is preserved; because D1 has no SHA-256 SQL function, legacy rows keep a NULL endpoint hash and retain endpoint UNIQUE protection until browser re-registration backfills the Worker-computed hash.
+- Added authenticated VAPID public-key delivery and device/browser-scoped subscription register/unregister APIs. The current household and authenticated user are enforced; endpoint/key material is not returned or logged.
+- Added Worker env examples for public/private VAPID keys and subject. No secret values were generated or registered remotely.
+- Added settings UI with unsupported/default/denied/on states, user-gesture-only permission request, existing subscription discovery, compensation unsubscribe, off flow, and iPhone Home Screen guidance based on capabilities rather than UA parsing.
+- Added Base64URL VAPID conversion tests, backend API isolation/upsert tests, and local Playwright fixture coverage for responsive settings states.
+- PWA manifest icons and `apple-touch-icon` remain a required task before milestone 3 real-iPhone Push testing.
+- Push sending, task notification settings, evening summary settings, Cron delivery, delivery history/actions, remote migration, deploy, production operation, and push remain out of scope.

@@ -28,6 +28,71 @@ export const parseJsonBody = async (request: Request): Promise<unknown> => {
   }
 };
 
+const PUSH_SUBSCRIPTION_BODY_MAX_BYTES = 16 * 1024;
+const PUSH_ENDPOINT_MAX_LENGTH = 2048;
+const PUSH_KEY_MAX_LENGTH = 512;
+const base64UrlPattern = /^[A-Za-z0-9_-]+$/;
+
+export type PushSubscriptionInput = {
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+};
+
+export const parsePushSubscriptionJsonBody = async (request: Request): Promise<unknown> => {
+  const contentLength = request.headers.get("content-length");
+  if (contentLength && Number(contentLength) > PUSH_SUBSCRIPTION_BODY_MAX_BYTES) {
+    throw validationError({ body: "Subscription payload is too large." });
+  }
+  const contentType = request.headers.get("content-type") ?? "";
+  if (!contentType.toLowerCase().includes("application/json")) {
+    throw validationError({ body: "Content-Type must be application/json." });
+  }
+  let raw: string;
+  try {
+    raw = await request.text();
+  } catch {
+    throw validationError({ body: "JSON body could not be read." });
+  }
+  if (new TextEncoder().encode(raw).byteLength > PUSH_SUBSCRIPTION_BODY_MAX_BYTES) {
+    throw validationError({ body: "Subscription payload is too large." });
+  }
+  try {
+    return JSON.parse(raw) as unknown;
+  } catch {
+    throw validationError({ body: "JSON body is malformed." });
+  }
+};
+
+export const validatePushSubscriptionInput = (value: unknown): PushSubscriptionInput => {
+  const input = asObject(value);
+  const endpoint = requiredString(input, "endpoint", "endpoint", PUSH_ENDPOINT_MAX_LENGTH).trim();
+  const keys = asObject(input.keys);
+  const p256dh = requiredString(keys, "p256dh", "p256dh", PUSH_KEY_MAX_LENGTH).trim();
+  const auth = requiredString(keys, "auth", "auth", PUSH_KEY_MAX_LENGTH).trim();
+  let endpointUrl: URL;
+  try {
+    endpointUrl = new URL(endpoint);
+  } catch {
+    throw validationError({ endpoint: "endpoint must be a valid URL." });
+  }
+  if (endpointUrl.protocol !== "https:") throw validationError({ endpoint: "endpoint must use HTTPS." });
+  if (!base64UrlPattern.test(p256dh)) throw validationError({ p256dh: "p256dh must be URL-safe base64." });
+  if (!base64UrlPattern.test(auth)) throw validationError({ auth: "auth must be URL-safe base64." });
+  return { endpoint, p256dh, auth };
+};
+
+export const validatePushUnregisterInput = (value: unknown): Pick<PushSubscriptionInput, "endpoint"> => {
+  const input = asObject(value);
+  const endpoint = requiredString(input, "endpoint", "endpoint", PUSH_ENDPOINT_MAX_LENGTH).trim();
+  try {
+    if (new URL(endpoint).protocol !== "https:") throw new Error("protocol");
+  } catch {
+    throw validationError({ endpoint: "endpoint must be a valid HTTPS URL." });
+  }
+  return { endpoint };
+};
+
 export type TaskWriteInput = {
   title: string;
   description: string | null;

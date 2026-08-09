@@ -138,6 +138,7 @@ export type ShoppingItemImageDbRecord = {
 export type OrphanR2ObjectDbRecord = { id: string; r2_key: string; source_type: string; source_id: string | null; household_id: string | null; byte_size: number | null; reason: string; status: string; attempt_count: number; first_failed_at: string; last_attempted_at: string | null; next_attempt_at: string; last_error_code: string | null; last_error_message: string | null; created_at: string; updated_at: string };
 export type HouseholdImageUsageDbRecord = { household_id: string; active_count: number; active_bytes: number; reserved_count: number; reserved_bytes: number; pending_cleanup_bytes: number; daily_upload_date: string | null; daily_upload_count: number; updated_at: string };
 export type ImageUploadReservationDbRecord = { id: string; household_id: string; shopping_item_id: string; operation: string; status: string; r2_key: string; byte_size: number; old_image_id: string | null; old_r2_key: string | null; old_size_bytes: number | null; expires_at: string; created_at: string; updated_at: string };
+export type PushSubscriptionDbRecord = { id: string; user_id: string; household_id: string; endpoint: string; endpoint_hash: string | null; p256dh: string; auth: string; user_agent_summary: string | null; created_at: string; updated_at: string | null; last_seen_at: string | null; disabled_at: string | null };
 
 class MemoryPreparedStatement {
   private values: unknown[] = [];
@@ -185,6 +186,7 @@ export class MemoryD1 {
   readonly orphanR2Objects = new Map<string, OrphanR2ObjectDbRecord>();
   readonly householdImageUsage = new Map<string, HouseholdImageUsageDbRecord>();
   readonly imageUploadReservations = new Map<string, ImageUploadReservationDbRecord>();
+  readonly pushSubscriptions = new Map<string, PushSubscriptionDbRecord>();
   private lastDeletedReservation = false;
   private lastChanges = 0;
 
@@ -199,7 +201,7 @@ export class MemoryD1 {
   }
 
   async batch<T = unknown>(statements: D1PreparedStatement[]): Promise<D1Result<T>[]> {
-    const maps: Map<unknown, unknown>[] = [this.users, this.sessions, this.households, this.members, this.invites, this.tasks, this.taskWeekdays, this.taskRecords, this.shoppingItems, this.shoppingTemplates, this.shoppingItemImages, this.orphanR2Objects, this.householdImageUsage, this.imageUploadReservations];
+    const maps: Map<unknown, unknown>[] = [this.users, this.sessions, this.households, this.members, this.invites, this.tasks, this.taskWeekdays, this.taskRecords, this.shoppingItems, this.shoppingTemplates, this.shoppingItemImages, this.orphanR2Objects, this.householdImageUsage, this.imageUploadReservations, this.pushSubscriptions];
     const snapshots = maps.map((map) => new Map<unknown, unknown>(map));
     const results: D1Result<T>[] = [];
     try {
@@ -228,6 +230,7 @@ export class MemoryD1 {
     | OrphanR2ObjectDbRecord
     | HouseholdImageUsageDbRecord
     | ImageUploadReservationDbRecord
+    | PushSubscriptionDbRecord
     | { create_count: number; create_bytes: number; active_bytes: number; today_count: number }
     | { count: number }
     | null {
@@ -346,6 +349,7 @@ export class MemoryD1 {
     if (sql.includes("FROM orphan_r2_objects") && sql.includes("r2_key = ?")) return Array.from(this.orphanR2Objects.values()).find((row) => row.r2_key === values[0]) ?? null;
     if (sql.includes("FROM household_image_usage") && sql.includes("WHERE household_id = ?")) return this.householdImageUsage.get(String(values[0])) ?? null;
     if (sql.includes("FROM image_upload_reservations") && sql.includes("WHERE id = ?")) return this.imageUploadReservations.get(String(values[0])) ?? null;
+    if (sql.includes("FROM push_subscriptions") && sql.includes("WHERE endpoint = ?")) return Array.from(this.pushSubscriptions.values()).find((row) => row.endpoint === values[0]) ?? null;
     if (sql.includes("FROM image_upload_reservations") && sql.includes("shopping_item_id = ?")) return Array.from(this.imageUploadReservations.values()).find((row) => row.shopping_item_id === values[0] && ["reserved", "r2_written", "cleanup_pending"].includes(row.status)) ?? null;
     if (sql.includes("COUNT(*) AS count FROM orphan_r2_objects")) return { count: Array.from(this.orphanR2Objects.values()).filter((row) => row.household_id === values[0] && row.byte_size === null && ["pending", "retry", "abandoned"].includes(row.status)).length };
     if (sql.includes("SUM(CASE WHEN operation")) {
@@ -433,6 +437,19 @@ export class MemoryD1 {
 
   run(sql: string, values: unknown[]): D1Result {
     let changes = 1;
+
+    if (sql.startsWith("INSERT INTO push_subscriptions")) {
+      if (Array.from(this.pushSubscriptions.values()).some((row) => row.endpoint === values[3] || (row.endpoint_hash !== null && row.endpoint_hash === values[4]))) throw new Error("UNIQUE constraint failed");
+      this.pushSubscriptions.set(String(values[0]), { id: String(values[0]), user_id: String(values[1]), household_id: String(values[2]), endpoint: String(values[3]), endpoint_hash: String(values[4]), p256dh: String(values[5]), auth: String(values[6]), user_agent_summary: values[7] as string | null, created_at: String(values[8]), updated_at: String(values[9]), last_seen_at: String(values[10]), disabled_at: null });
+    }
+    if (sql.startsWith("UPDATE push_subscriptions SET user_id")) {
+      const row = Array.from(this.pushSubscriptions.values()).find((item) => item.id === values[8]);
+      if (row) this.pushSubscriptions.set(row.id, { ...row, user_id: String(values[0]), household_id: String(values[1]), endpoint_hash: String(values[2]), p256dh: String(values[3]), auth: String(values[4]), user_agent_summary: values[5] as string | null, updated_at: String(values[6]), last_seen_at: String(values[7]), disabled_at: null }); else changes = 0;
+    }
+    if (sql.startsWith("DELETE FROM push_subscriptions")) {
+      const row = Array.from(this.pushSubscriptions.values()).find((item) => item.user_id === values[0] && item.household_id === values[1] && item.endpoint === values[2]);
+      if (row) this.pushSubscriptions.delete(row.id); else changes = 0;
+    }
 
     if (sql.startsWith("INSERT INTO users")) {
       this.users.set(String(values[0]), {

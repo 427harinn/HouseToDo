@@ -13,7 +13,8 @@ describe("getBrowserCapabilities", () => {
       pushManagerSupported: true,
       notificationSupported: true,
       notificationPermission: "granted",
-      standalone: true
+      standalone: true,
+      homeScreenInstallRequired: false
     });
   });
 
@@ -33,7 +34,8 @@ describe("getBrowserCapabilities", () => {
       pushManagerSupported: false,
       notificationSupported: false,
       notificationPermission: "unsupported",
-      standalone: false
+      standalone: false,
+      homeScreenInstallRequired: false
     });
   });
 });

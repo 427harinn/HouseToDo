@@ -30,6 +30,8 @@
 - [x] Add notification milestone 1 PWA manifest and Service Worker foundation.
 - [x] Add capability detection without requesting notification permission automatically.
 - [x] Add safe notification URL validation and Service Worker push/click handling tests.
+- [x] Add notification permission UI, VAPID public-key API, device-scoped PushSubscription registration, and local Playwright fixture coverage.
+- [ ] Add manifest icons and `apple-touch-icon` before the milestone 3 real-iPhone Push test.
 - [ ] Run remote purchased-item bulk deletion only in a disposable household with no pre-existing data.
 
 ## Constraints
@@ -38,4 +40,4 @@
 - No additional migration or remote D1/R2 recreation.
 - No API Token contents stored.
 - Push remains pending explicit approval.
-- Notification D1, PushSubscription, VAPID, push sender, and notification UI remain pending.
+- Push sender, task notification settings, evening summary settings, delivery history/actions, remote migration, deploy, and production operations remain pending.

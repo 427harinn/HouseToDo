@@ -11,4 +11,7 @@ export interface Env {
   IMAGE_STORED_BYTES_LIMIT?: string;
   IMAGE_DAILY_UPLOAD_LIMIT?: string;
   IMAGE_UPLOAD_RESERVATION_TTL_SECONDS?: string;
+  WEB_PUSH_VAPID_PUBLIC_KEY?: string;
+  WEB_PUSH_VAPID_PRIVATE_KEY?: string;
+  WEB_PUSH_SUBJECT?: string;
 }

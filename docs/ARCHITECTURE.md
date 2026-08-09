@@ -65,6 +65,20 @@ GET    /api/dashboard/today
 
 Weekly tasks store `target_week_start` and count completed records in that week. D1 partial unique indexes prevent duplicate open weekly `in_progress` and `skipped` rows for the same task/week, while allowing multiple `completed` rows for weekly target counts.
 
+## 2026-08-10 Notification milestone 2
+
+`push_subscriptions` is a device/browser-level record, not a user-level setting. Migration `0009_push_subscription_foundation.sql` copies the legacy rows into an FK-constrained table before replacing the old table, preserving endpoint/key/timestamp data. D1 migrations do not expose a SHA-256 SQL function, so legacy rows retain `endpoint_hash = NULL`; their pre-existing `endpoint UNIQUE` constraint remains the migration-time deduplication guard, and the next browser re-registration fills the SHA-256 hash. New and re-registered rows use `endpoint_hash` for deduplication. Endpoint, `p256dh`, and `auth` are never returned by the API or logged.
+
+VAPID configuration uses `WEB_PUSH_VAPID_PUBLIC_KEY`, `WEB_PUSH_VAPID_PRIVATE_KEY`, and `WEB_PUSH_SUBJECT`. Only the public key is served by authenticated `GET /api/notifications/vapid-public-key`; the private key is a Worker secret only and is not used by this milestone because push sending is not implemented.
+
+Authenticated subscription registration is `POST /api/notifications/subscriptions` and idempotent deletion is `DELETE /api/notifications/subscriptions` with an endpoint body. Both flows require the current household, validate Origin/content type/HTTPS endpoint/size, and scope mutations to the authenticated user and current household. The UI requests permission only from the enable button, compensates a failed backend registration with best-effort browser unsubscribe, and unregisters before browser unsubscribe when disabling.
+
+If backend unregister succeeds but browser unsubscribe fails, the server row is already removed and the UI returns to `未設定`. A later enable click reuses the existing browser subscription and registers it again, providing the retry/recovery path without exposing endpoint material.
+
+Task notification time, evening summary preferences, Cron delivery, notification delivery history, notification actions, push sending, deploy, and remote migration remain out of scope.
+
+The milestone-1 manifest still has no icons or `apple-touch-icon`; those are required before real-iPhone Push testing in milestone 3.
+
 ## 基本方針
 
 本プロジェクトは、Cloudflare Workers Static Assets を使い、React SPA と Worker API を同じWorkerにまとめる構成を基本とする。無料枠を意識し、不要にサービスを分散させない。
