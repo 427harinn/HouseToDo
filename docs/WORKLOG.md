@@ -1632,3 +1632,9 @@ Purchased-item bulk deletion was deliberately omitted remotely because the persi
 Workers Logs were confirmed with constraints: the first mutation tail used an incorrect duplicated target suffix, stored telemetry returned 403 for the available token, and the corrected target was then tailed for 15 minutes plus a 45-second raw stream that captured three invocations. Those successful observations contained no HTTP 500, D1/R2 error, unexpected reservation release, or secret/full identifier/key leakage candidate. The E2E remains independent of log collection.
 
 Production was not accessed. No deploy, remote migration, Cron change, production operation, or push was performed.
+
+## 2026-08-09 Image usage UI milestone
+
+Added a frontend image usage section to the existing settings/member management screen. The client calls `GET /api/households/current/image-usage` through the shared API client and uses the backend response property names unchanged. The UI displays image count, active capacity, stored capacity, and today's uploads; it also shows reserved uploads, pending cleanup capacity, and changes stored capacity to `確認中` with an explanation when `storedBytesKnown` is false.
+
+Added the shared 1024-based byte formatter, lightweight 80%/limit warnings, local loading/error/retry states, and focus/visibility refresh. The layout is two columns on mobile and four columns on wider screens without adding navigation. Added API, formatter, UI, and Playwright fixture coverage. Staging backend verification was already complete; this milestone made no backend changes, production operations, remote migration, deploy, Cron change, or push.

@@ -22,6 +22,23 @@ const members = [
   { userId: "user-2", displayName: "たくや", role: "member", color: "#e4eef8", joinedAt: "2026-07-01T00:00:00Z" }
 ];
 
+const imageUsage = {
+  activeCount: 3,
+  activeCountLimit: 50,
+  activeBytes: 12.4 * 1024 * 1024,
+  activeBytesLimit: 50 * 1024 * 1024,
+  reservedCount: 0,
+  reservedBytes: 0,
+  pendingCleanupBytes: 0,
+  pendingCleanupUnknownCount: 0,
+  storedBytes: 15.2 * 1024 * 1024,
+  storedBytesKnown: true,
+  storedBytesLimit: 75 * 1024 * 1024,
+  dailyUploadDate: "2026-08-09",
+  dailyUploadCount: 4,
+  dailyUploadLimit: 20
+};
+
 const shoppingItem = {
   id: "shop-1",
   name: "牛乳",
@@ -69,12 +86,16 @@ const failure = (code: string, status: number) =>
     { status, headers: { "content-type": "application/json" } }
   );
 
-const mockFetch = (householdData: typeof household | null = household) =>
+const mockFetch = (
+  householdData: typeof household | null = household,
+  imageUsageData: typeof imageUsage | null = imageUsage
+) =>
   vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
     if (url.endsWith("/api/auth/me")) return Promise.resolve(ok({ user }));
     if (url.endsWith("/api/households/current")) return Promise.resolve(ok({ household: householdData }));
     if (url.endsWith("/api/households/current/members")) return Promise.resolve(ok({ members }));
+    if (url.endsWith("/api/households/current/image-usage")) return Promise.resolve(imageUsageData ? ok(imageUsageData) : failure("INTERNAL_ERROR", 500));
     if (url.endsWith("/api/shopping/items")) return Promise.resolve(ok({ pending: [shoppingItem], purchased: [purchasedItem] }));
     if (url.endsWith("/api/shopping/templates")) return Promise.resolve(ok({ templates: [template] }));
     if (url.endsWith("/api/dashboard/today")) {
@@ -121,6 +142,7 @@ describe("App task form payload", () => {
       if (url.endsWith("/api/auth/me")) return Promise.resolve(ok({ user }));
       if (url.endsWith("/api/households/current")) return Promise.resolve(ok({ household }));
       if (url.endsWith("/api/households/current/members")) return Promise.resolve(ok({ members }));
+      if (url.endsWith("/api/households/current/image-usage")) return Promise.resolve(ok(imageUsage));
       if (url.endsWith("/api/tasks/task-1")) {
         taskLoads += 1;
         return taskLoads === 1
@@ -166,6 +188,7 @@ describe("App task form payload", () => {
       if (url.endsWith("/api/auth/me")) return Promise.resolve(ok({ user }));
       if (url.endsWith("/api/households/current")) return Promise.resolve(ok({ household }));
       if (url.endsWith("/api/households/current/members")) return Promise.resolve(ok({ members }));
+      if (url.endsWith("/api/households/current/image-usage")) return Promise.resolve(ok(imageUsage));
       if (url.endsWith("/api/tasks") && init?.method === "POST") {
         capturedPayload = JSON.parse(init.body as string) as Record<string, unknown>;
         return Promise.resolve(ok({ task }, 201));
@@ -213,6 +236,7 @@ describe("App task form payload", () => {
       if (url.endsWith("/api/auth/me")) return Promise.resolve(ok({ user }));
       if (url.endsWith("/api/households/current")) return Promise.resolve(ok({ household }));
       if (url.endsWith("/api/households/current/members")) return Promise.resolve(ok({ members }));
+      if (url.endsWith("/api/households/current/image-usage")) return Promise.resolve(ok(imageUsage));
       if (url.endsWith("/api/tasks/task-1") && init?.method === "PATCH") {
         patchPayloads.push(JSON.parse(init.body as string) as Record<string, unknown>);
         return Promise.resolve(ok({ task: { ...task, scheduledTime: patchPayloads.at(-1)?.scheduledTime ?? null } }));
@@ -254,6 +278,7 @@ describe("App members UI", () => {
           ? Promise.reject(new DOMException("The operation was aborted.", "AbortError"))
           : Promise.resolve(ok({ members: members.slice(0, 1) }));
       }
+      if (url.endsWith("/api/households/current/image-usage")) return Promise.resolve(ok(imageUsage));
       return Promise.resolve(failure("NOT_FOUND", 404));
     });
     window.history.replaceState({}, "", "/settings/members");
@@ -274,6 +299,7 @@ describe("App members UI", () => {
       if (url.endsWith("/api/auth/me")) return Promise.resolve(ok({ user }));
       if (url.endsWith("/api/households/current")) return Promise.resolve(ok({ household }));
       if (url.endsWith("/api/households/current/members")) return Promise.resolve(failure("INTERNAL_ERROR", 500));
+      if (url.endsWith("/api/households/current/image-usage")) return Promise.resolve(ok(imageUsage));
       return Promise.resolve(failure("NOT_FOUND", 404));
     });
     window.history.replaceState({}, "", "/settings/members");
@@ -303,6 +329,73 @@ describe("App members UI", () => {
 
     expect(await screen.findByText(members[0].displayName)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "招待コードを発行" })).not.toBeInTheDocument();
+  }, 15000);
+});
+
+describe("App image usage UI", () => {
+  it("shows usage metrics and cleanup information", async () => {
+    mockFetch(household, {
+      ...imageUsage,
+      reservedCount: 1,
+      reservedBytes: 1024,
+      pendingCleanupBytes: 2.3 * 1024 * 1024,
+      pendingCleanupUnknownCount: 1,
+      storedBytes: 75 * 1024 * 1024,
+      storedBytesKnown: false
+    });
+    window.history.replaceState({}, "", "/settings/members");
+
+    render(<App />);
+
+    expect(await screen.findByText("画像ストレージ")).toBeInTheDocument();
+    expect(await screen.findByText("3 / 50 枚")).toBeInTheDocument();
+    expect(await screen.findByText("12.4 MB / 50 MB")).toBeInTheDocument();
+    expect(await screen.findByText("確認中 / 75 MB")).toBeInTheDocument();
+    expect(await screen.findByText("4 / 20 回")).toBeInTheDocument();
+    expect(await screen.findByText("アップロード処理中: 1件")).toBeInTheDocument();
+    expect(await screen.findByText("削除処理待ち: 2.3 MB")).toBeInTheDocument();
+    expect(await screen.findByText("削除処理待ちの画像があるため、保存容量を正確に確認できません。")).toBeInTheDocument();
+    expect(screen.queryByText("保存容量の上限に達しています。")).not.toBeInTheDocument();
+  }, 15000);
+
+  it("shows warnings at 80 percent and at the limit", async () => {
+    mockFetch(household, {
+      ...imageUsage,
+      activeCount: 50,
+      activeBytes: 40 * 1024 * 1024,
+      storedBytes: 60 * 1024 * 1024,
+      dailyUploadCount: 16
+    });
+    window.history.replaceState({}, "", "/settings/members");
+
+    render(<App />);
+
+    expect(await screen.findByText("画像数の上限に達しています。")).toBeInTheDocument();
+    expect(screen.getByText("使用容量の使用量が上限に近づいています。")).toBeInTheDocument();
+    expect(screen.getByText("保存容量の使用量が上限に近づいています。")).toBeInTheDocument();
+    expect(screen.getByText("本日のアップロードの使用量が上限に近づいています。")).toBeInTheDocument();
+  }, 15000);
+
+  it("shows an error and retries image usage loading", async () => {
+    let attempts = 0;
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.endsWith("/api/auth/me")) return Promise.resolve(ok({ user }));
+      if (url.endsWith("/api/households/current")) return Promise.resolve(ok({ household }));
+      if (url.endsWith("/api/households/current/members")) return Promise.resolve(ok({ members }));
+      if (url.endsWith("/api/households/current/image-usage")) {
+        attempts += 1;
+        return Promise.resolve(attempts === 1 ? failure("INTERNAL_ERROR", 500) : ok(imageUsage));
+      }
+      return Promise.resolve(failure("NOT_FOUND", 404));
+    });
+    window.history.replaceState({}, "", "/settings/members");
+
+    render(<App />);
+
+    expect(await screen.findByText("画像使用量を取得できませんでした。")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "再試行" }));
+    expect(await screen.findByText("3 / 50 枚")).toBeInTheDocument();
   }, 15000);
 });
 

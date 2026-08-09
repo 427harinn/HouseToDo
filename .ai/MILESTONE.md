@@ -55,3 +55,13 @@ Image metadata deletion and active count/bytes updates are now atomic and idempo
 - Remote purchased-item bulk deletion remains intentionally unexecuted because nine pre-existing purchased items make the persistent household unsafe to clear. Local tests cover multi-image decrements, partial R2 failures/orphans, and idempotency.
 - Workers Logs were a constrained confirmation: an initial target typo missed mutations, stored telemetry was token-forbidden, and a corrected 15-minute tail plus 45-second raw sample found no HTTP 500, D1/R2 error, or secret/full ID/key leakage candidate.
 - Production was untouched; no deploy, remote migration, Cron change, production operation, or push occurred.
+
+## 2026-08-09 Frontend image usage UI
+
+- Added the `GET /api/households/current/image-usage` frontend client and matching response type.
+- Added the image storage section to settings/member management for both owner and member views.
+- Displays count, active bytes, stored bytes, daily uploads, reserved uploads, pending cleanup, and `storedBytesKnown === false` guidance; unknown stored capacity is shown as `確認中` rather than a confirmed value.
+- Uses a 1024-based byte formatter and text-based 80%/limit warnings.
+- Loading/error/retry are local to the section; focus and `visibilitychange` refresh usage without polling.
+- Added responsive local Playwright fixtures/screenshots for desktop, 430px, 390px, and 320px.
+- Staging backend verification was already complete. No backend, remote, production, deploy, Cron, migration, or push operation was performed.

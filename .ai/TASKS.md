@@ -25,6 +25,7 @@
   - [x] Recover expired upload reservations and recompute orphan cleanup usage.
   - [x] Keep image deletion and shopping-item cascade paths aligned with active image usage.
 - [ ] Add image limit rejection UI and usage display.
+- [x] Add frontend image usage display, byte formatting, warnings, cleanup guidance, refresh, and responsive local E2E coverage.
 - [ ] Run remote purchased-item bulk deletion only in a disposable household with no pre-existing data.
 
 ## Constraints

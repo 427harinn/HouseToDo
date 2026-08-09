@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { login, logout, me, register } from "./api/auth";
 import { ApiError, apiMessage } from "./api/client";
 import { getDashboardToday, type DashboardToday } from "./api/dashboard";
+import { getCurrentImageUsage, type ImageUsage } from "./api/image-usage";
 import {
   addShoppingItemFromTemplate,
   clearPurchasedItems,
@@ -90,6 +91,7 @@ import type {
   HouseholdMember,
   HouseholdState
 } from "./types";
+import { formatBytes } from "./lib/format";
 
 type StaticRoute =
   | "/"
@@ -1251,6 +1253,7 @@ function MembersScreen({ household, onNavigate, onLogout }: {
           </ul>
         )}
       </Card>
+      <ImageUsageSection />
       <Card>
         <h2>招待コード</h2>
         {household.role === "owner" ? (
@@ -1264,6 +1267,110 @@ function MembersScreen({ household, onNavigate, onLogout }: {
         ) : <p>招待コードを発行できるのは owner だけです。</p>}
       </Card>
     </AppFrame>
+  );
+}
+
+const usageRatio = (value: number, limit: number) => (limit > 0 ? value / limit : 0);
+
+const usageWarning = (value: number, limit: number, label: string) => {
+  const ratio = usageRatio(value, limit);
+  if (ratio >= 1) return `${label}の上限に達しています。`;
+  if (ratio >= 0.8) return `${label}の使用量が上限に近づいています。`;
+  return "";
+};
+
+function ImageUsageMetric({ label, value, warning }: { label: string; value: string; warning?: string }) {
+  return (
+    <div className={`image-usage-metric${warning ? " image-usage-metric--warning" : ""}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+      {warning ? <p role="status">{warning}</p> : null}
+    </div>
+  );
+}
+
+function ImageUsageSection() {
+  const [usage, setUsage] = useState<ImageUsage | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
+
+  const refresh = useCallback(async (signal?: AbortSignal) => {
+    setLoading(true);
+    setMessage("");
+    try {
+      setUsage(await getCurrentImageUsage(signal));
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      setMessage("画像使用量を取得できませんでした。");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void refresh(controller.signal);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void refresh();
+    };
+    window.addEventListener("focus", onVisible);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      controller.abort();
+      window.removeEventListener("focus", onVisible);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [refresh]);
+
+  return (
+    <Card className="image-usage-card">
+      <div className="section-heading">
+        <h2>画像ストレージ</h2>
+        {loading ? <span>確認中</span> : null}
+      </div>
+      {loading && !usage ? <p role="status">画像使用量を読み込んでいます…</p> : null}
+      {message ? (
+        <div className="stack image-usage-error">
+          <ErrorMessage message={message} />
+          <Button variant="secondary" onClick={() => void refresh()}>再試行</Button>
+        </div>
+      ) : null}
+      {usage ? (
+        <>
+          <div className="image-usage-grid">
+            <ImageUsageMetric
+              label="画像数"
+              value={`${usage.activeCount} / ${usage.activeCountLimit} 枚`}
+              warning={usageWarning(usage.activeCount, usage.activeCountLimit, "画像数")}
+            />
+            <ImageUsageMetric
+              label="使用容量"
+              value={`${formatBytes(usage.activeBytes)} / ${formatBytes(usage.activeBytesLimit)}`}
+              warning={usageWarning(usage.activeBytes, usage.activeBytesLimit, "使用容量")}
+            />
+            <ImageUsageMetric
+              label="保存容量"
+              value={`${usage.storedBytesKnown ? formatBytes(usage.storedBytes) : "確認中"} / ${formatBytes(usage.storedBytesLimit)}`}
+              warning={usage.storedBytesKnown ? usageWarning(usage.storedBytes, usage.storedBytesLimit, "保存容量") : ""}
+            />
+            <ImageUsageMetric
+              label="本日のアップロード"
+              value={`${usage.dailyUploadCount} / ${usage.dailyUploadLimit} 回`}
+              warning={usageWarning(usage.dailyUploadCount, usage.dailyUploadLimit, "本日のアップロード")}
+            />
+          </div>
+          {usage.reservedCount > 0 || usage.reservedBytes > 0 ? (
+            <p className="image-usage-note">アップロード処理中{usage.reservedCount > 0 ? `: ${usage.reservedCount}件` : ""}</p>
+          ) : null}
+          {usage.pendingCleanupBytes > 0 ? (
+            <p className="image-usage-note">削除処理待ち: {formatBytes(usage.pendingCleanupBytes)}</p>
+          ) : null}
+          {usage.pendingCleanupUnknownCount > 0 || !usage.storedBytesKnown ? (
+            <p className="image-usage-note" role="status">削除処理待ちの画像があるため、保存容量を正確に確認できません。</p>
+          ) : null}
+        </>
+      ) : null}
+    </Card>
   );
 }
 
