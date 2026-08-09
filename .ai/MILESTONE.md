@@ -65,3 +65,13 @@ Image metadata deletion and active count/bytes updates are now atomic and idempo
 - Loading/error/retry are local to the section; focus and `visibilitychange` refresh usage without polling.
 - Added responsive local Playwright fixtures/screenshots for desktop, 430px, 390px, and 320px.
 - Staging backend verification was already complete. No backend, remote, production, deploy, Cron, migration, or push operation was performed.
+
+## 2026-08-09 Image upload UX improvement
+
+- Added usage assistance to the shopping image upload UI, including remaining count, daily remaining uploads, 80% warning, and unknown stored capacity guidance.
+- Added user-facing mapping for image backend limit and in-progress error codes.
+- Create count limits are shown before selection; replace remains allowed when count is full because backend decides final eligibility.
+- Upload and delete success both refresh the existing image usage client; upload state prevents duplicate submission and supports retry after errors.
+- Existing client validation remains: JPEG/PNG/WebP, WebP conversion, longest side <= 1280px, final WebP <= 1MB.
+- Local Playwright checks passed 4/4 with normal, near-limit, limit-error, unknown-storage, replace, and 320/390/430px plus desktop coverage; screenshots and traces were generated with no pageerror, unexpected console error, or unexpected request failure.
+- Backend, migration, R2, Cron, remote D1, staging, production, deploy, and push were not changed or operated.

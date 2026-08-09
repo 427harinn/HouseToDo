@@ -391,6 +391,17 @@ textarea[aria-invalid="true"] {
 .shopping-image-field > label { font-weight: 800; }
 .shopping-image-preview, .shopping-detail-image { max-width: 100%; width: min(100%, 420px); max-height: 360px; border-radius: var(--radius-sm); object-fit: contain; background: #f3f7f5; }
 .shopping-image-field small { color: var(--color-text-muted); }
+.image-upload-usage {
+  display: grid;
+  gap: 3px;
+  max-width: 100%;
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.image-upload-usage__message { color: #76510d; font-weight: 800; }
+.image-upload-usage__note { color: var(--color-text-muted); }
 
 .shopping-item__body strong {
   color: var(--color-text);

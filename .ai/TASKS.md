@@ -24,7 +24,8 @@
   - [x] Recalculate pending cleanup bytes when cleanup queue rows are successfully removed.
   - [x] Recover expired upload reservations and recompute orphan cleanup usage.
   - [x] Keep image deletion and shopping-item cascade paths aligned with active image usage.
-- [ ] Add image limit rejection UI and usage display.
+- [x] Add image limit rejection UI and usage display.
+- [x] Improve image upload UX with create/replace handling, client validation messages, backend error mapping, upload/delete refresh, unknown-storage guidance, and responsive local Playwright coverage.
 - [x] Add frontend image usage display, byte formatting, warnings, cleanup guidance, refresh, and responsive local E2E coverage.
 - [ ] Run remote purchased-item bulk deletion only in a disposable household with no pre-existing data.
 

@@ -1638,3 +1638,13 @@ Production was not accessed. No deploy, remote migration, Cron change, productio
 Added a frontend image usage section to the existing settings/member management screen. The client calls `GET /api/households/current/image-usage` through the shared API client and uses the backend response property names unchanged. The UI displays image count, active capacity, stored capacity, and today's uploads; it also shows reserved uploads, pending cleanup capacity, and changes stored capacity to `確認中` with an explanation when `storedBytesKnown` is false.
 
 Added the shared 1024-based byte formatter, lightweight 80%/limit warnings, local loading/error/retry states, and focus/visibility refresh. The layout is two columns on mobile and four columns on wider screens without adding navigation. Added API, formatter, UI, and Playwright fixture coverage. Staging backend verification was already complete; this milestone made no backend changes, production operations, remote migration, deploy, Cron change, or push.
+## 2026-08-09 Image upload UX
+
+- Added compact usage guidance beside the shopping item image selector, including remaining image count and daily upload count.
+- Added 80% warning, create count-limit guidance, and `storedBytesKnown === false` guidance without exposing backend terms.
+- Added frontend mapping for backend image limit/in-progress error codes; HTTP status is not used as the reason selector.
+- Preserved JPEG/PNG/WebP input, client-side WebP conversion, 1280px longest-side limit, and final 1MB WebP validation with user-facing messages.
+- Kept create and replace distinct: create shows a count-limit precheck, while replace is not disabled by count alone and backend remains authoritative.
+- Refreshes image usage after upload/replacement and image deletion without global state.
+- Local Playwright mock checks passed: 4/4 scenarios covering normal, near-limit, limit error, unknown storage, replace, and 320/390/430px plus desktop; screenshots and trace were generated. Expected navigation aborts and the mocked 409 were excluded from unexpected-error reporting; no pageerror, unexpected console error, or unexpected request failure remained.
+- No backend, migration, R2, Cron, remote D1, staging, production, deploy, or push operation was performed.

@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { login, logout, me, register } from "./api/auth";
 import { ApiError, apiMessage } from "./api/client";
 import { getDashboardToday, type DashboardToday } from "./api/dashboard";
+import { imageUploadErrorMessage } from "./api/image-errors";
 import { getCurrentImageUsage, type ImageUsage } from "./api/image-usage";
 import {
   addShoppingItemFromTemplate,
@@ -1375,6 +1376,8 @@ function ImageUsageSection() {
 }
 
 function shoppingErrorMessage(error: unknown) {
+  const imageMessage = imageUploadErrorMessage(error);
+  if (imageMessage) return imageMessage;
   if (error instanceof ApiError && error.code === "NOT_FOUND") {
     return "この商品は見つかりませんでした。すでに削除された可能性があります。";
   }
@@ -1714,6 +1717,32 @@ function ShoppingItemDetailScreen({ itemId, onNavigate }: {
   );
 }
 
+const remaining = (limit: number, value: number) => Math.max(0, limit - value);
+
+function ImageUploadUsageHint({ mode, usage, loading }: { mode: "create" | "edit"; usage: ImageUsage | null; loading: boolean }) {
+  if (loading && !usage) return <small className="image-upload-usage">画像ストレージを確認しています…</small>;
+  if (!usage) return null;
+  const countAtLimit = usage.activeCount >= usage.activeCountLimit;
+  const dailyAtLimit = usage.dailyUploadCount >= usage.dailyUploadLimit;
+  const warning = usage.activeCountLimit > 0 && usage.activeCount / usage.activeCountLimit >= 0.8
+    || usage.activeBytesLimit > 0 && usage.activeBytes / usage.activeBytesLimit >= 0.8
+    || usage.storedBytesKnown && usage.storedBytesLimit > 0 && usage.storedBytes / usage.storedBytesLimit >= 0.8;
+  return (
+    <div className="image-upload-usage" aria-label="画像アップロード状況">
+      <span>画像ストレージ</span>
+      {mode === "create" && countAtLimit ? <strong className="image-upload-usage__message">画像の追加上限に達しています</strong> : (
+        <>
+          <span>残り画像 {remaining(usage.activeCountLimit, usage.activeCount)}枚</span>
+          <span>本日あと {remaining(usage.dailyUploadLimit, usage.dailyUploadCount)}回</span>
+        </>
+      )}
+      {dailyAtLimit ? <span className="image-upload-usage__message">本日のアップロード上限に達しています</span> : null}
+      {warning && (mode === "edit" || !countAtLimit) && !dailyAtLimit ? <span className="image-upload-usage__message">画像保存容量が少なくなっています</span> : null}
+      {!usage.storedBytesKnown ? <span className="image-upload-usage__note">削除処理中の画像があるため、保存容量を正確に確認できません</span> : null}
+    </div>
+  );
+}
+
 function ShoppingItemFormScreen({ household, mode, itemId, onNavigate }: {
   household: Household;
   user: AuthUser;
@@ -1732,6 +1761,23 @@ function ShoppingItemFormScreen({ household, mode, itemId, onNavigate }: {
   const [previewUrl, setPreviewUrl] = useState("");
   const [imageStatus, setImageStatus] = useState<"idle" | "processing" | "uploading" | "deleting">("idle");
   const [imageMessage, setImageMessage] = useState("");
+  const [imageUsage, setImageUsage] = useState<ImageUsage | null>(null);
+  const [imageUsageLoading, setImageUsageLoading] = useState(true);
+  const refreshImageUsage = useCallback(async (signal?: AbortSignal) => {
+    setImageUsageLoading(true);
+    try {
+      setImageUsage(await getCurrentImageUsage(signal));
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === "AbortError")) setImageUsage(null);
+    } finally {
+      if (!signal?.aborted) setImageUsageLoading(false);
+    }
+  }, []);
+  useEffect(() => {
+    const controller = new AbortController();
+    void refreshImageUsage(controller.signal);
+    return () => controller.abort();
+  }, [refreshImageUsage]);
   useEffect(() => {
     if (mode !== "edit" || !itemId) return;
     const controller = new AbortController();
@@ -1746,6 +1792,10 @@ function ShoppingItemFormScreen({ household, mode, itemId, onNavigate }: {
   useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl); }, [previewUrl]);
   const selectImage = async (file: File | undefined) => {
     if (!file) return;
+    if (mode === "create" && imageUsage && imageUsage.activeCount >= imageUsage.activeCountLimit) {
+      setImageMessage("画像数の上限に達しています。不要な画像を削除してから、もう一度お試しください。");
+      return;
+    }
     setImageStatus("processing");
     setImageMessage("");
     try {
@@ -1755,20 +1805,20 @@ function ShoppingItemFormScreen({ household, mode, itemId, onNavigate }: {
       setPreviewUrl(URL.createObjectURL(processed.blob));
     } catch (error) {
       const messages: Record<string, string> = {
-        "unsupported-image-type": "この画像形式には対応していません。JPEG、PNG、WebPを選択してください。",
+        "unsupported-image-type": "JPEG、PNG、WebPの画像を選択してください",
         "source-image-too-large": "写真のサイズが大きすぎます。10MB以下の写真を選択してください。",
-        "processed-image-too-large": "圧縮後も写真のサイズが大きすぎます。別の写真を選択してください。",
-        "image-load-failed": "画像を読み込めませんでした。別の写真を選択してください。",
-        "webp-conversion-failed": "WebP変換に失敗しました。別の写真を選択してください。"
+        "processed-image-too-large": "画像サイズを1MB以下にしてください",
+        "image-load-failed": "画像を処理できませんでした。別の画像を選択してください",
+        "webp-conversion-failed": "画像を処理できませんでした。別の画像を選択してください"
       };
-      setImageMessage(messages[error instanceof Error ? error.message : ""] ?? "写真の準備に失敗しました。別の写真を選択してください。");
+      setImageMessage(messages[error instanceof Error ? error.message : ""] ?? "画像を処理できませんでした。別の画像を選択してください");
     } finally { setImageStatus("idle"); }
   };
   const removeSelectedImage = () => { if (previewUrl) URL.revokeObjectURL(previewUrl); setPreviewUrl(""); setSelectedImage(null); };
   const removeExistingImage = async () => {
     if (!itemId || !window.confirm("この写真を削除しますか？")) return;
     setImageStatus("deleting"); setImageMessage("");
-    try { await deleteShoppingItemImage(itemId); setExistingImage(null); }
+    try { await deleteShoppingItemImage(itemId); setExistingImage(null); await refreshImageUsage(); }
     catch { setImageMessage("画像削除に失敗しました。もう一度お試しください。"); }
     finally { setImageStatus("idle"); }
   };
@@ -1789,8 +1839,8 @@ function ShoppingItemFormScreen({ household, mode, itemId, onNavigate }: {
         : await createShoppingItem(payload as CreateShoppingItemInput);
       if (selectedImage) {
         setImageStatus("uploading");
-        try { await uploadShoppingItemImage(result.item.id, selectedImage); }
-        catch { setMessage("商品は追加されましたが、写真の保存に失敗しました。編集画面から再度追加できます。"); setImageStatus("idle"); return; }
+        try { await uploadShoppingItemImage(result.item.id, selectedImage); await refreshImageUsage(); }
+        catch (error) { setMessage(shoppingErrorMessage(error)); setImageStatus("idle"); return; }
         setImageStatus("idle");
       }
       onNavigate(`/shopping/items/${result.item.id}`);
@@ -1819,9 +1869,10 @@ function ShoppingItemFormScreen({ household, mode, itemId, onNavigate }: {
           </FormField>
           <div className="shopping-image-field" aria-live="polite">
             <label htmlFor="shopping-image">商品の写真（任意）</label>
+            <ImageUploadUsageHint mode={mode} usage={imageUsage} loading={imageUsageLoading} />
             {previewUrl ? <img className="shopping-image-preview" src={previewUrl} alt={`${form.name || "商品の"}写真のプレビュー`} /> : existingImage ? <img className="shopping-image-preview" src={getShoppingItemImageUrl(itemId!, existingImage.updatedAt)} alt={`${form.name || "商品の"}写真`} /> : null}
             {selectedImage ? <small>縮小後: {(selectedImage.size / 1024).toFixed(0)}KB / {selectedImage.width}×{selectedImage.height}px</small> : null}
-            <input id="shopping-image" accept="image/jpeg,image/png,image/webp" capture="environment" disabled={imageStatus !== "idle" || submitting} onChange={(event) => void selectImage(event.target.files?.[0])} type="file" />
+            <input id="shopping-image" accept="image/jpeg,image/png,image/webp" capture="environment" disabled={imageStatus !== "idle" || submitting || (mode === "create" && !!imageUsage && imageUsage.activeCount >= imageUsage.activeCountLimit)} onChange={(event) => { void selectImage(event.target.files?.[0]); event.currentTarget.value = ""; }} type="file" />
             <div className="inline-actions">
               {selectedImage ? <Button variant="ghost" disabled={imageStatus !== "idle"} onClick={removeSelectedImage}>選択解除</Button> : null}
               {existingImage && !selectedImage ? <Button variant="danger" disabled={imageStatus !== "idle" || submitting} onClick={() => void removeExistingImage()}>写真を削除</Button> : null}
