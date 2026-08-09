@@ -6,6 +6,8 @@ const artifactDir = path.resolve(
   process.env.PLAYWRIGHT_ARTIFACT_DIR ?? "artifacts/playwright/staging-e2e-remaining"
 );
 const fixture = path.resolve("e2e/fixtures/shopping-item-replacement.webp");
+const imageWidth = 640;
+const imageHeight = 400;
 const env = (name: string) => {
   const value = process.env[name];
   if (!value) throw new Error(`${name} is required`);
@@ -72,6 +74,71 @@ const validateWebpFixture = async () => {
   expect(file.subarray(0, 4).toString()).toBe("RIFF");
   expect(file.subarray(8, 12).toString()).toBe("WEBP");
   return file;
+};
+const makeDifferentSizeWebp = (source: Buffer) => {
+  const chunk = Buffer.alloc(12);
+  chunk.write("JUNK", 0, 4, "ascii");
+  chunk.writeUInt32LE(4, 4);
+  Buffer.from([1, 2, 3, 4]).copy(chunk, 8);
+  const replacement = Buffer.concat([source, chunk]);
+  replacement.writeUInt32LE(replacement.byteLength - 8, 4);
+  expect(replacement.byteLength).not.toBe(source.byteLength);
+  expect(replacement.subarray(0, 4).toString()).toBe("RIFF");
+  expect(replacement.subarray(8, 12).toString()).toBe("WEBP");
+  return replacement;
+};
+
+type ImageUsage = {
+  activeCount: number;
+  activeCountLimit: number;
+  activeBytes: number;
+  activeBytesLimit: number;
+  reservedCount: number;
+  reservedBytes: number;
+  pendingCleanupBytes: number;
+  pendingCleanupUnknownCount: number;
+  storedBytes: number;
+  storedBytesKnown: boolean;
+  storedBytesLimit: number;
+  dailyUploadDate: string;
+  dailyUploadCount: number;
+  dailyUploadLimit: number;
+};
+
+const currentImageUsage = async (page: Page) => {
+  const response = await page.request.get("/api/households/current/image-usage");
+  expect(response.status(), "image usage status").toBe(200);
+  return (await json(response)).data as ImageUsage;
+};
+
+const uploadWebp = async (
+  page: Page,
+  itemId: string,
+  buffer: Buffer,
+  filename: string,
+  diagnoseFailure = true
+) => {
+  const endpoint = `/api/shopping/items/${itemId}/image`;
+  const response = await page.request.put(endpoint, {
+    headers: origin(page),
+    multipart: {
+      image: { name: filename, mimeType: "image/webp", buffer },
+      width: String(imageWidth),
+      height: String(imageHeight)
+    }
+  });
+  if (diagnoseFailure && response.status() >= 400) {
+    await diagnoseUploadFailure({
+      response,
+      endpoint,
+      filename,
+      mimeType: "image/webp",
+      byteSize: buffer.byteLength,
+      width: imageWidth,
+      height: imageHeight
+    });
+  }
+  return response;
 };
 const diagnoseTaskFailure = async (input: {
   response: Awaited<ReturnType<Page["request"]["post"]>>;
@@ -375,51 +442,69 @@ test.describe("staging remaining E2E", () => {
       if (!memberHousehold) await join(pages.member, code);
       else if (memberHousehold.id !== ownerHousehold.id)
         throw new Error("member is not in the owner household");
+      const resolvedMemberHousehold = memberHousehold ?? await currentHousehold(pages.member);
+      if (!resolvedMemberHousehold || resolvedMemberHousehold.id !== ownerHousehold.id)
+        throw new Error("member household setup failed");
       const crossHousehold = await currentHousehold(pages.cross);
       if (!crossHousehold || crossHousehold.id === ownerHousehold.id)
         throw new Error("cross-house context is not isolated");
       completed.login = true;
 
-      for (const signal of Object.values(signals)) signal.setPhase("image-upload");
+      const ownerUsageStart = await currentImageUsage(pages.owner);
+      const memberUsageStart = await currentImageUsage(pages.member);
+      const crossUsageStart = await currentImageUsage(pages.cross);
+      expect(memberUsageStart, "owner/member image usage must match").toEqual(ownerUsageStart);
+      expect(ownerUsageStart.reservedCount).toBe(0);
+      expect(ownerUsageStart.reservedBytes).toBe(0);
+      expect(ownerUsageStart.activeCountLimit).toBe(50);
+      expect(ownerUsageStart.activeBytesLimit).toBe(52_428_800);
+      expect(ownerUsageStart.storedBytesLimit).toBe(78_643_200);
+      expect(ownerUsageStart.dailyUploadLimit).toBe(20);
+      expect(crossHousehold.id).not.toBe(ownerHousehold.id);
+
+      for (const signal of Object.values(signals)) signal.setPhase("image-create");
       const imageItemResponse = await pages.owner.request.post("/api/shopping/items", {
         headers: origin(pages.owner),
         data: { name: `${id} image item`, quantity: "1" }
       });
       expect(imageItemResponse.status()).toBe(201);
       const imageItemId = (await json(imageItemResponse)).data.item.id as string;
-      const imageFilename = "shopping-item-replacement.webp";
-      const imageMimeType = "image/webp";
-      const imageWidth = 640;
-      const imageHeight = 400;
       const imageBuffer = await validateWebpFixture();
-      const uploadPath = `/api/shopping/items/${imageItemId}/image`;
-      const upload = await pages.owner.request.put(
-        uploadPath,
-        {
-          headers: origin(pages.owner),
-          multipart: {
-            image: {
-              name: imageFilename,
-              mimeType: imageMimeType,
-              buffer: imageBuffer
-            },
-            width: String(imageWidth),
-            height: String(imageHeight)
-          }
-        }
+      const replacementBuffer = makeDifferentSizeWebp(imageBuffer);
+      const usageBeforeCreate = await currentImageUsage(pages.owner);
+      const upload = await uploadWebp(
+        pages.owner,
+        imageItemId,
+        imageBuffer,
+        "shopping-item-create.webp"
       );
-      if (upload.status() >= 400) {
-        await diagnoseUploadFailure({
-          response: upload,
-          endpoint: uploadPath,
-          filename: imageFilename,
-          mimeType: imageMimeType,
-          byteSize: imageBuffer.byteLength,
-          width: imageWidth,
-          height: imageHeight
-        });
-      }
       expect(upload.status()).toBe(200);
+      const createdImage = await pages.owner.request.get(
+        `/api/shopping/items/${imageItemId}/image`
+      );
+      expect(createdImage.status()).toBe(200);
+      const createdImageBody = await createdImage.body();
+      expect(createdImageBody.byteLength).toBe(imageBuffer.byteLength);
+      expect(createdImageBody.equals(imageBuffer)).toBeTruthy();
+      const usageAfterCreate = await currentImageUsage(pages.owner);
+      expect(usageAfterCreate.activeCount).toBe(usageBeforeCreate.activeCount + 1);
+      expect(usageAfterCreate.activeBytes).toBe(
+        usageBeforeCreate.activeBytes + imageBuffer.byteLength
+      );
+      expect(usageAfterCreate.dailyUploadCount).toBe(
+        usageBeforeCreate.dailyUploadCount + 1
+      );
+      expect(usageAfterCreate.reservedCount).toBe(0);
+      expect(usageAfterCreate.reservedBytes).toBe(0);
+      expect(usageAfterCreate.pendingCleanupBytes).toBe(
+        usageBeforeCreate.pendingCleanupBytes
+      );
+      expect(usageAfterCreate.storedBytes).toBe(
+        usageBeforeCreate.storedBytes + imageBuffer.byteLength
+      );
+      expect(await currentImageUsage(pages.member)).toEqual(usageAfterCreate);
+      expect(await currentImageUsage(pages.cross)).toEqual(crossUsageStart);
+
       for (const signal of Object.values(signals)) signal.setPhase("same-house-image");
       const item = await json(
         await pages.owner.request.get(`/api/shopping/items/${imageItemId}`)
@@ -431,13 +516,64 @@ test.describe("staging remaining E2E", () => {
       expect((await ownerImage.body()).byteLength).toBeGreaterThan(0);
       const memberImage = await pages.member.request.get(imagePath);
       expect(memberImage.status()).toBe(200);
+
+      for (const signal of Object.values(signals)) signal.setPhase("image-replace");
+      const usageBeforeReplace = await currentImageUsage(pages.owner);
+      const replace = await uploadWebp(
+        pages.owner,
+        imageItemId,
+        replacementBuffer,
+        "shopping-item-replacement.webp"
+      );
+      expect(replace.status()).toBe(200);
+      const replacedItem = await json(
+        await pages.owner.request.get(`/api/shopping/items/${imageItemId}`)
+      );
+      const replacedImagePath = `/api/shopping/items/${imageItemId}/image?v=${replacedItem.data.item.image.updatedAt}`;
+      const replacedImage = await pages.owner.request.get(replacedImagePath);
+      expect(replacedImage.status()).toBe(200);
+      const replacedImageBody = await replacedImage.body();
+      expect(replacedImageBody.byteLength).toBe(replacementBuffer.byteLength);
+      expect(replacedImageBody.equals(replacementBuffer)).toBeTruthy();
+      expect(replacedImageBody.equals(imageBuffer)).toBeFalsy();
+      const usageAfterReplace = await currentImageUsage(pages.owner);
+      expect(usageAfterReplace.activeCount).toBe(usageBeforeReplace.activeCount);
+      expect(usageAfterReplace.activeBytes).toBe(
+        usageBeforeReplace.activeBytes + replacementBuffer.byteLength - imageBuffer.byteLength
+      );
+      expect(usageAfterReplace.dailyUploadCount).toBe(
+        usageBeforeReplace.dailyUploadCount + 1
+      );
+      expect(usageAfterReplace.reservedCount).toBe(0);
+      expect(usageAfterReplace.reservedBytes).toBe(0);
+      expect(usageAfterReplace.pendingCleanupBytes).toBe(
+        usageBeforeReplace.pendingCleanupBytes
+      );
+
       signals.unauth.setPhase("unauthenticated-image");
-      const unauthImage = await pages.unauth.request.get(imagePath);
+      const unauthImage = await pages.unauth.request.get(replacedImagePath);
       expect([401, 404]).toContain(unauthImage.status());
       completed.unauthenticatedRejection = true;
       signals.cross.setPhase("cross-house-image");
-      const crossImage = await pages.cross.request.get(imagePath);
+      const ownerUsageBeforeCross = await currentImageUsage(pages.owner);
+      const crossUsageBeforeOperations = await currentImageUsage(pages.cross);
+      const crossImage = await pages.cross.request.get(replacedImagePath);
       expect([403, 404]).toContain(crossImage.status());
+      const crossUpload = await uploadWebp(
+        pages.cross,
+        imageItemId,
+        imageBuffer,
+        "cross-house-denied.webp",
+        false
+      );
+      expect([403, 404]).toContain(crossUpload.status());
+      const crossDelete = await pages.cross.request.delete(
+        `/api/shopping/items/${imageItemId}/image`,
+        { headers: origin(pages.cross), data: {} }
+      );
+      expect([403, 404]).toContain(crossDelete.status());
+      expect(await currentImageUsage(pages.owner)).toEqual(ownerUsageBeforeCross);
+      expect(await currentImageUsage(pages.cross)).toEqual(crossUsageBeforeOperations);
       completed.crossHouseRejection = true;
       signals.owner.beginNavigation();
       await pages.owner.goto(`/shopping/items/${imageItemId}`);
@@ -459,16 +595,75 @@ test.describe("staging remaining E2E", () => {
       await screenshot(pages.unauth, "unauthenticated-image-denied.png");
       await screenshot(pages.cross, "cross-house-image-denied.png");
       signals.owner.setPhase("deleted-image");
+      const usageBeforeDelete = await currentImageUsage(pages.owner);
       const deleteImage = await pages.owner.request.delete(
         `/api/shopping/items/${imageItemId}/image`,
         { headers: origin(pages.owner), data: {} }
       );
       expect(deleteImage.status()).toBe(200);
-      expect((await pages.owner.request.get(imagePath)).status()).toBe(404);
+      expect((await pages.owner.request.get(replacedImagePath)).status()).toBe(404);
+      const usageAfterDelete = await currentImageUsage(pages.owner);
+      expect(usageAfterDelete.activeCount).toBe(usageBeforeDelete.activeCount - 1);
+      expect(usageAfterDelete.activeBytes).toBe(
+        usageBeforeDelete.activeBytes - replacementBuffer.byteLength
+      );
+      expect(usageAfterDelete.dailyUploadCount).toBe(usageBeforeDelete.dailyUploadCount);
+      expect(usageAfterDelete.reservedCount).toBe(usageBeforeDelete.reservedCount);
+      expect(usageAfterDelete.reservedBytes).toBe(usageBeforeDelete.reservedBytes);
+      expect(usageAfterDelete.pendingCleanupBytes).toBe(
+        usageBeforeDelete.pendingCleanupBytes
+      );
+      const secondDeleteImage = await pages.owner.request.delete(
+        `/api/shopping/items/${imageItemId}/image`,
+        { headers: origin(pages.owner), data: {} }
+      );
+      expect(secondDeleteImage.status()).toBe(200);
+      expect(await currentImageUsage(pages.owner)).toEqual(usageAfterDelete);
       signals.owner.beginNavigation();
       await pages.owner.goto(`/shopping/items/${imageItemId}`);
       await screenshot(pages.owner, "deleted-image-denied.png");
       completed.deletedImage = true;
+
+      for (const signal of Object.values(signals)) signal.setPhase("image-item-delete");
+      const itemDeleteResponse = await pages.owner.request.post("/api/shopping/items", {
+        headers: origin(pages.owner),
+        data: { name: `${id} item delete`, quantity: "1" }
+      });
+      expect(itemDeleteResponse.status()).toBe(201);
+      const itemDeleteId = (await json(itemDeleteResponse)).data.item.id as string;
+      const usageBeforeItemUpload = await currentImageUsage(pages.owner);
+      const itemDeleteUpload = await uploadWebp(
+        pages.owner,
+        itemDeleteId,
+        imageBuffer,
+        "shopping-item-delete.webp"
+      );
+      expect(itemDeleteUpload.status()).toBe(200);
+      const usageAfterItemUpload = await currentImageUsage(pages.owner);
+      expect(usageAfterItemUpload.activeCount).toBe(usageBeforeItemUpload.activeCount + 1);
+      expect(usageAfterItemUpload.activeBytes).toBe(
+        usageBeforeItemUpload.activeBytes + imageBuffer.byteLength
+      );
+      expect(usageAfterItemUpload.dailyUploadCount).toBe(
+        usageBeforeItemUpload.dailyUploadCount + 1
+      );
+      const deleteItem = await pages.owner.request.delete(
+        `/api/shopping/items/${itemDeleteId}`,
+        { headers: origin(pages.owner), data: {} }
+      );
+      expect(deleteItem.status()).toBe(200);
+      const usageAfterItemDelete = await currentImageUsage(pages.owner);
+      expect(usageAfterItemDelete.activeCount).toBe(usageAfterItemUpload.activeCount - 1);
+      expect(usageAfterItemDelete.activeBytes).toBe(
+        usageAfterItemUpload.activeBytes - imageBuffer.byteLength
+      );
+      expect(usageAfterItemDelete.dailyUploadCount).toBe(
+        usageAfterItemUpload.dailyUploadCount
+      );
+      expect(usageAfterItemDelete.pendingCleanupBytes).toBe(
+        usageAfterItemUpload.pendingCleanupBytes
+      );
+      expect((await pages.owner.request.get(`/api/shopping/items/${imageItemId}`)).status()).toBe(200);
 
       for (const signal of Object.values(signals)) signal.setPhase("task-sync");
       const daily = await createTask(pages.owner, `${id} daily`, "daily");
@@ -530,6 +725,31 @@ test.describe("staging remaining E2E", () => {
       await expect(pages.owner.getByText(`${id} shopping edited`)).toBeVisible();
       await screenshot(pages.member, "member-shopping-state-reflection.png");
       completed.shoppingSync = true;
+
+      // Do not call clear-purchased in persistent staging households: existing purchased
+      // items may be present. Local tests jointly cover multi-image count/byte decrements,
+      // R2 deletion failures and orphan queuing, and idempotent cleanup behavior.
+      const deleteImageItem = await pages.owner.request.delete(
+        `/api/shopping/items/${imageItemId}`,
+        { headers: origin(pages.owner), data: {} }
+      );
+      expect(deleteImageItem.status()).toBe(200);
+      const ownerUsageFinal = await currentImageUsage(pages.owner);
+      const memberUsageFinal = await currentImageUsage(pages.member);
+      const crossUsageFinal = await currentImageUsage(pages.cross);
+      expect(memberUsageFinal).toEqual(ownerUsageFinal);
+      expect(ownerUsageFinal.activeCount).toBe(ownerUsageStart.activeCount);
+      expect(ownerUsageFinal.activeBytes).toBe(ownerUsageStart.activeBytes);
+      expect(ownerUsageFinal.reservedCount).toBe(0);
+      expect(ownerUsageFinal.reservedBytes).toBe(0);
+      expect(ownerUsageFinal.pendingCleanupBytes).toBe(
+        ownerUsageStart.pendingCleanupBytes
+      );
+      expect(ownerUsageFinal.storedBytes).toBe(ownerUsageStart.storedBytes);
+      expect(ownerUsageFinal.dailyUploadCount).toBe(
+        ownerUsageStart.dailyUploadCount + 3
+      );
+      expect(crossUsageFinal).toEqual(crossUsageStart);
 
       const expectedLoginAuth401: BrowserSignal[] = [];
       const expectedUnauthenticatedImageAuth401: BrowserSignal[] = [];

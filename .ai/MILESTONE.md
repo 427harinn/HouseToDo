@@ -47,3 +47,11 @@ Pending cleanup bytes are recalculated on every queue deletion or retry/abandone
 ## 2026-08-05 Image deletion active usage consistency
 
 Image metadata deletion and active count/bytes updates are now atomic and idempotent for image DELETE. Shopping item deletion and purchased-item bulk deletion also update active usage before the subsequent R2 cleanup. R2 failures move capacity to the orphan queue/pending cleanup without restoring active usage; queue registration failure is surfaced as an internal error. Household deletion remains dependent on existing FK cascades, with no new migration. The staging stop condition caused by stale active counters is resolved; next step is staging migration/deploy pre-review.
+
+## 2026-08-09 Staging image usage verification
+
+- Staging migration `0008` is applied; active Worker Version ID is `90b2f016-5270-4fe7-9ee0-28e7f5e60823`.
+- Dedicated staging data verified owner/member usage equality, cross-house isolation, create, replace, image DELETE, double DELETE, image-bearing item deletion, zero final reservations, unchanged pending cleanup, and final active usage restoration.
+- Remote purchased-item bulk deletion remains intentionally unexecuted because nine pre-existing purchased items make the persistent household unsafe to clear. Local tests cover multi-image decrements, partial R2 failures/orphans, and idempotency.
+- Workers Logs were a constrained confirmation: an initial target typo missed mutations, stored telemetry was token-forbidden, and a corrected 15-minute tail plus 45-second raw sample found no HTTP 500, D1/R2 error, or secret/full ID/key leakage candidate.
+- Production was untouched; no deploy, remote migration, Cron change, production operation, or push occurred.
