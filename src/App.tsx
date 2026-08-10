@@ -5,6 +5,7 @@ import { ApiError, apiMessage } from "./api/client";
 import {
   getVapidPublicKey,
   registerPushSubscription,
+  runApplePushNetworkProbe,
   sendTestPushNotification,
   unregisterPushSubscription
 } from "./api/notifications";
@@ -101,6 +102,7 @@ import type {
 import { formatBytes } from "./lib/format";
 import { getBrowserCapabilities, type BrowserCapabilities } from "./lib/capabilities";
 import { urlBase64ToUint8Array } from "./lib/vapid";
+import { isDiagnosticEnvironment } from "./lib/diagnostic-visibility";
 
 type StaticRoute =
   | "/"
@@ -1942,6 +1944,17 @@ function NotificationSettingsSection() {
     import.meta.env.DEV ||
     (typeof window !== "undefined" &&
       window.location.hostname === "house-to-do-staging.427harinn.workers.dev");
+  const diagnosticVisible =
+    typeof window !== "undefined" &&
+    isDiagnosticEnvironment(import.meta.env.MODE, window.location.hostname);
+  const [diagnosticState, setDiagnosticState] = useState<
+    "idle" | "running" | "success" | "error"
+  >("idle");
+  const [diagnosticResult, setDiagnosticResult] = useState<
+    | { kind: "success"; status: number }
+    | { kind: "error"; details: Record<string, string> }
+    | null
+  >(null);
 
   const refresh = useCallback(async () => {
     const next = getBrowserCapabilities();
@@ -2079,6 +2092,40 @@ function NotificationSettingsSection() {
     }
   };
 
+  const runDiagnostic = async () => {
+    if (diagnosticState === "running") return;
+    setDiagnosticState("running");
+    setDiagnosticResult(null);
+    try {
+      const result = await runApplePushNetworkProbe();
+      setDiagnosticState("success");
+      setDiagnosticResult({ kind: "success", status: result.status });
+    } catch (error) {
+      const details = error instanceof ApiError ? error.details ?? {} : {};
+      const safeDetails = Object.fromEntries(
+        [
+          "stage",
+          "errorCategory",
+          "requestPhase",
+          "errorName",
+          "causeCode",
+          "pushService",
+          "upstreamStatus"
+        ].flatMap((key) =>
+          typeof details[key] === "string" ? [[key, details[key]]] : []
+        )
+      );
+      setDiagnosticState("error");
+      setDiagnosticResult({
+        kind: "error",
+        details: {
+          errorCategory: "network_failed",
+          ...safeDetails
+        }
+      });
+    }
+  };
+
   const status =
     state === "unsupported"
       ? "このブラウザでは通知を利用できません"
@@ -2119,6 +2166,36 @@ function NotificationSettingsSection() {
         >
           {testPushState === "sending" ? <InlineLoading /> : "テスト通知を送る"}
         </Button>
+      ) : null}
+      {diagnosticVisible ? (
+        <div className="stack">
+          <p className="form-note">診断用。実Pushは送信しません。</p>
+          <Button
+            disabled={diagnosticState === "running"}
+            variant="secondary"
+            onClick={() => void runDiagnostic()}
+          >
+            {diagnosticState === "running" ? (
+              <InlineLoading label="診断中" />
+            ) : (
+              "診断用 Apple通信診断"
+            )}
+          </Button>
+          {diagnosticResult?.kind === "success" ? (
+            <p role="status">
+              Apple通信診断: HTTP {diagnosticResult.status}
+              <br />
+              transport success
+            </p>
+          ) : diagnosticResult?.kind === "error" ? (
+            <div role="status">
+              <p>Apple通信診断:</p>
+              {Object.entries(diagnosticResult.details).map(([key, value]) => (
+                <p key={key}>{key}: {value}</p>
+              ))}
+            </div>
+          ) : null}
+        </div>
       ) : null}
     </Card>
   );

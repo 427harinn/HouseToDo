@@ -1,5 +1,21 @@
 import { apiRequest } from "./client";
 
+export type ApplePushNetworkProbeResult = {
+  ok: true;
+  mode: string;
+  status: number;
+};
+
+export type ApplePushNetworkProbeFailure = {
+  stage?: string;
+  errorCategory?: string;
+  requestPhase?: string;
+  errorName?: string;
+  causeCode?: string;
+  pushService?: string;
+  upstreamStatus?: string;
+};
+
 export const getVapidPublicKey = (signal?: AbortSignal) =>
   apiRequest<{ publicKey: string }>("/api/notifications/vapid-public-key", { signal });
 
@@ -23,3 +39,8 @@ export const sendTestPushNotification = () =>
     method: "POST",
     body: JSON.stringify({})
   });
+
+export const runApplePushNetworkProbe = () =>
+  apiRequest<ApplePushNetworkProbeResult>(
+    "/api/notifications/network-probe?mode=post-authorization-fixed-host"
+  );

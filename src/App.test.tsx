@@ -320,6 +320,84 @@ describe("App members UI", () => {
     expect(screen.getByRole("button", { name: "招待コードを発行" })).toBeInTheDocument();
   }, 15000);
 
+  it("runs the staging diagnostic only after a click and shows transport success", async () => {
+    let resolveProbe!: (response: Response) => void;
+    const probeResponse = new Promise<Response>((resolve) => {
+      resolveProbe = resolve;
+    });
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.endsWith("/api/auth/me")) return Promise.resolve(ok({ user }));
+      if (url.endsWith("/api/households/current")) return Promise.resolve(ok({ household }));
+      if (url.endsWith("/api/households/current/members")) return Promise.resolve(ok({ members }));
+      if (url.endsWith("/api/households/current/image-usage")) return Promise.resolve(ok(imageUsage));
+      if (url.includes("/api/notifications/network-probe?mode=post-authorization-fixed-host")) return probeResponse;
+      return Promise.resolve(failure("NOT_FOUND", 404));
+    });
+    window.history.replaceState({}, "", "/settings/members");
+
+    render(<App />);
+
+    await screen.findByText(members[0].displayName);
+    const diagnosticButton = screen.getByRole("button", { name: "診断用 Apple通信診断" });
+    const requestsBeforeClick = fetchMock.mock.calls.map(([input]) =>
+      typeof input === "string" ? input : input instanceof URL ? input.href : input.url
+    );
+    expect(requestsBeforeClick.some((url) => url.includes("network-probe"))).toBe(false);
+    fireEvent.click(diagnosticButton);
+    expect(diagnosticButton).toBeDisabled();
+
+    resolveProbe(ok({ ok: true, mode: "post-authorization-fixed-host", status: 403 }));
+    expect(await screen.findByText(/transport success/)).toBeInTheDocument();
+    const probeCalls = fetchMock.mock.calls.filter(([input]) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      return url.includes("network-probe");
+    });
+    expect(probeCalls).toHaveLength(1);
+    const probeInit = probeCalls[0]?.[1];
+    expect(probeInit).toMatchObject({ credentials: "include" });
+    expect(new Headers(probeInit?.headers).has("Authorization")).toBe(false);
+  }, 15000);
+
+  it("shows only safe diagnostics when the staging probe fails", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.endsWith("/api/auth/me")) return Promise.resolve(ok({ user }));
+      if (url.endsWith("/api/households/current")) return Promise.resolve(ok({ household }));
+      if (url.endsWith("/api/households/current/members")) return Promise.resolve(ok({ members }));
+      if (url.endsWith("/api/households/current/image-usage")) return Promise.resolve(ok(imageUsage));
+      if (url.includes("/api/notifications/network-probe?mode=post-authorization-fixed-host")) {
+        return Promise.resolve(new Response(JSON.stringify({
+          ok: false,
+          error: {
+            code: "WEB_PUSH_NETWORK_PROBE_FAILED",
+            message: "Apple Push network probe failed.",
+            details: {
+              stage: "network",
+              errorCategory: "network_failed",
+              requestPhase: "fetch_call",
+              errorName: "TypeError",
+              causeCode: "null",
+              pushService: "apple",
+              upstreamStatus: "null"
+            }
+          },
+          requestId: "req-1"
+        }), { status: 502, headers: { "content-type": "application/json" }}));
+      }
+      return Promise.resolve(failure("NOT_FOUND", 404));
+    });
+    window.history.replaceState({}, "", "/settings/members");
+
+    render(<App />);
+    await screen.findByText(members[0].displayName);
+    fireEvent.click(screen.getByRole("button", { name: "診断用 Apple通信診断" }));
+
+    expect(await screen.findByText(/network_failed/)).toBeInTheDocument();
+    expect(screen.getByText(/TypeError/)).toBeInTheDocument();
+    expect(screen.queryByText(/Bearer|Authorization|endpoint|VAPID|JWT|Cookie|session/i)).not.toBeInTheDocument();
+  }, 15000);
+
   it("does not show the invite action for a member", async () => {
     const memberHousehold = { ...household, role: "member" };
     mockFetch(memberHousehold);
