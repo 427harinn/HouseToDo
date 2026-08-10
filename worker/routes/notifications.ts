@@ -13,6 +13,7 @@ import { WebPushService } from "../services/web-push-service";
 
 const APPLE_PUSH_PROBE_URL = "https://web.push.apple.com/";
 const detailedEnvironments = new Set(["staging", "development", "test"]);
+const probeModes = new Set(["get", "post-empty", "post-basic-headers", "post-body"]);
 const safeProbeErrorNames = new Set([
   "AbortError",
   "Error",
@@ -41,6 +42,29 @@ const safeProbeCauseCode = (thrown: unknown): string | null => {
   }
   const code = (thrown.cause as { code?: unknown }).code;
   return typeof code === "string" && safeProbeCauseCodes.has(code) ? code : null;
+};
+
+const probeRequestInit = (mode: string): RequestInit => {
+  switch (mode) {
+    case "post-empty":
+      return { method: "POST" };
+    case "post-basic-headers":
+      return {
+        method: "POST",
+        headers: {
+          TTL: "60",
+          "Content-Type": "application/octet-stream"
+        }
+      };
+    case "post-body":
+      return {
+        method: "POST",
+        headers: { "Content-Type": "application/octet-stream" },
+        body: new Uint8Array([1, 2, 3])
+      };
+    default:
+      return { method: "GET" };
+  }
 };
 
 const requireUserId = (userId: string | undefined): string => {
@@ -146,20 +170,30 @@ export const applePushNetworkProbeRoute: Handler = requireAuth(async (context) =
     throw new AppError({ code: "NOT_FOUND", status: 404, message: "Not found." });
   }
 
+  const mode = new URL(context.request.url).searchParams.get("mode") ?? "get";
+  if (!probeModes.has(mode)) {
+    throw new AppError({
+      code: "VALIDATION_ERROR",
+      status: 400,
+      message: "Invalid network probe mode.",
+      details: { mode: "Unsupported probe mode." }
+    });
+  }
+
   try {
-    const response = await fetch(APPLE_PUSH_PROBE_URL, { method: "GET" });
-    console.info("network_probe_completed", { status: response.status });
-    return okJson({ ok: true, status: response.status }, context.requestId);
+    const response = await fetch(APPLE_PUSH_PROBE_URL, probeRequestInit(mode));
+    console.info("network_probe_completed", { mode, status: response.status });
+    return okJson({ ok: true, mode, status: response.status }, context.requestId);
   } catch (error) {
     const errorName = safeProbeErrorName(error);
     const causeCode = safeProbeCauseCode(error);
-    console.error("network_probe_failed", { errorName, causeCode });
+    console.error("network_probe_failed", { mode, errorName, causeCode });
     return errorJson(
       new AppError({
         code: "WEB_PUSH_NETWORK_PROBE_FAILED",
         status: 502,
         message: "Apple Push network probe failed.",
-        details: { errorName, causeCode: causeCode ?? "null" }
+        details: { mode, errorName, causeCode: causeCode ?? "null" }
       }),
       context.requestId
     );

@@ -42,15 +42,30 @@ const register = async (app: ReturnType<typeof createApp>, env: Env, email: stri
 };
 
 describe("notification subscription API", () => {
-  it.each([200, 404, 405])("reports an Apple host HTTP response as a successful probe (%s)", async (status) => {
+  it.each([
+    ["get", { method: "GET" }],
+    ["post-empty", { method: "POST" }],
+    [
+      "post-basic-headers",
+      { method: "POST", headers: { TTL: "60", "Content-Type": "application/octet-stream" } }
+    ],
+    [
+      "post-body",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/octet-stream" },
+        body: new Uint8Array([1, 2, 3])
+      }
+    ]
+  ] as const)("reports an Apple host HTTP response as a successful %s probe", async (mode, init) => {
     const app = createApp();
     const env = createTestEnv();
-    const cookie = await register(app, env, `probe-${status}@example.com`);
-    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status }));
+    const cookie = await register(app, env, `probe-${mode}@example.com`);
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 405 }));
     vi.stubGlobal("fetch", fetchMock);
 
     const response = await app.fetch(
-      request("/api/notifications/network-probe?url=https://attacker.example", {
+      request(`/api/notifications/network-probe?mode=${mode}&url=https://attacker.example`, {
         headers: { cookie }
       }),
       env
@@ -59,9 +74,30 @@ describe("notification subscription API", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
       ok: true,
-      data: { ok: true, status }
+      data: { ok: true, mode, status: 405 }
     });
-    expect(fetchMock).toHaveBeenCalledWith("https://web.push.apple.com/", { method: "GET" });
+    expect(fetchMock).toHaveBeenCalledWith("https://web.push.apple.com/", init);
+    vi.restoreAllMocks();
+  });
+
+  it.each(["evil", "post-content-encoding"])("rejects unsupported probe mode %s", async (mode) => {
+    const app = createApp();
+    const env = createTestEnv();
+    const cookie = await register(app, env, `probe-invalid-${mode}@example.com`);
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await app.fetch(
+      request(`/api/notifications/network-probe?mode=${mode}`, { headers: { cookie } }),
+      env
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      error: { code: "VALIDATION_ERROR", details: { mode: "Unsupported probe mode." } }
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
     vi.restoreAllMocks();
   });
 
@@ -119,10 +155,12 @@ describe("notification subscription API", () => {
     expect(response.status).toBe(502);
     expect(body).toContain('"errorName":"TypeError"');
     expect(body).toContain('"causeCode":"null"');
+    expect(body).toContain('"mode":"get"');
     expect(body).not.toContain("secret.example");
     expect(body).not.toContain("token");
     expect(body).not.toContain("stack");
     expect(log).toHaveBeenCalledWith("network_probe_failed", {
+      mode: "get",
       errorName: "TypeError",
       causeCode: null
     });
