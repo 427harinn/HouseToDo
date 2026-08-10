@@ -275,6 +275,60 @@ describe("notification subscription API", () => {
     vi.restoreAllMocks();
   });
 
+  it("probes the fixed Apple root with dummy Authorization and no body", async () => {
+    const app = createApp();
+    const env = createTestEnv();
+    const cookie = await register(app, env, "fixed-host-auth@example.com");
+    const fetchMock = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(null, { status: 403 }))
+      .mockRejectedValueOnce(new TypeError("secret endpoint"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await app.fetch(
+      request("/api/notifications/network-probe?mode=post-authorization-fixed-host", {
+        headers: { cookie }
+      }),
+      env
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      data: { ok: true, mode: "post-authorization-fixed-host", status: 403 }
+    });
+    expect(fetchMock).toHaveBeenCalledWith("https://web.push.apple.com/", {
+      method: "POST",
+      headers: { Authorization: "Bearer probe" }
+    });
+    const second = await app.fetch(
+      request("/api/notifications/network-probe?mode=post-authorization-fixed-host", {
+        headers: { cookie }
+      }),
+      env
+    );
+    const secondBody = await second.text();
+    expect(second.status).toBe(502);
+    expect(secondBody).toContain('"stage":"network"');
+    expect(secondBody).toContain('"errorCategory":"network_failed"');
+    expect(secondBody).toContain('"requestPhase":"fetch_call"');
+    expect(secondBody).toContain('"errorName":"TypeError"');
+    expect(secondBody).toContain('"pushService":"apple"');
+    expect(secondBody).toContain('"upstreamStatus":"null"');
+    expect(secondBody).not.toContain("Authorization");
+    expect(secondBody).not.toContain("secret endpoint");
+    const production = { ...env, APP_ENV: "production" as const };
+    await expect(
+      app.fetch(
+        request("/api/notifications/network-probe?mode=post-authorization-fixed-host", {
+          headers: { cookie }
+        }),
+        production
+      )
+    ).resolves.toMatchObject({ status: 404 });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    vi.restoreAllMocks();
+  });
+
   it("probes only the authenticated user's active Apple HTTPS subscriptions with an empty POST", async () => {
     const app = createApp();
     const db = new MemoryD1();

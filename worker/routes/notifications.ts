@@ -20,6 +20,7 @@ const probeModes = new Set([
   "post-basic-headers",
   "post-body",
   "post-content-encoding",
+  "post-authorization-fixed-host",
   "subscription-post-empty",
   "subscription-post-vapid",
   "subscription-post-authorization-dummy"
@@ -81,6 +82,11 @@ const probeRequestInit = (mode: string): RequestInit => {
           "Content-Encoding": "aes128gcm"
         },
         body: new Uint8Array([1, 2, 3])
+      };
+    case "post-authorization-fixed-host":
+      return {
+        method: "POST",
+        headers: { Authorization: "Bearer probe" }
       };
     default:
       return { method: "GET" };
@@ -301,6 +307,34 @@ export const applePushNetworkProbeRoute: Handler = requireAuth(async (context) =
   } catch (error) {
     const errorName = safeProbeErrorName(error);
     const causeCode = safeProbeCauseCode(error);
+    if (mode === "post-authorization-fixed-host") {
+      console.error("network_probe_failed", {
+        stage: "network",
+        errorCategory: "network_failed",
+        requestPhase: "fetch_call",
+        errorName,
+        causeCode,
+        pushService: "apple",
+        upstreamStatus: null
+      });
+      return errorJson(
+        new AppError({
+          code: "WEB_PUSH_NETWORK_PROBE_FAILED",
+          status: 502,
+          message: "Apple Push network probe failed.",
+          details: {
+            stage: "network",
+            errorCategory: "network_failed",
+            requestPhase: "fetch_call",
+            errorName,
+            causeCode: causeCode ?? "null",
+            pushService: "apple",
+            upstreamStatus: "null"
+          }
+        }),
+        context.requestId
+      );
+    }
     console.error("network_probe_failed", { mode, errorName, causeCode });
     return errorJson(
       new AppError({
