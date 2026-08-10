@@ -5,6 +5,73 @@ import {
   type PushSubscriptionRecord
 } from "../repositories/push-subscription-repository";
 
+export type WebPushFailureStage =
+  | "config"
+  | "subscription"
+  | "vapid"
+  | "encryption"
+  | "network"
+  | "push_service";
+
+export type WebPushErrorCategory =
+  | "missing_config"
+  | "invalid_subscription"
+  | "vapid_key_import_failed"
+  | "vapid_sign_failed"
+  | "payload_encrypt_failed"
+  | "network_failed"
+  | "push_service_auth_failed"
+  | "push_service_rate_limited"
+  | "push_service_stale"
+  | "push_service_server_error"
+  | "push_service_client_error"
+  | "subscription_state_update_failed"
+  | "unknown";
+
+export type WebPushFailure = {
+  stage: WebPushFailureStage;
+  errorCategory: WebPushErrorCategory;
+  upstreamStatus: number | null;
+};
+
+export type WebPushSendResult = {
+  sent: number;
+  failed: number;
+  failure?: WebPushFailure;
+};
+
+type WebPushAttemptResult =
+  | { status: "sent"; upstreamStatus: number }
+  | { status: "stale" | "failed"; failure: WebPushFailure };
+
+class ClassifiedWebPushError extends Error {
+  constructor(readonly failure: WebPushFailure) {
+    super("web-push-classified-failure");
+    this.name = "ClassifiedWebPushError";
+  }
+}
+
+const isDetailedEnvironment = (appEnv: string | undefined): boolean =>
+  appEnv === "staging" || appEnv === "development" || appEnv === "test";
+
+const logWebPushFailure = (
+  appEnv: string | undefined,
+  failure: WebPushFailure
+): void => {
+  if (!isDetailedEnvironment(appEnv)) return;
+  console.error("web_push_send_failed", {
+    stage: failure.stage,
+    errorCategory: failure.errorCategory,
+    upstreamStatus: failure.upstreamStatus
+  });
+};
+
+const failure = (
+  stage: WebPushFailureStage,
+  errorCategory: WebPushErrorCategory,
+  upstreamStatus: number | null = null
+): WebPushFailure => ({ stage, errorCategory, upstreamStatus });
+
 const encoder = new TextEncoder();
 const concat = (...parts: Uint8Array[]) => {
   const output = new Uint8Array(parts.reduce((size, part) => size + part.length, 0));
@@ -122,13 +189,20 @@ const createVapidAuthorization = async (
   privateKeyText: string,
   publicKey: string
 ): Promise<string> => {
-  const privateKey = await crypto.subtle.importKey(
-    "jwk",
-    parsePrivateJwk(privateKeyText),
-    { name: "ECDSA", namedCurve: "P-256" },
-    false,
-    ["sign"]
-  );
+  let privateKey: CryptoKey;
+  try {
+    privateKey = await crypto.subtle.importKey(
+      "jwk",
+      parsePrivateJwk(privateKeyText),
+      { name: "ECDSA", namedCurve: "P-256" },
+      false,
+      ["sign"]
+    );
+  } catch {
+    throw new ClassifiedWebPushError(
+      failure("vapid", "vapid_key_import_failed")
+    );
+  }
   const audience = new URL(endpoint).origin;
   const header = bytesToBase64Url(
     encoder.encode(JSON.stringify({ typ: "JWT", alg: "ES256" }))
@@ -143,13 +217,20 @@ const createVapidAuthorization = async (
     )
   );
   const input = encoder.encode(`${header}.${body}`);
-  const signature = new Uint8Array(
-    await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, privateKey, input)
-  );
+  let signature: Uint8Array;
+  try {
+    signature = new Uint8Array(
+      await crypto.subtle.sign(
+        { name: "ECDSA", hash: "SHA-256" },
+        privateKey,
+        input
+      )
+    );
+  } catch {
+    throw new ClassifiedWebPushError(failure("vapid", "vapid_sign_failed"));
+  }
   return `vapid t=${header}.${body}.${bytesToBase64Url(signature)}, k=${publicKey}`;
 };
-
-export type PushDeliveryResult = "sent" | "stale" | "failed";
 
 export class WebPushService {
   private readonly repository: PushSubscriptionRepository;
@@ -164,22 +245,26 @@ export class WebPushService {
     userId: string,
     householdId: string,
     env: {
+      APP_ENV?: string;
       WEB_PUSH_VAPID_PUBLIC_KEY?: string;
       WEB_PUSH_VAPID_PRIVATE_KEY?: string;
       WEB_PUSH_SUBJECT?: string;
     }
-  ): Promise<{ sent: number; failed: number }> {
+  ): Promise<WebPushSendResult> {
     const publicKey = env.WEB_PUSH_VAPID_PUBLIC_KEY?.trim();
     const privateKey = env.WEB_PUSH_VAPID_PRIVATE_KEY?.trim();
     const subject = env.WEB_PUSH_SUBJECT?.trim();
-    if (!publicKey || !privateKey || !subject || !/^(mailto:|https:)/.test(subject))
+    if (!publicKey || !privateKey || !subject || !/^(mailto:|https:)/.test(subject)) {
+      logWebPushFailure(env.APP_ENV, failure("config", "missing_config"));
       throw new Error("push-config-missing");
+    }
     const subscriptions = await this.repository.listActiveByUserHousehold(
       userId,
       householdId
     );
     let sent = 0;
     let failed = 0;
+    let firstFailure: WebPushFailure | undefined;
     for (const subscription of subscriptions) {
       const result = await this.sendOne(
         subscription,
@@ -193,10 +278,15 @@ export class WebPushService {
         privateKey,
         subject
       );
-      if (result === "sent") sent += 1;
-      else failed += 1;
+      if (result.status === "sent") {
+        sent += 1;
+      } else {
+        failed += 1;
+        firstFailure ??= result.failure;
+        logWebPushFailure(env.APP_ENV, result.failure);
+      }
     }
-    return { sent, failed };
+    return { sent, failed, ...(firstFailure ? { failure: firstFailure } : {}) };
   }
 
   private async sendOne(
@@ -205,43 +295,96 @@ export class WebPushService {
     publicKey: string,
     privateKey: string,
     subject: string
-  ): Promise<PushDeliveryResult> {
+  ): Promise<WebPushAttemptResult> {
+    let body: Uint8Array;
     try {
-      const body = await encryptPayload(subscription, JSON.stringify(payload));
-      const response = await this.fetcher(subscription.endpoint, {
+      body = await encryptPayload(subscription, JSON.stringify(payload));
+    } catch (error) {
+      const errorCategory =
+        error instanceof Error &&
+        (error.message === "invalid-p256dh" || error.message === "invalid-auth")
+          ? "invalid_subscription"
+          : "payload_encrypt_failed";
+      return {
+        status: "failed",
+        failure: failure("encryption", errorCategory)
+      };
+    }
+
+    let authorization: string;
+    try {
+      authorization = await createVapidAuthorization(
+        subscription.endpoint,
+        subject,
+        privateKey,
+        publicKey
+      );
+    } catch (error) {
+      if (error instanceof ClassifiedWebPushError) {
+        return { status: "failed", failure: error.failure };
+      }
+      return {
+        status: "failed",
+        failure: failure("vapid", "unknown")
+      };
+    }
+
+    let response: Response;
+    try {
+      response = await this.fetcher(subscription.endpoint, {
         method: "POST",
         headers: {
-          Authorization: await createVapidAuthorization(
-            subscription.endpoint,
-            subject,
-            privateKey,
-            publicKey
-          ),
+          Authorization: authorization,
           "Content-Encoding": "aes128gcm",
           TTL: "60",
           "Content-Type": "application/octet-stream"
         },
         body
       });
-      const now = nowIso();
-      if (response.status >= 200 && response.status < 300) {
-        await this.repository.markSuccess(subscription.id, now);
-        return "sent";
-      }
-      if (response.status === 404 || response.status === 410) {
-        await this.repository.markDisabled(subscription.id, now);
-        return "stale";
-      }
-      return "failed";
-    } catch (error) {
-      console.warn(
-        JSON.stringify({
-          event: "web_push_delivery_failed",
-          endpointSuffix: subscription.endpoint_hash?.slice(-8) ?? "unknown",
-          errorCode: error instanceof Error ? error.message : "unknown"
-        })
-      );
-      return "failed";
+    } catch {
+      return {
+        status: "failed",
+        failure: failure("network", "network_failed")
+      };
     }
+
+    const now = nowIso();
+    if (response.status >= 200 && response.status < 300) {
+      try {
+        await this.repository.markSuccess(subscription.id, now);
+      } catch {
+        return {
+          status: "failed",
+          failure: failure("subscription", "subscription_state_update_failed")
+        };
+      }
+      return { status: "sent", upstreamStatus: response.status };
+    }
+
+    const responseFailure =
+      response.status === 404 || response.status === 410
+        ? failure("push_service", "push_service_stale", response.status)
+        : response.status === 401 || response.status === 403
+          ? failure("push_service", "push_service_auth_failed", response.status)
+          : response.status === 429
+            ? failure("push_service", "push_service_rate_limited", 429)
+            : response.status >= 500
+              ? failure("push_service", "push_service_server_error", response.status)
+              : response.status >= 400
+                ? failure("push_service", "push_service_client_error", response.status)
+                : failure("push_service", "unknown", response.status);
+
+    if (responseFailure.errorCategory === "push_service_stale") {
+      try {
+        await this.repository.markDisabled(subscription.id, now);
+      } catch {
+        return {
+          status: "failed",
+          failure: failure("subscription", "subscription_state_update_failed")
+        };
+      }
+      return { status: "stale", failure: responseFailure };
+    }
+    return { status: "failed", failure: responseFailure };
   }
 }

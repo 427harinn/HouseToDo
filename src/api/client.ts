@@ -25,7 +25,8 @@ export type ApiErrorCode =
   | "INTERNAL_ERROR"
   | "NETWORK_ERROR"
   | "INVALID_RESPONSE"
-  | "PUSH_CONFIG_UNAVAILABLE";
+  | "PUSH_CONFIG_UNAVAILABLE"
+  | "WEB_PUSH_SEND_FAILED";
 
 export class ApiError extends Error {
   readonly code: ApiErrorCode;
@@ -149,6 +150,8 @@ export const apiMessage = (error: unknown): string => {
       return "招待コードの有効期限が切れています。";
     case "INVITE_ALREADY_USED":
       return "この招待コードはすでに使用されています。";
+    case "WEB_PUSH_SEND_FAILED":
+      return "テスト通知を送信できませんでした。";
     case "VALIDATION_ERROR":
       return "入力内容を確認してください。";
     default:

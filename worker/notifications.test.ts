@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { createApp } from "./app";
+import { bytesToBase64Url } from "./lib/crypto";
 import { MemoryD1 } from "./test-utils/memory-d1";
 import { MemoryR2 } from "./test-utils/memory-r2";
 import type { Env } from "./types/env";
+import { vi } from "vitest";
 
 const createTestEnv = (db = new MemoryD1(), publicKey?: string): Env =>
   ({
@@ -232,5 +234,76 @@ describe("notification subscription API", () => {
         )
       ).status
     ).toBe(404);
+  });
+
+  it("returns safe web push failure diagnostics without sensitive fields", async () => {
+    const app = createApp();
+    const db = new MemoryD1();
+    const env = createTestEnv(db);
+    const user = await crypto.subtle.generateKey(
+      { name: "ECDH", namedCurve: "P-256" },
+      true,
+      ["deriveBits"]
+    );
+    const vapid = await crypto.subtle.generateKey(
+      { name: "ECDSA", namedCurve: "P-256" },
+      true,
+      ["sign", "verify"]
+    );
+    env.WEB_PUSH_VAPID_PUBLIC_KEY = bytesToBase64Url(
+      new Uint8Array(await crypto.subtle.exportKey("raw", vapid.publicKey))
+    );
+    env.WEB_PUSH_VAPID_PRIVATE_KEY = JSON.stringify(
+      await crypto.subtle.exportKey("jwk", vapid.privateKey)
+    );
+    env.WEB_PUSH_SUBJECT = "mailto:test@example.com";
+    const cookie = await register(app, env, "diagnostics@example.com");
+    await app.fetch(
+      request("/api/households", {
+        method: "POST",
+        headers: { cookie },
+        body: JSON.stringify({ name: "Diagnostics" })
+      }),
+      env
+    );
+    await app.fetch(
+      request("/api/notifications/subscriptions", {
+        method: "POST",
+        headers: { cookie },
+        body: JSON.stringify({
+          endpoint: "https://127.0.0.1:1/push",
+          keys: {
+            p256dh: bytesToBase64Url(
+              new Uint8Array(await crypto.subtle.exportKey("raw", user.publicKey))
+            ),
+            auth: bytesToBase64Url(crypto.getRandomValues(new Uint8Array(16)))
+          }
+        })
+      }),
+      env
+    );
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network")));
+    const response = await app.fetch(
+      request("/api/notifications/test", {
+        method: "POST",
+        headers: { cookie },
+        body: "{}"
+      }),
+      env
+    );
+    const body = await response.json();
+    expect(response.status).toBe(502);
+    expect(body).toMatchObject({
+      ok: false,
+      error: {
+        code: "WEB_PUSH_SEND_FAILED",
+        details: {
+          stage: "network",
+          category: "network_failed"
+        }
+      }
+    });
+    expect(JSON.stringify(body)).not.toMatch(/endpoint|p256dh|auth|vapid|authorization|secret/i);
+    vi.restoreAllMocks();
   });
 });

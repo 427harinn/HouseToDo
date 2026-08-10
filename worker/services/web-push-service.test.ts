@@ -95,12 +95,12 @@ const createFixture = async (rows = 1) => {
 };
 
 describe("WebPushService", () => {
-  it.each([201, 202, 204])("counts %s as success", async (status) => {
+  it.each([200, 201, 202, 204])("counts %s as success", async (status) => {
     const fixture = await createFixture();
     const fetcher = vi.fn().mockResolvedValue(new Response(null, { status }));
     await expect(
       new WebPushService(fixture.db, fetcher).sendTest("user-1", "house-1", fixture.env)
-    ).resolves.toEqual({ sent: 1, failed: 0 });
+    ).resolves.toMatchObject({ sent: 1, failed: 0 });
     expect(fetcher).toHaveBeenCalledOnce();
     expect(
       new TextDecoder().decode(
@@ -116,18 +116,37 @@ describe("WebPushService", () => {
         fixture.db,
         vi.fn().mockResolvedValue(new Response(null, { status }))
       ).sendTest("user-1", "house-1", fixture.env)
-    ).resolves.toEqual({ sent: 0, failed: 1 });
+    ).resolves.toMatchObject({
+      sent: 0,
+      failed: 1,
+      failure: {
+        stage: "push_service",
+        errorCategory: "push_service_stale",
+        upstreamStatus: status
+      }
+    });
     expect(fixture.records[0].disabled_at).not.toBeNull();
   });
 
-  it.each([403, 429, 500])("returns generic failure for %s", async (status) => {
+  it.each([
+    [401, "push_service_auth_failed"],
+    [403, "push_service_auth_failed"],
+    [429, "push_service_rate_limited"],
+    [500, "push_service_server_error"],
+    [503, "push_service_server_error"],
+    [400, "push_service_client_error"]
+  ] as const)("classifies upstream %s", async (status, errorCategory) => {
     const fixture = await createFixture();
     await expect(
       new WebPushService(
         fixture.db,
         vi.fn().mockResolvedValue(new Response(null, { status }))
       ).sendTest("user-1", "house-1", fixture.env)
-    ).resolves.toEqual({ sent: 0, failed: 1 });
+    ).resolves.toMatchObject({
+      sent: 0,
+      failed: 1,
+      failure: { stage: "push_service", errorCategory, upstreamStatus: status }
+    });
   });
 
   it("returns generic failure for network errors and isolates the user", async () => {
@@ -135,7 +154,15 @@ describe("WebPushService", () => {
     const fetcher = vi.fn().mockRejectedValue(new Error("network"));
     await expect(
       new WebPushService(fixture.db, fetcher).sendTest("user-1", "house-1", fixture.env)
-    ).resolves.toEqual({ sent: 0, failed: 1 });
+    ).resolves.toMatchObject({
+      sent: 0,
+      failed: 1,
+      failure: {
+        stage: "network",
+        errorCategory: "network_failed",
+        upstreamStatus: null
+      }
+    });
     expect(fetcher).toHaveBeenCalledOnce();
   });
 
@@ -144,5 +171,50 @@ describe("WebPushService", () => {
     await expect(
       new WebPushService(fixture.db, vi.fn()).sendTest("user-1", "house-1", {})
     ).rejects.toThrow("push-config-missing");
+  });
+
+  it("classifies invalid subscription payload encryption", async () => {
+    const fixture = await createFixture();
+    fixture.records[0].p256dh = "invalid";
+    await expect(
+      new WebPushService(fixture.db, vi.fn()).sendTest("user-1", "house-1", fixture.env)
+    ).resolves.toMatchObject({
+      sent: 0,
+      failed: 1,
+      failure: { stage: "encryption", errorCategory: "invalid_subscription" }
+    });
+  });
+
+  it("classifies invalid VAPID key import", async () => {
+    const fixture = await createFixture();
+    fixture.env.WEB_PUSH_VAPID_PRIVATE_KEY = "not-json";
+    await expect(
+      new WebPushService(fixture.db, vi.fn()).sendTest("user-1", "house-1", fixture.env)
+    ).resolves.toMatchObject({
+      sent: 0,
+      failed: 1,
+      failure: { stage: "vapid", errorCategory: "vapid_key_import_failed" }
+    });
+  });
+
+  it("classifies VAPID signing failure", async () => {
+    const fixture = await createFixture();
+    const originalSign = crypto.subtle.sign.bind(crypto.subtle);
+    const signSpy = vi.spyOn(crypto.subtle, "sign").mockImplementation(
+      async (algorithm, key, data) => {
+        if (typeof algorithm !== "string" && algorithm.name === "ECDSA") {
+          throw new Error("sign-failed");
+        }
+        return originalSign(algorithm, key, data);
+      }
+    );
+    await expect(
+      new WebPushService(fixture.db, vi.fn()).sendTest("user-1", "house-1", fixture.env)
+    ).resolves.toMatchObject({
+      sent: 0,
+      failed: 1,
+      failure: { stage: "vapid", errorCategory: "vapid_sign_failed" }
+    });
+    signSpy.mockRestore();
   });
 });

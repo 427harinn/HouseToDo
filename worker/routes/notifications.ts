@@ -1,5 +1,5 @@
 import { AppError, unauthenticatedError } from "../lib/errors";
-import { okJson } from "../lib/response";
+import { errorJson, okJson } from "../lib/response";
 import {
   parsePushSubscriptionJsonBody,
   validatePushSubscriptionInput,
@@ -68,6 +68,20 @@ export const testPushNotificationRoute: Handler = requireAuth(async (context) =>
         status: 409,
         message: "この端末で通知を有効にしてください。"
       });
+    }
+    if (result.failure) {
+      return errorJson(new AppError({
+        code: "WEB_PUSH_SEND_FAILED",
+        status: 502,
+        message: "Test push notification could not be sent.",
+        details: {
+          stage: result.failure.stage,
+          category: result.failure.errorCategory,
+          ...(result.failure.upstreamStatus !== null
+            ? { upstreamStatus: String(result.failure.upstreamStatus) }
+            : {})
+        }
+      }), context.requestId);
     }
     return okJson(result, context.requestId);
   } catch (error) {

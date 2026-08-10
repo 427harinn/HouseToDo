@@ -96,3 +96,12 @@ Image metadata deletion and active count/bytes updates are now atomic and idempo
 - Added Base64URL VAPID conversion tests, backend API isolation/upsert tests, and local Playwright fixture coverage for responsive settings states.
 - PWA manifest icons and `apple-touch-icon` remain a required task before milestone 3 real-iPhone Push testing.
 - Push sending, task notification settings, evening summary settings, Cron delivery, delivery history/actions, remote migration, deploy, production operation, and push remain out of scope.
+
+## 2026-08-10 Notification milestone 3: safe Web Push observability
+
+- The initial staging test Push failed with a generic UI error while the subscription remained active; the failure stage and upstream status were not observable.
+- Added bounded Web Push failure classification for config, subscription state, VAPID import/signing, payload encryption, network, and Push Service HTTP responses.
+- Added staging/development/test structured logs containing only `stage`, `errorCategory`, and nullable `upstreamStatus`.
+- Added a safe `WEB_PUSH_SEND_FAILED` API code with category details while keeping the user-facing UI message generic.
+- No endpoint, subscription keys, VAPID material, authorization, request body, response body, or raw error is logged or returned.
+- The next staging test Push is intentionally deferred until this change is deployed; no deploy, secret change, migration, production operation, or Push was performed here.

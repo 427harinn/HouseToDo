@@ -31,6 +31,7 @@
 - [x] Add capability detection without requesting notification permission automatically.
 - [x] Add safe notification URL validation and Service Worker push/click handling tests.
 - [x] Add notification permission UI, VAPID public-key API, device-scoped PushSubscription registration, and local Playwright fixture coverage.
+- [x] Add safe Web Push failure stage/category/upstream-status observability after the initial staging test Push failed generically.
 - [ ] Add manifest icons and `apple-touch-icon` before the milestone 3 real-iPhone Push test.
 - [ ] Run remote purchased-item bulk deletion only in a disposable household with no pre-existing data.
 

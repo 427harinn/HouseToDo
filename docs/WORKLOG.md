@@ -1661,3 +1661,11 @@ Added frontend notification client, URL-safe Base64 conversion helper, and setti
 Final review correction: when backend unregister succeeds but browser unsubscribe fails, UI now returns to `未設定`; the next enable action reuses the existing browser subscription and re-registers it.
 
 Verification: host `npm run typecheck`, `npm run lint`, and `npm test` passed (26 test files / 127 tests after notification tests). Local D1 migration `0009` applied successfully; rerun returned `No migrations to apply`. A local Playwright notification fixture was added for 320/390/430/desktop, supported enable/OFF, and Home Screen guidance; full Playwright execution was not run in this host because the configured app/Worker service is not running. Docker was not used. No VAPID values were generated, no secret was registered, and no remote migration, deploy, production operation, or push was performed.
+
+## 2026-08-10 Safe Web Push observability
+
+The initial staging test Push failed generically while the single PushSubscription remained active. Static and remote-safe checks confirmed the subscription was not stale and the VAPID material format was consistent, but the existing sender collapsed crypto, network, and Push Service failures into `failed` without retaining the stage or upstream HTTP status.
+
+Added bounded Web Push failure classification for config, subscription state updates, VAPID key import/signing, payload encryption, network fetch, and Push Service HTTP responses. Staging/development/test structured logs contain only `stage`, `errorCategory`, and nullable `upstreamStatus`; the API returns `WEB_PUSH_SEND_FAILED` with the same safe classification details while the UI remains generic. Endpoint, subscription keys, VAPID material, authorization, request/response bodies, raw errors, and stacks are not logged or returned.
+
+Added service classification coverage for success, stale, auth, rate limit, client/server errors, network failure, invalid subscription encryption, and invalid VAPID import. No encryption algorithm, key pair, schema, registration flow, secret, migration, deploy, production resource, or Push was changed or operated. The next staging test Push is deferred until this code is deployed.
