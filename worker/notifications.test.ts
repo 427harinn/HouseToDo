@@ -571,6 +571,140 @@ describe("notification subscription API", () => {
     vi.restoreAllMocks();
   });
 
+  it("probes active Apple subscriptions with dummy Authorization and manual redirects", async () => {
+    const app = createApp();
+    const db = new MemoryD1();
+    const env = createTestEnv(db);
+    const ownerCookie = await register(app, env, "subscription-manual-owner@example.com");
+    const otherCookie = await register(app, env, "subscription-manual-other@example.com");
+    await app.fetch(
+      request("/api/households", {
+        method: "POST",
+        headers: { cookie: ownerCookie },
+        body: JSON.stringify({ name: "Manual redirect owner household" })
+      }),
+      env
+    );
+    await app.fetch(
+      request("/api/households", {
+        method: "POST",
+        headers: { cookie: otherCookie },
+        body: JSON.stringify({ name: "Manual redirect other household" })
+      }),
+      env
+    );
+    const owner = Array.from(db.users.values()).find((user) => user.email === "subscription-manual-owner@example.com");
+    const other = Array.from(db.users.values()).find((user) => user.email === "subscription-manual-other@example.com");
+    const ownerHousehold = owner && Array.from(db.members.values()).find((member) => member.user_id === owner.id);
+    const otherHousehold = other && Array.from(db.members.values()).find((member) => member.user_id === other.id);
+    expect(ownerHousehold).toBeDefined();
+    expect(otherHousehold).toBeDefined();
+    db.pushSubscriptions.set("manual-3xx", {
+      id: "manual-3xx", user_id: owner!.id, household_id: ownerHousehold!.household_id,
+      endpoint: "https://web.push.apple.com/manual-3xx", endpoint_hash: "secret-endpoint-hash",
+      p256dh: "secret-p256dh", auth: "secret-auth", user_agent_summary: null,
+      enabled: 1, created_at: "now", updated_at: null, last_seen_at: null, disabled_at: null
+    });
+    db.pushSubscriptions.set("manual-403", {
+      id: "manual-403", user_id: owner!.id, household_id: ownerHousehold!.household_id,
+      endpoint: "https://sub.push.apple.com/manual-403", endpoint_hash: null,
+      p256dh: "p256dh", auth: "auth", user_agent_summary: null,
+      enabled: 1, created_at: "now", updated_at: null, last_seen_at: null, disabled_at: null
+    });
+    db.pushSubscriptions.set("manual-failure", {
+      id: "manual-failure", user_id: owner!.id, household_id: ownerHousehold!.household_id,
+      endpoint: "https://web.push.apple.com/manual-failure", endpoint_hash: null,
+      p256dh: "p256dh", auth: "auth", user_agent_summary: null,
+      enabled: 1, created_at: "now", updated_at: null, last_seen_at: null, disabled_at: null
+    });
+    db.pushSubscriptions.set("manual-disabled", {
+      id: "manual-disabled", user_id: owner!.id, household_id: ownerHousehold!.household_id,
+      endpoint: "https://web.push.apple.com/manual-disabled", endpoint_hash: null,
+      p256dh: "p256dh", auth: "auth", user_agent_summary: null,
+      enabled: 0, created_at: "now", updated_at: null, last_seen_at: null, disabled_at: "now"
+    });
+    db.pushSubscriptions.set("manual-other-user", {
+      id: "manual-other-user", user_id: other!.id, household_id: otherHousehold!.household_id,
+      endpoint: "https://web.push.apple.com/manual-other-user", endpoint_hash: null,
+      p256dh: "p256dh", auth: "auth", user_agent_summary: null,
+      enabled: 1, created_at: "now", updated_at: null, last_seen_at: null, disabled_at: null
+    });
+    db.pushSubscriptions.set("manual-other-household", {
+      id: "manual-other-household", user_id: owner!.id, household_id: otherHousehold!.household_id,
+      endpoint: "https://web.push.apple.com/manual-other-household", endpoint_hash: null,
+      p256dh: "p256dh", auth: "auth", user_agent_summary: null,
+      enabled: 1, created_at: "now", updated_at: null, last_seen_at: null, disabled_at: null
+    });
+    db.pushSubscriptions.set("manual-non-apple", {
+      id: "manual-non-apple", user_id: owner!.id, household_id: ownerHousehold!.household_id,
+      endpoint: "https://push.example.test/manual-non-apple", endpoint_hash: null,
+      p256dh: "p256dh", auth: "auth", user_agent_summary: null,
+      enabled: 1, created_at: "now", updated_at: null, last_seen_at: null, disabled_at: null
+    });
+
+    const fetchMock = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(null, { status: 302, headers: { Location: "https://secret.example/redirect" } }))
+      .mockResolvedValueOnce(new Response(null, { status: 403 }))
+      .mockRejectedValueOnce(new TypeError("secret endpoint failure"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await app.fetch(
+      request("/api/notifications/network-probe?mode=subscription-post-authorization-dummy-manual-redirect&endpoint=https://attacker.example", {
+        headers: { cookie: ownerCookie }
+      }),
+      env
+    );
+
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(JSON.parse(body)).toMatchObject({
+      ok: true,
+      data: {
+        results: [
+          { index: 1, ok: true, status: 302 },
+          { index: 2, ok: true, status: 403 },
+          { index: 3, ok: false, stage: "network", errorCategory: "network_failed", upstreamStatus: null, requestPhase: "fetch_call", errorName: "TypeError", causeCode: null, pushService: "apple" }
+        ]
+      }
+    });
+    expect(body).not.toContain("manual-3xx");
+    expect(body).not.toContain("secret.example");
+    expect(body).not.toContain("Bearer probe");
+    expect(body).not.toContain("secret-p256dh");
+    expect(body).not.toContain("secret-auth");
+    expect(fetchMock).toHaveBeenNthCalledWith(1, "https://web.push.apple.com/manual-3xx", {
+      method: "POST",
+      headers: { Authorization: "Bearer probe" },
+      redirect: "manual"
+    });
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "https://sub.push.apple.com/manual-403", {
+      method: "POST",
+      headers: { Authorization: "Bearer probe" },
+      redirect: "manual"
+    });
+    expect(fetchMock).toHaveBeenNthCalledWith(3, "https://web.push.apple.com/manual-failure", {
+      method: "POST",
+      headers: { Authorization: "Bearer probe" },
+      redirect: "manual"
+    });
+    for (const [, init] of fetchMock.mock.calls) {
+      expect((init as RequestInit).body).toBeUndefined();
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+
+    const production = { ...env, APP_ENV: "production" as const };
+    await expect(
+      app.fetch(
+        request("/api/notifications/network-probe?mode=subscription-post-authorization-dummy-manual-redirect", {
+          headers: { cookie: ownerCookie }
+        }),
+        production
+      )
+    ).resolves.toMatchObject({ status: 404 });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    vi.restoreAllMocks();
+  });
+
   it("probes active Apple subscriptions with VAPID Authorization and no payload", async () => {
     const app = createApp();
     const db = new MemoryD1();
