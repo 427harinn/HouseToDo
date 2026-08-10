@@ -105,3 +105,11 @@ Image metadata deletion and active count/bytes updates are now atomic and idempo
 - Added a safe `WEB_PUSH_SEND_FAILED` API code with category details while keeping the user-facing UI message generic.
 - No endpoint, subscription keys, VAPID material, authorization, request body, response body, or raw error is logged or returned.
 - The next staging test Push is intentionally deferred until this change is deployed; no deploy, secret change, migration, production operation, or Push was performed here.
+
+## 2026-08-10 Apple Push transport probe
+
+- The staging test Push classified both Apple subscriptions as `network` / `network_failed` at `fetch_call` with `TypeError` and no upstream response.
+- Added authenticated `GET /api/notifications/network-probe`, enabled only for staging, development, and test.
+- The probe fetches only the fixed `https://web.push.apple.com/` destination with method GET and no headers or body; HTTP 2xx/4xx/5xx responses are transport success.
+- Fetch failures return only allowlisted `errorName` and `causeCode`, and structured logs contain only those fields. No endpoint, URL input, token, response body, or stack is exposed.
+- No POST probe, Web Push request change, notification send, deploy, migration, secret change, VAPID change, or production operation is included.

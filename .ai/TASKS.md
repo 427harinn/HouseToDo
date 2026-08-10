@@ -32,6 +32,7 @@
 - [x] Add safe notification URL validation and Service Worker push/click handling tests.
 - [x] Add notification permission UI, VAPID public-key API, device-scoped PushSubscription registration, and local Playwright fixture coverage.
 - [x] Add safe Web Push failure stage/category/upstream-status observability after the initial staging test Push failed generically.
+- [x] Add staging-only fixed Apple Push GET network probe without sending notifications.
 - [ ] Add manifest icons and `apple-touch-icon` before the milestone 3 real-iPhone Push test.
 - [ ] Run remote purchased-item bulk deletion only in a disposable household with no pre-existing data.
 
@@ -42,3 +43,4 @@
 - No API Token contents stored.
 - Push remains pending explicit approval.
 - Push sender, task notification settings, evening summary settings, delivery history/actions, remote migration, deploy, and production operations remain pending.
+- The Apple Push transport probe is diagnostic only; do not send another Push until its result is reviewed.

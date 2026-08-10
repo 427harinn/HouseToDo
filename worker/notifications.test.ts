@@ -42,6 +42,93 @@ const register = async (app: ReturnType<typeof createApp>, env: Env, email: stri
 };
 
 describe("notification subscription API", () => {
+  it.each([200, 404, 405])("reports an Apple host HTTP response as a successful probe (%s)", async (status) => {
+    const app = createApp();
+    const env = createTestEnv();
+    const cookie = await register(app, env, `probe-${status}@example.com`);
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await app.fetch(
+      request("/api/notifications/network-probe?url=https://attacker.example", {
+        headers: { cookie }
+      }),
+      env
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      data: { ok: true, status }
+    });
+    expect(fetchMock).toHaveBeenCalledWith("https://web.push.apple.com/", { method: "GET" });
+    vi.restoreAllMocks();
+  });
+
+  it.each(["staging", "development", "test"])("is enabled in %s", async (appEnv) => {
+    const app = createApp();
+    const env = createTestEnv();
+    env.APP_ENV = appEnv as Env["APP_ENV"];
+    const cookie = await register(app, env, `probe-${appEnv}@example.com`);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 405 })));
+
+    const response = await app.fetch(
+      request("/api/notifications/network-probe", { headers: { cookie } }),
+      env
+    );
+
+    expect(response.status).toBe(200);
+    vi.restoreAllMocks();
+  });
+
+  it("requires authentication and is disabled in production", async () => {
+    const app = createApp();
+    const production = createTestEnv();
+    production.APP_ENV = "production";
+    const cookie = await register(app, production, "probe-production@example.com");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      app.fetch(request("/api/notifications/network-probe"), production)
+    ).resolves.toMatchObject({ status: 401 });
+    await expect(
+      app.fetch(
+        request("/api/notifications/network-probe", { headers: { cookie } }),
+        production
+      )
+    ).resolves.toMatchObject({ status: 404 });
+    expect(fetchMock).not.toHaveBeenCalled();
+    vi.restoreAllMocks();
+  });
+
+  it("returns only safe failure diagnostics when the probe fetch throws", async () => {
+    const app = createApp();
+    const env = createTestEnv();
+    const cookie = await register(app, env, "probe-failure@example.com");
+    const error = new TypeError("https://secret.example/path?token=secret");
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(error));
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const response = await app.fetch(
+      request("/api/notifications/network-probe", { headers: { cookie } }),
+      env
+    );
+    const body = await response.text();
+
+    expect(response.status).toBe(502);
+    expect(body).toContain('"errorName":"TypeError"');
+    expect(body).toContain('"causeCode":"null"');
+    expect(body).not.toContain("secret.example");
+    expect(body).not.toContain("token");
+    expect(body).not.toContain("stack");
+    expect(log).toHaveBeenCalledWith("network_probe_failed", {
+      errorName: "TypeError",
+      causeCode: null
+    });
+    vi.restoreAllMocks();
+  });
+
   it("returns only the configured public key for authenticated users", async () => {
     const app = createApp();
     const env = createTestEnv(undefined, "public-key");

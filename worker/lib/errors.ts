@@ -37,6 +37,7 @@ export type AppErrorCode =
   | "PUSH_CONFIG_UNAVAILABLE"
   | "PUSH_NOT_ENABLED"
   | "WEB_PUSH_SEND_FAILED"
+  | "WEB_PUSH_NETWORK_PROBE_FAILED"
   | "INTERNAL_ERROR";
 
 export class AppError extends Error {

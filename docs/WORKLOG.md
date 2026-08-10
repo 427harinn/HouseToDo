@@ -1662,6 +1662,12 @@ Final review correction: when backend unregister succeeds but browser unsubscrib
 
 Verification: host `npm run typecheck`, `npm run lint`, and `npm test` passed (26 test files / 127 tests after notification tests). Local D1 migration `0009` applied successfully; rerun returned `No migrations to apply`. A local Playwright notification fixture was added for 320/390/430/desktop, supported enable/OFF, and Home Screen guidance; full Playwright execution was not run in this host because the configured app/Worker service is not running. Docker was not used. No VAPID values were generated, no secret was registered, and no remote migration, deploy, production operation, or push was performed.
 
+## 2026-08-10 Apple Push transport probe
+
+The latest staging test Push classified both Apple subscriptions as `network` / `network_failed` at `fetch_call` with `TypeError` and no upstream response. Added authenticated `GET /api/notifications/network-probe`, enabled only in staging, development, and test. It performs one minimal GET to the fixed `https://web.push.apple.com/` host without subscription endpoints, headers, body, VAPID, or encryption. Any HTTP response is reported as transport success; fetch throws return only allowlisted `errorName` and `causeCode` with safe structured logging. User URL input is ignored and no arbitrary proxy behavior exists.
+
+The probe deliberately does not implement or send a POST. Tests cover enabled environments, auth, production 404, 200/404/405 responses, fixed destination, arbitrary URL rejection, safe thrown-error output, and absence of raw error/stack. No Push was sent, no deploy/migration/secret/VAPID change was performed, and production remains untouched.
+
 ## 2026-08-10 Safe Web Push observability
 
 The initial staging test Push failed generically while the single PushSubscription remained active. Static and remote-safe checks confirmed the subscription was not stale and the VAPID material format was consistent, but the existing sender collapsed crypto, network, and Push Service failures into `failed` without retaining the stage or upstream HTTP status.

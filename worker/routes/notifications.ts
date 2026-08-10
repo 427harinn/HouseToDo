@@ -11,6 +11,38 @@ import { PushSubscriptionService } from "../services/push-subscription-service";
 import { HouseholdService } from "../services/household-service";
 import { WebPushService } from "../services/web-push-service";
 
+const APPLE_PUSH_PROBE_URL = "https://web.push.apple.com/";
+const detailedEnvironments = new Set(["staging", "development", "test"]);
+const safeProbeErrorNames = new Set([
+  "AbortError",
+  "Error",
+  "NetworkError",
+  "RangeError",
+  "SyntaxError",
+  "TypeError"
+]);
+const safeProbeCauseCodes = new Set([
+  "EAI_AGAIN",
+  "ECONNREFUSED",
+  "ECONNRESET",
+  "ETIMEDOUT",
+  "ERR_NETWORK",
+  "ERR_TLS_CERT_ALTNAME_INVALID",
+  "UND_ERR_CONNECT_TIMEOUT",
+  "UND_ERR_SOCKET"
+]);
+
+const safeProbeErrorName = (thrown: unknown): string =>
+  thrown instanceof Error && safeProbeErrorNames.has(thrown.name) ? thrown.name : "UnknownError";
+
+const safeProbeCauseCode = (thrown: unknown): string | null => {
+  if (!(thrown instanceof Error) || !thrown.cause || typeof thrown.cause !== "object") {
+    return null;
+  }
+  const code = (thrown.cause as { code?: unknown }).code;
+  return typeof code === "string" && safeProbeCauseCodes.has(code) ? code : null;
+};
+
 const requireUserId = (userId: string | undefined): string => {
   if (!userId) throw unauthenticatedError();
   return userId;
@@ -106,5 +138,30 @@ export const testPushNotificationRoute: Handler = requireAuth(async (context) =>
       });
     }
     throw error;
+  }
+});
+
+export const applePushNetworkProbeRoute: Handler = requireAuth(async (context) => {
+  if (!detailedEnvironments.has(context.env.APP_ENV ?? "")) {
+    throw new AppError({ code: "NOT_FOUND", status: 404, message: "Not found." });
+  }
+
+  try {
+    const response = await fetch(APPLE_PUSH_PROBE_URL, { method: "GET" });
+    console.info("network_probe_completed", { status: response.status });
+    return okJson({ ok: true, status: response.status }, context.requestId);
+  } catch (error) {
+    const errorName = safeProbeErrorName(error);
+    const causeCode = safeProbeCauseCode(error);
+    console.error("network_probe_failed", { errorName, causeCode });
+    return errorJson(
+      new AppError({
+        code: "WEB_PUSH_NETWORK_PROBE_FAILED",
+        status: 502,
+        message: "Apple Push network probe failed.",
+        details: { errorName, causeCode: causeCode ?? "null" }
+      }),
+      context.requestId
+    );
   }
 });

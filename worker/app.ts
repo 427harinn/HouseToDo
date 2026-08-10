@@ -52,7 +52,8 @@ import {
   vapidPublicKeyRoute,
   registerPushSubscriptionRoute,
   unregisterPushSubscriptionRoute,
-  testPushNotificationRoute
+  testPushNotificationRoute,
+  applePushNetworkProbeRoute
 } from "./routes/notifications";
 
 const routeApi = withErrorHandling(
@@ -146,6 +147,8 @@ const routeApi = withErrorHandling(
         return unregisterPushSubscriptionRoute(context);
       case "POST /api/notifications/test":
         return testPushNotificationRoute(context);
+      case "GET /api/notifications/network-probe":
+        return applePushNetworkProbeRoute(context);
       case "POST /api/households":
         return createHouseholdRoute(context);
       case "GET /api/households/current":
