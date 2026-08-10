@@ -52,6 +52,8 @@ export type WebPushAuthorizationProbeResult =
   | { index: number; ok: true; status: number }
   | ({ index: number; ok: false } & WebPushFailure);
 
+const DUMMY_AUTHORIZATION = "Bearer probe";
+
 type WebPushAttemptResult =
   | { status: "sent"; upstreamStatus: number }
   | { status: "stale" | "failed"; failure: WebPushFailure };
@@ -414,6 +416,41 @@ export class WebPushService {
         } catch (error) {
           return {
             index: resultIndex,
+            ok: false,
+            ...failure("network", "network_failed", null, {
+              requestPhase: "fetch_call",
+              errorName: safeErrorName(error),
+              causeCode: safeCauseCode(error),
+              pushService: pushServiceFromEndpoint(subscription.endpoint)
+            })
+          };
+        }
+      })
+    );
+  }
+
+  async probeDummyAuthorization(
+    userId: string,
+    householdId: string,
+    isAllowedEndpoint: (endpoint: string) => boolean
+  ): Promise<WebPushAuthorizationProbeResult[]> {
+    const subscriptions = (await this.repository.listActiveByUserHousehold(userId, householdId))
+      .filter((subscription) => isAllowedEndpoint(subscription.endpoint));
+
+    return Promise.all(
+      subscriptions.map(async (subscription, index) => {
+        try {
+          const response = await this.fetcher(subscription.endpoint, {
+            method: "POST",
+            headers: { Authorization: DUMMY_AUTHORIZATION }
+          });
+          if (!(response instanceof Response) || typeof response.status !== "number") {
+            throw new TypeError("Probe fetch did not return an HTTP response.");
+          }
+          return { index: index + 1, ok: true, status: response.status };
+        } catch (error) {
+          return {
+            index: index + 1,
             ok: false,
             ...failure("network", "network_failed", null, {
               requestPhase: "fetch_call",
