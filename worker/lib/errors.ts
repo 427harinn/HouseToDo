@@ -35,6 +35,7 @@ export type AppErrorCode =
   | "IMAGE_STORED_BYTES_LIMIT_REACHED"
   | "IMAGE_DAILY_UPLOAD_LIMIT_REACHED"
   | "PUSH_CONFIG_UNAVAILABLE"
+  | "PUSH_NOT_ENABLED"
   | "INTERNAL_ERROR";
 
 export class AppError extends Error {

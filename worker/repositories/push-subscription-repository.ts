@@ -11,6 +11,8 @@ export type PushSubscriptionRecord = {
   updated_at: string | null;
   last_seen_at: string | null;
   disabled_at: string | null;
+  last_success_at?: string | null;
+  last_failure_at?: string | null;
 };
 
 export type SavePushSubscriptionInput = {
@@ -29,20 +31,97 @@ export class PushSubscriptionRepository {
   constructor(private readonly db: D1Database) {}
 
   async findByEndpoint(endpoint: string): Promise<PushSubscriptionRecord | null> {
-    return this.db.prepare("SELECT id, user_id, household_id, endpoint, endpoint_hash, p256dh, auth, user_agent_summary, created_at, updated_at, last_seen_at, disabled_at FROM push_subscriptions WHERE endpoint = ?").bind(endpoint).first<PushSubscriptionRecord>();
+    return this.db
+      .prepare(
+        "SELECT id, user_id, household_id, endpoint, endpoint_hash, p256dh, auth, user_agent_summary, created_at, updated_at, last_seen_at, disabled_at FROM push_subscriptions WHERE endpoint = ?"
+      )
+      .bind(endpoint)
+      .first<PushSubscriptionRecord>();
   }
 
   async save(input: SavePushSubscriptionInput): Promise<void> {
     const existing = await this.findByEndpoint(input.endpoint);
     if (existing) {
-      await this.db.prepare("UPDATE push_subscriptions SET user_id = ?, household_id = ?, endpoint_hash = ?, p256dh = ?, auth = ?, user_agent_summary = ?, updated_at = ?, last_seen_at = ?, disabled_at = NULL WHERE id = ?").bind(input.userId, input.householdId, input.endpointHash, input.p256dh, input.auth, input.userAgentSummary, input.now, input.now, existing.id).run();
+      await this.db
+        .prepare(
+          "UPDATE push_subscriptions SET user_id = ?, household_id = ?, endpoint_hash = ?, p256dh = ?, auth = ?, user_agent_summary = ?, updated_at = ?, last_seen_at = ?, disabled_at = NULL WHERE id = ?"
+        )
+        .bind(
+          input.userId,
+          input.householdId,
+          input.endpointHash,
+          input.p256dh,
+          input.auth,
+          input.userAgentSummary,
+          input.now,
+          input.now,
+          existing.id
+        )
+        .run();
       return;
     }
-    await this.db.prepare("INSERT INTO push_subscriptions (id, user_id, household_id, endpoint, endpoint_hash, p256dh, auth, user_agent_summary, enabled, created_at, updated_at, last_seen_at, disabled_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, NULL)").bind(input.id, input.userId, input.householdId, input.endpoint, input.endpointHash, input.p256dh, input.auth, input.userAgentSummary, input.now, input.now, input.now).run();
+    await this.db
+      .prepare(
+        "INSERT INTO push_subscriptions (id, user_id, household_id, endpoint, endpoint_hash, p256dh, auth, user_agent_summary, enabled, created_at, updated_at, last_seen_at, disabled_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, NULL)"
+      )
+      .bind(
+        input.id,
+        input.userId,
+        input.householdId,
+        input.endpoint,
+        input.endpointHash,
+        input.p256dh,
+        input.auth,
+        input.userAgentSummary,
+        input.now,
+        input.now,
+        input.now
+      )
+      .run();
   }
 
-  async deleteOwnedByEndpoint(userId: string, householdId: string, endpoint: string): Promise<boolean> {
-    const result = await this.db.prepare("DELETE FROM push_subscriptions WHERE user_id = ? AND household_id = ? AND endpoint = ?").bind(userId, householdId, endpoint).run();
+  async deleteOwnedByEndpoint(
+    userId: string,
+    householdId: string,
+    endpoint: string
+  ): Promise<boolean> {
+    const result = await this.db
+      .prepare(
+        "DELETE FROM push_subscriptions WHERE user_id = ? AND household_id = ? AND endpoint = ?"
+      )
+      .bind(userId, householdId, endpoint)
+      .run();
     return (result.meta.changes ?? 0) > 0;
+  }
+
+  async listActiveByUserHousehold(
+    userId: string,
+    householdId: string
+  ): Promise<PushSubscriptionRecord[]> {
+    const result = await this.db
+      .prepare(
+        "SELECT id, user_id, household_id, endpoint, endpoint_hash, p256dh, auth, user_agent_summary, created_at, updated_at, last_seen_at, disabled_at, last_success_at, last_failure_at FROM push_subscriptions WHERE user_id = ? AND household_id = ? AND enabled = 1 AND disabled_at IS NULL"
+      )
+      .bind(userId, householdId)
+      .all<PushSubscriptionRecord>();
+    return result.results;
+  }
+
+  async markDisabled(id: string, now: string): Promise<void> {
+    await this.db
+      .prepare(
+        "UPDATE push_subscriptions SET enabled = 0, disabled_at = ?, updated_at = ?, last_failure_at = ? WHERE id = ?"
+      )
+      .bind(now, now, now, id)
+      .run();
+  }
+
+  async markSuccess(id: string, now: string): Promise<void> {
+    await this.db
+      .prepare(
+        "UPDATE push_subscriptions SET last_success_at = ?, updated_at = ? WHERE id = ?"
+      )
+      .bind(now, now, id)
+      .run();
   }
 }
