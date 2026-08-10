@@ -299,7 +299,10 @@ describe("notification subscription API", () => {
         code: "WEB_PUSH_SEND_FAILED",
         details: {
           stage: "network",
-          category: "network_failed"
+          category: "network_failed",
+          requestPhase: "fetch_call",
+          errorName: "Error",
+          pushService: "unknown"
         }
       }
     });

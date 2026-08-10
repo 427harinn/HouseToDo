@@ -28,10 +28,18 @@ export type WebPushErrorCategory =
   | "subscription_state_update_failed"
   | "unknown";
 
+export type WebPushRequestPhase = "request_build" | "fetch_call";
+
+export type WebPushServiceKind = "apple" | "fcm" | "mozilla" | "unknown";
+
 export type WebPushFailure = {
   stage: WebPushFailureStage;
   errorCategory: WebPushErrorCategory;
   upstreamStatus: number | null;
+  requestPhase?: WebPushRequestPhase;
+  errorName?: string;
+  causeCode?: string | null;
+  pushService?: WebPushServiceKind;
 };
 
 export type WebPushSendResult = {
@@ -62,15 +70,74 @@ const logWebPushFailure = (
   console.error("web_push_send_failed", {
     stage: failure.stage,
     errorCategory: failure.errorCategory,
-    upstreamStatus: failure.upstreamStatus
+    upstreamStatus: failure.upstreamStatus,
+    ...(failure.requestPhase ? { requestPhase: failure.requestPhase } : {}),
+    ...(failure.errorName ? { errorName: failure.errorName } : {}),
+    ...(failure.causeCode !== undefined ? { causeCode: failure.causeCode } : {}),
+    ...(failure.pushService ? { pushService: failure.pushService } : {})
   });
 };
 
 const failure = (
   stage: WebPushFailureStage,
   errorCategory: WebPushErrorCategory,
-  upstreamStatus: number | null = null
-): WebPushFailure => ({ stage, errorCategory, upstreamStatus });
+  upstreamStatus: number | null = null,
+  diagnostics: Pick<
+    WebPushFailure,
+    "requestPhase" | "errorName" | "causeCode" | "pushService"
+  > = {}
+): WebPushFailure => ({ stage, errorCategory, upstreamStatus, ...diagnostics });
+
+const knownErrorNames = new Set([
+  "AbortError",
+  "Error",
+  "NetworkError",
+  "RangeError",
+  "SyntaxError",
+  "TypeError"
+]);
+
+const safeErrorName = (thrown: unknown): string => {
+  if (!(thrown instanceof Error)) return "UnknownError";
+  return knownErrorNames.has(thrown.name) ? thrown.name : "UnknownError";
+};
+
+const knownCauseCodes = new Set([
+  "EAI_AGAIN",
+  "ECONNREFUSED",
+  "ECONNRESET",
+  "ETIMEDOUT",
+  "ERR_NETWORK",
+  "ERR_TLS_CERT_ALTNAME_INVALID",
+  "UND_ERR_CONNECT_TIMEOUT",
+  "UND_ERR_SOCKET"
+]);
+
+const safeCauseCode = (thrown: unknown): string | null => {
+  if (!(thrown instanceof Error) || !thrown.cause || typeof thrown.cause !== "object") {
+    return null;
+  }
+  const code = (thrown.cause as { code?: unknown }).code;
+  return typeof code === "string" && knownCauseCodes.has(code) ? code : null;
+};
+
+const pushServiceFromEndpoint = (endpoint: string): WebPushServiceKind => {
+  try {
+    const hostname = new URL(endpoint).hostname.toLowerCase();
+    if (hostname === "web.push.apple.com" || hostname.endsWith(".push.apple.com")) {
+      return "apple";
+    }
+    if (hostname === "fcm.googleapis.com" || hostname.endsWith(".fcm.googleapis.com")) {
+      return "fcm";
+    }
+    if (hostname === "updates.push.services.mozilla.com" || hostname.endsWith(".mozilla.com")) {
+      return "mozilla";
+    }
+  } catch {
+    return "unknown";
+  }
+  return "unknown";
+};
 
 const encoder = new TextEncoder();
 const concat = (...parts: Uint8Array[]) => {
@@ -341,10 +408,15 @@ export class WebPushService {
         },
         body
       });
-    } catch {
+    } catch (error) {
       return {
         status: "failed",
-        failure: failure("network", "network_failed")
+        failure: failure("network", "network_failed", null, {
+          requestPhase: "fetch_call",
+          errorName: safeErrorName(error),
+          causeCode: safeCauseCode(error),
+          pushService: pushServiceFromEndpoint(subscription.endpoint)
+        })
       };
     }
 

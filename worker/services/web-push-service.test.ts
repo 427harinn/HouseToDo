@@ -83,14 +83,21 @@ const createFixture = async (rows = 1) => {
       };
     }
   } as unknown as D1Database;
+  const env: {
+    APP_ENV?: string;
+    WEB_PUSH_VAPID_PUBLIC_KEY: string;
+    WEB_PUSH_VAPID_PRIVATE_KEY: string;
+    WEB_PUSH_SUBJECT: string;
+  } = {
+    APP_ENV: undefined,
+    WEB_PUSH_VAPID_PUBLIC_KEY: publicKey,
+    WEB_PUSH_VAPID_PRIVATE_KEY: JSON.stringify(privateJwk),
+    WEB_PUSH_SUBJECT: "mailto:test@example.com"
+  };
   return {
     db,
     records,
-    env: {
-      WEB_PUSH_VAPID_PUBLIC_KEY: publicKey,
-      WEB_PUSH_VAPID_PRIVATE_KEY: JSON.stringify(privateJwk),
-      WEB_PUSH_SUBJECT: "mailto:test@example.com"
-    }
+    env
   };
 };
 
@@ -149,9 +156,12 @@ describe("WebPushService", () => {
     });
   });
 
-  it("returns generic failure for network errors and isolates the user", async () => {
+  it("classifies network errors without exposing the endpoint or error details", async () => {
     const fixture = await createFixture(2);
-    const fetcher = vi.fn().mockRejectedValue(new Error("network"));
+    fixture.env.APP_ENV = "staging";
+    const unsafeMessage = "fetch failed for https://push.example.test/private-token?auth=secret";
+    const fetcher = vi.fn().mockRejectedValue(new TypeError(unsafeMessage));
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
     await expect(
       new WebPushService(fixture.db, fetcher).sendTest("user-1", "house-1", fixture.env)
     ).resolves.toMatchObject({
@@ -160,10 +170,53 @@ describe("WebPushService", () => {
       failure: {
         stage: "network",
         errorCategory: "network_failed",
-        upstreamStatus: null
+        upstreamStatus: null,
+        requestPhase: "fetch_call",
+        errorName: "TypeError",
+        causeCode: null,
+        pushService: "unknown"
       }
     });
     expect(fetcher).toHaveBeenCalledOnce();
+    const logText = JSON.stringify(log.mock.calls);
+    expect(logText).not.toContain(unsafeMessage);
+    expect(logText).not.toContain("private-token");
+    expect(logText).not.toContain("secret");
+    expect(logText).not.toContain("stack");
+    expect(log.mock.calls[0]?.[1]).toMatchObject({
+      stage: "network",
+      errorCategory: "network_failed",
+      upstreamStatus: null,
+      requestPhase: "fetch_call",
+      errorName: "TypeError",
+      causeCode: null,
+      pushService: "unknown"
+    });
+    log.mockRestore();
+  });
+
+  it("uses safe defaults for unknown thrown values", async () => {
+    const fixture = await createFixture();
+    fixture.env.APP_ENV = "staging";
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    await expect(
+      new WebPushService(fixture.db, vi.fn().mockRejectedValue({ message: "secret" })).sendTest(
+        "user-1",
+        "house-1",
+        fixture.env
+      )
+    ).resolves.toMatchObject({
+      failure: {
+        stage: "network",
+        errorCategory: "network_failed",
+        requestPhase: "fetch_call",
+        errorName: "UnknownError",
+        causeCode: null,
+        pushService: "unknown"
+      }
+    });
+    expect(JSON.stringify(log.mock.calls)).not.toContain("secret");
+    log.mockRestore();
   });
 
   it("fails closed when VAPID secrets are missing", async () => {

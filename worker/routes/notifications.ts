@@ -77,6 +77,18 @@ export const testPushNotificationRoute: Handler = requireAuth(async (context) =>
         details: {
           stage: result.failure.stage,
           category: result.failure.errorCategory,
+          ...(result.failure.requestPhase
+            ? { requestPhase: result.failure.requestPhase }
+            : {}),
+          ...(result.failure.errorName
+            ? { errorName: result.failure.errorName }
+            : {}),
+          ...(result.failure.causeCode
+            ? { causeCode: result.failure.causeCode }
+            : {}),
+          ...(result.failure.pushService
+            ? { pushService: result.failure.pushService }
+            : {}),
           ...(result.failure.upstreamStatus !== null
             ? { upstreamStatus: String(result.failure.upstreamStatus) }
             : {})
