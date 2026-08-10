@@ -10,6 +10,7 @@ import type { Handler } from "../middleware/error-handler";
 import { PushSubscriptionService } from "../services/push-subscription-service";
 import { HouseholdService } from "../services/household-service";
 import { WebPushService } from "../services/web-push-service";
+import { PushSubscriptionRepository } from "../repositories/push-subscription-repository";
 
 const APPLE_PUSH_PROBE_URL = "https://web.push.apple.com/";
 const detailedEnvironments = new Set(["staging", "development", "test"]);
@@ -18,7 +19,8 @@ const probeModes = new Set([
   "post-empty",
   "post-basic-headers",
   "post-body",
-  "post-content-encoding"
+  "post-content-encoding",
+  "subscription-post-empty"
 ]);
 const safeProbeErrorNames = new Set([
   "AbortError",
@@ -80,6 +82,19 @@ const probeRequestInit = (mode: string): RequestInit => {
       };
     default:
       return { method: "GET" };
+  }
+};
+
+const isAppleHttpsEndpoint = (endpoint: string): boolean => {
+  try {
+    const url = new URL(endpoint);
+    const hostname = url.hostname.toLowerCase();
+    return (
+      url.protocol === "https:" &&
+      (hostname === "web.push.apple.com" || hostname.endsWith(".push.apple.com"))
+    );
+  } catch {
+    return false;
   }
 };
 
@@ -194,6 +209,53 @@ export const applePushNetworkProbeRoute: Handler = requireAuth(async (context) =
       message: "Invalid network probe mode.",
       details: { mode: "Unsupported probe mode." }
     });
+  }
+
+  if (mode === "subscription-post-empty") {
+    const userId = requireUserId(context.user?.id);
+    const household = await new HouseholdService(context.env.DB).requireCurrentHousehold(
+      userId
+    );
+    const subscriptions = await new PushSubscriptionRepository(context.env.DB).listActiveByUserHousehold(
+      userId,
+      household.id
+    );
+    const results = await Promise.all(
+      subscriptions.map(async (subscription, index) => {
+        if (!isAppleHttpsEndpoint(subscription.endpoint)) return null;
+        try {
+          const response = await fetch(subscription.endpoint, { method: "POST" });
+          if (!(response instanceof Response) || typeof response.status !== "number") {
+            throw new TypeError("Probe fetch did not return an HTTP response.");
+          }
+          console.info("subscription_network_probe_completed", {
+            type: mode,
+            index: index + 1,
+            status: response.status
+          });
+          return { index: index + 1, ok: true, status: response.status };
+        } catch (error) {
+          const errorName = safeProbeErrorName(error);
+          const causeCode = safeProbeCauseCode(error);
+          console.error("subscription_network_probe_failed", {
+            type: mode,
+            index: index + 1,
+            errorName,
+            causeCode
+          });
+          return {
+            index: index + 1,
+            ok: false,
+            errorName,
+            causeCode
+          };
+        }
+      })
+    );
+    return okJson(
+      { results: results.filter((result): result is NonNullable<typeof result> => result !== null) },
+      context.requestId
+    );
   }
 
   try {

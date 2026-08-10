@@ -183,6 +183,154 @@ describe("notification subscription API", () => {
     vi.restoreAllMocks();
   });
 
+  it("probes only the authenticated user's active Apple HTTPS subscriptions with an empty POST", async () => {
+    const app = createApp();
+    const db = new MemoryD1();
+    const env = createTestEnv(db);
+    const ownerCookie = await register(app, env, "subscription-probe-owner@example.com");
+    const otherCookie = await register(app, env, "subscription-probe-other@example.com");
+    await app.fetch(
+      request("/api/households", {
+        method: "POST",
+        headers: { cookie: ownerCookie },
+        body: JSON.stringify({ name: "Owner household" })
+      }),
+      env
+    );
+    await app.fetch(
+      request("/api/households", {
+        method: "POST",
+        headers: { cookie: otherCookie },
+        body: JSON.stringify({ name: "Other household" })
+      }),
+      env
+    );
+    const owner = Array.from(db.users.values()).find((user) => user.email === "subscription-probe-owner@example.com");
+    const other = Array.from(db.users.values()).find((user) => user.email === "subscription-probe-other@example.com");
+    const ownerHousehold = owner && Array.from(db.members.values()).find((member) => member.user_id === owner.id);
+    const otherHousehold = other && Array.from(db.members.values()).find((member) => member.user_id === other.id);
+    expect(ownerHousehold).toBeDefined();
+    expect(otherHousehold).toBeDefined();
+    db.pushSubscriptions.set("active-1", {
+      id: "active-1", user_id: owner!.id, household_id: ownerHousehold!.household_id,
+      endpoint: "https://web.push.apple.com/active-1", endpoint_hash: "secret-hash-1",
+      p256dh: "secret-p256dh-1", auth: "secret-auth-1", user_agent_summary: null,
+      enabled: 1, created_at: "now", updated_at: null, last_seen_at: null, disabled_at: null
+    });
+    db.pushSubscriptions.set("active-2", {
+      id: "active-2", user_id: owner!.id, household_id: ownerHousehold!.household_id,
+      endpoint: "https://sub.push.apple.com/active-2", endpoint_hash: "secret-hash-2",
+      p256dh: "secret-p256dh-2", auth: "secret-auth-2", user_agent_summary: null,
+      enabled: 1, created_at: "now", updated_at: null, last_seen_at: null, disabled_at: null
+    });
+    db.pushSubscriptions.set("disabled", {
+      id: "disabled", user_id: owner!.id, household_id: ownerHousehold!.household_id,
+      endpoint: "https://web.push.apple.com/disabled", endpoint_hash: null,
+      p256dh: "p256dh", auth: "auth", user_agent_summary: null,
+      enabled: 0, created_at: "now", updated_at: null, last_seen_at: null, disabled_at: "now"
+    });
+    db.pushSubscriptions.set("other-user", {
+      id: "other-user", user_id: other!.id, household_id: otherHousehold!.household_id,
+      endpoint: "https://web.push.apple.com/other-user", endpoint_hash: null,
+      p256dh: "p256dh", auth: "auth", user_agent_summary: null,
+      enabled: 1, created_at: "now", updated_at: null, last_seen_at: null, disabled_at: null
+    });
+    db.pushSubscriptions.set("other-household", {
+      id: "other-household", user_id: owner!.id, household_id: otherHousehold!.household_id,
+      endpoint: "https://web.push.apple.com/other-household", endpoint_hash: null,
+      p256dh: "p256dh", auth: "auth", user_agent_summary: null,
+      enabled: 1, created_at: "now", updated_at: null, last_seen_at: null, disabled_at: null
+    });
+    db.pushSubscriptions.set("non-apple", {
+      id: "non-apple", user_id: owner!.id, household_id: ownerHousehold!.household_id,
+      endpoint: "https://push.example.test/non-apple", endpoint_hash: null,
+      p256dh: "p256dh", auth: "auth", user_agent_summary: null,
+      enabled: 1, created_at: "now", updated_at: null, last_seen_at: null, disabled_at: null
+    });
+
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(null, { status: 403 }))
+      .mockResolvedValueOnce(new Response(null, { status: 400 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const response = await app.fetch(
+      request("/api/notifications/network-probe?mode=subscription-post-empty&endpoint=https://attacker.example", {
+        headers: { cookie: ownerCookie }
+      }),
+      env
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      data: {
+        results: [
+          { index: 1, ok: true, status: 403 },
+          { index: 2, ok: true, status: 400 }
+        ]
+      }
+    });
+    expect(fetchMock).toHaveBeenNthCalledWith(1, "https://web.push.apple.com/active-1", { method: "POST" });
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "https://sub.push.apple.com/active-2", { method: "POST" });
+    vi.restoreAllMocks();
+  });
+
+  it("reports a safe failure for a thrown fetch or non-response and remains disabled in production", async () => {
+    const app = createApp();
+    const db = new MemoryD1();
+    const env = createTestEnv(db);
+    const cookie = await register(app, env, "subscription-probe-failure@example.com");
+    await app.fetch(
+      request("/api/households", {
+        method: "POST",
+        headers: { cookie },
+        body: JSON.stringify({ name: "Probe household" })
+      }),
+      env
+    );
+    const user = Array.from(db.users.values()).find((item) => item.email === "subscription-probe-failure@example.com");
+    const household = user && Array.from(db.members.values()).find((member) => member.user_id === user.id);
+    db.pushSubscriptions.set("failure", {
+      id: "failure", user_id: user!.id, household_id: household!.household_id,
+      endpoint: "https://web.push.apple.com/failure", endpoint_hash: null,
+      p256dh: "p256dh", auth: "auth", user_agent_summary: null,
+      enabled: 1, created_at: "now", updated_at: null, last_seen_at: null, disabled_at: null
+    });
+    db.pushSubscriptions.set("non-response", {
+      id: "non-response", user_id: user!.id, household_id: household!.household_id,
+      endpoint: "https://web.push.apple.com/non-response", endpoint_hash: null,
+      p256dh: "p256dh", auth: "auth", user_agent_summary: null,
+      enabled: 1, created_at: "now", updated_at: null, last_seen_at: null, disabled_at: null
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        .mockRejectedValueOnce(new TypeError("secret endpoint"))
+        .mockResolvedValueOnce(undefined)
+    );
+    const failure = await app.fetch(
+      request("/api/notifications/network-probe?mode=subscription-post-empty", { headers: { cookie } }),
+      env
+    );
+    expect(failure.status).toBe(200);
+    await expect(failure.json()).resolves.toMatchObject({
+      ok: true,
+      data: {
+        results: [
+          { index: 1, ok: false, errorName: "TypeError", causeCode: null },
+          { index: 2, ok: false, errorName: "TypeError", causeCode: null }
+        ]
+      }
+    });
+    const production = { ...env, APP_ENV: "production" as const };
+    await expect(
+      app.fetch(
+        request("/api/notifications/network-probe?mode=subscription-post-empty", { headers: { cookie } }),
+        production
+      )
+    ).resolves.toMatchObject({ status: 404 });
+    vi.restoreAllMocks();
+  });
+
   it("returns only the configured public key for authenticated users", async () => {
     const app = createApp();
     const env = createTestEnv(undefined, "public-key");
