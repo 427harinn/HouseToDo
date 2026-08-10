@@ -13,7 +13,13 @@ import { WebPushService } from "../services/web-push-service";
 
 const APPLE_PUSH_PROBE_URL = "https://web.push.apple.com/";
 const detailedEnvironments = new Set(["staging", "development", "test"]);
-const probeModes = new Set(["get", "post-empty", "post-basic-headers", "post-body"]);
+const probeModes = new Set([
+  "get",
+  "post-empty",
+  "post-basic-headers",
+  "post-body",
+  "post-content-encoding"
+]);
 const safeProbeErrorNames = new Set([
   "AbortError",
   "Error",
@@ -60,6 +66,16 @@ const probeRequestInit = (mode: string): RequestInit => {
       return {
         method: "POST",
         headers: { "Content-Type": "application/octet-stream" },
+        body: new Uint8Array([1, 2, 3])
+      };
+    case "post-content-encoding":
+      return {
+        method: "POST",
+        headers: {
+          TTL: "60",
+          "Content-Type": "application/octet-stream",
+          "Content-Encoding": "aes128gcm"
+        },
         body: new Uint8Array([1, 2, 3])
       };
     default:

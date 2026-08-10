@@ -56,6 +56,18 @@ describe("notification subscription API", () => {
         headers: { "Content-Type": "application/octet-stream" },
         body: new Uint8Array([1, 2, 3])
       }
+    ],
+    [
+      "post-content-encoding",
+      {
+        method: "POST",
+        headers: {
+          TTL: "60",
+          "Content-Type": "application/octet-stream",
+          "Content-Encoding": "aes128gcm"
+        },
+        body: new Uint8Array([1, 2, 3])
+      }
     ]
   ] as const)("reports an Apple host HTTP response as a successful %s probe", async (mode, init) => {
     const app = createApp();
@@ -80,15 +92,15 @@ describe("notification subscription API", () => {
     vi.restoreAllMocks();
   });
 
-  it.each(["evil", "post-content-encoding"])("rejects unsupported probe mode %s", async (mode) => {
+  it("rejects unsupported probe mode", async () => {
     const app = createApp();
     const env = createTestEnv();
-    const cookie = await register(app, env, `probe-invalid-${mode}@example.com`);
+    const cookie = await register(app, env, "probe-invalid@example.com");
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
     const response = await app.fetch(
-      request(`/api/notifications/network-probe?mode=${mode}`, { headers: { cookie } }),
+      request("/api/notifications/network-probe?mode=evil", { headers: { cookie } }),
       env
     );
 
@@ -109,7 +121,9 @@ describe("notification subscription API", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 405 })));
 
     const response = await app.fetch(
-      request("/api/notifications/network-probe", { headers: { cookie } }),
+      request("/api/notifications/network-probe?mode=post-content-encoding", {
+        headers: { cookie }
+      }),
       env
     );
 
@@ -147,7 +161,9 @@ describe("notification subscription API", () => {
     const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
 
     const response = await app.fetch(
-      request("/api/notifications/network-probe", { headers: { cookie } }),
+      request("/api/notifications/network-probe?mode=post-content-encoding", {
+        headers: { cookie }
+      }),
       env
     );
     const body = await response.text();
@@ -155,12 +171,12 @@ describe("notification subscription API", () => {
     expect(response.status).toBe(502);
     expect(body).toContain('"errorName":"TypeError"');
     expect(body).toContain('"causeCode":"null"');
-    expect(body).toContain('"mode":"get"');
+    expect(body).toContain('"mode":"post-content-encoding"');
     expect(body).not.toContain("secret.example");
     expect(body).not.toContain("token");
     expect(body).not.toContain("stack");
     expect(log).toHaveBeenCalledWith("network_probe_failed", {
-      mode: "get",
+      mode: "post-content-encoding",
       errorName: "TypeError",
       causeCode: null
     });
