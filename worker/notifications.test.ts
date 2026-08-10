@@ -42,6 +42,84 @@ const register = async (app: ReturnType<typeof createApp>, env: Env, email: stri
 };
 
 describe("notification subscription API", () => {
+  it.each(["staging", "development", "test"])(
+    "returns only the authenticated identity in %s",
+    async (appEnv) => {
+      const app = createApp();
+      const db = new MemoryD1();
+      const env = createTestEnv(db);
+      env.APP_ENV = appEnv as Env["APP_ENV"];
+      const cookie = await register(app, env, `debug-identity-${appEnv}@example.com`);
+      await app.fetch(
+        request("/api/households", {
+          method: "POST",
+          headers: { cookie },
+          body: JSON.stringify({ name: "Identity household" })
+        }),
+        env
+      );
+
+      const user = Array.from(db.users.values())[0];
+      const household = Array.from(db.households.values())[0];
+      const response = await app.fetch(
+        request("/api/notifications/debug-identity", { headers: { cookie } }),
+        env
+      );
+      const body: {
+        data: { userId: string; householdId: string };
+        [key: string]: unknown;
+      } = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(body).toMatchObject({
+        ok: true,
+        data: { userId: user.id, householdId: household.id }
+      });
+      expect(body.data).toEqual({ userId: user.id, householdId: household.id });
+      expect(JSON.stringify(body)).not.toMatch(
+        /email|displayName|session|token|password|membership|subscription|endpoint|p256dh|auth|vapid|invite/i
+      );
+    }
+  );
+
+  it("requires authentication for the identity diagnostic", async () => {
+    const app = createApp();
+    const env = createTestEnv();
+
+    await expect(
+      app.fetch(request("/api/notifications/debug-identity"), env)
+    ).resolves.toMatchObject({ status: 401 });
+  });
+
+  it("returns not found without a current household", async () => {
+    const app = createApp();
+    const env = createTestEnv();
+    const cookie = await register(app, env, "debug-identity-no-household@example.com");
+
+    await expect(
+      app.fetch(request("/api/notifications/debug-identity", { headers: { cookie } }), env)
+    ).resolves.toMatchObject({ status: 404 });
+  });
+
+  it("is disabled in production", async () => {
+    const app = createApp();
+    const env = createTestEnv();
+    env.APP_ENV = "production";
+    const cookie = await register(app, env, "debug-identity-production@example.com");
+    await app.fetch(
+      request("/api/households", {
+        method: "POST",
+        headers: { cookie },
+        body: JSON.stringify({ name: "Production household" })
+      }),
+      env
+    );
+
+    await expect(
+      app.fetch(request("/api/notifications/debug-identity", { headers: { cookie } }), env)
+    ).resolves.toMatchObject({ status: 404 });
+  });
+
   it.each([
     ["get", { method: "GET" }],
     ["post-empty", { method: "POST" }],

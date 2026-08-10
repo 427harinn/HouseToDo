@@ -114,6 +114,19 @@ export const vapidPublicKeyRoute: Handler = requireAuth((context) => {
   return okJson({ publicKey }, context.requestId);
 });
 
+export const debugIdentityRoute: Handler = requireAuth(async (context) => {
+  if (!detailedEnvironments.has(context.env.APP_ENV ?? "")) {
+    throw new AppError({ code: "NOT_FOUND", status: 404, message: "Not found." });
+  }
+
+  const userId = requireUserId(context.user?.id);
+  const household = await new HouseholdService(context.env.DB).requireCurrentHousehold(
+    userId
+  );
+
+  return okJson({ userId, householdId: household.id }, context.requestId);
+});
+
 export const registerPushSubscriptionRoute: Handler = requireAuth(async (context) => {
   const userId = requireUserId(context.user?.id);
   const input = validatePushSubscriptionInput(

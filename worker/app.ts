@@ -50,6 +50,7 @@ import {
 import type { Env } from "./types/env";
 import {
   vapidPublicKeyRoute,
+  debugIdentityRoute,
   registerPushSubscriptionRoute,
   unregisterPushSubscriptionRoute,
   testPushNotificationRoute,
@@ -141,6 +142,8 @@ const routeApi = withErrorHandling(
         return meRoute(context);
       case "GET /api/notifications/vapid-public-key":
         return vapidPublicKeyRoute(context);
+      case "GET /api/notifications/debug-identity":
+        return debugIdentityRoute(context);
       case "POST /api/notifications/subscriptions":
         return registerPushSubscriptionRoute(context);
       case "DELETE /api/notifications/subscriptions":
