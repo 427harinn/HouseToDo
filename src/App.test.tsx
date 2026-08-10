@@ -398,6 +398,67 @@ describe("App members UI", () => {
     expect(screen.queryByText(/Bearer|Authorization|endpoint|VAPID|JWT|Cookie|session/i)).not.toBeInTheDocument();
   }, 15000);
 
+  it("runs the subscription manual redirect diagnostic once and renders multiple safe results", async () => {
+    let resolveProbe!: (response: Response) => void;
+    const requestUrl = (input: RequestInfo | URL) =>
+      typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    const probeResponse = new Promise<Response>((resolve) => {
+      resolveProbe = resolve;
+    });
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.endsWith("/api/auth/me")) return Promise.resolve(ok({ user }));
+      if (url.endsWith("/api/households/current")) return Promise.resolve(ok({ household }));
+      if (url.endsWith("/api/households/current/members")) return Promise.resolve(ok({ members }));
+      if (url.endsWith("/api/households/current/image-usage")) return Promise.resolve(ok(imageUsage));
+      if (url.includes("mode=subscription-post-authorization-dummy-manual-redirect")) return probeResponse;
+      return Promise.resolve(failure("NOT_FOUND", 404));
+    });
+    window.history.replaceState({}, "", "/settings/members");
+
+    render(<App />);
+
+    await screen.findByText(members[0].displayName);
+    const manualButton = screen.getByRole("button", { name: "診断用 Subscription manual redirect" });
+    expect(fetchMock.mock.calls.some(([input]) => requestUrl(input).includes("manual-redirect"))).toBe(false);
+    fireEvent.click(manualButton);
+    expect(manualButton).toBeDisabled();
+
+    resolveProbe(
+      ok({
+        results: [
+          { index: 1, ok: true, status: 307 },
+          { index: 2, ok: true, status: 403 },
+          {
+            index: 3,
+            ok: false,
+            stage: "network",
+            errorCategory: "network_failed",
+            requestPhase: "fetch_call",
+            errorName: "TypeError",
+            causeCode: "null",
+            pushService: "apple",
+            upstreamStatus: "null"
+          }
+        ]
+      })
+    );
+
+    const manualStatus = await screen.findByRole("status");
+    expect(manualStatus).toHaveTextContent("index 1: HTTP 307");
+    expect(manualStatus).toHaveTextContent("index 2: HTTP 403");
+    expect(manualStatus).toHaveTextContent("index 3: safe failure");
+    expect(manualStatus).toHaveTextContent("errorName: TypeError");
+    expect(manualStatus).toHaveTextContent("transport success");
+    const probeCalls = fetchMock.mock.calls.filter(([input]) =>
+      requestUrl(input).includes("mode=subscription-post-authorization-dummy-manual-redirect")
+    );
+    expect(probeCalls).toHaveLength(1);
+    expect(probeCalls[0]?.[1]).toMatchObject({ credentials: "include" });
+    expect(new Headers(probeCalls[0]?.[1]?.headers).has("Authorization")).toBe(false);
+    expect(screen.queryByText(/endpoint|Location|Authorization|JWT|VAPID|p256dh|auth|Cookie|session|token/i)).not.toBeInTheDocument();
+  }, 15000);
+
   it("does not show the invite action for a member", async () => {
     const memberHousehold = { ...household, role: "member" };
     mockFetch(memberHousehold);

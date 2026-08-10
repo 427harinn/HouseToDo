@@ -16,6 +16,10 @@ export type ApplePushNetworkProbeFailure = {
   upstreamStatus?: string;
 };
 
+export type ApplePushSubscriptionProbeResult =
+  | { index: number; ok: true; status: number }
+  | ({ index: number; ok: false } & ApplePushNetworkProbeFailure);
+
 export const getVapidPublicKey = (signal?: AbortSignal) =>
   apiRequest<{ publicKey: string }>("/api/notifications/vapid-public-key", { signal });
 
@@ -43,4 +47,9 @@ export const sendTestPushNotification = () =>
 export const runApplePushNetworkProbe = () =>
   apiRequest<ApplePushNetworkProbeResult>(
     "/api/notifications/network-probe?mode=post-authorization-fixed-host"
+  );
+
+export const runApplePushSubscriptionManualRedirectProbe = () =>
+  apiRequest<{ results: ApplePushSubscriptionProbeResult[] }>(
+    "/api/notifications/network-probe?mode=subscription-post-authorization-dummy-manual-redirect"
   );

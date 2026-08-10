@@ -6,6 +6,7 @@ import {
   getVapidPublicKey,
   registerPushSubscription,
   runApplePushNetworkProbe,
+  runApplePushSubscriptionManualRedirectProbe,
   sendTestPushNotification,
   unregisterPushSubscription
 } from "./api/notifications";
@@ -1955,6 +1956,14 @@ function NotificationSettingsSection() {
     | { kind: "error"; details: Record<string, string> }
     | null
   >(null);
+  const [manualRedirectDiagnosticState, setManualRedirectDiagnosticState] = useState<
+    "idle" | "running" | "success" | "error"
+  >("idle");
+  const [manualRedirectDiagnosticResult, setManualRedirectDiagnosticResult] = useState<
+    | { kind: "success"; results: Awaited<ReturnType<typeof runApplePushSubscriptionManualRedirectProbe>>["results"] }
+    | { kind: "error"; details: Record<string, string> }
+    | null
+  >(null);
 
   const refresh = useCallback(async () => {
     const next = getBrowserCapabilities();
@@ -2126,6 +2135,29 @@ function NotificationSettingsSection() {
     }
   };
 
+  const runManualRedirectDiagnostic = async () => {
+    if (manualRedirectDiagnosticState === "running") return;
+    setManualRedirectDiagnosticState("running");
+    setManualRedirectDiagnosticResult(null);
+    try {
+      const result = await runApplePushSubscriptionManualRedirectProbe();
+      setManualRedirectDiagnosticState("success");
+      setManualRedirectDiagnosticResult({ kind: "success", results: result.results });
+    } catch (error) {
+      const details = error instanceof ApiError ? error.details ?? {} : {};
+      const safeDetails = Object.fromEntries(
+        ["stage", "errorCategory", "requestPhase", "errorName", "causeCode", "upstreamStatus"].flatMap(
+          (key) => (typeof details[key] === "string" ? [[key, details[key]]] : [])
+        )
+      );
+      setManualRedirectDiagnosticState("error");
+      setManualRedirectDiagnosticResult({
+        kind: "error",
+        details: { errorCategory: "network_failed", ...safeDetails }
+      });
+    }
+  };
+
   const status =
     state === "unsupported"
       ? "このブラウザでは通知を利用できません"
@@ -2191,6 +2223,51 @@ function NotificationSettingsSection() {
             <div role="status">
               <p>Apple通信診断:</p>
               {Object.entries(diagnosticResult.details).map(([key, value]) => (
+                <p key={key}>{key}: {value}</p>
+              ))}
+            </div>
+          ) : null}
+          <Button
+            disabled={manualRedirectDiagnosticState === "running"}
+            variant="secondary"
+            onClick={() => void runManualRedirectDiagnostic()}
+          >
+            {manualRedirectDiagnosticState === "running" ? (
+              <InlineLoading label="診断中" />
+            ) : (
+              "診断用 Subscription manual redirect"
+            )}
+          </Button>
+          {manualRedirectDiagnosticResult?.kind === "success" ? (
+            <div role="status">
+              {manualRedirectDiagnosticResult.results.map((result) =>
+                result.ok ? (
+                  <p key={result.index}>
+                    index {result.index}: HTTP {result.status}
+                    <br />
+                    transport success
+                  </p>
+                ) : (
+                  <div key={result.index}>
+                    <p>index {result.index}: safe failure</p>
+                    {["stage", "errorCategory", "requestPhase", "errorName", "causeCode", "upstreamStatus"].flatMap(
+                      (key) =>
+                        typeof result[key as keyof typeof result] === "string"
+                          ? [
+                              <p key={key}>
+                                {key}: {result[key as keyof typeof result]}
+                              </p>
+                            ]
+                          : []
+                    )}
+                  </div>
+                )
+              )}
+            </div>
+          ) : manualRedirectDiagnosticResult?.kind === "error" ? (
+            <div role="status">
+              <p>Subscription manual redirect:</p>
+              {Object.entries(manualRedirectDiagnosticResult.details).map(([key, value]) => (
                 <p key={key}>{key}: {value}</p>
               ))}
             </div>
