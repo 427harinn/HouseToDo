@@ -48,6 +48,10 @@ export type WebPushSendResult = {
   failure?: WebPushFailure;
 };
 
+export type WebPushAuthorizationProbeResult =
+  | { index: number; ok: true; status: number }
+  | ({ index: number; ok: false } & WebPushFailure);
+
 type WebPushAttemptResult =
   | { status: "sent"; upstreamStatus: number }
   | { status: "stale" | "failed"; failure: WebPushFailure };
@@ -354,6 +358,73 @@ export class WebPushService {
       }
     }
     return { sent, failed, ...(firstFailure ? { failure: firstFailure } : {}) };
+  }
+
+  async probeVapidAuthorization(
+    userId: string,
+    householdId: string,
+    env: {
+      WEB_PUSH_VAPID_PUBLIC_KEY?: string;
+      WEB_PUSH_VAPID_PRIVATE_KEY?: string;
+      WEB_PUSH_SUBJECT?: string;
+    },
+    isAllowedEndpoint: (endpoint: string) => boolean
+  ): Promise<WebPushAuthorizationProbeResult[]> {
+    const subscriptions = (await this.repository.listActiveByUserHousehold(userId, householdId))
+      .filter((subscription) => isAllowedEndpoint(subscription.endpoint));
+    const publicKey = env.WEB_PUSH_VAPID_PUBLIC_KEY?.trim();
+    const privateKey = env.WEB_PUSH_VAPID_PRIVATE_KEY?.trim();
+    const subject = env.WEB_PUSH_SUBJECT?.trim();
+
+    return Promise.all(
+      subscriptions.map(async (subscription, index) => {
+        const resultIndex = index + 1;
+        if (!publicKey || !privateKey || !subject || !/^(mailto:|https:)/.test(subject)) {
+          return {
+            index: resultIndex,
+            ok: false,
+            ...failure("config", "missing_config")
+          };
+        }
+
+        let authorization: string;
+        try {
+          authorization = await createVapidAuthorization(
+            subscription.endpoint,
+            subject,
+            privateKey,
+            publicKey
+          );
+        } catch (error) {
+          const vapidFailure = error instanceof ClassifiedWebPushError
+            ? error.failure
+            : failure("vapid", "unknown");
+          return { index: resultIndex, ok: false, ...vapidFailure };
+        }
+
+        try {
+          const response = await this.fetcher(subscription.endpoint, {
+            method: "POST",
+            headers: { Authorization: authorization }
+          });
+          if (!(response instanceof Response) || typeof response.status !== "number") {
+            throw new TypeError("Probe fetch did not return an HTTP response.");
+          }
+          return { index: resultIndex, ok: true, status: response.status };
+        } catch (error) {
+          return {
+            index: resultIndex,
+            ok: false,
+            ...failure("network", "network_failed", null, {
+              requestPhase: "fetch_call",
+              errorName: safeErrorName(error),
+              causeCode: safeCauseCode(error),
+              pushService: pushServiceFromEndpoint(subscription.endpoint)
+            })
+          };
+        }
+      })
+    );
   }
 
   private async sendOne(

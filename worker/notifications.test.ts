@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createApp } from "./app";
-import { bytesToBase64Url } from "./lib/crypto";
+import { base64UrlToBytes, bytesToBase64Url } from "./lib/crypto";
 import { MemoryD1 } from "./test-utils/memory-d1";
 import { MemoryR2 } from "./test-utils/memory-r2";
 import type { Env } from "./types/env";
@@ -39,6 +39,20 @@ const register = async (app: ReturnType<typeof createApp>, env: Env, email: stri
     env
   );
   return response.headers.get("set-cookie") ?? "";
+};
+
+const configureVapid = async (env: Env) => {
+  const keyPair = await crypto.subtle.generateKey(
+    { name: "ECDSA", namedCurve: "P-256" },
+    true,
+    ["sign", "verify"]
+  );
+  const privateJwk = await crypto.subtle.exportKey("jwk", keyPair.privateKey);
+  env.WEB_PUSH_VAPID_PRIVATE_KEY = JSON.stringify(privateJwk);
+  env.WEB_PUSH_VAPID_PUBLIC_KEY = bytesToBase64Url(
+    new Uint8Array(await crypto.subtle.exportKey("raw", keyPair.publicKey))
+  );
+  env.WEB_PUSH_SUBJECT = "mailto:probe@example.com";
 };
 
 describe("notification subscription API", () => {
@@ -326,7 +340,7 @@ describe("notification subscription API", () => {
       enabled: 1, created_at: "now", updated_at: null, last_seen_at: null, disabled_at: null
     });
 
-    const fetchMock = vi.fn()
+    const fetchMock = vi.fn<typeof fetch>()
       .mockResolvedValueOnce(new Response(null, { status: 403 }))
       .mockResolvedValueOnce(new Response(null, { status: 400 }));
     vi.stubGlobal("fetch", fetchMock);
@@ -406,6 +420,152 @@ describe("notification subscription API", () => {
         production
       )
     ).resolves.toMatchObject({ status: 404 });
+    vi.restoreAllMocks();
+  });
+
+  it("probes active Apple subscriptions with VAPID Authorization and no payload", async () => {
+    const app = createApp();
+    const db = new MemoryD1();
+    const env = createTestEnv(db);
+    await configureVapid(env);
+    const cookie = await register(app, env, "subscription-vapid@example.com");
+    await app.fetch(
+      request("/api/households", {
+        method: "POST",
+        headers: { cookie },
+        body: JSON.stringify({ name: "VAPID household" })
+      }),
+      env
+    );
+    const user = Array.from(db.users.values())[0];
+    const household = Array.from(db.households.values())[0];
+    db.pushSubscriptions.set("vapid-1", {
+      id: "vapid-1", user_id: user.id, household_id: household.id,
+      endpoint: "https://web.push.apple.com/vapid-1", endpoint_hash: null,
+      p256dh: "p256dh", auth: "auth", user_agent_summary: null,
+      enabled: 1, created_at: "now", updated_at: null, last_seen_at: null, disabled_at: null
+    });
+    db.pushSubscriptions.set("vapid-2", {
+      id: "vapid-2", user_id: user.id, household_id: household.id,
+      endpoint: "https://sub.push.apple.com/vapid-2", endpoint_hash: null,
+      p256dh: "p256dh", auth: "auth", user_agent_summary: null,
+      enabled: 1, created_at: "now", updated_at: null, last_seen_at: null, disabled_at: null
+    });
+    db.pushSubscriptions.set("vapid-disabled", {
+      id: "vapid-disabled", user_id: user.id, household_id: household.id,
+      endpoint: "https://web.push.apple.com/disabled", endpoint_hash: null,
+      p256dh: "p256dh", auth: "auth", user_agent_summary: null,
+      enabled: 0, created_at: "now", updated_at: null, last_seen_at: null, disabled_at: "now"
+    });
+    db.pushSubscriptions.set("vapid-other", {
+      id: "vapid-other", user_id: user.id, household_id: household.id,
+      endpoint: "https://push.example.test/other", endpoint_hash: null,
+      p256dh: "p256dh", auth: "auth", user_agent_summary: null,
+      enabled: 1, created_at: "now", updated_at: null, last_seen_at: null, disabled_at: null
+    });
+
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(null, { status: 403 }))
+      .mockResolvedValueOnce(new Response(null, { status: 401 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const response = await app.fetch(
+      request("/api/notifications/network-probe?mode=subscription-post-vapid", {
+        headers: { cookie }
+      }),
+      env
+    );
+
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(body).toContain('"index":1');
+    expect(body).toContain('"index":2');
+    expect(body).toContain('"status":403');
+    expect(body).toContain('"status":401');
+    expect(body).not.toContain("Authorization");
+    expect(body).not.toContain("web.push.apple.com");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    for (const [endpoint, init] of fetchMock.mock.calls) {
+      const requestInit = init as RequestInit;
+      expect(endpoint).toMatch(/^https:\/\/.*\.push\.apple\.com\//);
+      expect(requestInit.method).toBe("POST");
+      expect(requestInit.body).toBeUndefined();
+      const headers = requestInit.headers as Record<string, string>;
+      expect(Object.keys(headers)).toEqual(["Authorization"]);
+      expect(headers.Authorization).toEqual(expect.any(String));
+      const authorization = headers.Authorization;
+      const token = authorization.slice("vapid t=".length).split(", k=")[0];
+      const [, payload] = token.split(".");
+      const decoded = JSON.parse(new TextDecoder().decode(base64UrlToBytes(payload))) as {
+        aud?: unknown;
+        sub?: unknown;
+      };
+      expect(decoded.aud).toMatch(/^https:\/\/.*\.push\.apple\.com$/);
+      expect(decoded.sub).toBe("mailto:probe@example.com");
+    }
+    vi.restoreAllMocks();
+  });
+
+  it("returns safe VAPID probe failures and does not fetch when signing fails", async () => {
+    const app = createApp();
+    const db = new MemoryD1();
+    const env = createTestEnv(db);
+    await configureVapid(env);
+    const cookie = await register(app, env, "subscription-vapid-failure@example.com");
+    await app.fetch(
+      request("/api/households", {
+        method: "POST", headers: { cookie }, body: JSON.stringify({ name: "VAPID failure" })
+      }),
+      env
+    );
+    const user = Array.from(db.users.values())[0];
+    const household = Array.from(db.households.values())[0];
+    db.pushSubscriptions.set("vapid-failure", {
+      id: "vapid-failure", user_id: user.id, household_id: household.id,
+      endpoint: "https://web.push.apple.com/failure", endpoint_hash: null,
+      p256dh: "p256dh", auth: "auth", user_agent_summary: null,
+      enabled: 1, created_at: "now", updated_at: null, last_seen_at: null, disabled_at: null
+    });
+    const fetchMock = vi.fn();
+    const signSpy = vi.spyOn(crypto.subtle, "sign").mockRejectedValue(new Error("secret signing failure"));
+    vi.stubGlobal("fetch", fetchMock);
+    const response = await app.fetch(
+      request("/api/notifications/network-probe?mode=subscription-post-vapid", { headers: { cookie } }),
+      env
+    );
+    const body = await response.text();
+    expect(response.status).toBe(200);
+    expect(body).toMatch(/"stage":"vapid"/);
+    expect(body).toMatch(/"errorCategory":"vapid_sign_failed"/);
+    expect(body).not.toContain("secret signing failure");
+    expect(fetchMock).not.toHaveBeenCalled();
+    signSpy.mockRestore();
+    vi.restoreAllMocks();
+
+    const networkFetch = vi.fn<typeof fetch>().mockRejectedValue(
+      new TypeError("secret endpoint failure")
+    );
+    vi.stubGlobal("fetch", networkFetch);
+    const networkResponse = await app.fetch(
+      request("/api/notifications/network-probe?mode=subscription-post-vapid", { headers: { cookie } }),
+      env
+    );
+    const networkBody = await networkResponse.text();
+    expect(networkResponse.status).toBe(200);
+    expect(networkBody).toMatch(/"stage":"network"/);
+    expect(networkBody).toMatch(/"errorCategory":"network_failed"/);
+    expect(networkBody).toMatch(/"requestPhase":"fetch_call"/);
+    expect(networkBody).toMatch(/"errorName":"TypeError"/);
+    expect(networkBody).not.toContain("secret endpoint failure");
+    expect(networkBody).not.toContain("web.push.apple.com");
+
+    const production = { ...env, APP_ENV: "production" as const };
+    await expect(
+      app.fetch(
+        request("/api/notifications/network-probe?mode=subscription-post-vapid", { headers: { cookie } }),
+        production
+      )
+    ).resolves.toMatchObject({ status: 404 });
+    expect(networkFetch).toHaveBeenCalledOnce();
     vi.restoreAllMocks();
   });
 

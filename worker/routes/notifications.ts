@@ -20,7 +20,8 @@ const probeModes = new Set([
   "post-basic-headers",
   "post-body",
   "post-content-encoding",
-  "subscription-post-empty"
+  "subscription-post-empty",
+  "subscription-post-vapid"
 ]);
 const safeProbeErrorNames = new Set([
   "AbortError",
@@ -224,7 +225,7 @@ export const applePushNetworkProbeRoute: Handler = requireAuth(async (context) =
     });
   }
 
-  if (mode === "subscription-post-empty") {
+  if (mode === "subscription-post-empty" || mode === "subscription-post-vapid") {
     const userId = requireUserId(context.user?.id);
     const household = await new HouseholdService(context.env.DB).requireCurrentHousehold(
       userId
@@ -233,6 +234,15 @@ export const applePushNetworkProbeRoute: Handler = requireAuth(async (context) =
       userId,
       household.id
     );
+    if (mode === "subscription-post-vapid") {
+      const results = await new WebPushService(context.env.DB).probeVapidAuthorization(
+        userId,
+        household.id,
+        context.env,
+        isAppleHttpsEndpoint
+      );
+      return okJson({ results }, context.requestId);
+    }
     const results = await Promise.all(
       subscriptions.map(async (subscription, index) => {
         if (!isAppleHttpsEndpoint(subscription.endpoint)) return null;
