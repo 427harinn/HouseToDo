@@ -58,3 +58,8 @@ export const runApplePushSubscriptionCustomHeaderProbe = () =>
   apiRequest<{ results: ApplePushSubscriptionProbeResult[] }>(
     "/api/notifications/network-probe?mode=subscription-post-dummy-header"
   );
+
+export const runApplePushSubscriptionTtlProbe = () =>
+  apiRequest<{ results: ApplePushSubscriptionProbeResult[] }>(
+    "/api/notifications/network-probe?mode=subscription-post-ttl"
+  );

@@ -8,6 +8,7 @@ import {
   runApplePushNetworkProbe,
   runApplePushSubscriptionCustomHeaderProbe,
   runApplePushSubscriptionManualRedirectProbe,
+  runApplePushSubscriptionTtlProbe,
   sendTestPushNotification,
   unregisterPushSubscription
 } from "./api/notifications";
@@ -1973,6 +1974,14 @@ function NotificationSettingsSection() {
     | { kind: "error"; details: Record<string, string> }
     | null
   >(null);
+  const [ttlDiagnosticState, setTtlDiagnosticState] = useState<
+    "idle" | "running" | "success" | "error"
+  >("idle");
+  const [ttlDiagnosticResult, setTtlDiagnosticResult] = useState<
+    | { kind: "success"; results: Awaited<ReturnType<typeof runApplePushSubscriptionTtlProbe>>["results"] }
+    | { kind: "error"; details: Record<string, string> }
+    | null
+  >(null);
 
   const refresh = useCallback(async () => {
     const next = getBrowserCapabilities();
@@ -2190,6 +2199,26 @@ function NotificationSettingsSection() {
     }
   };
 
+  const runTtlDiagnostic = async () => {
+    if (ttlDiagnosticState === "running") return;
+    setTtlDiagnosticState("running");
+    setTtlDiagnosticResult(null);
+    try {
+      const result = await runApplePushSubscriptionTtlProbe();
+      setTtlDiagnosticState("success");
+      setTtlDiagnosticResult({ kind: "success", results: result.results });
+    } catch (error) {
+      const details = error instanceof ApiError ? error.details ?? {} : {};
+      const safeDetails = Object.fromEntries(
+        ["stage", "errorCategory", "requestPhase", "errorName", "causeCode", "upstreamStatus"].flatMap(
+          (key) => (typeof details[key] === "string" ? [[key, details[key]]] : [])
+        )
+      );
+      setTtlDiagnosticState("error");
+      setTtlDiagnosticResult({ kind: "error", details: { errorCategory: "network_failed", ...safeDetails } });
+    }
+  };
+
   const status =
     state === "unsupported"
       ? "このブラウザでは通知を利用できません"
@@ -2336,6 +2365,34 @@ function NotificationSettingsSection() {
               {Object.entries(customHeaderDiagnosticResult.details).map(([key, value]) => (
                 <p key={key}>{key}: {value}</p>
               ))}
+            </div>
+          ) : null}
+          <Button
+            disabled={ttlDiagnosticState === "running"}
+            variant="secondary"
+            onClick={() => void runTtlDiagnostic()}
+          >
+            {ttlDiagnosticState === "running" ? <InlineLoading label="診断中" /> : "診断用 Subscription TTL"}
+          </Button>
+          {ttlDiagnosticResult?.kind === "success" ? (
+            <div role="status">
+              {ttlDiagnosticResult.results.map((result) =>
+                result.ok ? (
+                  <p key={result.index}>index {result.index}: HTTP {result.status}<br />transport success</p>
+                ) : (
+                  <div key={result.index}>
+                    <p>index {result.index}: safe failure</p>
+                    {Object.entries(result)
+                      .filter(([key, value]) => key !== "index" && key !== "ok" && typeof value === "string")
+                      .map(([key, value]) => <p key={key}>{key}: {value}</p>)}
+                  </div>
+                )
+              )}
+            </div>
+          ) : ttlDiagnosticResult?.kind === "error" ? (
+            <div role="status">
+              <p>Subscription TTL:</p>
+              {Object.entries(ttlDiagnosticResult.details).map(([key, value]) => <p key={key}>{key}: {value}</p>)}
             </div>
           ) : null}
         </div>

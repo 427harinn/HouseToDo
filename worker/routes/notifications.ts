@@ -22,6 +22,7 @@ const probeModes = new Set([
   "post-content-encoding",
   "post-authorization-fixed-host",
   "subscription-post-empty",
+  "subscription-post-ttl",
   "subscription-post-vapid",
   "subscription-post-authorization-dummy",
   "subscription-post-dummy-header",
@@ -236,6 +237,7 @@ export const applePushNetworkProbeRoute: Handler = requireAuth(async (context) =
 
   if (
     mode === "subscription-post-empty" ||
+    mode === "subscription-post-ttl" ||
     mode === "subscription-post-vapid" ||
     mode === "subscription-post-authorization-dummy" ||
     mode === "subscription-post-dummy-header" ||
@@ -276,6 +278,14 @@ export const applePushNetworkProbeRoute: Handler = requireAuth(async (context) =
     }
     if (mode === "subscription-post-authorization-dummy-manual-redirect") {
       const results = await new WebPushService(context.env.DB).probeDummyAuthorizationManualRedirect(
+        userId,
+        household.id,
+        isAppleHttpsEndpoint
+      );
+      return okJson({ results }, context.requestId);
+    }
+    if (mode === "subscription-post-ttl") {
+      const results = await new WebPushService(context.env.DB).probeTtl(
         userId,
         household.id,
         isAppleHttpsEndpoint

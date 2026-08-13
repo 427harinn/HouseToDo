@@ -571,6 +571,98 @@ describe("notification subscription API", () => {
     vi.restoreAllMocks();
   });
 
+  it("probes active Apple subscriptions with only TTL", async () => {
+    const app = createApp();
+    const db = new MemoryD1();
+    const env = createTestEnv(db);
+    const cookie = await register(app, env, "subscription-ttl@example.com");
+    await app.fetch(
+      request("/api/households", {
+        method: "POST",
+        headers: { cookie },
+        body: JSON.stringify({ name: "TTL household" })
+      }),
+      env
+    );
+    const user = Array.from(db.users.values())[0];
+    const household = Array.from(db.households.values())[0];
+    db.pushSubscriptions.set("ttl-active", {
+      id: "ttl-active", user_id: user.id, household_id: household.id,
+      endpoint: "https://web.push.apple.com/ttl-active", endpoint_hash: null,
+      p256dh: "secret-p256dh", auth: "secret-auth", user_agent_summary: null,
+      enabled: 1, created_at: "now", updated_at: null, last_seen_at: null, disabled_at: null
+    });
+    db.pushSubscriptions.set("ttl-failure", {
+      id: "ttl-failure", user_id: user.id, household_id: household.id,
+      endpoint: "https://sub.push.apple.com/ttl-failure", endpoint_hash: null,
+      p256dh: "secret-p256dh", auth: "secret-auth", user_agent_summary: null,
+      enabled: 1, created_at: "now", updated_at: null, last_seen_at: null, disabled_at: null
+    });
+    db.pushSubscriptions.set("ttl-disabled", {
+      id: "ttl-disabled", user_id: user.id, household_id: household.id,
+      endpoint: "https://web.push.apple.com/ttl-disabled", endpoint_hash: null,
+      p256dh: "secret-p256dh", auth: "secret-auth", user_agent_summary: null,
+      enabled: 0, created_at: "now", updated_at: null, last_seen_at: null, disabled_at: "now"
+    });
+    db.pushSubscriptions.set("ttl-non-apple", {
+      id: "ttl-non-apple", user_id: user.id, household_id: household.id,
+      endpoint: "https://push.example.test/ttl-non-apple", endpoint_hash: null,
+      p256dh: "secret-p256dh", auth: "secret-auth", user_agent_summary: null,
+      enabled: 1, created_at: "now", updated_at: null, last_seen_at: null, disabled_at: null
+    });
+    const fetchMock = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(null, { status: 403 }))
+      .mockRejectedValueOnce(new TypeError("secret endpoint"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await app.fetch(
+      request("/api/notifications/network-probe?mode=subscription-post-ttl", { headers: { cookie } }),
+      env
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      data: {
+        results: [
+          { index: 1, ok: true, status: 403 },
+          {
+            index: 2,
+            ok: false,
+            stage: "network",
+            errorCategory: "network_failed",
+            upstreamStatus: null,
+            requestPhase: "fetch_call",
+            errorName: "TypeError",
+            causeCode: null,
+            pushService: "apple"
+          }
+        ]
+      }
+    });
+    expect(fetchMock).toHaveBeenNthCalledWith(1, "https://web.push.apple.com/ttl-active", {
+      method: "POST",
+      headers: { TTL: "60" }
+    });
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "https://sub.push.apple.com/ttl-failure", {
+      method: "POST",
+      headers: { TTL: "60" }
+    });
+    for (const [, init] of fetchMock.mock.calls) {
+      expect(new Headers((init as RequestInit).headers)).toEqual(new Headers({ TTL: "60" }));
+      expect((init as RequestInit).body).toBeUndefined();
+    }
+    const production = { ...env, APP_ENV: "production" as const };
+    await expect(
+      app.fetch(
+        request("/api/notifications/network-probe?mode=subscription-post-ttl", { headers: { cookie } }),
+        production
+      )
+    ).resolves.toMatchObject({ status: 404 });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    vi.restoreAllMocks();
+  });
+
   it("probes active Apple subscriptions with only the custom diagnostic header", async () => {
     const app = createApp();
     const db = new MemoryD1();
