@@ -210,6 +210,18 @@ export type PushSubscriptionDbRecord = {
   disabled_at: string | null;
 };
 
+export type NotificationDeliveryDbRecord = {
+  id: string;
+  user_id: string;
+  household_id: string;
+  notification_type: string;
+  target_key: string;
+  sent_at: string | null;
+  status: "pending" | "sent";
+  claimed_at: string;
+  created_at: string;
+};
+
 class MemoryPreparedStatement {
   private values: unknown[] = [];
 
@@ -257,6 +269,7 @@ export class MemoryD1 {
   readonly householdImageUsage = new Map<string, HouseholdImageUsageDbRecord>();
   readonly imageUploadReservations = new Map<string, ImageUploadReservationDbRecord>();
   readonly pushSubscriptions = new Map<string, PushSubscriptionDbRecord>();
+  readonly notificationDeliveries = new Map<string, NotificationDeliveryDbRecord>();
   private lastDeletedReservation = false;
   private lastChanges = 0;
 
@@ -286,7 +299,8 @@ export class MemoryD1 {
       this.orphanR2Objects,
       this.householdImageUsage,
       this.imageUploadReservations,
-      this.pushSubscriptions
+      this.pushSubscriptions,
+      this.notificationDeliveries
     ];
     const snapshots = maps.map((map) => new Map<unknown, unknown>(map));
     const results: D1Result<T>[] = [];
@@ -320,6 +334,7 @@ export class MemoryD1 {
     | HouseholdImageUsageDbRecord
     | ImageUploadReservationDbRecord
     | PushSubscriptionDbRecord
+    | NotificationDeliveryDbRecord
     | {
         create_count: number;
         create_bytes: number;
@@ -558,6 +573,9 @@ export class MemoryD1 {
   }
 
   all(sql: string, values: unknown[]): unknown[] {
+    if (sql.includes("FROM households") && !sql.includes("household_members")) {
+      return Array.from(this.households.values());
+    }
     if (
       sql.includes("FROM push_subscriptions") &&
       sql.includes("user_id = ?") &&
@@ -701,6 +719,51 @@ export class MemoryD1 {
 
   run(sql: string, values: unknown[]): D1Result {
     let changes = 1;
+
+    if (sql.startsWith("INSERT INTO notification_deliveries")) {
+      const existing = Array.from(this.notificationDeliveries.values()).find(
+        (row) =>
+          row.user_id === values[1] &&
+          row.household_id === values[2] &&
+          row.notification_type === values[3] &&
+          row.target_key === values[4]
+      );
+      if (!existing) {
+        this.notificationDeliveries.set(String(values[0]), {
+          id: String(values[0]),
+          user_id: String(values[1]),
+          household_id: String(values[2]),
+          notification_type: String(values[3]),
+          target_key: String(values[4]),
+          sent_at: null,
+          status: "pending",
+          claimed_at: String(values[5]),
+          created_at: String(values[6])
+        });
+      } else if (existing.status === "pending" && existing.claimed_at <= String(values[7])) {
+        this.notificationDeliveries.delete(existing.id);
+        this.notificationDeliveries.set(String(values[0]), {
+          ...existing,
+          id: String(values[0]),
+          sent_at: null,
+          status: "pending",
+          claimed_at: String(values[5])
+        });
+      } else {
+        changes = 0;
+      }
+    }
+    if (sql.startsWith("UPDATE notification_deliveries SET status = 'sent'")) {
+      const row = this.notificationDeliveries.get(String(values[1]));
+      if (row && row.status === "pending")
+        this.notificationDeliveries.set(row.id, { ...row, status: "sent", sent_at: String(values[0]) });
+      else changes = 0;
+    }
+    if (sql.startsWith("DELETE FROM notification_deliveries")) {
+      const row = this.notificationDeliveries.get(String(values[0]));
+      if (row && row.status === "pending") this.notificationDeliveries.delete(row.id);
+      else changes = 0;
+    }
 
     if (sql.startsWith("INSERT INTO push_subscriptions")) {
       if (

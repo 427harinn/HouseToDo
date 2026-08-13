@@ -7,15 +7,37 @@ export type DeliveryClaim = {
   now: string;
 };
 
+export const NOTIFICATION_CLAIM_LEASE_MS = 10 * 60 * 1000;
+
+const staleBefore = (now: string): string =>
+  new Date(new Date(now).getTime() - NOTIFICATION_CLAIM_LEASE_MS).toISOString();
+
 export class NotificationDeliveryRepository {
   constructor(private readonly db: D1Database) {}
 
   async claim(input: DeliveryClaim): Promise<boolean> {
     const result = await this.db.prepare(
-      `INSERT OR IGNORE INTO notification_deliveries
-       (id, user_id, household_id, notification_type, target_key, sent_at, status, created_at)
-       VALUES (?, ?, ?, ?, ?, NULL, 'pending', ?)`
-    ).bind(input.id, input.userId, input.householdId, input.notificationType, input.targetKey, input.now).run();
+      `INSERT INTO notification_deliveries
+       (id, user_id, household_id, notification_type, target_key, sent_at, status, claimed_at, created_at)
+       VALUES (?, ?, ?, ?, ?, NULL, 'pending', ?, ?)
+       ON CONFLICT (user_id, household_id, notification_type, target_key)
+       DO UPDATE SET
+         id = excluded.id,
+         status = 'pending',
+         sent_at = NULL,
+         claimed_at = excluded.claimed_at
+       WHERE notification_deliveries.status = 'pending'
+         AND notification_deliveries.claimed_at <= ?`
+    ).bind(
+      input.id,
+      input.userId,
+      input.householdId,
+      input.notificationType,
+      input.targetKey,
+      input.now,
+      input.now,
+      staleBefore(input.now)
+    ).run();
     return (result.meta.changes ?? 0) > 0;
   }
 
