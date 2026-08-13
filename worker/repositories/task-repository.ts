@@ -15,6 +15,7 @@ type TaskRow = {
   assigned_user_id: string | null;
   scheduled_time: string | null;
   notification_slot: NotificationSlot;
+  notification_time: string | null;
   weekly_target_count: number | null;
   active: number;
   sort_order: number;
@@ -33,6 +34,7 @@ export type TaskCreateRecordInput = {
   assignedUserId: string | null;
   scheduledTime: string | null;
   notificationSlot: NotificationSlot;
+  notificationTime?: string | null;
   weeklyTargetCount: number | null;
   sortOrder: number;
   createdBy: string;
@@ -56,6 +58,7 @@ const toTask = (row: TaskRow, weekdays: number[] = []): Task => ({
   assignedUserId: row.assigned_user_id,
   scheduledTime: row.scheduled_time,
   notificationSlot: row.notification_slot,
+  notificationTime: row.notification_time ?? null,
   weeklyTargetCount: row.weekly_target_count,
   active: row.active === 1,
   sortOrder: row.sort_order,
@@ -81,7 +84,7 @@ export class TaskRepository {
     options: { includeInactive?: boolean } = {}
   ): Promise<Task[]> {
     const sql = `SELECT id, household_id, title, description, recurrence_type, assignment_type,
-       assigned_user_id, scheduled_time, notification_slot, weekly_target_count, active, sort_order,
+       assigned_user_id, scheduled_time, notification_slot, notification_time, weekly_target_count, active, sort_order,
        created_by, created_at, updated_at
        FROM tasks
        WHERE household_id = ? ${options.includeInactive ? "" : "AND active = 1"}
@@ -94,7 +97,7 @@ export class TaskRepository {
     const row = await this.db
       .prepare(
         `SELECT id, household_id, title, description, recurrence_type, assignment_type,
-         assigned_user_id, scheduled_time, notification_slot, weekly_target_count, active, sort_order,
+         assigned_user_id, scheduled_time, notification_slot, notification_time, weekly_target_count, active, sort_order,
          created_by, created_at, updated_at
          FROM tasks
          WHERE household_id = ? AND id = ?`
@@ -118,9 +121,9 @@ export class TaskRepository {
       .prepare(
         `INSERT INTO tasks (
           id, household_id, title, description, recurrence_type, assignment_type, assigned_user_id,
-          scheduled_time, notification_slot, weekly_target_count, active, sort_order, created_by,
+          scheduled_time, notification_slot, notification_time, weekly_target_count, active, sort_order, created_by,
           created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`
       )
       .bind(
         input.id,
@@ -132,6 +135,7 @@ export class TaskRepository {
         input.assignedUserId,
         input.scheduledTime,
         input.notificationSlot,
+        input.notificationTime,
         input.weeklyTargetCount,
         input.sortOrder,
         input.createdBy,
@@ -155,7 +159,7 @@ export class TaskRepository {
       .prepare(
         `UPDATE tasks
          SET title = ?, description = ?, recurrence_type = ?, assignment_type = ?, assigned_user_id = ?,
-             scheduled_time = ?, notification_slot = ?, weekly_target_count = ?, sort_order = ?, updated_at = ?
+             scheduled_time = ?, notification_slot = ?, notification_time = ?, weekly_target_count = ?, sort_order = ?, updated_at = ?
          WHERE household_id = ? AND id = ?`
       )
       .bind(
@@ -166,6 +170,7 @@ export class TaskRepository {
         input.assignedUserId,
         input.scheduledTime,
         input.notificationSlot,
+        input.notificationTime,
         input.weeklyTargetCount,
         input.sortOrder ?? current.sortOrder,
         input.now,

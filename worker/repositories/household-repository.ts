@@ -75,6 +75,13 @@ export class HouseholdRepository {
     return toHousehold(row);
   }
 
+  async listAll(): Promise<Household[]> {
+    const result = await this.db.prepare(
+      "SELECT id, name, timezone, week_starts_on, created_by, created_at, updated_at FROM households"
+    ).all<HouseholdRow>();
+    return (result.results ?? []).map((row) => toHousehold(row)!);
+  }
+
   prepareCreate(input: CreateHouseholdRecordInput): D1PreparedStatement {
     return this.db
       .prepare(

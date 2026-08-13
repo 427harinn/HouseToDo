@@ -101,6 +101,7 @@ export type TaskWriteInput = {
   assignedUserId: string | null;
   scheduledTime: string | null;
   notificationSlot: NotificationSlot;
+  notificationTime?: string | null;
   weekdays: number[];
   weeklyTargetCount: number | null;
 };
@@ -163,6 +164,12 @@ export const validateTaskWriteInput = (value: unknown): TaskWriteInput => {
   const recurrenceType = input.recurrenceType;
   const assignmentType = input.assignmentType ?? "anyone";
   const notificationSlot = input.notificationSlot ?? "none";
+  const notificationTime =
+    input.notificationTime === undefined || input.notificationTime === null
+      ? null
+      : typeof input.notificationTime === "string"
+        ? input.notificationTime.trim()
+        : input.notificationTime;
   const scheduledTime =
     input.scheduledTime === undefined || input.scheduledTime === null
       ? null
@@ -188,6 +195,9 @@ export const validateTaskWriteInput = (value: unknown): TaskWriteInput => {
   }
   if (typeof notificationSlot !== "string" || !notificationSlots.has(notificationSlot)) {
     details.notificationSlot = "notificationSlot must be morning, night, or none.";
+  }
+  if (notificationTime !== null && (typeof notificationTime !== "string" || !timePattern.test(notificationTime))) {
+    details.notificationTime = "notificationTime must be HH:mm.";
   }
   if (scheduledTime !== null && typeof scheduledTime !== "string") {
     details.scheduledTime = "scheduledTime must be HH:mm.";
@@ -235,6 +245,7 @@ export const validateTaskWriteInput = (value: unknown): TaskWriteInput => {
     assignedUserId: typeof assignedUserId === "string" && assignedUserId.length > 0 ? assignedUserId : null,
     scheduledTime: typeof scheduledTime === "string" ? scheduledTime : null,
     notificationSlot: notificationSlot as NotificationSlot,
+    notificationTime: typeof notificationTime === "string" ? notificationTime : null,
     weekdays,
     weeklyTargetCount: normalizedWeeklyTargetCount
   };

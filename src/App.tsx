@@ -3,10 +3,13 @@ import type { ReactNode } from "react";
 import { login, logout, me, register } from "./api/auth";
 import { ApiError, apiMessage } from "./api/client";
 import {
+  getNotificationSettings,
   getVapidPublicKey,
   registerPushSubscription,
   sendTestPushNotification,
-  unregisterPushSubscription
+  unregisterPushSubscription,
+  updateNotificationSettings,
+  type NotificationSettings
 } from "./api/notifications";
 import { getDashboardToday, type DashboardToday } from "./api/dashboard";
 import { imageUploadErrorMessage } from "./api/image-errors";
@@ -1256,6 +1259,7 @@ const defaultForm: CreateTaskInput = {
   assignedUserId: null,
   scheduledTime: null,
   notificationSlot: "none",
+  notificationTime: null,
   weekdays: [],
   weeklyTargetCount: null
 };
@@ -1406,8 +1410,13 @@ function TaskFormScreen({
               />
             </FormField>
           ) : null}
+          <FormField id="task-notification-time" label="通知時刻" error={errors.notificationTime}>
+            <input id="task-notification-time" type="time" value={form.notificationTime ?? ""}
+              onChange={(event) => setField("notificationTime", event.target.value || null)} />
+          </FormField>
           <SelectField
-            id="task-notification"
+            id="task-notification-legacy"
+            hidden
             label="通知枠"
             value={form.notificationSlot}
             onChange={(value) =>
@@ -1487,7 +1496,8 @@ function SelectField({
   value,
   error,
   onChange,
-  children
+  children,
+  hidden
 }: {
   id: string;
   label: string;
@@ -1495,8 +1505,10 @@ function SelectField({
   error?: string;
   onChange: (value: string) => void;
   children: ReactNode;
+  hidden?: boolean;
 }) {
   return (
+    <div hidden={hidden}>
     <FormField id={id} label={label} error={error}>
       <select
         id={id}
@@ -1508,6 +1520,7 @@ function SelectField({
         {children}
       </select>
     </FormField>
+    </div>
   );
 }
 
@@ -1520,6 +1533,7 @@ const taskToInput = (task: Task): CreateTaskInput =>
     assignedUserId: task.assignedUserId,
     scheduledTime: task.scheduledTime,
     notificationSlot: task.notificationSlot,
+    notificationTime: task.notificationTime ?? null,
     weekdays: task.weekdays,
     weeklyTargetCount: task.weeklyTargetCount
   });
@@ -1530,6 +1544,7 @@ const normalizeTaskInput = (input: CreateTaskInput): CreateTaskInput => ({
   description: input.description?.trim() ? input.description.trim() : null,
   assignedUserId: input.assignmentType === "specific" ? input.assignedUserId : null,
   scheduledTime: input.recurrenceType === "weekly" ? null : input.scheduledTime,
+  notificationTime: input.notificationTime || null,
   weekdays:
     input.recurrenceType === "scheduled"
       ? [...new Set(input.weekdays)].sort((a, b) => a - b)
@@ -1935,6 +1950,12 @@ function NotificationSettingsSection() {
   const [state, setState] = useState<NotificationUiState>("default");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [summary, setSummary] = useState<NotificationSettings>({
+    eveningSummaryEnabled: false,
+    eveningSummaryTime: "21:00",
+    timezone: "Asia/Tokyo"
+  });
+  const [summaryBusy, setSummaryBusy] = useState(false);
   const [testPushState, setTestPushState] = useState<
     "idle" | "sending" | "success" | "error"
   >("idle");
@@ -1966,7 +1987,15 @@ function NotificationSettingsSection() {
 
   useEffect(() => {
     void refresh().catch(() => setState("unsupported"));
+    void getNotificationSettings().then(setSummary).catch(() => undefined);
   }, [refresh]);
+
+  const saveSummary = async () => {
+    setSummaryBusy(true);
+    try { setSummary(await updateNotificationSettings(summary)); }
+    catch (error) { setMessage(error instanceof ApiError ? apiMessage(error) : "通知設定を保存できませんでした。"); }
+    finally { setSummaryBusy(false); }
+  };
 
   const enable = async () => {
     setBusy(true);
@@ -2120,6 +2149,18 @@ function NotificationSettingsSection() {
           {testPushState === "sending" ? <InlineLoading /> : "テスト通知を送る"}
         </Button>
       ) : null}
+      <div className="stack">
+        <h3>夜まとめ通知</h3>
+        <label><input type="checkbox" checked={summary.eveningSummaryEnabled}
+          onChange={(event) => setSummary({ ...summary, eveningSummaryEnabled: event.target.checked })} /> 有効にする</label>
+        <label>時刻 <input type="time" value={summary.eveningSummaryTime}
+          onChange={(event) => setSummary({ ...summary, eveningSummaryTime: event.target.value })} /></label>
+        <label>タイムゾーン <input value={summary.timezone}
+          onChange={(event) => setSummary({ ...summary, timezone: event.target.value })} /></label>
+        <Button variant="secondary" disabled={summaryBusy} onClick={() => void saveSummary()}>
+          {summaryBusy ? <InlineLoading /> : "夜まとめ設定を保存"}
+        </Button>
+      </div>
 
     </Card>
   );

@@ -71,6 +71,7 @@ export type Task = {
   assignedUserId: string | null;
   scheduledTime: string | null;
   notificationSlot: NotificationSlot;
+  notificationTime: string | null;
   weeklyTargetCount: number | null;
   active: boolean;
   sortOrder: number;

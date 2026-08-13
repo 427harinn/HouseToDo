@@ -79,6 +79,7 @@ export type TaskDbRecord = {
   assigned_user_id: string | null;
   scheduled_time: string | null;
   notification_slot: NotificationSlot;
+  notification_time: string | null;
   weekly_target_count: number | null;
   active: number;
   sort_order: number;
@@ -866,17 +867,18 @@ export class MemoryD1 {
         assigned_user_id: toNullableText(values[6]),
         scheduled_time: toNullableText(values[7]),
         notification_slot: values[8] as NotificationSlot,
-        weekly_target_count: values[9] === null ? null : Number(values[9]),
+        notification_time: toNullableText(values[9]),
+        weekly_target_count: values[10] === null ? null : Number(values[10]),
         active: 1,
-        sort_order: Number(values[10]),
-        created_by: toText(values[11]),
-        created_at: toText(values[12]),
-        updated_at: toText(values[13])
+        sort_order: Number(values[11]),
+        created_by: toText(values[12]),
+        created_at: toText(values[13]),
+        updated_at: toText(values[14])
       });
     }
     if (sql.startsWith("UPDATE tasks") && sql.includes("SET title")) {
-      const task = this.tasks.get(toText(values[11]));
-      if (task && task.household_id === values[10]) {
+      const task = this.tasks.get(toText(values[12]));
+      if (task && task.household_id === values[11]) {
         this.tasks.set(task.id, {
           ...task,
           title: toText(values[0]),
@@ -886,9 +888,10 @@ export class MemoryD1 {
           assigned_user_id: toNullableText(values[4]),
           scheduled_time: toNullableText(values[5]),
           notification_slot: values[6] as NotificationSlot,
-          weekly_target_count: values[7] === null ? null : Number(values[7]),
-          sort_order: Number(values[8]),
-          updated_at: toText(values[9])
+          notification_time: toNullableText(values[7]),
+          weekly_target_count: values[8] === null ? null : Number(values[8]),
+          sort_order: Number(values[9]),
+          updated_at: toText(values[10])
         });
       } else {
         changes = 0;

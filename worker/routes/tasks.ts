@@ -35,6 +35,7 @@ const taskResponse = (task: Task) => ({
   assignedUserId: task.assignedUserId,
   scheduledTime: task.scheduledTime,
   notificationSlot: task.notificationSlot,
+  notificationTime: task.notificationTime,
   weekdays: task.weekdays,
   weeklyTargetCount: task.weeklyTargetCount,
   active: task.active,

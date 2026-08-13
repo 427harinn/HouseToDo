@@ -23,6 +23,7 @@ export type Task = {
   };
   scheduledTime: string | null;
   notificationSlot: NotificationSlot;
+  notificationTime?: string | null;
   weekdays: number[];
   weeklyTargetCount: number | null;
   active: boolean;
@@ -71,6 +72,7 @@ export type CreateTaskInput = {
   assignedUserId: string | null;
   scheduledTime: string | null;
   notificationSlot: NotificationSlot;
+  notificationTime?: string | null;
   weekdays: number[];
   weeklyTargetCount: number | null;
 };

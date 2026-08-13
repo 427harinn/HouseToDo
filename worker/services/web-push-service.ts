@@ -356,6 +356,35 @@ export class WebPushService {
     return { sent, failed, ...(firstFailure ? { failure: firstFailure } : {}) };
   }
 
+  async sendPayload(
+    userId: string,
+    householdId: string,
+    payload: object,
+    env: { APP_ENV?: string; WEB_PUSH_VAPID_PUBLIC_KEY?: string; WEB_PUSH_VAPID_PRIVATE_KEY?: string; WEB_PUSH_SUBJECT?: string }
+  ): Promise<WebPushSendResult> {
+    const publicKey = env.WEB_PUSH_VAPID_PUBLIC_KEY?.trim();
+    const privateKey = env.WEB_PUSH_VAPID_PRIVATE_KEY?.trim();
+    const subject = env.WEB_PUSH_SUBJECT?.trim();
+    if (!publicKey || !privateKey || !subject || !/^(mailto:|https:)/.test(subject)) {
+      logWebPushFailure(env.APP_ENV, failure("config", "missing_config"));
+      throw new Error("push-config-missing");
+    }
+    const subscriptions = await this.repository.listActiveByUserHousehold(userId, householdId);
+    let sent = 0;
+    let failed = 0;
+    let firstFailure: WebPushFailure | undefined;
+    for (const subscription of subscriptions) {
+      const result = await this.sendOne(subscription, payload, publicKey, privateKey, subject);
+      if (result.status === "sent") sent += 1;
+      else {
+        failed += 1;
+        firstFailure ??= result.failure;
+        logWebPushFailure(env.APP_ENV, result.failure);
+      }
+    }
+    return { sent, failed, ...(firstFailure ? { failure: firstFailure } : {}) };
+  }
+
   private performFetch(
     input: Parameters<typeof fetch>[0],
     init?: Parameters<typeof fetch>[1]

@@ -33,6 +33,17 @@ export const getLocalDate = (
   return `${lookup.year}-${lookup.month}-${lookup.day}`;
 };
 
+export const getLocalTime = (
+  value: Date | string | number = new Date(),
+  timezone = "Asia/Tokyo"
+): string =>
+  new Intl.DateTimeFormat("en-GB", {
+    timeZone: timezone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23"
+  }).format(value instanceof Date ? value : new Date(value));
+
 export const getWeekday = (dateKey: string): number => {
   const parts = parseDateKeyParts(dateKey);
   if (!parts) throw new Error("Invalid date key");

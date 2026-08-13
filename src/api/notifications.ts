@@ -23,3 +23,18 @@ export const sendTestPushNotification = () =>
     method: "POST",
     body: JSON.stringify({})
   });
+
+export type NotificationSettings = {
+  eveningSummaryEnabled: boolean;
+  eveningSummaryTime: string;
+  timezone: string;
+};
+
+export const getNotificationSettings = () =>
+  apiRequest<NotificationSettings>("/api/notifications/settings");
+
+export const updateNotificationSettings = (settings: NotificationSettings) =>
+  apiRequest<NotificationSettings>("/api/notifications/settings", {
+    method: "PATCH",
+    body: JSON.stringify(settings)
+  });

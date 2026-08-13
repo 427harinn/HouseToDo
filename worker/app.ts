@@ -54,6 +54,7 @@ import {
   unregisterPushSubscriptionRoute,
   testPushNotificationRoute
 } from "./routes/notifications";
+import { getNotificationSettingsRoute, updateNotificationSettingsRoute } from "./routes/notification-settings";
 
 const routeApi = withErrorHandling(
   withStateChangingRequestProtection((context) => {
@@ -146,6 +147,10 @@ const routeApi = withErrorHandling(
         return unregisterPushSubscriptionRoute(context);
       case "POST /api/notifications/test":
         return testPushNotificationRoute(context);
+      case "GET /api/notifications/settings":
+        return getNotificationSettingsRoute(context);
+      case "PATCH /api/notifications/settings":
+        return updateNotificationSettingsRoute(context);
       case "POST /api/households":
         return createHouseholdRoute(context);
       case "GET /api/households/current":
