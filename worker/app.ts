@@ -50,11 +50,9 @@ import {
 import type { Env } from "./types/env";
 import {
   vapidPublicKeyRoute,
-  debugIdentityRoute,
   registerPushSubscriptionRoute,
   unregisterPushSubscriptionRoute,
-  testPushNotificationRoute,
-  applePushNetworkProbeRoute
+  testPushNotificationRoute
 } from "./routes/notifications";
 
 const routeApi = withErrorHandling(
@@ -142,16 +140,12 @@ const routeApi = withErrorHandling(
         return meRoute(context);
       case "GET /api/notifications/vapid-public-key":
         return vapidPublicKeyRoute(context);
-      case "GET /api/notifications/debug-identity":
-        return debugIdentityRoute(context);
       case "POST /api/notifications/subscriptions":
         return registerPushSubscriptionRoute(context);
       case "DELETE /api/notifications/subscriptions":
         return unregisterPushSubscriptionRoute(context);
       case "POST /api/notifications/test":
         return testPushNotificationRoute(context);
-      case "GET /api/notifications/network-probe":
-        return applePushNetworkProbeRoute(context);
       case "POST /api/households":
         return createHouseholdRoute(context);
       case "GET /api/households/current":
