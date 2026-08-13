@@ -50,7 +50,7 @@ export const getWeekday = (dateKey: string): number => {
   return new Date(Date.UTC(parts.year, parts.month - 1, parts.day)).getUTCDay();
 };
 
-const addDays = (dateKey: string, days: number): string => {
+export const addDateKey = (dateKey: string, days: number): string => {
   const parts = parseDateKeyParts(dateKey);
   if (!parts) throw new Error("Invalid date key");
   const date = new Date(Date.UTC(parts.year, parts.month - 1, parts.day + days));
@@ -63,11 +63,11 @@ export const getWeekStartDate = (dateKey: string, weekStartsOn: number): string 
   }
   const weekday = getWeekday(dateKey);
   const diff = (weekday - weekStartsOn + 7) % 7;
-  return addDays(dateKey, -diff);
+  return addDateKey(dateKey, -diff);
 };
 
 export const getWeekEndDate = (dateKey: string, weekStartsOn: number): string =>
-  addDays(getWeekStartDate(dateKey, weekStartsOn), 6);
+  addDateKey(getWeekStartDate(dateKey, weekStartsOn), 6);
 
 export const isTaskScheduledForDate = (weekdays: number[], dateKey: string): boolean =>
   weekdays.includes(getWeekday(dateKey));

@@ -222,6 +222,15 @@ export type NotificationDeliveryDbRecord = {
   created_at: string;
 };
 
+export type UserNotificationSettingsDbRecord = {
+  user_id: string;
+  household_id: string;
+  evening_summary_enabled: number;
+  evening_summary_time: string;
+  timezone: string;
+  updated_at: string;
+};
+
 class MemoryPreparedStatement {
   private values: unknown[] = [];
 
@@ -270,6 +279,7 @@ export class MemoryD1 {
   readonly imageUploadReservations = new Map<string, ImageUploadReservationDbRecord>();
   readonly pushSubscriptions = new Map<string, PushSubscriptionDbRecord>();
   readonly notificationDeliveries = new Map<string, NotificationDeliveryDbRecord>();
+  readonly notificationSettings = new Map<string, UserNotificationSettingsDbRecord>();
   private lastDeletedReservation = false;
   private lastChanges = 0;
 
@@ -300,7 +310,8 @@ export class MemoryD1 {
       this.householdImageUsage,
       this.imageUploadReservations,
       this.pushSubscriptions,
-      this.notificationDeliveries
+      this.notificationDeliveries,
+      this.notificationSettings
     ];
     const snapshots = maps.map((map) => new Map<unknown, unknown>(map));
     const results: D1Result<T>[] = [];
@@ -575,6 +586,11 @@ export class MemoryD1 {
   all(sql: string, values: unknown[]): unknown[] {
     if (sql.includes("FROM households") && !sql.includes("household_members")) {
       return Array.from(this.households.values());
+    }
+    if (sql.includes("FROM user_notification_settings")) {
+      return Array.from(this.notificationSettings.values()).filter(
+        (setting) => setting.evening_summary_enabled === 1
+      );
     }
     if (
       sql.includes("FROM push_subscriptions") &&
