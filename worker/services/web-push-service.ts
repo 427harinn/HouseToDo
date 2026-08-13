@@ -607,6 +607,14 @@ export class WebPushService {
     );
   }
 
+  private performFetch(
+    input: Parameters<typeof fetch>[0],
+    init?: Parameters<typeof fetch>[1]
+  ): ReturnType<typeof fetch> {
+    const fetcher = this.fetcher;
+    return fetcher(input, init);
+  }
+
   private async sendOne(
     subscription: PushSubscriptionRecord,
     payload: object,
@@ -649,7 +657,7 @@ export class WebPushService {
 
     let response: Response;
     try {
-      response = await this.fetcher(subscription.endpoint, {
+      response = await this.performFetch(subscription.endpoint, {
         method: "POST",
         headers: {
           Authorization: authorization,

@@ -102,6 +102,39 @@ const createFixture = async (rows = 1) => {
 };
 
 describe("WebPushService", () => {
+  it("detaches the injected fetcher for the production sender without changing the Web Push request", async () => {
+    const fixture = await createFixture();
+    const receivers: unknown[] = [];
+    const receiverSensitiveFetcher: typeof fetch = vi.fn(function (
+      this: unknown,
+      input: RequestInfo | URL,
+      init?: RequestInit
+    ) {
+      receivers.push(this);
+      if (this !== undefined) throw new TypeError("unexpected receiver");
+      expect(input).toBe("https://push.example.test/0");
+      expect(init?.method).toBe("POST");
+      const headers = new Headers(init?.headers);
+      expect(headers.get("Authorization")).toEqual(expect.any(String));
+      expect(headers.get("Content-Encoding")).toBe("aes128gcm");
+      expect(headers.get("TTL")).toBe("60");
+      expect(headers.get("Content-Type")).toBe("application/octet-stream");
+      expect(init?.body).toBeInstanceOf(Uint8Array);
+      return Promise.resolve(new Response(null, { status: 201 }));
+    });
+
+    await expect(
+      new WebPushService(fixture.db, receiverSensitiveFetcher).sendTest(
+        "user-1",
+        "house-1",
+        fixture.env
+      )
+    ).resolves.toMatchObject({ sent: 1, failed: 0 });
+
+    expect(receiverSensitiveFetcher).toHaveBeenCalledOnce();
+    expect(receivers).toEqual([undefined]);
+  });
+
   it("keeps the existing receiver-bound TTL probe and detaches the fetcher in the new probe", async () => {
     const fixture = await createFixture();
     const receivers: unknown[] = [];
