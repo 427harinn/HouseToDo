@@ -9,6 +9,7 @@ import {
   runApplePushSubscriptionCustomHeaderProbe,
   runApplePushSubscriptionManualRedirectProbe,
   runApplePushSubscriptionTtlProbe,
+  runApplePushSubscriptionGlobalFetchProbe,
   sendTestPushNotification,
   unregisterPushSubscription
 } from "./api/notifications";
@@ -1982,6 +1983,14 @@ function NotificationSettingsSection() {
     | { kind: "error"; details: Record<string, string> }
     | null
   >(null);
+  const [globalFetchDiagnosticState, setGlobalFetchDiagnosticState] = useState<
+    "idle" | "running" | "success" | "error"
+  >("idle");
+  const [globalFetchDiagnosticResult, setGlobalFetchDiagnosticResult] = useState<
+    | { kind: "success"; results: Awaited<ReturnType<typeof runApplePushSubscriptionGlobalFetchProbe>>["results"] }
+    | { kind: "error"; details: Record<string, string> }
+    | null
+  >(null);
 
   const refresh = useCallback(async () => {
     const next = getBrowserCapabilities();
@@ -2219,6 +2228,26 @@ function NotificationSettingsSection() {
     }
   };
 
+  const runGlobalFetchDiagnostic = async () => {
+    if (globalFetchDiagnosticState === "running") return;
+    setGlobalFetchDiagnosticState("running");
+    setGlobalFetchDiagnosticResult(null);
+    try {
+      const result = await runApplePushSubscriptionGlobalFetchProbe();
+      setGlobalFetchDiagnosticState("success");
+      setGlobalFetchDiagnosticResult({ kind: "success", results: result.results });
+    } catch (error) {
+      const details = error instanceof ApiError ? error.details ?? {} : {};
+      const safeDetails = Object.fromEntries(
+        ["stage", "errorCategory", "requestPhase", "errorName", "causeCode", "upstreamStatus"].flatMap(
+          (key) => (typeof details[key] === "string" ? [[key, details[key]]] : [])
+        )
+      );
+      setGlobalFetchDiagnosticState("error");
+      setGlobalFetchDiagnosticResult({ kind: "error", details: { errorCategory: "network_failed", ...safeDetails } });
+    }
+  };
+
   const status =
     state === "unsupported"
       ? "このブラウザでは通知を利用できません"
@@ -2393,6 +2422,34 @@ function NotificationSettingsSection() {
             <div role="status">
               <p>Subscription TTL:</p>
               {Object.entries(ttlDiagnosticResult.details).map(([key, value]) => <p key={key}>{key}: {value}</p>)}
+            </div>
+          ) : null}
+          <Button
+            disabled={globalFetchDiagnosticState === "running"}
+            variant="secondary"
+            onClick={() => void runGlobalFetchDiagnostic()}
+          >
+            {globalFetchDiagnosticState === "running" ? <InlineLoading label="險ｺ譁ｭ荳ｭ" /> : "診断用 Subscription global fetch"}
+          </Button>
+          {globalFetchDiagnosticResult?.kind === "success" ? (
+            <div role="status">
+              {globalFetchDiagnosticResult.results.map((result) =>
+                result.ok ? (
+                  <p key={result.index}>index {result.index}: HTTP {result.status}<br />transport success</p>
+                ) : (
+                  <div key={result.index}>
+                    <p>index {result.index}: safe failure</p>
+                    {Object.entries(result)
+                      .filter(([key, value]) => key !== "index" && key !== "ok" && typeof value === "string")
+                      .map(([key, value]) => <p key={key}>{key}: {value}</p>)}
+                  </div>
+                )
+              )}
+            </div>
+          ) : globalFetchDiagnosticResult?.kind === "error" ? (
+            <div role="status">
+              <p>Subscription global fetch:</p>
+              {Object.entries(globalFetchDiagnosticResult.details).map(([key, value]) => <p key={key}>{key}: {value}</p>)}
             </div>
           ) : null}
         </div>

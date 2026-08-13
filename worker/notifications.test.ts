@@ -663,6 +663,93 @@ describe("notification subscription API", () => {
     vi.restoreAllMocks();
   });
 
+  it("probes active Apple subscriptions with direct globalThis.fetch and TTL only", async () => {
+    const app = createApp();
+    const db = new MemoryD1();
+    const env = createTestEnv(db);
+    const cookie = await register(app, env, "subscription-global-fetch@example.com");
+    await app.fetch(
+      request("/api/households", {
+        method: "POST",
+        headers: { cookie },
+        body: JSON.stringify({ name: "Global fetch household" })
+      }),
+      env
+    );
+    const user = Array.from(db.users.values())[0];
+    const household = Array.from(db.households.values())[0];
+    db.pushSubscriptions.set("global-active", {
+      id: "global-active", user_id: user.id, household_id: household.id,
+      endpoint: "https://web.push.apple.com/global-active", endpoint_hash: null,
+      p256dh: "p256dh", auth: "auth", user_agent_summary: null,
+      enabled: 1, created_at: "now", updated_at: null, last_seen_at: null, disabled_at: null
+    });
+    db.pushSubscriptions.set("global-disabled", {
+      id: "global-disabled", user_id: user.id, household_id: household.id,
+      endpoint: "https://web.push.apple.com/global-disabled", endpoint_hash: null,
+      p256dh: "p256dh", auth: "auth", user_agent_summary: null,
+      enabled: 0, created_at: "now", updated_at: null, last_seen_at: null, disabled_at: "now"
+    });
+    db.pushSubscriptions.set("global-non-apple", {
+      id: "global-non-apple", user_id: user.id, household_id: household.id,
+      endpoint: "https://push.example.test/global-non-apple", endpoint_hash: null,
+      p256dh: "p256dh", auth: "auth", user_agent_summary: null,
+      enabled: 1, created_at: "now", updated_at: null, last_seen_at: null, disabled_at: null
+    });
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 403 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await app.fetch(
+      request("/api/notifications/network-probe?mode=subscription-post-ttl-global-fetch", { headers: { cookie } }),
+      env
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      data: { results: [{ index: 1, ok: true, status: 403 }] }
+    });
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledWith("https://web.push.apple.com/global-active", {
+      method: "POST",
+      headers: { TTL: "60" }
+    });
+    const [, init] = fetchMock.mock.calls[0] ?? [];
+    expect((init as RequestInit).body).toBeUndefined();
+    expect(new Headers((init as RequestInit).headers)).toEqual(new Headers({ TTL: "60" }));
+
+    const failureFetch = vi.fn<typeof fetch>().mockRejectedValue(new TypeError("secret endpoint"));
+    vi.stubGlobal("fetch", failureFetch);
+    const failureResponse = await app.fetch(
+      request("/api/notifications/network-probe?mode=subscription-post-ttl-global-fetch", { headers: { cookie } }),
+      env
+    );
+    await expect(failureResponse.json()).resolves.toMatchObject({
+      ok: true,
+      data: {
+        results: [{
+          index: 1,
+          ok: false,
+          stage: "network",
+          errorCategory: "network_failed",
+          upstreamStatus: null,
+          requestPhase: "fetch_call",
+          errorName: "TypeError",
+          causeCode: null,
+          pushService: "apple"
+        }]
+      }
+    });
+    const production = { ...env, APP_ENV: "production" as const };
+    await expect(
+      app.fetch(
+        request("/api/notifications/network-probe?mode=subscription-post-ttl-global-fetch", { headers: { cookie } }),
+        production
+      )
+    ).resolves.toMatchObject({ status: 404 });
+    vi.restoreAllMocks();
+  });
+
   it("probes active Apple subscriptions with only the custom diagnostic header", async () => {
     const app = createApp();
     const db = new MemoryD1();

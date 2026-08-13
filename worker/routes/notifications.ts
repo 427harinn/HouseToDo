@@ -23,6 +23,7 @@ const probeModes = new Set([
   "post-authorization-fixed-host",
   "subscription-post-empty",
   "subscription-post-ttl",
+  "subscription-post-ttl-global-fetch",
   "subscription-post-vapid",
   "subscription-post-authorization-dummy",
   "subscription-post-dummy-header",
@@ -238,6 +239,7 @@ export const applePushNetworkProbeRoute: Handler = requireAuth(async (context) =
   if (
     mode === "subscription-post-empty" ||
     mode === "subscription-post-ttl" ||
+    mode === "subscription-post-ttl-global-fetch" ||
     mode === "subscription-post-vapid" ||
     mode === "subscription-post-authorization-dummy" ||
     mode === "subscription-post-dummy-header" ||
@@ -291,6 +293,41 @@ export const applePushNetworkProbeRoute: Handler = requireAuth(async (context) =
         isAppleHttpsEndpoint
       );
       return okJson({ results }, context.requestId);
+    }
+    if (mode === "subscription-post-ttl-global-fetch") {
+      const results = await Promise.all(
+        subscriptions.map(async (subscription, index) => {
+          if (!isAppleHttpsEndpoint(subscription.endpoint)) return null;
+          try {
+            const response = await globalThis.fetch(subscription.endpoint, {
+              method: "POST",
+              headers: { TTL: "60" }
+            });
+            if (!(response instanceof Response) || typeof response.status !== "number") {
+              throw new TypeError("Probe fetch did not return an HTTP response.");
+            }
+            return { index: index + 1, ok: true, status: response.status };
+          } catch (error) {
+            const errorName = safeProbeErrorName(error);
+            const causeCode = safeProbeCauseCode(error);
+            return {
+              index: index + 1,
+              ok: false,
+              stage: "network",
+              errorCategory: "network_failed",
+              upstreamStatus: null,
+              requestPhase: "fetch_call",
+              errorName,
+              causeCode,
+              pushService: "apple"
+            };
+          }
+        })
+      );
+      return okJson(
+        { results: results.filter((result): result is NonNullable<typeof result> => result !== null) },
+        context.requestId
+      );
     }
     const results = await Promise.all(
       subscriptions.map(async (subscription, index) => {

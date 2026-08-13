@@ -491,6 +491,38 @@ describe("App members UI", () => {
     expect(new Headers(probeCalls[0]?.[1]?.headers).has("Authorization")).toBe(false);
   }, 15000);
 
+  it("runs the direct global fetch diagnostic only after a click", async () => {
+    const requestUrl = (input: RequestInfo | URL) =>
+      typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = requestUrl(input);
+      if (url.endsWith("/api/auth/me")) return Promise.resolve(ok({ user }));
+      if (url.endsWith("/api/households/current")) return Promise.resolve(ok({ household }));
+      if (url.endsWith("/api/households/current/members")) return Promise.resolve(ok({ members }));
+      if (url.endsWith("/api/households/current/image-usage")) return Promise.resolve(ok(imageUsage));
+      if (url.includes("mode=subscription-post-ttl-global-fetch")) {
+        return Promise.resolve(ok({ results: [{ index: 1, ok: true, status: 403 }] }));
+      }
+      return Promise.resolve(failure("NOT_FOUND", 404));
+    });
+    window.history.replaceState({}, "", "/settings/members");
+
+    render(<App />);
+
+    await screen.findByText(members[0].displayName);
+    const globalFetchButton = screen.getByRole("button", { name: "診断用 Subscription global fetch" });
+    expect(fetchMock.mock.calls.some(([input]) => requestUrl(input).includes("subscription-post-ttl-global-fetch"))).toBe(false);
+    fireEvent.click(globalFetchButton);
+
+    expect(await screen.findByRole("status")).toHaveTextContent("index 1: HTTP 403");
+    const probeCalls = fetchMock.mock.calls.filter(([input]) =>
+      requestUrl(input).includes("mode=subscription-post-ttl-global-fetch")
+    );
+    expect(probeCalls).toHaveLength(1);
+    expect(probeCalls[0]?.[1]).toMatchObject({ credentials: "include" });
+    expect(new Headers(probeCalls[0]?.[1]?.headers).has("Authorization")).toBe(false);
+  }, 15000);
+
   it("does not show the invite action for a member", async () => {
     const memberHousehold = { ...household, role: "member" };
     mockFetch(memberHousehold);

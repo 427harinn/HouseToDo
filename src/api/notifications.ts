@@ -63,3 +63,8 @@ export const runApplePushSubscriptionTtlProbe = () =>
   apiRequest<{ results: ApplePushSubscriptionProbeResult[] }>(
     "/api/notifications/network-probe?mode=subscription-post-ttl"
   );
+
+export const runApplePushSubscriptionGlobalFetchProbe = () =>
+  apiRequest<{ results: ApplePushSubscriptionProbeResult[] }>(
+    "/api/notifications/network-probe?mode=subscription-post-ttl-global-fetch"
+  );
