@@ -168,7 +168,7 @@ export const validateTaskWriteInput = (value: unknown): TaskWriteInput => {
     input.notificationTime === undefined || input.notificationTime === null
       ? null
       : typeof input.notificationTime === "string"
-        ? input.notificationTime.trim()
+        ? input.notificationTime.trim() || null
         : input.notificationTime;
   const scheduledTime =
     input.scheduledTime === undefined || input.scheduledTime === null

@@ -1412,7 +1412,8 @@ function TaskFormScreen({
           ) : null}
           <FormField id="task-notification-time" label="通知時刻" error={errors.notificationTime}>
             <input id="task-notification-time" type="time" value={form.notificationTime ?? ""}
-              onChange={(event) => setField("notificationTime", event.target.value || null)} />
+              onChange={(event) => setField("notificationTime", event.target.value || null)}
+              onInput={(event) => setField("notificationTime", event.currentTarget.value || null)} />
           </FormField>
           <SelectField
             id="task-notification-legacy"

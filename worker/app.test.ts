@@ -455,16 +455,19 @@ describe("worker app task API", () => {
           recurrenceType: "daily",
           assignmentType: "anyone",
           scheduledTime: "09:00",
-          notificationSlot: "morning"
+          notificationSlot: "morning",
+          notificationTime: "07:30"
         },
         owner.cookie
       ),
       env
     );
     expect(dailyResponse.status).toBe(201);
-    const dailyJson: { data: { task: { id: string; scheduledTime: string | null } } } = await dailyResponse.json();
+    const dailyJson: { data: { task: { id: string; scheduledTime: string | null; notificationTime: string | null } } } = await dailyResponse.json();
     expect(dailyJson.data.task.scheduledTime).toBe("09:00");
+    expect(dailyJson.data.task.notificationTime).toBe("07:30");
     expect(db.tasks.get(dailyJson.data.task.id)?.scheduled_time).toBe("09:00");
+    expect(db.tasks.get(dailyJson.data.task.id)?.notification_time).toBe("07:30");
 
     const dailyDetail = await app.fetch(
       new Request(`https://example.test/api/tasks/${dailyJson.data.task.id}`, {
@@ -474,7 +477,7 @@ describe("worker app task API", () => {
     );
     await expect(dailyDetail.json()).resolves.toMatchObject({
       ok: true,
-      data: { task: { scheduledTime: "09:00" } }
+      data: { task: { scheduledTime: "09:00", notificationTime: "07:30" } }
     });
 
     const noTime = {
@@ -485,10 +488,11 @@ describe("worker app task API", () => {
       assignedUserId: null,
       scheduledTime: null,
       notificationSlot: "morning",
+      notificationTime: null,
       weekdays: [],
       weeklyTargetCount: null
     };
-    const changedTime = { ...noTime, scheduledTime: "10:30" };
+    const changedTime = { ...noTime, scheduledTime: "10:30", notificationTime: "21:00" };
     const updateWithoutTime = await app.fetch(
       patchJson(`/api/tasks/${dailyJson.data.task.id}`, noTime, owner.cookie),
       env
@@ -496,7 +500,7 @@ describe("worker app task API", () => {
     expect(updateWithoutTime.status).toBe(200);
     await expect(updateWithoutTime.json()).resolves.toMatchObject({
       ok: true,
-      data: { task: { scheduledTime: null } }
+      data: { task: { scheduledTime: null, notificationTime: null } }
     });
     const updateWithTime = await app.fetch(
       patchJson(`/api/tasks/${dailyJson.data.task.id}`, changedTime, owner.cookie),
@@ -505,9 +509,21 @@ describe("worker app task API", () => {
     expect(updateWithTime.status).toBe(200);
     await expect(updateWithTime.json()).resolves.toMatchObject({
       ok: true,
-      data: { task: { scheduledTime: "10:30" } }
+      data: { task: { scheduledTime: "10:30", notificationTime: "21:00" } }
     });
     expect(db.tasks.get(dailyJson.data.task.id)?.scheduled_time).toBe("10:30");
+    expect(db.tasks.get(dailyJson.data.task.id)?.notification_time).toBe("21:00");
+
+    const clearedNotification = await app.fetch(
+      patchJson(`/api/tasks/${dailyJson.data.task.id}`, { ...changedTime, notificationTime: "" }, owner.cookie),
+      env
+    );
+    expect(clearedNotification.status).toBe(200);
+    await expect(clearedNotification.json()).resolves.toMatchObject({
+      ok: true,
+      data: { task: { notificationTime: null } }
+    });
+    expect(db.tasks.get(dailyJson.data.task.id)?.notification_time).toBeNull();
 
     const scheduled = await app.fetch(
       postJson(

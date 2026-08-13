@@ -6,6 +6,7 @@ import {
   validateJoinHouseholdInput,
   validateLoginInput,
   validateRegisterInput,
+  validateTaskWriteInput,
   validateUpdateHouseholdInput
 } from "./validation";
 
@@ -70,5 +71,17 @@ describe("validation helpers", () => {
     expect(validateJoinHouseholdInput({ code: " invite " })).toEqual({ code: "invite" });
     expect(() => validateJoinHouseholdInput({ code: "" })).toThrow(AppError);
     expect(() => validateJoinHouseholdInput({ code: "a".repeat(129) })).toThrow(AppError);
+  });
+
+  it("normalizes and validates task notification times", () => {
+    expect(validateTaskWriteInput({ title: "Task", recurrenceType: "daily", notificationTime: " 07:30 " })).toMatchObject({
+      notificationTime: "07:30"
+    });
+    expect(validateTaskWriteInput({ title: "Task", recurrenceType: "daily", notificationTime: "" })).toMatchObject({
+      notificationTime: null
+    });
+    for (const value of ["24:00", "7:30", "invalid"]) {
+      expect(() => validateTaskWriteInput({ title: "Task", recurrenceType: "daily", notificationTime: value })).toThrow(AppError);
+    }
   });
 });
