@@ -6,6 +6,7 @@ import {
   getVapidPublicKey,
   registerPushSubscription,
   runApplePushNetworkProbe,
+  runApplePushSubscriptionCustomHeaderProbe,
   runApplePushSubscriptionManualRedirectProbe,
   sendTestPushNotification,
   unregisterPushSubscription
@@ -1964,6 +1965,14 @@ function NotificationSettingsSection() {
     | { kind: "error"; details: Record<string, string> }
     | null
   >(null);
+  const [customHeaderDiagnosticState, setCustomHeaderDiagnosticState] = useState<
+    "idle" | "running" | "success" | "error"
+  >("idle");
+  const [customHeaderDiagnosticResult, setCustomHeaderDiagnosticResult] = useState<
+    | { kind: "success"; results: Awaited<ReturnType<typeof runApplePushSubscriptionCustomHeaderProbe>>["results"] }
+    | { kind: "error"; details: Record<string, string> }
+    | null
+  >(null);
 
   const refresh = useCallback(async () => {
     const next = getBrowserCapabilities();
@@ -2158,6 +2167,29 @@ function NotificationSettingsSection() {
     }
   };
 
+  const runCustomHeaderDiagnostic = async () => {
+    if (customHeaderDiagnosticState === "running") return;
+    setCustomHeaderDiagnosticState("running");
+    setCustomHeaderDiagnosticResult(null);
+    try {
+      const result = await runApplePushSubscriptionCustomHeaderProbe();
+      setCustomHeaderDiagnosticState("success");
+      setCustomHeaderDiagnosticResult({ kind: "success", results: result.results });
+    } catch (error) {
+      const details = error instanceof ApiError ? error.details ?? {} : {};
+      const safeDetails = Object.fromEntries(
+        ["stage", "errorCategory", "requestPhase", "errorName", "causeCode", "upstreamStatus"].flatMap(
+          (key) => (typeof details[key] === "string" ? [[key, details[key]]] : [])
+        )
+      );
+      setCustomHeaderDiagnosticState("error");
+      setCustomHeaderDiagnosticResult({
+        kind: "error",
+        details: { errorCategory: "network_failed", ...safeDetails }
+      });
+    }
+  };
+
   const status =
     state === "unsupported"
       ? "このブラウザでは通知を利用できません"
@@ -2268,6 +2300,40 @@ function NotificationSettingsSection() {
             <div role="status">
               <p>Subscription manual redirect:</p>
               {Object.entries(manualRedirectDiagnosticResult.details).map(([key, value]) => (
+                <p key={key}>{key}: {value}</p>
+              ))}
+            </div>
+          ) : null}
+          <Button
+            disabled={customHeaderDiagnosticState === "running"}
+            variant="secondary"
+            onClick={() => void runCustomHeaderDiagnostic()}
+          >
+            {customHeaderDiagnosticState === "running" ? (
+              <InlineLoading label="險ｺ譁ｭ荳ｭ" />
+            ) : (
+              "險ｺ譁ｭ逕ｨ Subscription custom header"
+            )}
+          </Button>
+          {customHeaderDiagnosticResult?.kind === "success" ? (
+            <div role="status">
+              {customHeaderDiagnosticResult.results.map((result) =>
+                result.ok ? (
+                  <p key={result.index}>index {result.index}: HTTP {result.status}<br />transport success</p>
+                ) : (
+                  <div key={result.index}>
+                    <p>index {result.index}: safe failure</p>
+                    {Object.entries(result)
+                      .filter(([key, value]) => key !== "index" && key !== "ok" && typeof value === "string")
+                      .map(([key, value]) => <p key={key}>{key}: {value}</p>)}
+                  </div>
+                )
+              )}
+            </div>
+          ) : customHeaderDiagnosticResult?.kind === "error" ? (
+            <div role="status">
+              <p>Subscription custom header:</p>
+              {Object.entries(customHeaderDiagnosticResult.details).map(([key, value]) => (
                 <p key={key}>{key}: {value}</p>
               ))}
             </div>

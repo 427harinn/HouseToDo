@@ -24,6 +24,7 @@ const probeModes = new Set([
   "subscription-post-empty",
   "subscription-post-vapid",
   "subscription-post-authorization-dummy",
+  "subscription-post-dummy-header",
   "subscription-post-authorization-dummy-manual-redirect"
 ]);
 const safeProbeErrorNames = new Set([
@@ -237,6 +238,7 @@ export const applePushNetworkProbeRoute: Handler = requireAuth(async (context) =
     mode === "subscription-post-empty" ||
     mode === "subscription-post-vapid" ||
     mode === "subscription-post-authorization-dummy" ||
+    mode === "subscription-post-dummy-header" ||
     mode === "subscription-post-authorization-dummy-manual-redirect"
   ) {
     const userId = requireUserId(context.user?.id);
@@ -258,6 +260,14 @@ export const applePushNetworkProbeRoute: Handler = requireAuth(async (context) =
     }
     if (mode === "subscription-post-authorization-dummy") {
       const results = await new WebPushService(context.env.DB).probeDummyAuthorization(
+        userId,
+        household.id,
+        isAppleHttpsEndpoint
+      );
+      return okJson({ results }, context.requestId);
+    }
+    if (mode === "subscription-post-dummy-header") {
+      const results = await new WebPushService(context.env.DB).probeCustomHeader(
         userId,
         household.id,
         isAppleHttpsEndpoint

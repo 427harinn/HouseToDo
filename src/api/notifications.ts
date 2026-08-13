@@ -53,3 +53,8 @@ export const runApplePushSubscriptionManualRedirectProbe = () =>
   apiRequest<{ results: ApplePushSubscriptionProbeResult[] }>(
     "/api/notifications/network-probe?mode=subscription-post-authorization-dummy-manual-redirect"
   );
+
+export const runApplePushSubscriptionCustomHeaderProbe = () =>
+  apiRequest<{ results: ApplePushSubscriptionProbeResult[] }>(
+    "/api/notifications/network-probe?mode=subscription-post-dummy-header"
+  );

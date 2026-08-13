@@ -571,6 +571,103 @@ describe("notification subscription API", () => {
     vi.restoreAllMocks();
   });
 
+  it("probes active Apple subscriptions with only the custom diagnostic header", async () => {
+    const app = createApp();
+    const db = new MemoryD1();
+    const env = createTestEnv(db);
+    const cookie = await register(app, env, "subscription-custom-header@example.com");
+    await app.fetch(
+      request("/api/households", {
+        method: "POST",
+        headers: { cookie },
+        body: JSON.stringify({ name: "Custom header household" })
+      }),
+      env
+    );
+    const user = Array.from(db.users.values())[0];
+    const household = Array.from(db.households.values())[0];
+    db.pushSubscriptions.set("custom-active", {
+      id: "custom-active", user_id: user.id, household_id: household.id,
+      endpoint: "https://web.push.apple.com/custom-active", endpoint_hash: null,
+      p256dh: "p256dh", auth: "auth", user_agent_summary: null,
+      enabled: 1, created_at: "now", updated_at: null, last_seen_at: null, disabled_at: null
+    });
+    db.pushSubscriptions.set("custom-failure", {
+      id: "custom-failure", user_id: user.id, household_id: household.id,
+      endpoint: "https://sub.push.apple.com/custom-failure", endpoint_hash: null,
+      p256dh: "p256dh", auth: "auth", user_agent_summary: null,
+      enabled: 1, created_at: "now", updated_at: null, last_seen_at: null, disabled_at: null
+    });
+    db.pushSubscriptions.set("custom-disabled", {
+      id: "custom-disabled", user_id: user.id, household_id: household.id,
+      endpoint: "https://web.push.apple.com/custom-disabled", endpoint_hash: null,
+      p256dh: "p256dh", auth: "auth", user_agent_summary: null,
+      enabled: 0, created_at: "now", updated_at: null, last_seen_at: null, disabled_at: "now"
+    });
+    db.pushSubscriptions.set("custom-non-apple", {
+      id: "custom-non-apple", user_id: user.id, household_id: household.id,
+      endpoint: "https://push.example.test/custom-non-apple", endpoint_hash: null,
+      p256dh: "p256dh", auth: "auth", user_agent_summary: null,
+      enabled: 1, created_at: "now", updated_at: null, last_seen_at: null, disabled_at: null
+    });
+    const fetchMock = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(null, { status: 403 }))
+      .mockRejectedValueOnce(new TypeError("secret endpoint"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await app.fetch(
+      request("/api/notifications/network-probe?mode=subscription-post-dummy-header", {
+        headers: { cookie }
+      }),
+      env
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      data: {
+        results: [
+          { index: 1, ok: true, status: 403 },
+          {
+            index: 2,
+            ok: false,
+            stage: "network",
+            errorCategory: "network_failed",
+            requestPhase: "fetch_call",
+            errorName: "TypeError",
+            causeCode: null,
+            pushService: "apple",
+            upstreamStatus: null
+          }
+        ]
+      }
+    });
+    expect(fetchMock).toHaveBeenCalledWith("https://web.push.apple.com/custom-active", {
+      method: "POST",
+      headers: { "X-HouseToDo-Probe": "probe" }
+    });
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "https://sub.push.apple.com/custom-failure", {
+      method: "POST",
+      headers: { "X-HouseToDo-Probe": "probe" }
+    });
+    for (const [, init] of fetchMock.mock.calls) {
+      expect(new Headers((init as RequestInit).headers).has("Authorization")).toBe(false);
+      expect((init as RequestInit).body).toBeUndefined();
+    }
+
+    const production = { ...env, APP_ENV: "production" as const };
+    await expect(
+      app.fetch(
+        request("/api/notifications/network-probe?mode=subscription-post-dummy-header", {
+          headers: { cookie }
+        }),
+        production
+      )
+    ).resolves.toMatchObject({ status: 404 });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    vi.restoreAllMocks();
+  });
+
   it("probes active Apple subscriptions with dummy Authorization and manual redirects", async () => {
     const app = createApp();
     const db = new MemoryD1();
