@@ -535,6 +535,42 @@ export class WebPushService {
     );
   }
 
+  async probeDetachedFetcher(
+    userId: string,
+    householdId: string,
+    isAllowedEndpoint: (endpoint: string) => boolean
+  ): Promise<WebPushAuthorizationProbeResult[]> {
+    const subscriptions = (await this.repository.listActiveByUserHousehold(userId, householdId))
+      .filter((subscription) => isAllowedEndpoint(subscription.endpoint));
+    const fetcher = this.fetcher;
+
+    return Promise.all(
+      subscriptions.map(async (subscription, index) => {
+        try {
+          const response = await fetcher(subscription.endpoint, {
+            method: "POST",
+            headers: { TTL: "60" }
+          });
+          if (!(response instanceof Response) || typeof response.status !== "number") {
+            throw new TypeError("Probe fetch did not return an HTTP response.");
+          }
+          return { index: index + 1, ok: true, status: response.status };
+        } catch (error) {
+          return {
+            index: index + 1,
+            ok: false,
+            ...failure("network", "network_failed", null, {
+              requestPhase: "fetch_call",
+              errorName: safeErrorName(error),
+              causeCode: safeCauseCode(error),
+              pushService: pushServiceFromEndpoint(subscription.endpoint)
+            })
+          };
+        }
+      })
+    );
+  }
+
   async probeDummyAuthorizationManualRedirect(
     userId: string,
     householdId: string,

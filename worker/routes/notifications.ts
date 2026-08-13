@@ -23,6 +23,7 @@ const probeModes = new Set([
   "post-authorization-fixed-host",
   "subscription-post-empty",
   "subscription-post-ttl",
+  "subscription-post-ttl-detached-fetcher",
   "subscription-post-ttl-global-fetch",
   "subscription-post-vapid",
   "subscription-post-authorization-dummy",
@@ -239,6 +240,7 @@ export const applePushNetworkProbeRoute: Handler = requireAuth(async (context) =
   if (
     mode === "subscription-post-empty" ||
     mode === "subscription-post-ttl" ||
+    mode === "subscription-post-ttl-detached-fetcher" ||
     mode === "subscription-post-ttl-global-fetch" ||
     mode === "subscription-post-vapid" ||
     mode === "subscription-post-authorization-dummy" ||
@@ -288,6 +290,14 @@ export const applePushNetworkProbeRoute: Handler = requireAuth(async (context) =
     }
     if (mode === "subscription-post-ttl") {
       const results = await new WebPushService(context.env.DB).probeTtl(
+        userId,
+        household.id,
+        isAppleHttpsEndpoint
+      );
+      return okJson({ results }, context.requestId);
+    }
+    if (mode === "subscription-post-ttl-detached-fetcher") {
+      const results = await new WebPushService(context.env.DB).probeDetachedFetcher(
         userId,
         household.id,
         isAppleHttpsEndpoint

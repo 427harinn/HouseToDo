@@ -652,6 +652,25 @@ describe("notification subscription API", () => {
       expect(new Headers((init as RequestInit).headers)).toEqual(new Headers({ TTL: "60" }));
       expect((init as RequestInit).body).toBeUndefined();
     }
+    fetchMock.mockResolvedValue(new Response(null, { status: 403 }));
+    const detachedResponse = await app.fetch(
+      request("/api/notifications/network-probe?mode=subscription-post-ttl-detached-fetcher", { headers: { cookie } }),
+      env
+    );
+    expect(detachedResponse.status).toBe(200);
+    await expect(detachedResponse.json()).resolves.toMatchObject({
+      ok: true,
+      data: { results: [{ index: 1, ok: true, status: 403 }, { index: 2, ok: true, status: 403 }] }
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock).toHaveBeenNthCalledWith(3, "https://web.push.apple.com/ttl-active", {
+      method: "POST",
+      headers: { TTL: "60" }
+    });
+    expect(fetchMock).toHaveBeenNthCalledWith(4, "https://sub.push.apple.com/ttl-failure", {
+      method: "POST",
+      headers: { TTL: "60" }
+    });
     const production = { ...env, APP_ENV: "production" as const };
     await expect(
       app.fetch(
@@ -659,7 +678,13 @@ describe("notification subscription API", () => {
         production
       )
     ).resolves.toMatchObject({ status: 404 });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await expect(
+      app.fetch(
+        request("/api/notifications/network-probe?mode=subscription-post-ttl-detached-fetcher", { headers: { cookie } }),
+        production
+      )
+    ).resolves.toMatchObject({ status: 404 });
+    expect(fetchMock).toHaveBeenCalledTimes(4);
     vi.restoreAllMocks();
   });
 

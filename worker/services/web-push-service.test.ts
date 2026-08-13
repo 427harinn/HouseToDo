@@ -102,6 +102,34 @@ const createFixture = async (rows = 1) => {
 };
 
 describe("WebPushService", () => {
+  it("keeps the existing receiver-bound TTL probe and detaches the fetcher in the new probe", async () => {
+    const fixture = await createFixture();
+    const receivers: unknown[] = [];
+    const fetcher = vi.fn(function (this: unknown) {
+      receivers.push(this);
+      return Promise.resolve(new Response(null, { status: 403 }));
+    });
+    const service = new WebPushService(fixture.db, fetcher);
+
+    await expect(service.probeTtl("user-1", "house-1", () => true)).resolves.toEqual([
+      { index: 1, ok: true, status: 403 }
+    ]);
+    await expect(service.probeDetachedFetcher("user-1", "house-1", () => true)).resolves.toEqual([
+      { index: 1, ok: true, status: 403 }
+    ]);
+
+    expect(receivers[0]).toBe(service);
+    expect(receivers[1]).toBeUndefined();
+    expect(fetcher).toHaveBeenNthCalledWith(1, "https://push.example.test/0", {
+      method: "POST",
+      headers: { TTL: "60" }
+    });
+    expect(fetcher).toHaveBeenNthCalledWith(2, "https://push.example.test/0", {
+      method: "POST",
+      headers: { TTL: "60" }
+    });
+  });
+
   it.each([200, 201, 202, 204])("counts %s as success", async (status) => {
     const fixture = await createFixture();
     const fetcher = vi.fn().mockResolvedValue(new Response(null, { status }));
