@@ -3272,7 +3272,6 @@ function ShoppingItemFormScreen({
   const [imageMessage, setImageMessage] = useState("");
   const [imageUsage, setImageUsage] = useState<ImageUsage | null>(null);
   const [imageUsageLoading, setImageUsageLoading] = useState(true);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
   const libraryInputRef = useRef<HTMLInputElement>(null);
   const refreshImageUsage = useCallback(async (signal?: AbortSignal) => {
     setImageUsageLoading(true);
@@ -3526,13 +3525,6 @@ function ShoppingItemFormScreen({
             ) : null}
             <div className="shopping-image-options" aria-label="画像の追加方法">
               <Button
-                variant="secondary"
-                disabled={imageStatus !== "idle" || submitting || (mode === "create" && !!imageUsage && imageUsage.activeCount >= imageUsage.activeCountLimit)}
-                onClick={() => cameraInputRef.current?.click()}
-              >
-                写真を撮る
-              </Button>
-              <Button
                 disabled={imageStatus !== "idle" || submitting || (mode === "create" && !!imageUsage && imageUsage.activeCount >= imageUsage.activeCountLimit)}
                 onClick={() => libraryInputRef.current?.click()}
               >
@@ -3540,28 +3532,11 @@ function ShoppingItemFormScreen({
               </Button>
             </div>
             <input
-              ref={cameraInputRef}
-              aria-label="カメラで写真を撮る"
-              className="shopping-image-input"
-              id="shopping-image-camera"
-              accept="image/jpeg,image/png,image/webp"
-              capture="environment"
-              disabled={
-                imageStatus !== "idle" ||
-                submitting ||
-                (mode === "create" &&
-                  !!imageUsage &&
-                  imageUsage.activeCount >= imageUsage.activeCountLimit)
-              }
-              onChange={handleImageChange}
-              type="file"
-            />
-            <input
               ref={libraryInputRef}
-              aria-label="写真ライブラリから選ぶ"
+              aria-label="写真ファイルを選択"
               className="shopping-image-input"
               id="shopping-image"
-              accept="image/jpeg,image/png,image/webp"
+              accept="image/*"
               disabled={
                 imageStatus !== "idle" ||
                 submitting ||

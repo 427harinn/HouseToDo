@@ -82,7 +82,7 @@ test.describe("shopping image upload UX", () => {
     });
   });
 
-  test("recent/template prefill and camera/library inputs share preview flow", async ({ page }) => {
+  test("recent/template prefill and library input share preview flow", async ({ page }) => {
     await setupApi(page);
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/shopping/new");
@@ -95,10 +95,13 @@ test.describe("shopping image upload UX", () => {
     await expect(page.locator("#shopping-name")).toHaveValue("トイレットペーパー");
     await screenshot(page, "shopping-template-prefill.png");
 
-    await expect(page.getByRole("button", { name: "写真を撮る", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "写真を撮る", exact: true })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "写真を選ぶ", exact: true })).toBeVisible();
+    await expect(page.locator("#shopping-image-camera")).toHaveCount(0);
+    await expect(page.locator("#shopping-image")).not.toHaveAttribute("capture");
+    await expect(page.locator("#shopping-image")).toHaveAttribute("accept", "image/*");
     await screenshot(page, "shopping-image-options-mobile.png");
-    await page.locator("#shopping-image-camera").setInputFiles(fixture("shopping-item-landscape.jpg"));
+    await page.locator("#shopping-image").setInputFiles(fixture("shopping-item-portrait.png"));
     await expect(page.locator(".shopping-image-preview")).toBeVisible();
     await screenshot(page, "shopping-image-preview.png");
     await page.getByRole("button", { name: "選択解除" }).click();

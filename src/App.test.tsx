@@ -533,9 +533,10 @@ describe("App shopping UI", () => {
     fireEvent.click(screen.getByRole("button", { name: /キッチンペーパー/ }));
     expect(container.querySelector<HTMLInputElement>("#shopping-name")).toHaveValue("キッチンペーパー");
     expect(container.querySelector<HTMLInputElement>("#shopping-quantity")).toHaveValue("1個");
-    expect(screen.getByRole("button", { name: "写真を撮る" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "写真を撮る" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "写真を選ぶ" })).toBeInTheDocument();
-    expect(container.querySelector<HTMLInputElement>("#shopping-image-camera")).toHaveAttribute("capture", "environment");
+    expect(container.querySelector<HTMLInputElement>("#shopping-image-camera")).toBeNull();
     expect(container.querySelector<HTMLInputElement>("#shopping-image")).not.toHaveAttribute("capture");
+    expect(container.querySelector<HTMLInputElement>("#shopping-image")).toHaveAttribute("accept", "image/*");
   }, 15000);
 });
