@@ -1,309 +1,37 @@
-# アーキテクチャ
+# 現在のアーキテクチャ
 
-## 2026-08-01 Shopping backend architecture
+> この文書は、現在のtechnical architectureを説明します。chronological worklogやmilestone記録ではありません。
 
-Shopping follows the existing Worker layering.
+## Runtimeと配置
 
-- Routes: `worker/routes/shopping.ts`
-- Services: `ShoppingService`, `ShoppingTemplateService`
-- Repositories: `ShoppingItemRepository`, `ShoppingTemplateRepository`
-- Migration: `migrations/0005_shopping_foundation.sql`
+React + Viteの静的アセットをCloudflare Workers Static Assetsへ配置し、`/api/*`はWorkerが先に処理します。Workerの主な層は、route、middleware、service、repository、libです。D1は永続データ、R2 binding `ATTACHMENTS`はprivate画像blobを担当します。
 
-Routes parse HTTP input and shape responses. Services own household membership checks, input normalization, idempotent purchase/unpurchase behavior, template activity checks, and template-to-item copying. Repositories own D1 SQL and always include `household_id` in household data queries.
+`wrangler.jsonc`の現在設定は、local Worker `house-to-do` / D1 `house-to-do` / R2 `house-to-do-attachments`、staging Worker `house-to-do-staging` / D1 `house-to-do-staging` / R2 `house-to-attachments-staging`です。staging URLは `https://house-to-do-staging.427harinn.workers.dev`、Static Assetsは `dist/client`です。
 
-Implemented API surface:
-
-```text
-GET    /api/shopping/items
-POST   /api/shopping/items
-GET    /api/shopping/items/:itemId
-PATCH  /api/shopping/items/:itemId
-DELETE /api/shopping/items/:itemId
-POST   /api/shopping/items/:itemId/purchase
-POST   /api/shopping/items/:itemId/unpurchase
-POST   /api/shopping/items/clear-purchased
-GET    /api/shopping/templates
-POST   /api/shopping/templates
-GET    /api/shopping/templates/:templateId
-PATCH  /api/shopping/templates/:templateId
-DELETE /api/shopping/templates/:templateId
-POST   /api/shopping/templates/:templateId/add
-```
+## Databaseとmigration
 
-`shopping_items` are physically deleted because MVP shopping items are short-lived list entries and no durable purchase history screen exists yet. `shopping_templates` use `active = 0` so repeated-use definitions can be hidden without affecting copied shopping items. Dashboard aggregation adds `shopping.pendingCount` and `shopping.previewItems` without changing existing task fields.
+リポジトリのmigrationは `0001_initial.sql` から `0011_notification_delivery_claim_lease.sql` までです。D1の現在schemaはmigrationファイルと実際の適用状況を分けて確認します。remote適用済みかどうかを本文に固定記載しません。
 
-## 2026-07-31 Task backend architecture
+主な領域はusers / sessions、households / members / invites、tasks / weekdays / records、shopping items / templates / images、image usage / upload reservations / orphan cleanup、push_subscriptions、notification settings / logs / delivery claimです。
 
-Task management now follows the existing Worker layering:
+## APIと認証
 
-- Routes: `worker/routes/tasks.ts`
-- Services: `TaskService`, `DashboardService`
-- Repositories: `TaskRepository`, `TaskRecordRepository`
-- Shared date helpers: `worker/lib/date-time.ts`
+routeのsource of truthは `worker/app.ts` と `worker/routes/`です。認証はCookieセッション、パスワードはWorkers Web Crypto PBKDF2、状態変更APIはJSON・SameSite Lax・Origin検証で保護します。household middlewareが家庭境界を確認し、repositoryはD1アクセスを担当します。
 
-Routes parse HTTP input and shape responses. Services own household membership checks, assignee checks, recurrence validation, target date/week calculation, status merging, idempotency, and conflict handling. Repositories own D1 SQL.
+主要API領域は `/api/auth/*`、`/api/households/*`、`/api/tasks/*`、`/api/dashboard/today`、`/api/shopping/*`、`/api/notifications/*`です。API一覧をREADMEや他docへ複製しません。
 
-Task definitions are stored in `tasks`. Scheduled weekdays are stored in `task_weekdays`. User actions create `task_records`; missing records are returned as derived `pending`.
+## Images / R2
 
-Implemented API surface:
+画像はbrowser processing後にR2へ保存し、D1 metadataをtransaction境界に含めます。upload reservation、active usage、daily upload、pending cleanup、orphan queueをserviceとrepositoryで管理します。参照中のblobは削除せず、R2削除失敗はorphan queueへ送ります。
 
-```text
-GET    /api/tasks
-POST   /api/tasks
-GET    /api/tasks/:taskId
-PATCH  /api/tasks/:taskId
-DELETE /api/tasks/:taskId
-GET    /api/tasks/today
-GET    /api/tasks/week
-POST   /api/tasks/:taskId/start
-POST   /api/tasks/:taskId/complete
-POST   /api/tasks/:taskId/skip
-POST   /api/tasks/:taskId/reset
-GET    /api/tasks/:taskId/history
-GET    /api/dashboard/today
-```
-
-Weekly tasks store `target_week_start` and count completed records in that week. D1 partial unique indexes prevent duplicate open weekly `in_progress` and `skipped` rows for the same task/week, while allowing multiple `completed` rows for weekly target counts.
-
-## 2026-08-10 Notification milestone 2
-
-`push_subscriptions` is a device/browser-level record, not a user-level setting. Migration `0009_push_subscription_foundation.sql` copies the legacy rows into an FK-constrained table before replacing the old table, preserving endpoint/key/timestamp data. D1 migrations do not expose a SHA-256 SQL function, so legacy rows retain `endpoint_hash = NULL`; their pre-existing `endpoint UNIQUE` constraint remains the migration-time deduplication guard, and the next browser re-registration fills the SHA-256 hash. New and re-registered rows use `endpoint_hash` for deduplication. Endpoint, `p256dh`, and `auth` are never returned by the API or logged.
-
-VAPID configuration uses `WEB_PUSH_VAPID_PUBLIC_KEY`, `WEB_PUSH_VAPID_PRIVATE_KEY`, and `WEB_PUSH_SUBJECT`. Only the public key is served by authenticated `GET /api/notifications/vapid-public-key`; the private key is a Worker secret only and is not used by this milestone because push sending is not implemented.
-
-Authenticated subscription registration is `POST /api/notifications/subscriptions` and idempotent deletion is `DELETE /api/notifications/subscriptions` with an endpoint body. Both flows require the current household, validate Origin/content type/HTTPS endpoint/size, and scope mutations to the authenticated user and current household. The UI requests permission only from the enable button, compensates a failed backend registration with best-effort browser unsubscribe, and unregisters before browser unsubscribe when disabling.
-
-If backend unregister succeeds but browser unsubscribe fails, the server row is already removed and the UI returns to `未設定`. A later enable click reuses the existing browser subscription and registers it again, providing the retry/recovery path without exposing endpoint material.
-
-Task notification time, evening summary preferences, Cron delivery, notification delivery history, notification actions, push sending, deploy, and remote migration remain out of scope.
-
-The milestone-1 manifest still has no icons or `apple-touch-icon`; those are required before real-iPhone Push testing in milestone 3.
-
-## 基本方針
-
-本プロジェクトは、Cloudflare Workers Static Assets を使い、React SPA と Worker API を同じWorkerにまとめる構成を基本とする。無料枠を意識し、不要にサービスを分散させない。
-
-## 現在の構成
-
-```text
-Browser / PWA
-  |
-  | HTTPS
-  v
-Cloudflare Worker
-  |-- Static Assets: React + TypeScript + Vite
-  |-- /api/*: Worker API
-  |-- D1: relational data
-  |-- R2: attachment images
-  |-- Cron Triggers: notifications and cleanup
-```
-
-## 採用技術
-
-| 用途 | 技術 |
-| --- | --- |
-| フロントエンド | React |
-| 言語 | TypeScript |
-| ビルド | Vite |
-| API | Cloudflare Workers |
-| 静的アセット | Workers Static Assets |
-| DB | Cloudflare D1 |
-| 画像保存 | Cloudflare R2 |
-| 通知 | Web Push / VAPID |
-| 定時実行 | Workers Cron Triggers |
-| CLI | Wrangler |
-| テスト | Vitest |
-
-## Wrangler設定
-
-`wrangler.jsonc` では以下を設定する。
-
-- Worker entry: `worker/index.ts`
-- Static assets: `dist/client`
-- API routing: `/api/*` はWorkerを先に実行
-- SPA fallback: `single-page-application`
-- D1 binding: `DB`
-- R2 binding: `ATTACHMENTS`
-- Cron: 将来のタスク単位通知とユーザー単位の夜まとめ通知に使用する。時刻・タイムゾーンは設定値から算出する。
-
-D1の `database_id` は現在プレースホルダーであり、Cloudflare上でD1を作成した後に置き換える。
-
-## ローカル開発
-
-Docker Compose の `app` サービスで開発する。
-
-- Vite dev server: container `5173`, host `127.0.0.1:5174`
-- Wrangler dev: `8787`
-- `node_modules` はDocker volumeに保持し、ホスト直下には作らない。
-- `.dev.vars` はローカル秘密情報として扱い、Git管理しない。
-- Vite dev server は `/api/*` を `worker` service の `8787` へプロキシする。
-
-## API設計方針
-
-- REST形式を基本にする。
-- APIパスはMVP段階では `/api` プレフィックスに統一し、バージョニングは導入しない。互換性維持が必要になった時点で `/api/v1` を検討する。
-- Worker entryの `worker/index.ts` は起動入口に限定し、`worker/app.ts`、`worker/routes/`、`worker/middleware/`、`worker/lib/`、`worker/repositories/`、`worker/services/` に責務を分ける。
-- APIレスポンスは成功時 `{ ok: true, data, requestId }`、失敗時 `{ ok: false, error, requestId }` に統一する。
-- エラーコードは `VALIDATION_ERROR`、`UNAUTHENTICATED`、`FORBIDDEN`、`NOT_FOUND`、`CONFLICT`、`RATE_LIMITED`、`INTERNAL_ERROR` を基本にする。
-- 全APIで認証確認を行う。
-- householdに紐づくAPIでは、必ずユーザーの家庭所属を確認する。
-- 入力値検証をWorker側で行う。現段階では追加依存なしの小さな独自バリデーションを採用し、外部入力は `unknown` として受けてから検証する。
-- エラーには内部情報を含めない。
-- Dashboard APIなど、画面でまとめて必要な情報は集約して返し、不要な複数リクエストを避ける。
-
-## 認証・セッション方針
-
-- ログインIDは正規化済みメールアドレスとする。前後空白を除去し、小文字化する。
-- MVPの認証はメールアドレスとパスワードで行う。メール確認、パスワード再設定はMVP後に実装する。
-- パスワード要件は12文字以上128文字以内とし、文字種の強制やコピー＆ペースト禁止は行わない。
-- パスワード保存はWeb Crypto APIのPBKDF2-SHA-256を使用し、ランダムソルトと反復回数をハッシュ文字列に含める。
-- セッションはランダムトークン方式とし、ブラウザへは生トークンをHttpOnly Cookieで渡す。
-- D1にはセッショントークンのSHA-256ハッシュのみ保存する。生トークンは保存しない。
-- セッション有効期限は30日。MVPではログイン時に新規セッションを発行し、アクセスごとの期限延長やローテーションは行わない。
-- Cookie名は `house_todo_session`。本番では `HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000` を使用する。
-- ローカル開発ではHTTPで確認するため、`APP_ENV=production` の場合だけ `Secure` を付与する。
-
-## CSRF対策方針
-
-- Cookie認証を採用するため、`SameSite=Lax` を基本防御とし、状態変更APIではOrigin検証を行う。
-- 対象メソッドは `POST`、`PUT`、`PATCH`、`DELETE` とする。
-- 状態変更APIでは `Origin` ヘッダーが必須。`ALLOWED_ORIGINS` に含まれないOrigin、またはOriginなしの状態変更リクエストは `INVALID_ORIGIN` の403で拒否する。
-- 状態変更APIでは `Content-Type: application/json` のみ受け付ける。
-- ローカル開発の既定許可Originは `http://127.0.0.1:5174`、`http://localhost:5174`、Docker E2E用の `http://app:5173` と `http://web:5173`。本番では `ALLOWED_ORIGINS` に実際のアプリOriginのみを明示する。
-- GETリクエストで状態変更しない。
-- CORSは不要に広げず、同一オリジン構成を基本にする。
-- 将来multipart APIが必要になった場合は、JSON限定とは別の許可条件を個別に設計する。
-- 公開範囲が広がる、別オリジンフロントエンドを採用する、または外部連携が増える場合は、CSRFトークンを追加検討する。
-
-## 家庭・メンバー・招待方針
-
-- 家庭は `households`、所属は `household_members`、招待は `household_invites` で管理する。
-- 家庭の初期値は `timezone = Asia/Tokyo`、`week_starts_on = 1`。
-- 権限は `owner` と `member`。家庭作成者は自動的に `owner` として追加する。
-- MVPでは1ユーザー1家庭に制限する。ただしDB上は複数所属可能な構造を維持し、MVP制限はService層で判定する。
-- `GET /api/households/current` は家庭未所属を正常なユーザー状態として扱い、`household: null` を200で返す。
-- `GET /api/auth/me` はユーザー情報のみを返し、家庭情報は `GET /api/households/current` で取得する。
-- 家庭作成時の家庭レコード作成とowner追加はD1 `batch` でまとめる。
-- 今後の家庭内APIでは、認証と家庭所属確認を分ける。認証は `requireAuth`、家庭所属と権限は `HouseholdService.requireCurrentHousehold` / `requireHouseholdRole` を使う。
-- memberは家庭情報の参照とメンバー一覧取得ができるが、家庭設定更新と招待発行はownerだけができる。
-- 招待コードは暗号学的乱数から生成したURL-safe文字列を使用し、有効期限は24時間、使用回数は1回とする。
-- D1には招待コードのSHA-256ハッシュのみ保存し、平文コードは作成直後のレスポンスでのみ返す。
-- 招待の同時利用は `used_at IS NULL` 条件付き更新で1回だけ使用済みにする。
-- DB上の主な一意性は `household_members(household_id, user_id)` と `household_invites(code_hash)`。
-
-## DB設計方針
-
-- D1にはユーザー、家庭、タスク、履歴、買い物、通知購読、添付メタデータを保存する。
-- 画像本体はD1へ保存しない。
-- マイグレーションは `migrations/` へ追加する。
-- 既存マイグレーションは原則書き換えない。
-- 日付保存はUTCを基本とし、表示と当日判定では家庭のタイムゾーンを使う。
-- D1操作はRepository層へ分離する。`UserRepository` はユーザー作成、ID検索、メール検索を担当し、`SessionRepository` はセッション作成、有効セッション検索、削除、期限切れ削除を担当する。家庭関連は `HouseholdRepository`、`HouseholdMemberRepository`、`HouseholdInviteRepository` に分ける。
-- SQLはD1のbind変数を使用し、ユーザー入力をSQL文字列へ直接連結しない。
-
-## PBKDF2ローカル計測
+## PWA / Push
 
-2026-07-21時点のWrangler devローカル計測では、認証API経由のPBKDF2-SHA-256処理時間は以下だった。パスワード値は出力していない。
+`public/manifest.webmanifest`と`public/sw.js`をproduction buildで登録します。Worker側はVAPID（Web Crypto、aes128gcm）でPush送信し、`WEB_PUSH_VAPID_PUBLIC_KEY`、`WEB_PUSH_VAPID_PRIVATE_KEY`、`WEB_PUSH_SUBJECT`をsecret bindingから読みます。endpointやsubscription keyはログ・API応答へ露出しません。
 
-```text
-ハッシュ生成を含む登録API: 495.9ms、497.7ms、41.9ms、118.7ms
-照合を含むログインAPI: 34.2ms、32.5ms、31.6ms
-```
+## Scheduler
 
-これはWrangler dev、ローカルD1、PowerShell `Invoke-WebRequest` を含むAPI往復時間であり、本番Cloudflare Workers上の性能を保証するものではない。初回または起動直後はばらつきが大きいため、反復回数を変更する場合は本番に近い環境で再計測する。
+`worker/index.ts`のscheduled handlerは、期限切れimage reservation cleanup、orphan R2 cleanup、notification schedulerを同じscheduled invocationで実行します。stagingのCronは `*/5 * * * *`、localのwrangler設定は `0 18 * * *` です。schedulerはdelivery window、notification logのdedup、pending delivery claim lease、retry semanticsを使います。実際の時刻・windowの詳細はservice実装とmigrationを正とします。
 
-## 画像保存方針
+## 構成の境界
 
-- 画像はR2へ保存する。
-- R2 bucketは公開しない。
-- 画像取得は認証済みWorker APIを経由する。
-- ブラウザ側で圧縮し、WebP、長辺1280px程度、最大1MBを目安にする。
-- ゲストモードではR2へ保存しない。
-
-## 通知方針
-
-- PWA manifestとService Workerを基盤とし、対応状況はcapability detectionで確認する。
-- 通知許可は初回表示で要求せず、ユーザー操作を起点に要求する。現段階では許可状態の参照のみ行う。
-- iOSではホーム画面に追加したWeb Appを前提とする。
-- Web Pushを使用する。
-- VAPID秘密鍵はCloudflare Secretsに保存する。
-- タスクごとに通知なし、または指定時刻の個別通知を設定する。通知時刻は家庭内で共有する。
-- MVPでは、家庭でPush通知を有効にしているメンバーへ個別タスク通知を送る。通知対象者の個別指定は将来拡張とする。
-- 夜まとめ通知はユーザーごとの設定（ON/OFF、時刻、タイムゾーン）で管理し、その時点で今日の未完了タスクが1件以上ある場合だけ送る。
-- 夜まとめ通知の初期候補はON、21:00、`Asia/Tokyo`とするが、既定値は設定実装時に確定する。
-- 通知ログで二重送信を防ぐ。
-- 無効購読は削除または無効化する。
-
-## 未確定事項
-
-- 本番用D1 database_id。
-- 本番用R2 bucket名。
-- Service Worker実装方式。
-- Workers Static Assetsのみで進めるか、将来Pagesを併用するか。
-- PBKDF2の反復回数は無料枠CPU時間と実測に応じて見直す可能性がある。
-- MVPの1ユーザー1家庭制限をService層だけで完全に同時実行防止できるか。将来の複数家庭対応と、MVP期間だけの一意インデックス追加のトレードオフを継続検討する。
-## 2026-07-21 フロントエンド基盤
-
-今回、既存Worker APIを操作するReactフロントエンドを追加した。
-
-- `src/api/client.ts`: 共通APIクライアント。`credentials: "include"`、JSON Content-Type、共通レスポンス解析、APIエラー型、ネットワークエラーを扱う。
-- `src/api/auth.ts`: 登録、ログイン、ログアウト、ログイン状態確認。
-- `src/api/households.ts`: 現在の家庭取得、家庭作成、招待コード参加、メンバー一覧、招待コード発行。
-- `src/types.ts`: 認証、家庭、メンバー、招待コード、画面状態のフロント側型。
-- `src/components/ui.tsx`: Button、FormField、TextInput、PasswordInput、Card、PageHeader、LoadingScreen、ErrorMessage、SuccessMessage、EmptyState、MemberAvatar、BottomNavigation、GuestBanner。
-- `src/App.tsx`: 軽量ルーティング、認証ガード、家庭所属ガード、ログイン/登録/ゲスト/オンボーディング/家庭作成/招待参加/仮ホーム/メンバー管理画面。
-- `src/styles.css`: デザイントークン、フォーム、カード、下部ナビ、モバイル幅のレイアウト。
-
-ルーティングはReact Routerを導入せず、`window.history`と内部状態で開始した。今回の必須画面数では十分であり、将来ルート数やネストが増えた段階でルーター導入を再検討する。
-## 2026-07-31 Task frontend architecture
-
-The task UI keeps the existing lightweight `window.history` routing instead of adding React Router.
-
-- API clients live in `src/api/tasks.ts` and `src/api/dashboard.ts`.
-- Shared display labels live in `src/task-labels.ts`.
-- Task screen state is local React state with explicit reloads after create, edit, deactivate, start, complete, skip, and reset.
-- Home uses `GET /api/dashboard/today`; task management uses `GET /api/tasks?includeInactive=true`; task detail combines task detail, today/week status, and history APIs.
-- Daily and scheduled task actions send `targetDate`. Weekly task actions send `targetWeekStart`, calculated from the household `weekStartsOn`.
-- The shopping tab routes to a preparation page and only calls shopping APIs for a minimal connection/count check. Full shopping UI remains deferred.
-## 2026-08-04 Shopping frontend architecture
-
-The shopping UI keeps the lightweight `window.history` route parser and React local state model used by the task UI. Shopping screens call `src/api/shopping.ts` only; components do not call `fetch` directly. The list screen loads shopping items, active templates, and household members together so cards can show human-readable added/purchased actors.
-
-Shopping state is refreshed on first display, after create/edit/delete/purchase/unpurchase/template-add/clear operations, by a manual update button, and when `visibilitychange` returns to visible. This supports MVP two-user sharing without WebSocket or polling.
-
-Images and R2 are intentionally not represented as active controls in the UI. Cards are structured so a future image area can be added without changing the item API contract.
-
-## 2026-08-04 Shopping item image architecture
-
-`src/lib/image-processing.ts` validates JPEG/PNG/WebP input, prefers orientation-aware `createImageBitmap`, falls back to `Image`, draws to Canvas, strips EXIF through re-encoding, and emits WebP. `worker/routes/shopping-images.ts` owns HTTP parsing while `ShoppingItemImageService` owns household/item authorization, WebP signature/size/dimension checks, R2 writes, D1 metadata, replacement, rollback, and deletion. Reads are private Worker responses with ETag; no public R2 URL is exposed. Item deletion and clear-purchased cleanup remove D1 references with the major mutation, then delete the R2 object or enqueue it for cleanup.
-
-## 2026-08-04 Orphan R2 cleanup architecture
-
-`orphan_r2_objects` stores only failed R2 deletions. The image service completes the relevant D1 mutation first, then calls the shared delete-or-enqueue helper. The cleanup service is callable directly by tests or by the Worker `scheduled` handler. Each due record is rechecked against `shopping_item_images.r2_key`; a live reference removes the queue record without touching R2. The batch is capped at 50, holds candidates for 30 days, retries at 1/3/7/14 days, and preserves the fifth failure as `abandoned`.
-
-## 2026-08-05 Image usage foundation
-
-Migration `0008_image_usage_reservations.sql` adds `household_image_usage` and `image_upload_reservations`, and adds nullable `byte_size` to `orphan_r2_objects`. Active usage is derived from `shopping_item_images`; reserved usage is derived from active reservation rows; known pending-cleanup usage is derived from non-null orphan byte sizes. Existing orphan rows with a null byte size remain unknown and are never treated as zero.
-
-`GET /api/households/current/image-usage` exposes household-scoped usage and environment-derived limits to both owners and members. It resets the UTC daily counter date when necessary but does not recalculate counters on every read, access R2, or expose reservation IDs/R2 keys. `storedBytes` is `activeBytes + reservedBytes + pendingCleanupBytes`; `storedBytesKnown` is false when an active cleanup queue row has an unknown byte size.
-
-The reservation repository enforces one active reservation per shopping item through a SQLite partial unique index. The connected upload flow reserves before R2, then finalizes metadata, active counters, daily success count, and reservation release in one D1 batch. Explicit repair APIs recalculate active, reservation, and known pending-cleanup counters; daily successful upload count remains non-repairable because no upload event history exists.
-
-Completed reservation rows are not retained as history: finalize marks the row finalized and deletes it in the same D1 batch after metadata upsert. The shopping-item foreign key uses `ON DELETE CASCADE`, so an item deletion cannot leave a reservation row behind; an in-flight R2 object is handled by the upload compensation path.
-### 2026-08-05 Connected image upload reservations
-
-`PUT /api/shopping/items/:itemId/image` now validates the WebP payload before reserving, checks household-scoped create/replace limits, reserves usage and the reservation in one D1 `batch()`, writes the reserved R2 key, then performs the existing D1 upsert and old-object cleanup. Unknown pending-cleanup byte capacity is rejected with `IMAGE_STORED_BYTES_UNKNOWN` (409), never treated as zero. Same-item reservations return `IMAGE_UPLOAD_IN_PROGRESS` (409), daily admission includes UTC-day active reservations, and failure paths release counters idempotently. R2 compensation-delete failures are queued with `byte_size`.
-
-At the reservation-connection milestone, finalize updates `active_count`, `active_bytes`, and `daily_upload_count` for create and replace. UTC-day rollover resets the daily count to one. D1 `batch()` is relied on for rollback if metadata upsert or any finalize statement fails; reservation TTL cleanup is implemented in the section below.
-
-Queue registration recalculates known `pending_cleanup_bytes` and includes `pending`, `retry`, and `abandoned` rows; NULL byte sizes remain unknown. The scheduled cleanup now recomputes pending usage after queue deletion or status changes. Expired reservations are included until the bounded TTL cleanup processes them.
-
-### 2026-08-05 Reservation TTL and orphan usage cleanup
-
-The UTC scheduled cycle now runs expired upload reservation cleanup before orphan R2 cleanup, without changing the existing `0 18 * * *` schedule. Expired `reserved`, `r2_written`, and `cleanup_pending` rows attempt an idempotent R2 delete; failures enqueue the key with known `byte_size`, release reserved usage through a household-scoped recomputation, and continue to the next record. `finalized` and `released` rows are not treated as expired cleanup targets. Both services are capped at 50 records per run. Orphan queue deletion, missing-object success, retry, and abandoned transitions recalculate known pending cleanup bytes; NULL byte sizes remain unknown, and abandoned rows retain stored capacity. Queue cleanup is household-safe and rejects conflicting household ownership for an existing R2 key.
-
-The remaining cleanup repair extension is category A: pending cleanup bytes, reserved counters, and queue ownership are repaired in the implemented paths, while a broader household-wide repair that also reconciles active image counters remains future operational work. Queue deletion and usage recalculation are in the same D1 batch, so a recalculation failure rolls back the queue deletion and the next run can retry; missing usage rows are ensured for existing households, while deleted households are skipped safely.
-
-### 2026-08-05 Image deletion usage consistency
-
-Image DELETE now removes `shopping_item_images` and decrements the household active counter in the same D1 batch. The delete is conditioned on the fetched image ID and size, is clamped at zero, and is idempotent when metadata is already absent. Shopping item deletion and purchased-item bulk deletion use the same D1 transaction boundary: item deletion cascades image metadata only when the expected image exists, then active count/bytes are updated. R2 deletion happens after D1 success; a failed delete is queued with known `byte_size` and pending cleanup is recalculated without restoring active usage. Queue registration failure returns an internal error and logs a masked, structured event instead of reporting cleanup success. Household deletion relies on existing FK cascades for usage and image metadata; R2 cleanup for objects remaining after household deletion is still handled only through the existing orphan queue paths.
+現在仕様と将来設計を混在させません。deadline、notification offset、recurrence redesign、calendar等は [ROADMAP.md](ROADMAP.md) に置きます。過去の理由は [DECISIONS.md](DECISIONS.md) に残し、作業進捗は保存しません。

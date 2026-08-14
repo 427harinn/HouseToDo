@@ -1,11 +1,25 @@
 # 設計判断ログ
 
-重要な技術判断や仕様変更理由を、ADRに近い簡潔な形式で記録する。軽微な修正は `docs/WORKLOG.md` のみでよい。
+> 長期的に残す重要な設計判断のsource of truthです。作業進捗や調査probeの時系列全文は置きません。
+
+Statusは原則 `Accepted`。変更された判断には `Superseded` と `Superseded by` を追記し、単なる履歴は削除せず短く保ちます。
+
+## 2026-08-10 Web Push receiver情報をログへ出さない
+
+**Status:** Accepted
+
+Web Pushのendpoint、p256dh、auth、VAPID material、Authorization、payload、upstream response bodyはログ・API応答・エラー詳細へ出さず、allowlistしたstage / errorCategory / upstreamStatus等だけを記録する。Apple等のreceiver調査は固定宛先のtransport probeに限定し、実送信の代替にはしない。
+
+**理由:** Push endpointと鍵素材は機微情報であり、障害調査のための可観測性が漏えい経路にならないようにするため。
+
+重要な技術判断や仕様変更理由を、ADRに近い簡潔な形式で記録する。軽微な修正はここへ昇格させず、Git差分で確認する。
 
 ## 2026-08-01 Shopping item and template MVP policy
 
+**Status:** Accepted for the current shopping model. The historical context below predates the now-implemented image/R2 scope; the current behavior is defined in `PROJECT_SPEC.md`.
+
 ### Context
-The shopping phase needs a household-shared list and reusable templates, while images, R2, categories, stores, and inventory remain out of scope.
+The shopping phase needs a household-shared list and reusable templates. At the time of this decision, images, R2, categories, stores, and inventory were out of scope; image/R2 support was subsequently added without changing the item/template decisions.
 
 ### Decision
 - Store item quantity as `TEXT | NULL`, not numeric/unit columns.

@@ -1,110 +1,52 @@
-# Codex向け開発指示書
+# Codex向け開発指示
 
-このファイルは、Codexが本プロジェクトで作業するたびに確認する継続的な作業ルールです。
+> この文書はHouseToDoでのCodex作業ルールです。現在仕様は [PROJECT_SPEC.md](PROJECT_SPEC.md)、技術構成は [ARCHITECTURE.md](ARCHITECTURE.md) を参照します。
 
-## 作業開始前のルール
+## 作業開始前
 
-1. `docs/PROJECT_SPEC.md` を確認する。
-2. `docs/images/household-todo-screen-rough.png` を確認する。
-3. この `docs/CODEX_INSTRUCTIONS.md` を確認する。
-4. `docs/WORKLOG.md` の最新記録を確認する。
-5. `git status --short` を確認する。
-6. 現在のブランチを確認する。
-7. 未コミット変更の有無を確認する。
-8. 既存実装を調査してから変更する。
-9. 変更対象と影響範囲を整理する。
+必須で読むもの:
 
-既存の未コミット変更は、明示的な依頼なしに削除、上書き、リセットしない。
+- `docs/PROJECT_SPEC.md`
+- `docs/ARCHITECTURE.md`
+- `docs/CODEX_INSTRUCTIONS.md`
+- `.ai/MILESTONE.md`
+- `.ai/TASKS.md`
 
-## 作業中のルール
+必要時だけ読むもの:
 
-- 明示されていない大規模変更を行わない。
-- 関係のないファイルを変更しない。
-- 既存の変更を勝手に取り消さない。
-- ローカルPCへ直接依存関係をインストールしない。
-- 原則として Docker コンテナ内で開発、実行、検証する。
-- 秘密情報をリポジトリへ保存しない。
-- `.env`、`.dev.vars`、本番用Secretをコミットしない。
-- 型安全を維持する。
-- `any` を安易に使用しない。
-- 入力値検証を省略しない。
-- 認証と認可を分けて考える。
-- householdへの所属確認をAPIごとに行う。
-- 無料枠を意識する。
-- 不要なポーリングや外部通信を増やさない。
-- ゲストデータと本番データを分離する。
-- モバイルファーストとアクセシビリティを意識する。
-- 仕様変更が発生した場合は、コードだけでなく関連ドキュメントも更新する。
+- `docs/DECISIONS.md`
+- `docs/STAGING_DEPLOYMENT.md`
+- `docs/ROADMAP.md`
+- relevantな画像/UI reference
 
-## Git運用ルール
+巨大な履歴を毎回読む・更新する運用は行いません。実装の判断は必ず現在のsource codeでも確認します。
 
-- 作業前に `git status --short` を確認する。
-- 既存の未コミット変更を勝手に変更しない。
-- 関係のない差分を混ぜない。
-- `git reset --hard` を使用しない。
-- `git clean -fd` を使用しない。
-- 明示的な依頼なしにコミットしない。
-- 明示的な依頼なしにpushしない。
-- ブランチ作成が必要な場合は、目的が分かる名前にする。
-- 生成物、Secrets、ローカルDB、キャッシュをGit管理しない。
-- 変更後に `git diff` を確認する。
-- マイグレーションは既存ファイルを書き換えず、原則として追加する。
-- コミットする場合は機能単位に分ける。
+## 作業中
 
-Gitの dubious ownership が出る場合は、グローバル設定を書き換えず、必要に応じて一時的に `git -c safe.directory=...` を使って状態確認する。
+- ユーザーが指定した範囲だけを変更し、既存の未コミット変更を上書きしない。
+- Dockerが利用可能ならDockerを優先する。利用不能ならhost gateと確認範囲を報告する。
+- secrets、token、cookie、password、VAPID private key、Push endpoint / keyを表示・保存・コミットしない。
+- migrationは既存ファイルを書き換えず、必要なら追加ファイルとして設計する。
+- GUI変更ではPlaywrightのscreenshot/traceを使って確認する。
+- staging、production、Cloudflare resource、deploy、remote migration、pushは明示承認なしに実行しない。
 
-## 仕様変更のルール
+## Git
 
-以下のような場合は、コードだけを変更して仕様書を古い状態のままにしない。
+- 作業前後に `git status --short` と `git diff --check` を確認する。
+- `git reset --hard`、`git clean -fd`、無関係な既存変更の削除は行わない。
+- commitは依頼範囲が完了し、差分を確認してから行う。git pushは別途明示依頼がない限り行わない。
+- safe.directoryが必要な場合は、global設定を書き換えず `git -c safe.directory=<repo>` を使う。
 
-- 当初の仕様では実現しにくい。
-- Cloudflareの制限により構成を変更する。
-- UIの操作方法を変更する。
-- DB構造を変更する。
-- API仕様を変更する。
-- MVP範囲を変更する。
-- 後回しにする機能が発生する。
+## 文書の責務
 
-仕様変更時は次を行う。
+- PROJECT_SPEC: 実装済みのproduct behavior
+- ARCHITECTURE: 現在のtechnical architecture
+- DECISIONS: 長期的に残す重要decision
+- ROADMAP: 未実装future work
+- MILESTONE: 現在取り組むmilestoneだけ
+- TASKS: current milestoneの未完了taskだけ
+- STAGING_DEPLOYMENT: staging runbook
 
-1. 仕様変更が必要な理由を確認する。
-2. 影響範囲を整理する。
-3. 関連する仕様書を更新する。
-4. 必要に応じてデータベース設計、API設計、画面設計も更新する。
-5. `docs/WORKLOG.md` に変更理由を記録する。
-6. 旧仕様と新仕様の違いを記録する。
-7. コードとドキュメントの内容が一致していることを確認する。
+## 完了時
 
-後から理由が分からなくなりそうな判断は `docs/DECISIONS.md` にADRに近い形式で記録する。すべての軽微な修正を記録する必要はない。
-
-## 作業完了時のルール
-
-- ビルドを実行する。
-- 型チェックを実行する。
-- Lintを実行する。
-- 関連テストを実行する。
-- 必要に応じてDockerイメージを再ビルドする。
-- 変更差分を確認する。
-- `docs/WORKLOG.md` を更新する。
-- 仕様変更があれば仕様書を更新する。
-- READMEやセットアップ手順に影響があれば更新する。
-- 未対応事項を明記する。
-- 明示的に依頼されない限りコミットしない。
-
-## 作業報告の形式
-
-毎回、少なくとも以下の観点で報告する。
-
-```text
-作業前の状態
-変更ファイル
-実装・変更内容
-設計上の判断
-実行したコマンド
-確認結果
-テスト結果
-ドキュメント更新内容
-未対応事項
-次に行うべき作業
-注意点
-```
+変更ファイル、検証コマンド、結果、未対応事項を簡潔に報告します。コード・API・DB・UI・運用に影響する変更では、関連文書のsource of truthも更新します。
