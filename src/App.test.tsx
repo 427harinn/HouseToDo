@@ -97,6 +97,7 @@ const mockFetch = (
     if (url.endsWith("/api/households/current/members")) return Promise.resolve(ok({ members }));
     if (url.endsWith("/api/households/current/image-usage")) return Promise.resolve(imageUsageData ? ok(imageUsageData) : failure("INTERNAL_ERROR", 500));
     if (url.endsWith("/api/shopping/items")) return Promise.resolve(ok({ pending: [shoppingItem], purchased: [purchasedItem] }));
+    if (url.startsWith("/api/shopping/recent")) return Promise.resolve(ok({ items: [{ name: "牛乳", quantity: "2本", note: "低脂肪ではないもの", createdAt: "2026-08-02T00:00:00Z" }] }));
     if (url.endsWith("/api/shopping/templates")) return Promise.resolve(ok({ templates: [template] }));
     if (url.endsWith("/api/dashboard/today")) {
       return Promise.resolve(ok({
@@ -515,5 +516,26 @@ describe("App shopping UI", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /購入済み 1件/ }));
     expect(screen.queryByText(/たくやさんが購入/)).not.toBeInTheDocument();
+  }, 15000);
+
+  it("prefills shopping forms from recent items and templates without reusing image inputs", async () => {
+    mockFetch();
+    window.history.replaceState({}, "", "/shopping/new");
+
+    const { container } = render(<App />);
+
+    expect(await screen.findByRole("heading", { name: "最近使ったもの" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /牛乳/ }));
+    expect(container.querySelector<HTMLInputElement>("#shopping-name")).toHaveValue("牛乳");
+    expect(container.querySelector<HTMLInputElement>("#shopping-quantity")).toHaveValue("2本");
+    expect(container.querySelector<HTMLTextAreaElement>("#shopping-note")).toHaveValue("低脂肪ではないもの");
+
+    fireEvent.click(screen.getByRole("button", { name: /キッチンペーパー/ }));
+    expect(container.querySelector<HTMLInputElement>("#shopping-name")).toHaveValue("キッチンペーパー");
+    expect(container.querySelector<HTMLInputElement>("#shopping-quantity")).toHaveValue("1個");
+    expect(screen.getByRole("button", { name: "写真を撮る" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "写真を選ぶ" })).toBeInTheDocument();
+    expect(container.querySelector<HTMLInputElement>("#shopping-image-camera")).toHaveAttribute("capture", "environment");
+    expect(container.querySelector<HTMLInputElement>("#shopping-image")).not.toHaveAttribute("capture");
   }, 15000);
 });

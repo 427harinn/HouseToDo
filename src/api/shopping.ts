@@ -42,6 +42,13 @@ export type ShoppingItemList = {
   purchased: ShoppingItem[];
 };
 
+export type ShoppingRecentItem = {
+  name: string;
+  quantity: string | null;
+  note: string | null;
+  createdAt: string;
+};
+
 export type CreateShoppingItemInput = ShoppingWriteInput;
 export type UpdateShoppingItemInput = ShoppingUpdateInput;
 export type CreateShoppingTemplateInput = ShoppingWriteInput;
@@ -55,6 +62,9 @@ export type ShoppingUpdateInput = {
 
 export const listShoppingItems = (signal?: AbortSignal) =>
   apiRequest<ShoppingItemList>("/api/shopping/items", { signal });
+
+export const listRecentShoppingItems = (limit = 8, signal?: AbortSignal) =>
+  apiRequest<{ items: ShoppingRecentItem[] }>(`/api/shopping/recent?limit=${limit}`, { signal });
 
 export const getShoppingItem = (itemId: string, signal?: AbortSignal) =>
   apiRequest<{ item: ShoppingItem }>(`/api/shopping/items/${itemId}`, { signal });

@@ -42,6 +42,14 @@ routeのsource of truthは `worker/app.ts` と `worker/routes/`です。認証�
 
 The React route is `/calendar`, added to the existing lightweight parser and bottom navigation. Household `timezone` and `weekStartsOn` drive the initial today selection and calendar layout; date keys remain `YYYY-MM-DD` local household dates and are not converted through UTC instants in the API.
 
+## Shopping UX Phase 1 boundary
+
+Shopping recent reuse is a read-only projection of `shopping_items`; no recent table or migration is added. `ShoppingItemRepository.listRecentByHouseholdId` scopes by household, keeps pending and purchased rows eligible, deduplicates with normalized `lower(trim(name))`, sorts newest first, and applies a maximum limit of eight. `ShoppingService` and `GET /api/shopping/recent` return only `name`, `quantity`, `note`, and `createdAt`, so item identity, purchase state, purchaser, history fields, and image metadata cannot be copied by the UI.
+
+The new Shopping form loads recent candidates and active Shopping templates together, then maps either selection into the existing form state. Save remains the only item creation path. Existing Shopping template CRUD and the `/add` endpoint retain their household-scoped semantics and immediate-add behavior for compatibility; the new-form template panel provides the Task-style prefill path.
+
+Camera and library inputs are separate browser file inputs but share one change handler and the existing `processShoppingImage` / preview / upload pipeline. The camera input requests `capture="environment"`; the library input has no `capture` attribute. Browser/OS behavior is best-effort across iOS, Android, and desktop. R2 keys, D1 image metadata, compression, validation, and attachment limits are unchanged.
+
 ## 次期task modelの実装影響（Phase 2 API実装済み）
 
 詳細設計は [TASK_MODEL_DESIGN.md](TASK_MODEL_DESIGN.md) をsource of truthとする。実装時はtasksへcanonical schedule/deadline列を段階追加し、`task_weekdays`と既存recordsを互換利用する。recurrence計算、period key、resolved deadline、overdue判定はdomain helperへ隔離し、将来calendarとschedulerが同じprojectionを使う。

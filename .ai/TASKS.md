@@ -22,6 +22,9 @@
 - [x] Verify recent/template authenticated E2E on staging and clean up temporary fixtures
 - Production rollout
 - Shopping planned purchase date
+- [x] Shopping recent item reuse from existing household items with sorting, limit, deduplication, and isolation
+- [x] Shopping new-form template prefill while preserving existing template CRUD/add behavior
+- [x] Shopping camera/library image options with shared processing and unchanged R2 constraints
 
 ## Calendar phase
 

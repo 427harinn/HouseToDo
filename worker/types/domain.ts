@@ -55,6 +55,13 @@ export type HouseholdInvite = {
   createdAt: string;
 };
 
+export type ShoppingRecentItem = {
+  name: string;
+  quantity: string | null;
+  note: string | null;
+  createdAt: string;
+};
+
 export type LegacyTaskRecurrenceType = "daily" | "scheduled" | "weekly" | "model_only";
 export type TaskModelRecurrenceType =
   | "once"

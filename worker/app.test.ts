@@ -1042,6 +1042,55 @@ describe("worker app shopping API", () => {
     );
     expect(hidden.status).toBe(404);
   });
+
+  it("lists recent shopping settings with newest-name deduplication, limit, purchased reuse, and household isolation", async () => {
+    const app = createApp();
+    const db = new MemoryD1();
+    const env = createTestEnv(db);
+    const owner = await registerUser(env, { email: "recent-shopping-owner@example.com", password: "very-long-password", displayName: "Recent Owner" });
+    const other = await registerUser(env, { email: "recent-shopping-other@example.com", password: "very-long-password", displayName: "Recent Other" });
+    await app.fetch(postJson("/api/households", { name: "Recent House" }, owner.cookie), env);
+    await app.fetch(postJson("/api/households", { name: "Other Recent House" }, other.cookie), env);
+
+    const createItem = async (name: string, quantity?: string) => {
+      const response = await app.fetch(postJson("/api/shopping/items", { name, quantity }, owner.cookie), env);
+      const body: { data: { item: { id: string } } } = await response.json();
+      return body.data.item.id;
+    };
+    const ids: string[] = [];
+    for (let index = 0; index < 10; index += 1) ids.push(await createItem(`recent-${index}`, `${index + 1}`));
+    const oldMilkId = await createItem("Milk", "1L");
+    const latestMilkId = await createItem(" milk ", "2L");
+    const otherItem = await app.fetch(postJson("/api/shopping/items", { name: "other-household" }, other.cookie), env);
+    expect(otherItem.status).toBe(201);
+
+    ids.forEach((id, index) => {
+      const row = db.shoppingItems.get(id);
+      if (row) row.created_at = `2026-08-${String(index + 1).padStart(2, "0")}T00:00:00.000Z`;
+    });
+    const oldMilk = db.shoppingItems.get(oldMilkId);
+    if (oldMilk) oldMilk.created_at = "2026-08-12T00:00:00.000Z";
+    const latestMilk = db.shoppingItems.get(latestMilkId);
+    if (latestMilk) latestMilk.created_at = "2026-08-13T00:00:00.000Z";
+    await app.fetch(postJson(`/api/shopping/items/${latestMilkId}/purchase`, {}, owner.cookie), env);
+
+    const response = await app.fetch(
+      new Request("https://example.test/api/shopping/recent?limit=8", { headers: { cookie: owner.cookie } }),
+      env
+    );
+    expect(response.status).toBe(200);
+    const body: { data: { items: Array<Record<string, unknown>> } } = await response.json();
+    const names = body.data.items.map((item) => item.name);
+    expect(body.data.items).toHaveLength(8);
+    expect(names[0]).toBe("milk");
+    expect(new Set(names).size).toBe(8);
+    expect(names).not.toContain("other-household");
+    expect(body.data.items[0]).toMatchObject({ name: "milk", quantity: "2L", note: null });
+    expect(body.data.items[0]).not.toHaveProperty("id");
+    expect(body.data.items[0]).not.toHaveProperty("status");
+    expect(body.data.items[0]).not.toHaveProperty("purchasedAt");
+    expect(body.data.items[0]).not.toHaveProperty("image");
+  });
 });
 
 describe("task reuse and template API", () => {

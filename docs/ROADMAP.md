@@ -19,9 +19,11 @@
 1. Task notification deep-link
 2. Calendar deep-link synchronization
 3. Shopping UX
-   - history / templates
-   - camera / photo-library選択
-   - optional calendar integration
+   - [x] recent shopping item reuse with household isolation, sorting, limit, and normalized-name deduplication
+   - [x] Shopping new-form template prefill while preserving existing template CRUD/add semantics
+   - [x] separate camera and photo-library selection with shared image processing/upload flow
+   - history / optional calendar integration
+   - planned purchase date
 5. UI refinement
 6. WebMCP
 7. Scheduler query optimization

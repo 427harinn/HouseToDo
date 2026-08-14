@@ -24,6 +24,7 @@ import {
   getShoppingItemRoute,
   getShoppingTemplateRoute,
   listShoppingItemsRoute,
+  listRecentShoppingItemsRoute,
   listShoppingTemplatesRoute,
   purchaseShoppingItemRoute,
   unpurchaseShoppingItemRoute,
@@ -202,6 +203,8 @@ const routeApi = withErrorHandling(
         return dashboardTodayRoute(context);
       case "GET /api/shopping/items":
         return listShoppingItemsRoute(context);
+      case "GET /api/shopping/recent":
+        return listRecentShoppingItemsRoute(context);
       case "POST /api/shopping/items":
         return createShoppingItemRoute(context);
       case "POST /api/shopping/items/clear-purchased":

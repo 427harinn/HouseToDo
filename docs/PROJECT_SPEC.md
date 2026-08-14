@@ -52,13 +52,19 @@ Canonical task projections and actions are now implemented for all six recurrenc
 
 The authenticated app provides a mobile-first monthly Calendar at `/calendar`. It uses the household timezone, shows a 42-cell month grid with fixed-task count markers, and places selected-date task detail below the grid. `once`, `daily`, `weekly_fixed`, and `monthly_fixed` are projected into grid markers; `weekly_flexible` and `monthly_flexible` appear only in the selected period sections. The range API is `GET /api/tasks/calendar?from=YYYY-MM-DD&to=YYYY-MM-DD&selectedDate=YYYY-MM-DD`, accepts a maximum 62-day range, and reuses the canonical Phase 3 projector and derived status/overdue fields without generating occurrence rows.
 
+### Shopping UX Phase 1 (implemented)
+
+Shopping item creation now shows `最近使ったもの` and `テンプレートから` as separate prefill panels. Recent candidates come from existing household-scoped `shopping_items`, include pending and purchased rows, are sorted by `created_at DESC`, deduplicated by normalized name, and limited to eight. Selecting either source only prefills name, quantity, and note; it never creates an item, carries over item/purchase/history fields, or copies an image. The API is `GET /api/shopping/recent?limit=8` and returns only reusable fields.
+
+Shopping templates keep their existing household authorization and immediate-add API for compatibility. The shopping new form also supports template selection followed by edit and save, matching the Task prefill interaction. Image selection now exposes separate `写真を撮る` (camera input with `capture="environment"`) and `写真を選ぶ` (library/file input without `capture`) controls. Both use the existing validation, compression, preview, remove, upload, attachment-limit, and R2 pipeline.
+
 ## Future workへの境界
 
 以下はROADMAP上の候補であり、現在仕様ではありません。
 
 - notification deep-link and calendar deep-link synchronization
 - shopping planned purchase date and future integrations
-- shopping history・template UX、camera / photo-library選択
+- shopping history、planned purchase date、Calendar integration
 - UI refinement、WebMCP、scheduler query optimization
 - production rollout
 

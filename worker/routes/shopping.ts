@@ -10,7 +10,7 @@ import type { Handler } from "../middleware/error-handler";
 import { ShoppingService } from "../services/shopping-service";
 import { ShoppingTemplateService } from "../services/shopping-template-service";
 import type { AuthenticatedUser } from "../types/api";
-import type { ShoppingItem, ShoppingTemplate } from "../types/domain";
+import type { ShoppingItem, ShoppingRecentItem, ShoppingTemplate } from "../types/domain";
 
 const requireUser = (user: AuthenticatedUser | undefined): AuthenticatedUser => {
   if (!user) throw unauthenticatedError();
@@ -46,6 +46,13 @@ const templateResponse = (template: ShoppingTemplate) => ({
   updatedAt: template.updatedAt
 });
 
+const recentResponse = (item: ShoppingRecentItem) => ({
+  name: item.name,
+  quantity: item.quantity,
+  note: item.note,
+  createdAt: item.createdAt
+});
+
 export const listShoppingItemsRoute: Handler = requireAuth(async (context) => {
   const user = requireUser(context.user);
   const data = await new ShoppingService(context.env.DB, context.env.ATTACHMENTS).listItems(user.id);
@@ -56,6 +63,15 @@ export const listShoppingItemsRoute: Handler = requireAuth(async (context) => {
     },
     context.requestId
   );
+});
+
+export const listRecentShoppingItemsRoute: Handler = requireAuth(async (context) => {
+  const user = requireUser(context.user);
+  const limitValue = new URL(context.request.url).searchParams.get("limit");
+  const parsedLimit = limitValue ? Number(limitValue) : 8;
+  const limit = Number.isInteger(parsedLimit) ? parsedLimit : 8;
+  const items = await new ShoppingService(context.env.DB, context.env.ATTACHMENTS).listRecentItems(user.id, limit);
+  return okJson({ items: items.map(recentResponse) }, context.requestId);
 });
 
 export const createShoppingItemRoute: Handler = requireAuth(async (context) => {

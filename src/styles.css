@@ -389,6 +389,8 @@ textarea[aria-invalid="true"] {
 .shopping-item__image-error { color: var(--color-text-muted); font-size: .78rem; }
 .shopping-image-field { display: grid; gap: 8px; }
 .shopping-image-field > label { font-weight: 800; }
+.shopping-image-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.shopping-image-input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; clip-path: inset(50%); }
 .shopping-image-preview, .shopping-detail-image { max-width: 100%; width: min(100%, 420px); max-height: 360px; border-radius: var(--radius-sm); object-fit: contain; background: #f3f7f5; }
 .shopping-image-field small { color: var(--color-text-muted); }
 .image-upload-usage {
@@ -465,6 +467,40 @@ textarea[aria-invalid="true"] {
   font-size: 0.72rem;
   font-weight: 700;
 }
+
+.shopping-reuse-grid {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.shopping-reuse-card { min-width: 0; }
+
+.shopping-reuse-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.shopping-reuse-item {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+  min-height: 58px;
+  padding: 9px 11px;
+  border: 1px solid #9fd8cc;
+  border-radius: var(--radius-sm);
+  background: #f7fffc;
+  color: var(--color-primary-dark);
+  text-align: left;
+}
+
+.shopping-reuse-item strong,
+.shopping-reuse-item small {
+  overflow-wrap: anywhere;
+}
+
+.shopping-reuse-item small { color: var(--color-text-muted); }
 
 .collapse-toggle {
   display: flex;

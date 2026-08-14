@@ -518,3 +518,23 @@ Tasks with `model_recurrence_type` use the shared occurrence/period projector to
 Recent/templateからコピーするのはname、note、canonical recurrence設定、deadline/reminder、assignmentである。task ID、household ID、task records、occurrence/period key、execution history、status、created/updated timestamps、startDateはコピーしない。onceのtargetDateもコピーせず、missing specific assigneeは別memberへ置換せず再選択を要求する。
 
 明示的に保存するテンプレートはactive taskとは別の`task_templates` tableに置く。canonical six recurrence typesの設定だけを保存し、startDate、once targetDate、task_records、completion stateを持たせない。household memberだけが同一householdのtemplateをlist/create/edit/deactivateでき、deactivateは`active = 0`とする。templateはHome、Calendar、Dashboard、scheduler、action対象へ投影しない。`0013_task_templates.sql`はadditiveであり、既存tasks/task_recordsを変更しない。
+
+## 2026-08-14 Shopping recent reuse uses existing items with normalized-name deduplication
+
+**Status:** Accepted — Shopping UX Phase 1 implementation
+
+Shopping recent candidates are read from existing `shopping_items`; no recent table or migration is introduced. Household authorization is applied through the existing `HouseholdService`. Pending and purchased items are both eligible because a purchased product can be bought again. Candidates are ordered by `created_at DESC` with an `id DESC` tie-breaker, deduplicated by `lower(trim(name))`, and capped at eight. The newest row supplies the reusable quantity/note configuration when those differ between purchases.
+
+The recent API returns only `name`, `quantity`, `note`, and `createdAt`. The create form copies only those user-editable fields. Item identity, purchased state, purchaser, purchase time, execution/history data, and image metadata are never copied. Selection is always prefill → edit → save; it never creates an item immediately.
+
+## 2026-08-14 Shopping image picker separates camera and library inputs
+
+**Status:** Accepted — Shopping UX Phase 1 implementation
+
+The Shopping form exposes a camera input using the supported image types plus `capture="environment"`, and a library/file input with the same accepted types and no `capture` attribute. Both feed one validation, compression, preview, remove, and upload handler. Browser/OS picker behavior is not guaranteed to be identical across iOS, Android, and desktop. Existing D1/R2 attachment storage, limits, and cleanup behavior remain unchanged.
+
+## 2026-08-14 Shopping templates keep existing immediate-add semantics and gain new-form prefill
+
+**Status:** Accepted — Shopping UX Phase 1 implementation
+
+Existing Shopping template list, CRUD, household authorization, and `/api/shopping/templates/:id/add` behavior remain compatible. The Shopping new form additionally lists active templates as prefill candidates so users can edit before saving, matching the Task form family resemblance without changing shared-household scope or copying images.

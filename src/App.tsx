@@ -1,4 +1,5 @@
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import type { ChangeEvent } from "react";
 import type { ReactNode } from "react";
 import { login, logout, me, register } from "./api/auth";
 import { ApiError, apiMessage } from "./api/client";
@@ -25,6 +26,7 @@ import {
   getShoppingItemImageUrl,
   getShoppingTemplate,
   listShoppingItems,
+  listRecentShoppingItems,
   listShoppingTemplates,
   purchaseShoppingItem,
   unpurchaseShoppingItem,
@@ -35,6 +37,7 @@ import {
   type CreateShoppingItemInput,
   type CreateShoppingTemplateInput,
   type ShoppingItem,
+  type ShoppingRecentItem,
   type ShoppingTemplate,
   type UpdateShoppingItemInput,
   type UpdateShoppingTemplateInput
@@ -3254,9 +3257,11 @@ function ShoppingItemFormScreen({
   onLogout: () => void;
 }) {
   const [form, setForm] = useState<CreateShoppingItemInput>(emptyShoppingForm);
+  const [recentItems, setRecentItems] = useState<ShoppingRecentItem[]>([]);
+  const [templates, setTemplates] = useState<ShoppingTemplate[]>([]);
   const [errors, setErrors] = useState<FormErrors>({});
   const [message, setMessage] = useState("");
-  const [loading, setLoading] = useState(mode === "edit");
+  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [existingImage, setExistingImage] = useState<ShoppingItem["image"]>(null);
   const [selectedImage, setSelectedImage] = useState<ProcessedImage | null>(null);
@@ -3267,6 +3272,8 @@ function ShoppingItemFormScreen({
   const [imageMessage, setImageMessage] = useState("");
   const [imageUsage, setImageUsage] = useState<ImageUsage | null>(null);
   const [imageUsageLoading, setImageUsageLoading] = useState(true);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const libraryInputRef = useRef<HTMLInputElement>(null);
   const refreshImageUsage = useCallback(async (signal?: AbortSignal) => {
     setImageUsageLoading(true);
     try {
@@ -3302,6 +3309,26 @@ function ShoppingItemFormScreen({
       .finally(() => setLoading(false));
     return () => controller.abort();
   }, [mode, itemId]);
+  useEffect(() => {
+    if (mode !== "create") return;
+    const controller = new AbortController();
+    Promise.all([
+      listRecentShoppingItems(8, controller.signal),
+      listShoppingTemplates(controller.signal)
+    ])
+      .then(([recentResult, templateResult]) => {
+        setRecentItems(recentResult.items);
+        setTemplates(templateResult.templates.filter((template) => template.active));
+      })
+      .catch((error) => {
+        if (!(error instanceof DOMException && error.name === "AbortError"))
+          setMessage(shoppingErrorMessage(error));
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, [mode]);
   useEffect(
     () => () => {
       if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -3344,6 +3371,10 @@ function ShoppingItemFormScreen({
     } finally {
       setImageStatus("idle");
     }
+  };
+  const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
+    void selectImage(event.currentTarget.files?.[0]);
+    event.currentTarget.value = "";
   };
   const removeSelectedImage = () => {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -3410,6 +3441,28 @@ function ShoppingItemFormScreen({
         title={mode === "create" ? "商品を追加" : "商品を編集"}
         description={household.name}
       />
+      {mode === "create" ? (
+        <ShoppingReusePanel
+          recentItems={recentItems}
+          templates={templates}
+          onRecentSelect={(source) => {
+            setForm({ name: source.name, quantity: source.quantity, note: source.note });
+            setErrors({});
+            setMessage("");
+            setSelectedImage(null);
+            if (previewUrl) URL.revokeObjectURL(previewUrl);
+            setPreviewUrl("");
+          }}
+          onTemplateSelect={(source) => {
+            setForm({ name: source.name, quantity: source.quantity, note: source.note });
+            setErrors({});
+            setMessage("");
+            setSelectedImage(null);
+            if (previewUrl) URL.revokeObjectURL(previewUrl);
+            setPreviewUrl("");
+          }}
+        />
+      ) : null}
       <Card>
         <form
           className="stack"
@@ -3471,8 +3524,26 @@ function ShoppingItemFormScreen({
                 {selectedImage.width}×{selectedImage.height}px
               </small>
             ) : null}
+            <div className="shopping-image-options" aria-label="画像の追加方法">
+              <Button
+                variant="secondary"
+                disabled={imageStatus !== "idle" || submitting || (mode === "create" && !!imageUsage && imageUsage.activeCount >= imageUsage.activeCountLimit)}
+                onClick={() => cameraInputRef.current?.click()}
+              >
+                写真を撮る
+              </Button>
+              <Button
+                disabled={imageStatus !== "idle" || submitting || (mode === "create" && !!imageUsage && imageUsage.activeCount >= imageUsage.activeCountLimit)}
+                onClick={() => libraryInputRef.current?.click()}
+              >
+                写真を選ぶ
+              </Button>
+            </div>
             <input
-              id="shopping-image"
+              ref={cameraInputRef}
+              aria-label="カメラで写真を撮る"
+              className="shopping-image-input"
+              id="shopping-image-camera"
               accept="image/jpeg,image/png,image/webp"
               capture="environment"
               disabled={
@@ -3482,10 +3553,23 @@ function ShoppingItemFormScreen({
                   !!imageUsage &&
                   imageUsage.activeCount >= imageUsage.activeCountLimit)
               }
-              onChange={(event) => {
-                void selectImage(event.target.files?.[0]);
-                event.currentTarget.value = "";
-              }}
+              onChange={handleImageChange}
+              type="file"
+            />
+            <input
+              ref={libraryInputRef}
+              aria-label="写真ライブラリから選ぶ"
+              className="shopping-image-input"
+              id="shopping-image"
+              accept="image/jpeg,image/png,image/webp"
+              disabled={
+                imageStatus !== "idle" ||
+                submitting ||
+                (mode === "create" &&
+                  !!imageUsage &&
+                  imageUsage.activeCount >= imageUsage.activeCountLimit)
+              }
+              onChange={handleImageChange}
               type="file"
             />
             <div className="inline-actions">
@@ -3530,6 +3614,59 @@ function ShoppingItemFormScreen({
         </form>
       </Card>
     </AppFrame>
+  );
+}
+
+function ShoppingReusePanel({
+  recentItems,
+  templates,
+  onRecentSelect,
+  onTemplateSelect
+}: {
+  recentItems: ShoppingRecentItem[];
+  templates: ShoppingTemplate[];
+  onRecentSelect: (item: ShoppingRecentItem) => void;
+  onTemplateSelect: (template: ShoppingTemplate) => void;
+}) {
+  return (
+    <div className="shopping-reuse-grid">
+      <Card className="shopping-reuse-card">
+        <div className="section-heading">
+          <h2>最近使ったもの</h2>
+          <span>{recentItems.length}件</span>
+        </div>
+        {recentItems.length === 0 ? (
+          <p className="field-hint">過去に追加した商品がここに表示されます。</p>
+        ) : (
+          <div className="shopping-reuse-list">
+            {recentItems.map((item) => (
+              <button className="shopping-reuse-item" key={`${item.name}-${item.createdAt}`} type="button" onClick={() => onRecentSelect(item)}>
+                <strong>{item.name}</strong>
+                <small>{[item.quantity, item.note].filter(Boolean).join(" / ") || "数量・メモなし"}</small>
+              </button>
+            ))}
+          </div>
+        )}
+      </Card>
+      <Card className="shopping-reuse-card">
+        <div className="section-heading">
+          <h2>テンプレートから</h2>
+          <span>{templates.length}件</span>
+        </div>
+        {templates.length === 0 ? (
+          <p className="field-hint">よく買う商品をテンプレートに登録できます。</p>
+        ) : (
+          <div className="shopping-reuse-list">
+            {templates.slice(0, 8).map((template) => (
+              <button className="shopping-reuse-item" key={template.id} type="button" onClick={() => onTemplateSelect(template)}>
+                <strong>{template.name}</strong>
+                <small>{[template.quantity, template.note].filter(Boolean).join(" / ") || "数量・メモなし"}</small>
+              </button>
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
   );
 }
 

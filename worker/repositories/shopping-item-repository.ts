@@ -97,6 +97,31 @@ export class ShoppingItemRepository {
     return (result.results ?? []).map((row) => toItem(row)!);
   }
 
+  async listRecentByHouseholdId(householdId: string, limit: number): Promise<ShoppingItem[]> {
+    const result = await this.db
+      .prepare(
+        `SELECT ${selectItem}
+         FROM shopping_items si
+         LEFT JOIN users u ON u.id = si.purchased_by
+         WHERE si.household_id = ?
+           AND NOT EXISTS (
+             SELECT 1
+             FROM shopping_items newer
+             WHERE newer.household_id = si.household_id
+               AND lower(trim(newer.name)) = lower(trim(si.name))
+               AND (
+                 newer.created_at > si.created_at
+                 OR (newer.created_at = si.created_at AND newer.id > si.id)
+               )
+           )
+         ORDER BY si.created_at DESC, si.id DESC
+         LIMIT ?`
+      )
+      .bind(householdId, limit)
+      .all<ShoppingItemRow>();
+    return (result.results ?? []).map((row) => toItem(row)!);
+  }
+
   async countPending(householdId: string): Promise<number> {
     const row = await this.db
       .prepare("SELECT COUNT(*) AS count FROM shopping_items WHERE household_id = ? AND status = 'pending'")

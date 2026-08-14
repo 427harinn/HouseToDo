@@ -53,3 +53,10 @@ Cron configuration and production resources remain untouched. Staging migration,
 - Migration `0013_task_templates.sql` was applied to staging and Worker version `6d104f8e-2705-44d4-93b6-1776801c6628` was deployed to `house-to-do-staging`.
 - Authenticated E2E passed for recent API/UI prefill, new-task creation, template save/list/edit/reuse/deactivate, startDate exclusion, Home/Calendar/Dashboard exclusion, navigation regression, 390px mobile smoke, and browser error checks.
 - Temporary tasks/templates were logically deactivated. Staging D1 cleanup aggregate confirmed zero active verification fixtures and zero template-ID notification deliveries. Production, secrets, Cron, and git push remained untouched.
+
+## Shopping UX Phase 1 local implementation (2026-08-14)
+
+- Shopping recent reuse reads existing household-scoped `shopping_items`, includes pending and purchased items, sorts by `created_at DESC`, deduplicates normalized names, and caps results at 8 without adding a table or migration.
+- Recent and new-form template selection prefills reusable name, quantity, and note fields; purchase state, purchaser, timestamps, item identity, history, and old images are excluded.
+- Shopping image selection now exposes separate camera and photo-library controls that share the existing validation, preview, compression, and R2 upload pipeline. Upload limits and attachment architecture are unchanged.
+- Shopping planned purchase date, Calendar integration, scheduler changes, production, staging deploy, remote D1 mutation, and git push remain out of scope.

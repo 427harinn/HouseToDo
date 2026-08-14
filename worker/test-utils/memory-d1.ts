@@ -741,7 +741,19 @@ export class MemoryD1 {
       if (sql.includes("si.status = 'pending'") || sql.includes("status = 'pending'")) {
         rows = rows.filter((item) => item.status === "pending");
       }
+      if (sql.includes("NOT EXISTS")) {
+        const seen = new Set<string>();
+        rows = rows
+          .sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id))
+          .filter((item) => {
+            const key = item.name.trim().toLocaleLowerCase();
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
+      }
       if (sql.includes("LIMIT ?")) rows = rows.slice(0, Number(values[1]));
+      if (sql.includes("NOT EXISTS")) return rows.map((item) => this.withPurchasedByName(item));
       return rows
         .sort((a, b) =>
           a.status === b.status

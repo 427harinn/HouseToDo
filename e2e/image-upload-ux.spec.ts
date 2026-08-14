@@ -47,6 +47,12 @@ const setupApi = async (page: Page, imageUsage = usage, uploadError?: string, wi
       usageReads += 1;
       return route.fulfill(json(imageUsage));
     }
+    if (url.pathname === "/api/shopping/recent") {
+      return route.fulfill(json({ items: [{ name: "牛乳", quantity: "1本", note: "いつもの銘柄", createdAt: "2026-08-09T00:00:00Z" }] }));
+    }
+    if (url.pathname === "/api/shopping/templates") {
+      return route.fulfill(json({ templates: [{ id: "template-1", name: "トイレットペーパー", quantity: "1パック", note: null, active: true, sortOrder: 1, createdBy: "user-1", createdAt: "2026-08-09T00:00:00Z", updatedAt: "2026-08-09T00:00:00Z" }] }));
+    }
     if (url.pathname === "/api/shopping/items/item-1" && route.request().method() === "GET") {
       return route.fulfill(json({ item: { id: "item-1", name: "牛乳", quantity: null, note: null, status: "pending", addedBy: "user-1", purchasedBy: null, purchasedAt: null, sortOrder: 1, createdAt: "2026-08-09T00:00:00Z", updatedAt: "2026-08-09T00:00:00Z", image: withImage ? { updatedAt: "2026-08-09T00:00:00Z" } : null } }));
     }
@@ -74,6 +80,33 @@ test.describe("shopping image upload UX", () => {
     page.on("requestfailed", (request) => {
       if (request.failure()?.errorText !== "net::ERR_ABORTED") console.error(`[requestfailed] ${request.url()} ${request.failure()?.errorText ?? "unknown"}`);
     });
+  });
+
+  test("recent/template prefill and camera/library inputs share preview flow", async ({ page }) => {
+    await setupApi(page);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/shopping/new");
+    await expect(page.getByRole("heading", { name: "最近使ったもの" })).toBeVisible();
+    await screenshot(page, "shopping-recent-mobile.png");
+
+    await page.getByRole("button", { name: /牛乳/ }).click();
+    await expect(page.locator("#shopping-name")).toHaveValue("牛乳");
+    await page.getByRole("button", { name: /トイレットペーパー/ }).click();
+    await expect(page.locator("#shopping-name")).toHaveValue("トイレットペーパー");
+    await screenshot(page, "shopping-template-prefill.png");
+
+    await expect(page.getByRole("button", { name: "写真を撮る", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "写真を選ぶ", exact: true })).toBeVisible();
+    await screenshot(page, "shopping-image-options-mobile.png");
+    await page.locator("#shopping-image-camera").setInputFiles(fixture("shopping-item-landscape.jpg"));
+    await expect(page.locator(".shopping-image-preview")).toBeVisible();
+    await screenshot(page, "shopping-image-preview.png");
+    await page.getByRole("button", { name: "選択解除" }).click();
+    await expect(page.locator(".shopping-image-preview")).toHaveCount(0);
+    await page.locator("#shopping-image").setInputFiles(fixture("shopping-item-portrait.png"));
+    await expect(page.locator(".shopping-image-preview")).toBeVisible();
+    await page.getByRole("button", { name: "保存" }).click();
+    await expect(page).toHaveURL(/\/shopping\/items\/item-1$/);
   });
 
   test("normal upload shows usage and refreshes it after success", async ({ page }) => {

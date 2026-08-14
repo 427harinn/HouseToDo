@@ -7,7 +7,7 @@ import type { ShoppingUpdateInput, ShoppingWriteInput } from "../lib/validation"
 import { ShoppingItemRepository } from "../repositories/shopping-item-repository";
 import { ShoppingItemImageRepository } from "../repositories/shopping-item-image-repository";
 import { ShoppingTemplateRepository } from "../repositories/shopping-template-repository";
-import type { ShoppingItem } from "../types/domain";
+import type { ShoppingItem, ShoppingRecentItem } from "../types/domain";
 import { HouseholdService } from "./household-service";
 import { ShoppingItemImageService } from "./shopping-item-image-service";
 import { nowIso } from "../lib/date";
@@ -40,6 +40,17 @@ export class ShoppingService {
       pending: items.filter((item) => item.status === "pending"),
       purchased: items.filter((item) => item.status === "purchased")
     };
+  }
+
+  async listRecentItems(userId: string, limit = 8): Promise<ShoppingRecentItem[]> {
+    const household = await this.households.requireCurrentHousehold(userId);
+    const items = await this.items.listRecentByHouseholdId(household.id, Math.min(Math.max(limit, 1), 8));
+    return items.map((item) => ({
+      name: item.name,
+      quantity: item.quantity,
+      note: item.note,
+      createdAt: item.createdAt
+    }));
   }
 
   async getItem(userId: string, itemId: string): Promise<ShoppingItem> {
