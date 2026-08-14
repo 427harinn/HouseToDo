@@ -1,7 +1,11 @@
 # HouseToDo 新タスクモデル設計
 
-> Status: **Approved; Phase 1 domain/schema foundation implemented**
-> Phase 2 API/service/repository support is implemented. UI/scheduler/calendar behavior remains staged.
+> Status: **Approved; Phase 1–4 task model implementation complete**
+> Domain/schema, API/service/repository, occurrence/period actions, Task UI, and canonical reminder scheduler are implemented. Calendar, deep-link, and history/template UX remain staged.
+
+### Phase 4 implementation boundary
+
+Task create/edit exposes all six canonical recurrence types with conditional start/deadline/reminder fields and preset offsets. Canonical reminders reuse `projectTaskOnDate`, resolve the household-local deadline to an instant, subtract the preset offset, and deduplicate with the stable occurrence/period key. Completed or skipped scopes are excluded. Tasks with `model_recurrence_type = NULL` continue through the legacy `notification_time` path, including weekly target counts greater than one; canonical tasks never enter both paths.
 
 ### Phase 2 implementation boundary
 

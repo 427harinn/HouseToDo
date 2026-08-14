@@ -7,15 +7,12 @@
 - [x] Canonical occurrence/period projection and scope actions
 - [x] Today/dashboard/history additive scope metadata
 - [x] Legacy compatibility, including weekly target count greater than one
-- [ ] Calendar UI, scheduler migration, deep links, history/template UX, staging, production, deployment
+- [x] Canonical Task create/edit/detail/today UI and reminder scheduler
+- [ ] Calendar UI, deep links, history/template UX, staging, production, deployment
 
 ## Future work
 
-1. Task model redesign
-   - deadline
-   - notification offset presets
-   - recurrence redesign（柔軟なweekly / monthly）
-   - history / templateからのtask creation
+1. Task history / templateからのtask creation
 2. Task notification deep-link
 3. Calendar UI
 4. Shopping UX
@@ -37,8 +34,8 @@ task modelの詳細、migration互換性、通知仕様は [TASK_MODEL_DESIGN.md
 - [x] backward-compatibility and staged migration proposal
 - [x] Phase 1 domain/schema + migration implementation
 - [x] Phase 2 API/service/repository implementation
-- [ ] Phase 3 task create/edit/detail UI
-- [ ] Phase 4 scheduler/reminder migration
+- [x] Phase 3 task create/edit/detail UI
+- [x] Phase 4 scheduler/reminder migration
 - [ ] Phase 5 notification deep-link
 - [ ] Phase 6 history/template UX
 - [ ] Phase 7 calendar

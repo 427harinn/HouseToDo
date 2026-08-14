@@ -570,6 +570,53 @@ textarea[aria-invalid="true"] {
   font-weight: 700;
 }
 
+.field-hint {
+  margin: -2px 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+.choice-field {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.choice-field legend {
+  padding: 0 4px;
+  font-weight: 800;
+}
+
+.choice-field label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 44px;
+}
+
+.choice-field input[type="radio"] {
+  width: 22px;
+  min-height: 22px;
+}
+
+.legacy-task-notice {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid #e4c778;
+  border-radius: var(--radius-sm);
+  background: #fff9e8;
+}
+
+.legacy-task-notice span {
+  color: var(--color-text-muted);
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
+
 .task-list {
   display: grid;
   gap: 10px;
@@ -652,6 +699,16 @@ textarea[aria-invalid="true"] {
   color: #596563;
 }
 
+.status-badge--overdue,
+.overdue-label {
+  color: #9d2f2f;
+  font-weight: 900;
+}
+
+.status-badge--overdue {
+  background: #ffe1e1;
+}
+
 .progress {
   display: block;
   width: 100%;
@@ -690,7 +747,7 @@ textarea[aria-invalid="true"] {
 
 .weekday-picker {
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 6px;
 }
 

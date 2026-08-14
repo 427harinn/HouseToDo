@@ -71,3 +71,44 @@ export const getWeekEndDate = (dateKey: string, weekStartsOn: number): string =>
 
 export const isTaskScheduledForDate = (weekdays: number[], dateKey: string): boolean =>
   weekdays.includes(getWeekday(dateKey));
+
+const zonedParts = (date: Date, timezone: string) => {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23"
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return {
+    year: Number(values.year),
+    month: Number(values.month),
+    day: Number(values.day),
+    hour: Number(values.hour),
+    minute: Number(values.minute),
+    second: Number(values.second)
+  };
+};
+
+const timezoneOffsetMilliseconds = (date: Date, timezone: string): number => {
+  const parts = zonedParts(date, timezone);
+  return Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second) -
+    Math.floor(date.getTime() / 1000) * 1000;
+};
+
+/** Resolve a household-local date/time without depending on the Worker runtime timezone. */
+export const zonedDateTimeToDate = (dateKey: string, time: string, timezone: string): Date => {
+  const date = parseDateKeyParts(dateKey);
+  const match = /^(\d{2}):(\d{2})$/.exec(time);
+  if (!date || !match) throw new Error("Invalid local date/time");
+  const wallTime = Date.UTC(date.year, date.month - 1, date.day, Number(match[1]), Number(match[2]));
+  let instant = wallTime;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    instant = wallTime - timezoneOffsetMilliseconds(new Date(instant), timezone);
+  }
+  return new Date(instant);
+};

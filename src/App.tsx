@@ -57,10 +57,7 @@ import {
   listTodayTasks,
   listWeekTasks,
   updateTask,
-  type CreateTaskInput,
-  type NotificationSlot,
   type Task,
-  type TaskAssignmentType,
   type TaskDisplayStatus,
   type TaskRecord,
   type TaskRecurrenceType,
@@ -87,12 +84,23 @@ import { APP_NAME } from "./constants";
 import {
   assignmentLabels,
   formatSchedule,
-  formatWeekdays,
   notificationLabels,
-  recurrenceLabels,
   statusLabels,
   weekdayLabels
 } from "./task-labels";
+import {
+  changeTaskFormRecurrence,
+  defaultTaskForm,
+  normalizeTaskForm,
+  notificationPresetLabel,
+  recurrenceDescription,
+  taskFormToPayload,
+  taskToFormState,
+  validateTaskFormState,
+  type TaskFormErrors,
+  type TaskFormRecurrence,
+  type TaskFormState
+} from "./task-model-ui";
 import type {
   AuthState,
   AuthUser,
@@ -273,6 +281,14 @@ const formatDateTime = (value: string | null) =>
 const actorName = (actor: { displayName: string | null } | null) =>
   actor?.displayName ?? "メンバー";
 
+const taskDeadlineLabel = (task: Task): string => {
+  const time = task.deadlineTime ? ` ${task.deadlineTime}まで` : "";
+  if (task.modelRecurrenceType === "weekly_flexible") return `${weekdayLabels[task.weeklyDeadlineWeekday ?? 0]}曜${time || "まで"}`;
+  if (task.modelRecurrenceType === "monthly_flexible") return `${task.monthlyDeadlineType === "day_of_month" ? `${task.monthlyDayOfMonth}日` : "月末"}${time || "まで"}`;
+  if (task.modelRecurrenceType === "once" && task.targetDate) return `${formatDate(task.targetDate)}${time}`;
+  return task.deadlineTime ? `${task.deadlineTime}まで` : "設定なし";
+};
+
 const taskIcon = (type: TaskRecurrenceType) =>
   type === "daily" ? "↻" : type === "scheduled" ? "□" : "✓";
 
@@ -290,6 +306,9 @@ const apiErrorMessage = (error: unknown) => {
 };
 
 const taskActionScope = (task: Task | TodayTask | WeeklyTask, household: Household) => {
+  if (task.modelRecurrenceType) return {
+    targetDate: task.modelRecurrenceType === "once" ? (task.targetDate ?? todayInTokyo()) : todayInTokyo()
+  };
   if (task.recurrenceType === "weekly") {
     return { targetWeekStart: weekStartFor(todayInTokyo(), household.weekStartsOn) };
   }
@@ -883,6 +902,10 @@ function HomeScreen({
   const { data, loading, message, refresh } = useDashboardData();
   const todayTasks = data?.todayTasks ?? [];
   const weeklyTasks = data?.weeklyTasks ?? [];
+  const fixedTodayTasks = todayTasks.filter((task) => task.modelRecurrenceType !== "weekly_flexible" && task.modelRecurrenceType !== "monthly_flexible");
+  const weeklyFlexibleTasks = todayTasks.filter((task) => task.modelRecurrenceType === "weekly_flexible");
+  const monthlyFlexibleTasks = todayTasks.filter((task) => task.modelRecurrenceType === "monthly_flexible");
+  const legacyWeeklyTasks = weeklyTasks.filter((task) => task.modelRecurrenceType !== "weekly_flexible");
   const undone = (data?.summary.pending ?? 0) + (data?.summary.inProgress ?? 0);
   const nowTasks = todayTasks
     .filter((task) => task.status === "pending" || task.status === "in_progress")
@@ -927,27 +950,35 @@ function HomeScreen({
       />
       <SectionCard title="今日のタスク" loading={loading}>
         <TaskCardList
-          tasks={todayTasks}
+          tasks={fixedTodayTasks}
           members={data?.members ?? []}
           emptyTitle="今日のタスクはありません"
           emptyDescription="ゆっくり過ごしましょう"
           onNavigate={onNavigate}
         />
       </SectionCard>
-      <SectionCard title="今週のタスク" loading={loading}>
-        {weeklyTasks.length === 0 ? (
+      <SectionCard title="今週中" loading={loading}>
+        <TaskCardList tasks={weeklyFlexibleTasks} members={data?.members ?? []}
+          emptyTitle="今週中のタスクはありません" onNavigate={onNavigate} />
+      </SectionCard>
+      <SectionCard title="今月中" loading={loading}>
+        <TaskCardList tasks={monthlyFlexibleTasks} members={data?.members ?? []}
+          emptyTitle="今月中のタスクはありません" onNavigate={onNavigate} />
+      </SectionCard>
+      {legacyWeeklyTasks.length > 0 ? <SectionCard title="週に複数回（旧形式）" loading={loading}>
+        {legacyWeeklyTasks.length === 0 ? (
           <EmptyState
             title="今週中のタスクはありません"
             description="必要なときにタスクを追加できます。"
           />
         ) : (
           <div className="task-list">
-            {weeklyTasks.map((task) => (
+            {legacyWeeklyTasks.map((task) => (
               <WeeklyTaskCard key={task.id} task={task} onNavigate={onNavigate} />
             ))}
           </div>
         )}
-      </SectionCard>
+      </SectionCard> : null}
       <SectionCard title="買い物" loading={loading}>
         <div className="shopping-preview">
           <strong>未購入 {data?.shopping.pendingCount ?? 0}件</strong>
@@ -1045,16 +1076,19 @@ function TodayTaskCard({
       <span className="task-card__body">
         <strong>{task.title}</strong>
         <small>
-          {formatSchedule(task.scheduledTime)} / 担当:{" "}
+          {task.modelRecurrenceType === "weekly_flexible" ? "今週中" : task.modelRecurrenceType === "monthly_flexible" ? "今月中" : formatSchedule(task.deadlineTime ?? task.scheduledTime)} / 担当:{" "}
           {assignedMember?.displayName ?? assignmentLabels[task.assignmentType]}
         </small>
+        {task.deadlineDate ? <small>{formatDate(task.deadlineDate)} {task.deadlineTime ? `${task.deadlineTime}まで` : ""}</small> : null}
+        {(task.completedCount ?? 0) > 0 && (task.modelRecurrenceType === "weekly_flexible" || task.modelRecurrenceType === "monthly_flexible") ? <small>{task.completedCount}回実施</small> : null}
+        {task.overdue ? <small className="overdue-label">期限超過</small> : null}
         {task.actedBy ? (
           <small>
             {statusLabels[task.status]}: {actorName(task.actedBy)}
           </small>
         ) : null}
       </span>
-      <StatusBadge status={task.status} />
+      <StatusBadge status={task.status} overdue={task.overdue} />
     </button>
   );
 }
@@ -1094,10 +1128,10 @@ function WeeklyTaskCard({
   );
 }
 
-function StatusBadge({ status }: { status: TaskDisplayStatus }) {
+function StatusBadge({ status, overdue = false }: { status: TaskDisplayStatus; overdue?: boolean }) {
   return (
-    <span className={`status-badge status-badge--${status}`}>
-      {statusLabels[status]}
+    <span className={`status-badge status-badge--${overdue ? "overdue" : status}`}>
+      {overdue ? "期限超過" : statusLabels[status]}
     </span>
   );
 }
@@ -1133,18 +1167,13 @@ function TaskListScreen({
     return () => controller.abort();
   }, [refresh]);
   const groups: Array<[string, Task[]]> = [
-    [
-      "毎日のタスク",
-      tasks.filter((task) => task.active && task.recurrenceType === "daily")
-    ],
-    [
-      "曜日指定タスク",
-      tasks.filter((task) => task.active && task.recurrenceType === "scheduled")
-    ],
-    [
-      "今週中のタスク",
-      tasks.filter((task) => task.active && task.recurrenceType === "weekly")
-    ],
+    ["今回だけ", tasks.filter((task) => task.active && task.modelRecurrenceType === "once")],
+    ["毎日", tasks.filter((task) => task.active && task.modelRecurrenceType === "daily")],
+    ["曜日を決める", tasks.filter((task) => task.active && task.modelRecurrenceType === "weekly_fixed")],
+    ["毎月○日", tasks.filter((task) => task.active && task.modelRecurrenceType === "monthly_fixed")],
+    ["週1回・日付不定", tasks.filter((task) => task.active && task.modelRecurrenceType === "weekly_flexible")],
+    ["月1回・日付不定", tasks.filter((task) => task.active && task.modelRecurrenceType === "monthly_flexible")],
+    ["週に複数回（旧形式）", tasks.filter((task) => task.active && !task.modelRecurrenceType && task.recurrenceType === "weekly")],
     ["無効なタスク", tasks.filter((task) => !task.active)]
   ];
   return (
@@ -1223,12 +1252,11 @@ function TaskManagementCard({
       <div>
         <strong>{task.title}</strong>
         <small>
-          {recurrenceLabels[task.recurrenceType]} / {formatWeekdays(task.weekdays)} /{" "}
-          {formatSchedule(task.scheduledTime)}
+          {recurrenceDescription(task)}
         </small>
         <small>
           {assignmentLabels[task.assignmentType]} /{" "}
-          {notificationLabels[task.notificationSlot]} / {task.active ? "有効" : "無効"}
+          {task.modelRecurrenceType ? notificationPresetLabel(task.notificationOffsetMinutes ?? null) : notificationLabels[task.notificationSlot]} / {task.active ? "有効" : "無効"}
         </small>
       </div>
       <div className="inline-actions">
@@ -1251,19 +1279,6 @@ function TaskManagementCard({
   );
 }
 
-const defaultForm: CreateTaskInput = {
-  title: "",
-  description: null,
-  recurrenceType: "daily",
-  assignmentType: "anyone",
-  assignedUserId: null,
-  scheduledTime: null,
-  notificationSlot: "none",
-  notificationTime: null,
-  weekdays: [],
-  weeklyTargetCount: null
-};
-
 function TaskFormScreen({
   household,
   mode,
@@ -1278,8 +1293,9 @@ function TaskFormScreen({
   onLogout: () => void;
 }) {
   const [members, setMembers] = useState<HouseholdMember[]>([]);
-  const [form, setForm] = useState<CreateTaskInput>(defaultForm);
-  const [errors, setErrors] = useState<FormErrors>({});
+  const [form, setForm] = useState<TaskFormState>(() => defaultTaskForm());
+  const [originalForm, setOriginalForm] = useState<TaskFormState | null>(null);
+  const [errors, setErrors] = useState<TaskFormErrors>({});
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(mode === "edit");
   const [submitting, setSubmitting] = useState(false);
@@ -1290,7 +1306,11 @@ function TaskFormScreen({
       .catch(() => undefined);
     if (mode === "edit" && taskId) {
       getTask(taskId, controller.signal)
-        .then((result) => setForm(taskToInput(result.task)))
+        .then((result) => {
+          const next = taskToFormState(result.task);
+          setForm(next);
+          setOriginalForm(next);
+        })
         .catch((error) => {
           if (error instanceof DOMException && error.name === "AbortError") return;
           setMessage(apiErrorMessage(error));
@@ -1299,24 +1319,29 @@ function TaskFormScreen({
     }
     return () => controller.abort();
   }, [mode, taskId]);
-  const setField = <K extends keyof CreateTaskInput>(
+  const setField = <K extends keyof TaskFormState>(
     key: K,
-    value: CreateTaskInput[K]
+    value: TaskFormState[K]
   ) => {
-    setForm((current) => normalizeTaskInput({ ...current, [key]: value }));
+    setForm((current) => normalizeTaskForm({ ...current, [key]: value }));
+    setErrors((current) => ({ ...current, [key]: undefined }));
   };
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    const nextErrors = validateTaskForm(form);
+    const nextErrors = validateTaskFormState(form);
     setErrors(nextErrors);
     setMessage("");
     if (Object.keys(nextErrors).length > 0) return;
     setSubmitting(true);
     try {
-      const payload = normalizeTaskInput(form);
+      const payload = taskFormToPayload(form);
+      const originalPayload = originalForm ? taskFormToPayload(originalForm) : null;
+      const patch = originalPayload
+        ? Object.fromEntries(Object.entries(payload).filter(([key, value]) => JSON.stringify(value) !== JSON.stringify(originalPayload[key as keyof typeof originalPayload])))
+        : payload;
       const result =
         mode === "edit" && taskId
-          ? await updateTask(taskId, payload)
+          ? await updateTask(taskId, patch)
           : await createTask(payload);
       onNavigate(`/tasks/${result.task.id}`);
     } catch (error) {
@@ -1340,7 +1365,7 @@ function TaskFormScreen({
           onSubmit={(event) => void submit(event)}
         >
           <ErrorMessage message={message} />
-          <FormField id="task-title" label="タイトル（必須）" error={errors.title}>
+          <FormField id="task-title" label="タスク名（必須）" error={errors.title}>
             <TextInput
               id="task-title"
               error={errors.title}
@@ -1351,29 +1376,118 @@ function TaskFormScreen({
           <FormField id="task-description" label="説明" error={errors.description}>
             <textarea
               id="task-description"
-              value={form.description ?? ""}
-              onChange={(event) => setField("description", event.target.value || null)}
+              value={form.description}
+              onChange={(event) => setField("description", event.target.value)}
             />
           </FormField>
-          <SelectField
-            id="task-type"
-            label="タスク種別"
-            value={form.recurrenceType}
-            onChange={(value) =>
-              setField("recurrenceType", value as TaskRecurrenceType)
-            }
-          >
-            <option value="daily">毎日のタスク</option>
-            <option value="scheduled">曜日指定タスク</option>
-            <option value="weekly">今週中のタスク</option>
-          </SelectField>
+          {form.recurrence === "legacy_weekly" ? (
+            <div className="legacy-task-notice" role="note">
+              <strong>週に{form.weeklyTargetCount}回（旧形式）</strong>
+              <span>回数の意味を変えずに編集します。新しい「週1回・日付不定」には自動変換しません。</span>
+            </div>
+          ) : (
+            <SelectField id="task-type" label="繰り返し" value={form.recurrence}
+              onChange={(value) => setForm((current) => changeTaskFormRecurrence(current, value as TaskFormRecurrence))}>
+              <option value="once">今回だけ</option>
+              <option value="daily">毎日</option>
+              <option value="weekly_fixed">曜日を決める</option>
+              <option value="monthly_fixed">毎月○日</option>
+              <option value="weekly_flexible">週1回・日付不定</option>
+              <option value="monthly_flexible">月1回・日付不定</option>
+            </SelectField>
+          )}
+          {form.recurrence === "weekly_flexible" ? <p className="field-hint">週の中で1回やれば完了です。</p> : null}
+          {form.recurrence === "monthly_flexible" ? <p className="field-hint">月の中で1回やれば完了です。</p> : null}
+          {form.recurrence === "once" ? (
+            <FormField id="task-target-date" label="実施日（必須）" error={errors.targetDate}>
+              <input id="task-target-date" type="date" value={form.targetDate}
+                aria-describedby={errors.targetDate ? "task-target-date-error" : undefined}
+                aria-invalid={errors.targetDate ? "true" : "false"}
+                onChange={(event) => setField("targetDate", event.target.value)} />
+            </FormField>
+          ) : form.recurrence !== "legacy_weekly" ? (
+            <FormField id="task-start-date" label="開始日" error={errors.startDate}>
+              <input id="task-start-date" type="date" value={form.startDate}
+                onChange={(event) => setField("startDate", event.target.value)} />
+              <span className="field-hint">未指定なら今日から</span>
+            </FormField>
+          ) : null}
+          {form.recurrence === "weekly_fixed" ? (
+            <div className="form-field">
+              <span className="field-label" id="task-weekdays-label">曜日（必須）</span>
+              <div className="weekday-picker" role="group" aria-labelledby="task-weekdays-label"
+                aria-describedby={errors.weekdays ? "task-weekdays-error" : undefined}>
+                {weekdayLabels.map((label, day) => {
+                  const selected = form.weekdays.includes(day);
+                  return <button aria-pressed={selected} key={label} type="button"
+                    onClick={() => setField("weekdays", selected ? form.weekdays.filter((item) => item !== day) : [...form.weekdays, day])}>
+                    {selected ? "✓ " : ""}{label}
+                  </button>;
+                })}
+              </div>
+              {errors.weekdays ? <p className="field-error" id="task-weekdays-error">{errors.weekdays}</p> : null}
+            </div>
+          ) : null}
+          {form.recurrence === "monthly_fixed" ? (
+            <FormField id="task-monthly-day" label="実施日（1〜31日）" error={errors.monthlyDayOfMonth}>
+              <input id="task-monthly-day" type="number" min="1" max="31" value={form.monthlyDayOfMonth ?? ""}
+                aria-describedby={errors.monthlyDayOfMonth ? "task-monthly-day-error" : undefined}
+                onChange={(event) => setField("monthlyDayOfMonth", event.target.value ? Number(event.target.value) : null)} />
+              <span className="field-hint">その月に日付がない場合は月末になります。</span>
+            </FormField>
+          ) : null}
+          {form.recurrence === "weekly_flexible" ? (
+            <SelectField id="task-weekly-deadline" label="締め切り曜日（今週いつまでにやるか）"
+              value={String(form.weeklyDeadlineWeekday)} error={errors.weeklyDeadlineWeekday}
+              onChange={(value) => setField("weeklyDeadlineWeekday", Number(value))}>
+              {weekdayLabels.map((label, day) => <option key={label} value={day}>{label}曜日</option>)}
+            </SelectField>
+          ) : null}
+          {form.recurrence === "monthly_flexible" ? (
+            <fieldset className="choice-field" aria-describedby={errors.monthlyDayOfMonth ? "task-monthly-rule-error" : undefined}>
+              <legend>締め切り日</legend>
+              <label><input type="radio" name="monthly-deadline" checked={form.monthlyDeadlineType === "month_end"}
+                onChange={() => setField("monthlyDeadlineType", "month_end")} />月末</label>
+              <label><input type="radio" name="monthly-deadline" checked={form.monthlyDeadlineType === "day_of_month"}
+                onChange={() => setField("monthlyDeadlineType", "day_of_month")} />日付指定</label>
+              {form.monthlyDeadlineType === "day_of_month" ? <input id="task-monthly-deadline-day" type="number" min="1" max="31"
+                aria-label="締め切り日の日付" value={form.monthlyDayOfMonth ?? ""}
+                onChange={(event) => setField("monthlyDayOfMonth", event.target.value ? Number(event.target.value) : null)} /> : null}
+              {errors.monthlyDayOfMonth ? <p className="field-error" id="task-monthly-rule-error">{errors.monthlyDayOfMonth}</p> : null}
+            </fieldset>
+          ) : null}
+          {form.recurrence === "legacy_weekly" ? (
+            <>
+              <FormField id="task-weekly-count" label="週内必要回数（2〜7）" error={errors.weeklyTargetCount}>
+                <input id="task-weekly-count" min="2" max="7" type="number" value={form.weeklyTargetCount}
+                  onChange={(event) => setField("weeklyTargetCount", Number(event.target.value))} />
+              </FormField>
+              <FormField id="task-notification-time" label="通知時刻（旧形式）">
+                <input id="task-notification-time" type="time" value={form.legacyNotificationTime}
+                  onChange={(event) => setField("legacyNotificationTime", event.target.value)} />
+              </FormField>
+            </>
+          ) : (
+            <>
+              <FormField id="task-deadline-time" label="締め切り時刻" error={errors.deadlineTime}>
+                <input id="task-deadline-time" type="time" value={form.deadlineTime}
+                  onChange={(event) => setForm((current) => normalizeTaskForm({ ...current, deadlineTime: event.target.value, notificationOffsetMinutes: event.target.value ? current.notificationOffsetMinutes : null }))} />
+              </FormField>
+              <SelectField id="task-notification-offset" label="通知" value={form.notificationOffsetMinutes === null ? "none" : String(form.notificationOffsetMinutes)}
+                error={errors.notificationOffsetMinutes} disabled={!form.deadlineTime}
+                onChange={(value) => setField("notificationOffsetMinutes", value === "none" ? null : Number(value))}>
+                <option value="none">通知なし</option><option value="0">締め切り時刻</option>
+                <option value="5">5分前</option><option value="10">10分前</option><option value="30">30分前</option>
+                <option value="60">1時間前</option><option value="120">2時間前</option>
+              </SelectField>
+              {!form.deadlineTime ? <p className="field-hint">通知を使うには締め切り時刻を設定してください。</p> : null}
+            </>
+          )}
           <SelectField
             id="task-assignment"
             label="担当"
             value={form.assignmentType}
-            onChange={(value) =>
-              setField("assignmentType", value as TaskAssignmentType)
-            }
+            onChange={(value) => setField("assignmentType", value as TaskFormState["assignmentType"])}
           >
             <option value="anyone">どちらでも</option>
             <option value="specific">特定のメンバー</option>
@@ -1394,94 +1508,6 @@ function TaskFormScreen({
               ))}
             </SelectField>
           ) : null}
-          {form.recurrenceType !== "weekly" ? (
-            <FormField id="task-time" label="予定時刻" error={errors.scheduledTime}>
-              <input
-                id="task-time"
-                type="time"
-                value={form.scheduledTime ?? ""}
-                onChange={(event) =>
-                  setField("scheduledTime", event.target.value || null)
-                }
-                onInput={(event) =>
-                  setField("scheduledTime", event.currentTarget.value || null)
-                }
-                aria-describedby={errors.scheduledTime ? "task-time-error" : undefined}
-              />
-            </FormField>
-          ) : null}
-          <FormField id="task-notification-time" label="通知時刻" error={errors.notificationTime}>
-            <input id="task-notification-time" type="time" value={form.notificationTime ?? ""}
-              onChange={(event) => setField("notificationTime", event.target.value || null)}
-              onInput={(event) => setField("notificationTime", event.currentTarget.value || null)} />
-          </FormField>
-          <SelectField
-            id="task-notification-legacy"
-            hidden
-            label="通知枠"
-            value={form.notificationSlot}
-            onChange={(value) =>
-              setField("notificationSlot", value as NotificationSlot)
-            }
-          >
-            <option value="none">通知なし</option>
-            <option value="morning">朝</option>
-            <option value="night">夜</option>
-          </SelectField>
-          {form.recurrenceType === "scheduled" ? (
-            <div className="form-field">
-              <span className="field-label">対象曜日（必須）</span>
-              <div
-                className="weekday-picker"
-                aria-describedby={errors.weekdays ? "task-weekdays-error" : undefined}
-              >
-                {weekdayLabels.map((label, day) => {
-                  const selected = form.weekdays.includes(day);
-                  return (
-                    <button
-                      aria-pressed={selected}
-                      key={label}
-                      onClick={() =>
-                        setField(
-                          "weekdays",
-                          selected
-                            ? form.weekdays.filter((item) => item !== day)
-                            : [...form.weekdays, day]
-                        )
-                      }
-                      type="button"
-                    >
-                      {selected ? "✓ " : ""}
-                      {label}
-                    </button>
-                  );
-                })}
-              </div>
-              {errors.weekdays ? (
-                <p className="field-error" id="task-weekdays-error">
-                  {errors.weekdays}
-                </p>
-              ) : null}
-            </div>
-          ) : null}
-          {form.recurrenceType === "weekly" ? (
-            <FormField
-              id="task-weekly-count"
-              label="週内必要回数（1〜7）"
-              error={errors.weeklyTargetCount}
-            >
-              <input
-                id="task-weekly-count"
-                min="1"
-                max="7"
-                type="number"
-                value={form.weeklyTargetCount ?? 1}
-                onChange={(event) =>
-                  setField("weeklyTargetCount", Number(event.target.value))
-                }
-              />
-            </FormField>
-          ) : null}
           <Button disabled={submitting} type="submit">
             {submitting ? <InlineLoading /> : "保存する"}
           </Button>
@@ -1498,7 +1524,8 @@ function SelectField({
   error,
   onChange,
   children,
-  hidden
+  hidden,
+  disabled
 }: {
   id: string;
   label: string;
@@ -1507,12 +1534,14 @@ function SelectField({
   onChange: (value: string) => void;
   children: ReactNode;
   hidden?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <div hidden={hidden}>
     <FormField id={id} label={label} error={error}>
       <select
         id={id}
+        disabled={disabled}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         aria-describedby={error ? `${id}-error` : undefined}
@@ -1524,56 +1553,6 @@ function SelectField({
     </div>
   );
 }
-
-const taskToInput = (task: Task): CreateTaskInput =>
-  normalizeTaskInput({
-    title: task.title,
-    description: task.description,
-    recurrenceType: task.recurrenceType,
-    assignmentType: task.assignmentType,
-    assignedUserId: task.assignedUserId,
-    scheduledTime: task.scheduledTime,
-    notificationSlot: task.notificationSlot,
-    notificationTime: task.notificationTime ?? null,
-    weekdays: task.weekdays,
-    weeklyTargetCount: task.weeklyTargetCount
-  });
-
-const normalizeTaskInput = (input: CreateTaskInput): CreateTaskInput => ({
-  ...input,
-  title: input.title,
-  description: input.description?.trim() ? input.description.trim() : null,
-  assignedUserId: input.assignmentType === "specific" ? input.assignedUserId : null,
-  scheduledTime: input.recurrenceType === "weekly" ? null : input.scheduledTime,
-  notificationTime: input.notificationTime || null,
-  weekdays:
-    input.recurrenceType === "scheduled"
-      ? [...new Set(input.weekdays)].sort((a, b) => a - b)
-      : [],
-  weeklyTargetCount:
-    input.recurrenceType === "weekly" ? (input.weeklyTargetCount ?? 1) : null
-});
-
-const validateTaskForm = (input: CreateTaskInput) => {
-  const errors: FormErrors = {};
-  if (input.title.trim().length === 0) errors.title = "タイトルを入力してください。";
-  if (input.title.trim().length > 100)
-    errors.title = "タイトルは100文字以内で入力してください。";
-  if (input.scheduledTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(input.scheduledTime))
-    errors.scheduledTime = "時刻はHH:mmで入力してください。";
-  if (input.assignmentType === "specific" && !input.assignedUserId)
-    errors.assignedUserId = "担当メンバーを選択してください。";
-  if (input.recurrenceType === "scheduled" && input.weekdays.length === 0)
-    errors.weekdays = "曜日を1つ以上選択してください。";
-  if (
-    input.recurrenceType === "weekly" &&
-    (!input.weeklyTargetCount ||
-      input.weeklyTargetCount < 1 ||
-      input.weeklyTargetCount > 7)
-  )
-    errors.weeklyTargetCount = "1〜7回で入力してください。";
-  return errors;
-};
 
 function TaskDetailScreen({
   household,
@@ -1628,7 +1607,7 @@ function TaskDetailScreen({
     void refresh(controller.signal);
     return () => controller.abort();
   }, [refresh]);
-  const scopedTask = weeklyTask ?? todayTask;
+  const scopedTask = todayTask ?? weeklyTask;
   const visibleTask = task ? { ...(scopedTask ?? {}), ...task } : scopedTask;
   const status = scopedTask?.status ?? "pending";
   const actedBy = todayTask?.actedBy ?? weeklyTask?.latestAction?.actedBy ?? null;
@@ -1682,27 +1661,23 @@ function TaskDetailScreen({
           </span>
           <div>
             <h2>{visibleTask.title}</h2>
-            <StatusBadge status={status} />
+            <StatusBadge status={status} overdue={Boolean(todayTask?.overdue)} />
           </div>
         </div>
         {visibleTask.description ? <p>{visibleTask.description}</p> : null}
         <dl className="detail-grid">
           <div>
-            <dt>種別</dt>
-            <dd>{recurrenceLabels[visibleTask.recurrenceType]}</dd>
+            <dt>繰り返し</dt>
+            <dd>{recurrenceDescription(visibleTask)}</dd>
           </div>
-          <div>
-            <dt>曜日</dt>
-            <dd>{formatWeekdays(visibleTask.weekdays)}</dd>
-          </div>
-          <div>
-            <dt>予定</dt>
-            <dd>{formatSchedule(visibleTask.scheduledTime)}</dd>
-          </div>
+          {visibleTask.startDate ? <div><dt>開始日</dt><dd>{formatDate(visibleTask.startDate)}</dd></div> : null}
+          <div><dt>締め切り</dt><dd>{visibleTask.modelRecurrenceType ? taskDeadlineLabel(visibleTask) : formatSchedule(visibleTask.scheduledTime)}</dd></div>
           <div>
             <dt>通知</dt>
-            <dd>{notificationLabels[visibleTask.notificationSlot]}</dd>
+            <dd>{visibleTask.modelRecurrenceType ? notificationPresetLabel(visibleTask.notificationOffsetMinutes ?? null) : notificationLabels[visibleTask.notificationSlot]}</dd>
           </div>
+          {(todayTask?.completedCount ?? 0) > 0 && (visibleTask.modelRecurrenceType === "weekly_flexible" || visibleTask.modelRecurrenceType === "monthly_flexible") ? <div><dt>今期の実施</dt><dd>{todayTask?.completedCount}回実施</dd></div> : null}
+          {todayTask?.overdue ? <div><dt>状態</dt><dd className="overdue-label">期限超過</dd></div> : null}
           <div>
             <dt>担当</dt>
             <dd>{assignmentLabels[visibleTask.assignmentType]}</dd>
@@ -1731,12 +1706,12 @@ function TaskDetailScreen({
           <p>{actorName(actedBy)}さんが今日はパスしました。</p>
         ) : null}
         <div className="stack">
-          {status !== "completed" && !otherInProgress ? (
+          {(status !== "completed" || visibleTask.modelRecurrenceType === "weekly_flexible" || visibleTask.modelRecurrenceType === "monthly_flexible") && !otherInProgress ? (
             <Button
               disabled={busyAction !== null}
               onClick={() => void runAction("complete")}
             >
-              {busyAction === "complete" ? <InlineLoading /> : "完了しました"}
+              {busyAction === "complete" ? <InlineLoading /> : status === "completed" ? "もう一度実施" : "完了しました"}
             </Button>
           ) : null}
           {status === "pending" ? (

@@ -1,19 +1,17 @@
-# Milestone: Task model redesign preparation
+# Milestone: Task model UI and reminder scheduler
 
-> 現在のmilestoneだけを記載します。完了履歴・probe履歴はここに蓄積しません。
+## Completed boundary
 
-## Stable baseline
-
-- 認証、household、task、shopping、image/R2、PWAを実装済み
-- Push購読、Web Push sender、test Push、notification settings、schedulerを実装済み
-- staging Cronは `*/5 * * * *`
-- repository migrationは0011まで
-- productionは未操作
+- Six canonical recurrence types are available in Task create/edit/detail UI.
+- Conditional start date, recurrence configuration, deadline, and notification presets are implemented.
+- Canonical occurrence/period projection and all state actions are implemented.
+- Reminder scheduler uses canonical deadlines, offsets, household timezone, and stable scope keys.
+- Legacy tasks, including weekly target counts greater than one, retain compatibility behavior.
 
 ## Next objective
 
-新しいtask domain modelの正式設計、Phase 1（domain/schema + migration）、Phase 2（API/service/repository recurrence support）を完了した。詳細は [docs/TASK_MODEL_DESIGN.md](../docs/TASK_MODEL_DESIGN.md) にあり、保存・読み取り・validation基盤は実装済み。schedulerのdeadline切替、全面UI、calendar、history/template UXは未実装。
+Notification deep-link, calendar UI, and history/template task creation remain future phases.
 
-## Phase 3 completed boundary\n\nCanonical projection and start/complete/skip/reset now cover all six recurrence types while legacy runtime behavior remains protected. Scheduler, calendar UI, remote migration, deployment, production, and push remain excluded.\n\n## Guardrails
+## Guardrails
 
-今回の準備ではアプリコード、DB schema、migration、API、UI、Cron、Cloudflare resourceを変更しない。production、deploy、push、secret変更も行わない。
+Cron configuration, staging/production resources, remote migration, deployment, Push tests, secrets, and git push remain untouched.

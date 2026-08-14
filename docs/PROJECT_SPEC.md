@@ -14,9 +14,9 @@ HouseToDoは、同じ家庭のメンバーが家事タスクと買い物を共�
 
 ### タスク
 
-タスクは `daily`、`scheduled`、`weekly` のrecurrence typeを持ちます。scheduledは曜日指定を持ち、タイトル、メモ、担当者、予定時刻、通知slot、通知時刻、active状態を保持します。タスクは一覧、今日、今週、dashboardで表示し、start / complete / skip / resetの状態遷移と完了履歴を提供します。
+タスクは「今回だけ」「毎日」「曜日を決める」「毎月○日」「週1回・日付不定」「月1回・日付不定」の6種類を画面から作成・編集できます。開始日、recurrence固有設定、任意の締め切り時刻、締め切り基準の通知preset、担当者を保持します。締め切りがない場合は通知を設定できません。
 
-現在のモデルは既存のrecurrenceと時刻指定を維持します。次のtask model刷新案をこの文書で確定した仕様として扱いません。
+固定日taskはoccurrence、日付不定taskはperiodとしてstart / complete / skip / resetを扱います。日付不定taskはperiod内の1回完了で達成し、追加実施も記録できます。旧weekly target countが2以上のtaskは旧形式の意味を維持するcompatibility editorで扱い、自動変換しません。
 
 ### 買い物
 
@@ -30,7 +30,7 @@ HouseToDoは、同じ家庭のメンバーが家事タスクと買い物を共�
 
 manifestとService Workerを提供します。Service Workerはpush payloadを安全に解釈し、同一originのdeep linkだけを開きます。通知権限はユーザー操作時に要求し、PushSubscriptionはユーザー・端末単位で登録・解除します。
 
-タスクの指定通知、ユーザーのevening summary、Push送信、delivery log、重複防止、pending claim leaseを実装しています。evening summaryは当日未完了タスクがある場合に限り送信対象になります。test Push APIはproductionでは無効です。
+タスクのdeadline reminder、ユーザーのevening summary、Push送信、delivery log、重複防止、pending claim leaseを実装しています。canonical taskはhousehold timezoneのdeadlineからpreset offsetを引き、stable occurrence/period keyで重複を防止します。完了・skip済みscopeは通知しません。legacy taskは従来のnotification timeを維持します。evening summaryは当日未完了タスクがある場合に限り送信対象になります。test Push APIはproductionでは無効です。
 
 ### 現在のUX
 
@@ -52,16 +52,12 @@ Canonical task projections and actions are now implemented for all six recurrenc
 
 以下はROADMAP上の候補であり、現在仕様ではありません。
 
-- deadlineとnotification offset preset
-- recurrence redesign（柔軟なweekly / monthly）
 - history / templateからのtask creation
 - calendar UI / integration
 - shopping history・template UX、camera / photo-library選択
 - UI refinement、WebMCP、scheduler query optimization
 - production rollout
 
-## 承認済み次期task model（未実装）
+## 実装済みtask model
 
-次フェーズではtask recurrenceを `once`、`daily`、`weekly_fixed`、`monthly_fixed`、`weekly_flexible`、`monthly_flexible` の6種へ整理する。deadlineとnotification offsetを分離し、flexible taskはperiod内の最低1回完了で達成、追加実施は履歴に残す。start_dateは全typeで保存し、未指定時は作成日のhousehold local dateとする。Phase 2ではこの定義のAPI/service/repository write/read pathを実装済みとする。task UI、canonical today/week projection、new scheduler、calendar、history/template UXは未実装である。
-
-この仕様は承認済みだが未実装であり、現在の `daily` / `scheduled` / `weekly`、`notification_time`、today/week/dashboardの挙動を置き換えていない。詳細は [TASK_MODEL_DESIGN.md](TASK_MODEL_DESIGN.md) を参照する。
+task recurrenceは `once`、`daily`、`weekly_fixed`、`monthly_fixed`、`weekly_flexible`、`monthly_flexible` の6種です。deadlineとnotification offsetを分離し、flexible taskはperiod内の最低1回完了で達成、追加実施は履歴に残します。start_dateは未指定時に作成日のhousehold local dateを保存します。Task UIとcanonical reminder schedulerまで実装済みです。calendar、notification deep-link、history/template UXは未実装です。詳細は [TASK_MODEL_DESIGN.md](TASK_MODEL_DESIGN.md) を参照します。

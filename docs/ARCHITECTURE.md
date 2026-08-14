@@ -30,7 +30,7 @@ routeのsource of truthは `worker/app.ts` と `worker/routes/`です。認証�
 
 ## Scheduler
 
-`worker/index.ts`のscheduled handlerは、期限切れimage reservation cleanup、orphan R2 cleanup、notification schedulerを同じscheduled invocationで実行します。stagingのCronは `*/5 * * * *`、localのwrangler設定は `0 18 * * *` です。schedulerはdelivery window、notification logのdedup、pending delivery claim lease、retry semanticsを使います。実際の時刻・windowの詳細はservice実装とmigrationを正とします。
+`worker/index.ts`のscheduled handlerは、期限切れimage reservation cleanup、orphan R2 cleanup、notification schedulerを同じscheduled invocationで実行します。stagingのCronは `*/5 * * * *`、localのwrangler設定は `0 18 * * *` です。canonical taskは`worker/lib/task-model.ts`のscope/deadline resolverを共有し、household timezoneでdeadline instantを解決してoffsetを引きます。stable occurrence/period keyをdelivery target keyに使います。legacy taskだけは`notification_time`を使用します。delivery window、dedup、pending claim lease、retry/release semanticsは共通です。
 
 ## Phase 3 task projection boundary
 
@@ -40,10 +40,10 @@ routeのsource of truthは `worker/app.ts` と `worker/routes/`です。認証�
 
 詳細設計は [TASK_MODEL_DESIGN.md](TASK_MODEL_DESIGN.md) をsource of truthとする。実装時はtasksへcanonical schedule/deadline列を段階追加し、`task_weekdays`と既存recordsを互換利用する。recurrence計算、period key、resolved deadline、overdue判定はdomain helperへ隔離し、将来calendarとschedulerが同じprojectionを使う。
 
-API/service/repository、task create/edit/detail、dashboard today/week、notification scheduler、deep-linkの順に影響する。Phase 1ではschema/domain/repositoryの基盤だけを変更し、全面UI、schedulerの新deadline切替、Cron、Cloudflare設定は変更していない。future occurrencesをDBへpre-generateせず、date windowからon-demand projectionする方針である。
+API/service/repository、canonical projection/actions、task create/edit/detail/dashboard UI、notification schedulerまで実装済みです。CronとCloudflare設定は変更していません。future occurrencesをDBへpre-generateせず、date windowからon-demand projectionします。deep-linkとcalendarは後続phaseです。
 
 Phase 1実装ではscheduler/UI互換のためlegacy `recurrence_type`を保持し、`model_recurrence_type`、deadline、start date、recurrence configをadditiveに追加する。schedulerの新deadline計算への切替、record actionの新period適用は後続phaseで行う。
 
 ## 構成の境界
 
-現在仕様と将来設計を混在させません。Phase 2ではTaskService/Repository/API validationとread responseをcanonical modelへ対応させました。deadline scheduler、canonical today/week projection、calendar等は [ROADMAP.md](ROADMAP.md) に置きます。once/monthly系は`model_only` markerでlegacy scopeから除外します。
+現在仕様と将来設計を混在させません。TaskService/Repository/API validation、canonical today/week projection、Task UI、deadline reminder schedulerはcanonical modelへ対応済みです。calendar、deep-link、history/template UX等は [ROADMAP.md](ROADMAP.md) に置きます。once/monthly系は`model_only` markerでlegacy処理から除外します。

@@ -127,6 +127,10 @@ describe("App task form payload", () => {
       assignedUserId: null,
       assignment: { type: "anyone", user: null },
       scheduledTime: "09:00",
+      modelRecurrenceType: "daily",
+      startDate: "2026-08-01",
+      deadlineTime: "09:00",
+      notificationOffsetMinutes: 0,
       notificationSlot: "none",
       weekdays: [],
       weeklyTargetCount: null,
@@ -159,11 +163,11 @@ describe("App task form payload", () => {
       </StrictMode>
     );
 
-    await waitFor(() => expect(container.querySelector("#task-time")).toHaveValue("09:00"));
+    await waitFor(() => expect(container.querySelector("#task-deadline-time")).toHaveValue("09:00"));
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   }, 15000);
 
-  it("sends the daily scheduled time from the time input", async () => {
+  it("sends the canonical daily deadline from the time input", async () => {
     let capturedPayload: Record<string, unknown> | null = null;
     const task = {
       id: "task-1",
@@ -174,6 +178,10 @@ describe("App task form payload", () => {
       assignedUserId: null,
       assignment: { type: "anyone", user: null },
       scheduledTime: "09:00",
+      modelRecurrenceType: "daily",
+      startDate: "2026-08-01",
+      deadlineTime: "09:00",
+      notificationOffsetMinutes: 0,
       notificationSlot: "none",
       weekdays: [],
       weeklyTargetCount: null,
@@ -199,19 +207,21 @@ describe("App task form payload", () => {
     window.history.replaceState({}, "", "/tasks/new");
 
     const { container } = render(<App />);
-    await waitFor(() => expect(container.querySelector("#task-time")).toBeInTheDocument());
+    await waitFor(() => expect(container.querySelector("#task-deadline-time")).toBeInTheDocument());
     fireEvent.change(container.querySelector("#task-title")!, { target: { value: "Daily task" } });
-    fireEvent.input(container.querySelector("#task-time")!, { target: { value: "09:00" } });
+    fireEvent.change(container.querySelector("#task-deadline-time")!, { target: { value: "09:00" } });
     fireEvent.submit(container.querySelector("form")!);
 
     await waitFor(() => expect(capturedPayload).not.toBeNull());
     expect(capturedPayload).toMatchObject({
       recurrenceType: "daily",
-      scheduledTime: "09:00"
+      modelRecurrenceType: "daily",
+      scheduledTime: null,
+      deadlineTime: "09:00"
     });
   }, 15000);
 
-  it("sends edited and cleared scheduled times", async () => {
+  it("sends edited and cleared canonical deadline times", async () => {
     const task = {
       id: "task-1",
       title: "Daily task",
@@ -221,6 +231,10 @@ describe("App task form payload", () => {
       assignedUserId: null,
       assignment: { type: "anyone", user: null },
       scheduledTime: "09:00",
+      modelRecurrenceType: "daily",
+      startDate: "2026-08-01",
+      deadlineTime: "09:00",
+      notificationOffsetMinutes: 0,
       notificationSlot: "none",
       weekdays: [],
       weeklyTargetCount: null,
@@ -239,7 +253,7 @@ describe("App task form payload", () => {
       if (url.endsWith("/api/households/current/image-usage")) return Promise.resolve(ok(imageUsage));
       if (url.endsWith("/api/tasks/task-1") && init?.method === "PATCH") {
         patchPayloads.push(JSON.parse(init.body as string) as Record<string, unknown>);
-        return Promise.resolve(ok({ task: { ...task, scheduledTime: patchPayloads.at(-1)?.scheduledTime ?? null } }));
+        return Promise.resolve(ok({ task: { ...task, deadlineTime: patchPayloads.at(-1)?.deadlineTime ?? null } }));
       }
       if (url.endsWith("/api/tasks/task-1")) return Promise.resolve(ok({ task }));
       return Promise.resolve(failure("NOT_FOUND", 404));
@@ -247,24 +261,24 @@ describe("App task form payload", () => {
     window.history.replaceState({}, "", "/tasks/task-1/edit");
 
     const { container } = render(<App />);
-    await waitFor(() => expect(container.querySelector("#task-time")).toHaveValue("09:00"));
-    fireEvent.input(container.querySelector("#task-time")!, { target: { value: "10:30" } });
+    await waitFor(() => expect(container.querySelector("#task-deadline-time")).toHaveValue("09:00"));
+    fireEvent.change(container.querySelector("#task-deadline-time")!, { target: { value: "10:30" } });
     fireEvent.submit(container.querySelector("form")!);
     await waitFor(() => expect(patchPayloads).toHaveLength(1));
-    expect(patchPayloads[0].scheduledTime).toBe("10:30");
+    expect(patchPayloads[0].deadlineTime).toBe("10:30");
 
     act(() => {
       window.history.pushState({}, "", "/tasks/task-1/edit");
       window.dispatchEvent(new PopStateEvent("popstate"));
     });
-    await waitFor(() => expect(container.querySelector("#task-time")).toHaveValue("09:00"));
-    fireEvent.input(container.querySelector("#task-time")!, { target: { value: "" } });
+    await waitFor(() => expect(container.querySelector("#task-deadline-time")).toHaveValue("09:00"));
+    fireEvent.change(container.querySelector("#task-deadline-time")!, { target: { value: "" } });
     fireEvent.submit(container.querySelector("form")!);
     await waitFor(() => expect(patchPayloads).toHaveLength(2));
-    expect(patchPayloads[1].scheduledTime).toBeNull();
+    expect(patchPayloads[1]).toMatchObject({ deadlineTime: null, notificationOffsetMinutes: null });
   }, 15000);
 
-  it("sends notification time from create and clears it from edit", async () => {
+  it("sends a notification preset from create and clears it with the deadline from edit", async () => {
     let capturedCreate: Record<string, unknown> | null = null;
     const task = {
       id: "task-1",
@@ -276,6 +290,10 @@ describe("App task form payload", () => {
       scheduledTime: null,
       notificationSlot: "none",
       notificationTime: "07:30",
+      modelRecurrenceType: "daily",
+      startDate: "2026-08-01",
+      deadlineTime: "07:30",
+      notificationOffsetMinutes: 30,
       weekdays: [],
       weeklyTargetCount: null,
       active: true,
@@ -297,7 +315,7 @@ describe("App task form payload", () => {
       }
       if (url.endsWith("/api/tasks/task-1") && init?.method === "PATCH") {
         patchPayloads.push(JSON.parse(init.body as string) as Record<string, unknown>);
-        return Promise.resolve(ok({ task: { ...task, notificationTime: patchPayloads.at(-1)?.notificationTime ?? null } }));
+        return Promise.resolve(ok({ task: { ...task, deadlineTime: patchPayloads.at(-1)?.deadlineTime ?? null, notificationOffsetMinutes: patchPayloads.at(-1)?.notificationOffsetMinutes ?? null } }));
       }
       if (url.endsWith("/api/tasks/task-1")) return Promise.resolve(ok({ task }));
       return Promise.resolve(failure("NOT_FOUND", 404));
@@ -305,22 +323,23 @@ describe("App task form payload", () => {
 
     window.history.replaceState({}, "", "/tasks/new");
     const { container } = render(<App />);
-    await waitFor(() => expect(container.querySelector("#task-notification-time")).toBeInTheDocument());
+    await waitFor(() => expect(container.querySelector("#task-deadline-time")).toBeInTheDocument());
     fireEvent.change(container.querySelector("#task-title")!, { target: { value: "Daily task" } });
-    fireEvent.input(container.querySelector("#task-notification-time")!, { target: { value: "07:30" } });
+    fireEvent.change(container.querySelector("#task-deadline-time")!, { target: { value: "07:30" } });
+    fireEvent.change(container.querySelector("#task-notification-offset")!, { target: { value: "30" } });
     fireEvent.submit(container.querySelector("form")!);
     await waitFor(() => expect(capturedCreate).not.toBeNull());
-    expect((capturedCreate as unknown as Record<string, unknown>).notificationTime).toBe("07:30");
+    expect(capturedCreate).toMatchObject({ deadlineTime: "07:30", notificationOffsetMinutes: 30, notificationTime: null });
 
     act(() => {
       window.history.pushState({}, "", "/tasks/task-1/edit");
       window.dispatchEvent(new PopStateEvent("popstate"));
     });
-    await waitFor(() => expect(container.querySelector("#task-notification-time")).toHaveValue("07:30"));
-    fireEvent.input(container.querySelector("#task-notification-time")!, { target: { value: "" } });
+    await waitFor(() => expect(container.querySelector("#task-deadline-time")).toHaveValue("07:30"));
+    fireEvent.change(container.querySelector("#task-deadline-time")!, { target: { value: "" } });
     fireEvent.submit(container.querySelector("form")!);
     await waitFor(() => expect(patchPayloads).toHaveLength(1));
-    expect(patchPayloads[0].notificationTime).toBeNull();
+    expect(patchPayloads[0]).toMatchObject({ deadlineTime: null, notificationOffsetMinutes: null });
   }, 15000);
 });
 

@@ -1,19 +1,17 @@
 # Current milestone tasks
 
-> current milestoneの未完了taskだけを管理します。完了済みtaskの保管場所にはしません。
+- [x] Redesign Task create/edit UI for all six canonical recurrence types
+- [x] Add deadline and notification preset UI with client validation and state cleanup
+- [x] Preserve legacy weekly target-count editing without semantic conversion
+- [x] Display canonical recurrence, deadline, reminder, flexible progress, and overdue state
+- [x] Switch canonical scheduler to deadline-minus-offset calculation
+- [x] Use stable occurrence/period keys for notification dedup
+- [x] Preserve legacy scheduler, delivery window, claim lease, retry, and release behavior
+- [x] Verify unit, integration, responsive Playwright, screenshots, and traces
 
-- [x] finalize task domain specification（docs/TASK_MODEL_DESIGN.md）
-- [x] design migration and backward-compatibility strategy
-- [x] define notification offset presets and delivery semantics
-- [x] define recurrence redesign for flexible weekly/monthly tasks
-- [x] define history/template-based task creation
-- [x] plan task model phase 1 implementation and validation
+## Remaining future phases
 
-Phase 1のdomain/schema/migration実装は完了。次のimplementation gateはPhase 2（API/service/repository recurrence support）とする。
-Phase 2のcanonical task create/update/read、recurrence validation、legacy compatibility mapping、specific config cleanup、API/compatibility testsは完了。UI刷新、scheduler切替、calendar/history/template UXは後続phase。
-
-## Phase 3\n\n- [x] Shared canonical scope resolver\n- [x] Fixed/flexible actions and stable record keys\n- [x] Today/dashboard/week/history additive integration\n- [x] Legacy weekly target-count compatibility\n- [x] Typecheck, tests, build, local migration, and diff checks\n\n## Constraints
-
-- 現行task modelは正式設計が終わるまで変更しない
-- production untouched、deploy/push禁止
-- migration/API/UI/Cron/Cloudflare resource変更は実装フェーズで別途承認する
+- Notification deep-link
+- Calendar UI
+- History/template task creation UX
+- Staging and production rollout

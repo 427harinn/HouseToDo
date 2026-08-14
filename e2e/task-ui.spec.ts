@@ -16,6 +16,9 @@ type TestUser = {
 type ApiTask = {
   id: string;
   title: string;
+  modelRecurrenceType?: string | null;
+  deadlineTime?: string | null;
+  notificationOffsetMinutes?: number | null;
 };
 
 type Member = {
@@ -34,8 +37,6 @@ const todayKey = () => {
   const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
   return `${values.year}-${values.month}-${values.day}`;
 };
-const todayWeekday = () => new Date(`${todayKey()}T00:00:00+09:00`).getDay();
-
 const shot = async (page: Page, name: string) => {
   await mkdir(artifactDir, { recursive: true });
   await page.screenshot({ path: path.resolve(artifactDir, name), fullPage: true });
@@ -114,6 +115,10 @@ const createTaskByApi = async (
     weekdays?: number[];
     weeklyTargetCount?: number | null;
     scheduledTime?: string | null;
+    modelRecurrenceType?: "once" | "daily" | "weekly_fixed" | "monthly_fixed" | "weekly_flexible" | "monthly_flexible";
+    targetDate?: string | null;
+    deadlineTime?: string | null;
+    notificationOffsetMinutes?: number | null;
   }
 ) => {
   const response = await page.request.post("/api/tasks", {
@@ -127,7 +132,11 @@ const createTaskByApi = async (
       scheduledTime: input.scheduledTime ?? null,
       notificationSlot: "none",
       weekdays: input.weekdays ?? [],
-      weeklyTargetCount: input.weeklyTargetCount ?? null
+      weeklyTargetCount: input.weeklyTargetCount ?? null,
+      modelRecurrenceType: input.modelRecurrenceType,
+      targetDate: input.targetDate,
+      deadlineTime: input.deadlineTime,
+      notificationOffsetMinutes: input.notificationOffsetMinutes
     }
   });
   expect(response.status()).toBe(201);
@@ -159,8 +168,9 @@ const createTaskViaUi = async (
   page: Page,
   title: string,
   options: {
-    recurrenceType: "daily" | "scheduled" | "weekly";
+    recurrenceType: "once" | "daily" | "weekly_fixed" | "monthly_fixed" | "weekly_flexible" | "monthly_flexible";
     assignedUserId?: string;
+    notificationOffset?: "none" | "0" | "30" | "60";
   }
 ) => {
   await page.goto("/tasks/new");
@@ -171,15 +181,16 @@ const createTaskViaUi = async (
     await page.locator("#task-assignment").selectOption("specific");
     await page.locator("#task-assignee").selectOption(options.assignedUserId);
   }
-  if (options.recurrenceType === "scheduled") {
-    const today = todayWeekday();
-    const tomorrow = (today + 1) % 7;
-    await page.locator(".weekday-picker button").nth(today).click();
-    await page.locator(".weekday-picker button").nth(tomorrow).click();
+  if (options.recurrenceType === "once") await page.locator("#task-target-date").fill(todayKey());
+  if (options.recurrenceType === "weekly_fixed") {
+    await page.locator(".weekday-picker button").nth(2).click();
+    await page.locator(".weekday-picker button").nth(5).click();
   }
-  if (options.recurrenceType === "weekly") {
-    await page.locator("#task-weekly-count").fill("2");
-  }
+  if (options.recurrenceType === "monthly_fixed") await page.locator("#task-monthly-day").fill("31");
+  if (options.recurrenceType === "weekly_flexible") await page.locator("#task-weekly-deadline").selectOption("0");
+  if (options.recurrenceType === "monthly_flexible") await page.getByLabel("月末").check();
+  await page.locator("#task-deadline-time").fill(options.recurrenceType === "once" ? "18:00" : "21:00");
+  await page.locator("#task-notification-offset").selectOption(options.notificationOffset ?? "30");
   await page.locator('form button[type="submit"]').click();
   await expect(page).toHaveURL(/\/tasks\/(?!new$)[^/]+$/);
   return page.url().split("/").pop()!;
@@ -196,6 +207,14 @@ test.describe("task UI E2E", () => {
     const contextB = await browser.newContext({ locale: "ja-JP", timezoneId: "Asia/Tokyo" });
     const pageA = await contextA.newPage();
     const pageB = await contextB.newPage();
+    const pageErrors: string[] = [];
+    const consoleErrors: string[] = [];
+    const requestFailures: string[] = [];
+    pageA.on("pageerror", (error) => pageErrors.push(error.message));
+    pageA.on("console", (message) => {
+      if (message.type() === "error" && !message.text().includes("status of 401 (Unauthorized)")) consoleErrors.push(message.text());
+    });
+    pageA.on("requestfailed", (request) => requestFailures.push(`${request.method()} ${request.url()}`));
 
     await waitForApp(pageA);
 
@@ -219,19 +238,33 @@ test.describe("task UI E2E", () => {
     const memberB = members.find((member) => member.displayName === userB.name);
     expect(memberB).toBeTruthy();
 
+    await pageA.setViewportSize({ width: 390, height: 844 });
     await pageA.goto("/tasks/new");
-    await shot(pageA, "04-task-create-daily.png");
-    const uiDailyId = await createTaskViaUi(pageA, `UI daily ${id}`, { recurrenceType: "daily" });
+    await shot(pageA, "04-task-create-mobile.png");
+    const onceId = await createTaskViaUi(pageA, `UI once ${id}`, { recurrenceType: "once", notificationOffset: "0" });
+    const uiDailyId = await createTaskViaUi(pageA, `UI daily ${id}`, { recurrenceType: "daily", notificationOffset: "none" });
 
     await pageA.goto("/tasks/new");
-    await pageA.locator("#task-type").selectOption("scheduled");
-    await shot(pageA, "05-task-create-scheduled.png");
-    await createTaskViaUi(pageA, `UI scheduled ${id}`, { recurrenceType: "scheduled" });
+    await pageA.locator("#task-type").selectOption("weekly_fixed");
+    await pageA.locator(".weekday-picker button").nth(2).click();
+    await pageA.locator(".weekday-picker button").nth(5).click();
+    await shot(pageA, "05-task-create-weekly-fixed.png");
+    const weeklyFixedId = await createTaskViaUi(pageA, `UI weekly fixed ${id}`, { recurrenceType: "weekly_fixed", notificationOffset: "60" });
 
+    const monthlyFixedId = await createTaskViaUi(pageA, `UI monthly fixed ${id}`, { recurrenceType: "monthly_fixed" });
     await pageA.goto("/tasks/new");
-    await pageA.locator("#task-type").selectOption("weekly");
-    await shot(pageA, "06-task-create-weekly.png");
-    await createTaskViaUi(pageA, `UI weekly ${id}`, { recurrenceType: "weekly" });
+    await pageA.locator("#task-type").selectOption("weekly_flexible");
+    await shot(pageA, "06-task-create-weekly-flexible.png");
+    const weeklyFlexibleId = await createTaskViaUi(pageA, `UI weekly flexible ${id}`, { recurrenceType: "weekly_flexible" });
+    await pageA.goto("/tasks/new");
+    await pageA.locator("#task-type").selectOption("monthly_flexible");
+    await shot(pageA, "07-task-create-monthly-flexible.png");
+    const monthlyFlexibleId = await createTaskViaUi(pageA, `UI monthly flexible ${id}`, { recurrenceType: "monthly_flexible" });
+
+    for (const [taskId, recurrence] of [[onceId, "once"], [uiDailyId, "daily"], [weeklyFixedId, "weekly_fixed"], [monthlyFixedId, "monthly_fixed"], [weeklyFlexibleId, "weekly_flexible"], [monthlyFlexibleId, "monthly_flexible"]] as const) {
+      const stored = await getTaskByApi(pageA, taskId);
+      expect(stored.modelRecurrenceType).toBe(recurrence);
+    }
 
     await createTaskViaUi(pageA, `Assigned to B ${id}`, {
       recurrenceType: "daily",
@@ -317,6 +350,46 @@ test.describe("task UI E2E", () => {
     expect(updatePayload.data.task.title).toBe(`edited ${id}`);
     await expect(pageA.getByRole("heading", { name: `edited ${id}` })).toBeVisible();
 
+    await pageA.goto(`/tasks/${weeklyFixedId}/edit`);
+    await pageA.locator("#task-type").selectOption("monthly_fixed");
+    await pageA.locator("#task-monthly-day").fill("31");
+    await pageA.locator("#task-deadline-time").fill("21:00");
+    await pageA.locator("#task-notification-offset").selectOption("60");
+    await shot(pageA, "12-task-edit-recurrence.png");
+    await pageA.locator('form button[type="submit"]').click();
+    await expect(pageA).toHaveURL(new RegExp(`/tasks/${weeklyFixedId}$`));
+    await expect(async () => expect(await getTaskByApi(pageA, weeklyFixedId)).toMatchObject({
+      modelRecurrenceType: "monthly_fixed", deadlineTime: "21:00", notificationOffsetMinutes: 60
+    })).toPass();
+
+    await pageA.goto(`/tasks/${monthlyFixedId}/edit`);
+    await expect(pageA.locator("#task-notification-offset")).toHaveValue("30");
+    await pageA.locator("#task-deadline-time").fill("");
+    await expect(pageA.locator("#task-notification-offset")).toBeDisabled();
+    await expect(pageA.locator("#task-notification-offset")).toHaveValue("none");
+    await pageA.locator('form button[type="submit"]').click();
+    await expect(async () => expect(await getTaskByApi(pageA, monthlyFixedId)).toMatchObject({
+      deadlineTime: null, notificationOffsetMinutes: null
+    })).toPass();
+
+    const legacyWeekly = await createTaskByApi(pageA, { title: `legacy weekly ${id}`, recurrenceType: "weekly", weeklyTargetCount: 3 });
+    await pageA.goto(`/tasks/${legacyWeekly.id}/edit`);
+    await expect(pageA.getByText("週に3回（旧形式）")).toBeVisible();
+    await expect(pageA.locator("#task-type")).toHaveCount(0);
+    await pageA.locator("#task-title").fill(`legacy edited ${id}`);
+    await pageA.locator('form button[type="submit"]').click();
+    await expect(async () => expect(await getTaskByApi(pageA, legacyWeekly.id)).toMatchObject({
+      modelRecurrenceType: null
+    })).toPass();
+
+    const overdueTask = await createTaskByApi(pageA, {
+      title: `overdue ${id}`, recurrenceType: "daily", modelRecurrenceType: "daily",
+      deadlineTime: "00:01", notificationOffsetMinutes: null
+    });
+    await pageA.goto("/home");
+    await expect(pageA.locator(".task-card", { hasText: `overdue ${id}` }).getByText("期限超過").first()).toBeVisible();
+    await shot(pageA, "13-today-grouping-overdue.png");
+
     await pageA.goto("/tasks");
     const completedCard = pageA.locator(".management-card", { hasText: `completed ${id}` });
     pageA.once("dialog", (dialog) => dialog.accept());
@@ -333,10 +406,10 @@ test.describe("task UI E2E", () => {
     await expect(pageB.getByText(`Assigned to B ${id}`).first()).toBeVisible();
 
     for (const [name, size] of [
-      ["12-mobile-320.png", { width: 320, height: 568 }],
-      ["13-mobile-390.png", { width: 390, height: 844 }],
+      ["14-mobile-320.png", { width: 320, height: 568 }],
+      ["15-mobile-390.png", { width: 390, height: 844 }],
       ["mobile-430-check.png", { width: 430, height: 932 }],
-      ["14-desktop.png", { width: 1280, height: 800 }]
+      ["16-desktop.png", { width: 1280, height: 800 }]
     ] as const) {
       await pageA.setViewportSize(size);
       await pageA.goto("/home");
@@ -346,6 +419,9 @@ test.describe("task UI E2E", () => {
       await shot(pageA, name);
     }
 
+    expect(pageErrors).toEqual([]);
+    expect(consoleErrors).toEqual([]);
+    expect(requestFailures).toEqual([]);
     await pageA.goto("/tasks");
     await pageA.locator(".page-header button").click();
     await expect(pageA).toHaveURL(/\/login/);

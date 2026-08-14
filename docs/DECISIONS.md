@@ -496,3 +496,7 @@ Use a Wrangler `staging` environment before production. Keep staging and product
 ## 2026-08-14 Phase 2 task API compatibility boundary
 
 Phase 2 accepts canonical `modelRecurrenceType` values while retaining legacy request fields. `daily`, `weekly_fixed`, and `weekly_flexible` map to legacy `daily`, `scheduled`, and `weekly`; `once` and monthly types use `model_only` so legacy today/week and scheduler code cannot misclassify them. PATCH merges omitted fields and atomically replaces weekday/config state. Only deadline plus offset zero mirrors to `notification_time`; positive offsets remain outside the legacy scheduler.
+
+## 2026-08-14 Canonical reminders use stable task scope keys
+
+Tasks with `model_recurrence_type` use the shared occurrence/period projector to resolve a household-local deadline, subtract `notification_offset_minutes`, and store `task:{occurrence_key|period_key}` in `notification_deliveries.target_key`. They never also enter the legacy `notification_time` path. Tasks without a canonical model retain the legacy scheduler, preserving weekly target counts greater than one. Existing delivery windows, sent deduplication, pending claim leases, failure release, and retry behavior remain unchanged.

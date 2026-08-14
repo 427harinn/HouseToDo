@@ -59,6 +59,15 @@ export type TodayTask = Task & {
   completedAt: string | null;
   skippedAt: string | null;
   note: string | null;
+  scopeKind?: "occurrence" | "period";
+  displayGroup?: "today" | "week" | "month";
+  occurrenceKey?: string | null;
+  periodKey?: string | null;
+  periodStart?: string | null;
+  periodEnd?: string | null;
+  deadlineDate?: string | null;
+  completedCount?: number;
+  overdue?: boolean;
 };
 
 export type TaskRecord = {
@@ -81,12 +90,22 @@ export type WeeklyTask = Task & {
   remainingCount: number;
   status: TaskDisplayStatus;
   latestAction: TaskRecord | null;
+  scopeKind?: "occurrence" | "period";
+  displayGroup?: "today" | "week" | "month";
+  occurrenceKey?: string | null;
+  periodKey?: string | null;
+  periodStart?: string | null;
+  periodEnd?: string | null;
+  deadlineDate?: string | null;
+  deadlineTime?: string | null;
+  overdue?: boolean;
 };
 
 export type CreateTaskInput = {
   title: string;
   description: string | null;
   recurrenceType: TaskRecurrenceType;
+  modelRecurrenceType?: TaskModelRecurrenceType | null;
   assignmentType: TaskAssignmentType;
   assignedUserId: string | null;
   scheduledTime: string | null;
@@ -104,7 +123,7 @@ export type CreateTaskInput = {
   monthlyDeadlineType?: "month_end" | "day_of_month" | null;
 };
 
-export type UpdateTaskInput = CreateTaskInput;
+export type UpdateTaskInput = Partial<CreateTaskInput>;
 
 export type TaskActionInput = {
   targetDate?: string;
