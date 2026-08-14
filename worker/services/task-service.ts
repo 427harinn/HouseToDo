@@ -251,7 +251,18 @@ export class TaskService {
     if (skipped && action !== "start") return this.mergeProjectedStatus(task, scope, existingRecords, household.timezone);
     const open = existingRecords.find((record) => record.status === "in_progress") ?? null;
     if (action === "complete" && open === null && scope.scopeType === "occurrence" && completed.length > 0) return this.mergeProjectedStatus(task, scope, existingRecords, household.timezone);
-    const record = await this.applyState(userId, household.id, task.id, scope.scopeType === "occurrence" ? targetDate : targetDate, null, action, open, input.note, scope.occurrenceKey, scope.periodKey);
+    const record = await this.applyState(
+      userId,
+      household.id,
+      task.id,
+      scope.scopeType === "occurrence" ? targetDate : null,
+      null,
+      action,
+      open,
+      input.note,
+      scope.occurrenceKey,
+      scope.periodKey
+    );
     return this.mergeProjectedStatus(task, scope, [record, ...existingRecords.filter((item) => item.id !== record.id)], household.timezone);
   }
 
@@ -332,6 +343,14 @@ export class TaskService {
       note: action === "skip" ? note ?? null : null,
       now
     };
+    // Flexible canonical tasks are period-scoped even though the action carries
+    // a concrete target date. Keep periodKey as the identity and leave
+    // targetDate null so the legacy daily-scope unique index cannot collapse
+    // or reject multiple executions in the same period.
+    if (periodKey) {
+      if (existing) return (await this.records.updateById(householdId, existing.id, recordInput))!;
+      return this.records.createWeeklyRecord(recordInput);
+    }
     if (targetDate) return this.records.upsertDailyState(recordInput);
     if (existing) return (await this.records.updateById(householdId, existing.id, recordInput))!;
     return this.records.createWeeklyRecord(recordInput);

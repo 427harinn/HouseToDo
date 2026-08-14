@@ -291,6 +291,37 @@ describe("notification scheduler rules", () => {
     expect(sends).toBe(0);
   });
 
+  it("suppresses flexible reminders when a period has multiple completed executions", async () => {
+    for (const [modelRecurrenceType, recurrenceType, periodKey, deadlineWeekday, monthlyDeadlineType] of [
+      ["weekly_flexible", "weekly", "period:task-1:week:2026-08-07:2026-08-13", 4, null],
+      ["monthly_flexible", "model_only", "period:task-1:month:2026-08-01:2026-08-31", null, "month_end"]
+    ] as const) {
+      const db = schedulerDb(null);
+      addCanonicalTask(db, {
+        recurrence_type: recurrenceType,
+        model_recurrence_type: modelRecurrenceType,
+        notification_time: "21:00",
+        deadline_time: "21:00",
+        notification_offset_minutes: 0,
+        weekly_deadline_weekday: deadlineWeekday,
+        monthly_deadline_type: monthlyDeadlineType
+      });
+      for (const id of ["record-1", "record-2"]) {
+        db.taskRecords.set(id, {
+          id, household_id: "house-1", task_id: "task-1", target_date: null, target_week_start: null,
+          occurrence_key: null, period_key: periodKey, status: "completed", acted_by: "user-1",
+          started_at: null, completed_at: "2026-08-13T10:00:00.000Z", skipped_at: null, note: null,
+          created_at: "2026-08-13T10:00:00.000Z", updated_at: "2026-08-13T10:00:00.000Z"
+        });
+      }
+      let sends = 0;
+      await new NotificationSchedulerService(db as unknown as D1Database, {
+        sendPayload: () => { sends += 1; return Promise.resolve({ sent: 1, failed: 0 }); }
+      }).run({}, new Date("2026-08-13T12:00:00.000Z"));
+      expect(sends).toBe(0);
+    }
+  });
+
   it("deduplicates evening summary retries and skips disabled or empty summaries", async () => {
     const db = schedulerDb(null);
     db.notificationSettings.set("house-1:user-1", {

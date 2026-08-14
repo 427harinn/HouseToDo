@@ -702,6 +702,98 @@ describe("redesigned task model API", () => {
     const invalid = await app.fetch(postJson("/api/tasks", { title: "Invalid", ...common, modelRecurrenceType: "once" }, owner.cookie), env);
     expect(invalid.status).toBe(400);
   });
+
+  it.each([
+    ["weekly_flexible", { weeklyDeadlineWeekday: 5 }],
+    ["monthly_flexible", { monthlyDeadlineType: "month_end" }]
+  ] as const)("keeps multiple %s completions as separate period history", async (modelRecurrenceType, schedule) => {
+    const app = createApp();
+    const env = createTestEnv();
+    const owner = await registerUser(env, {
+      email: `${modelRecurrenceType}-repeat@example.com`,
+      password: "very-long-password",
+      displayName: "Repeat Owner"
+    });
+    await app.fetch(postJson("/api/households", { name: `${modelRecurrenceType} repeat house` }, owner.cookie), env);
+    const targetDate = "2026-08-14";
+    const created = await app.fetch(
+      postJson(
+        "/api/tasks",
+        {
+          title: `${modelRecurrenceType} repeat`,
+          modelRecurrenceType,
+          startDate: targetDate,
+          assignmentType: "anyone",
+          notificationSlot: "none",
+          ...schedule
+        },
+        owner.cookie
+      ),
+      env
+    );
+    expect(created.status).toBe(201);
+    const createdBody: { data: { task: { id: string } } } = await created.json();
+    const taskId = createdBody.data.task.id;
+
+    const complete = async () => {
+      const response = await app.fetch(postJson(`/api/tasks/${taskId}/complete`, { targetDate }, owner.cookie), env);
+      expect(response.status).toBe(200);
+      const body: { data: { result: { completedCount: number; status: string } } } = await response.json();
+      return body.data.result;
+    };
+
+    expect((await complete()).completedCount).toBe(1);
+    const second = await complete();
+    expect(second).toMatchObject({ completedCount: 2, status: "completed" });
+
+    const history = await app.fetch(
+      new Request(`https://example.test/api/tasks/${taskId}/history`, { headers: { cookie: owner.cookie } }),
+      env
+    );
+    expect(history.status).toBe(200);
+    const historyBody: { data: { records: Array<{ status: string; periodKey: string | null; targetDate: string | null }> } } = await history.json();
+    expect(historyBody.data.records.filter((record) => record.status === "completed")).toHaveLength(2);
+    expect(new Set(historyBody.data.records.map((record) => record.periodKey)).size).toBe(1);
+    expect(historyBody.data.records.every((record) => record.targetDate === null)).toBe(true);
+  });
+
+  it("transitions a flexible period in progress, then appends the next completion", async () => {
+    const app = createApp();
+    const env = createTestEnv();
+    const owner = await registerUser(env, {
+      email: "flexible-transition@example.com",
+      password: "very-long-password",
+      displayName: "Transition Owner"
+    });
+    await app.fetch(postJson("/api/households", { name: "Flexible transition house" }, owner.cookie), env);
+    const targetDate = "2026-08-14";
+    const created = await app.fetch(
+      postJson(
+        "/api/tasks",
+        {
+          title: "weekly transition",
+          modelRecurrenceType: "weekly_flexible",
+          startDate: targetDate,
+          weeklyDeadlineWeekday: 5,
+          assignmentType: "anyone",
+          notificationSlot: "none"
+        },
+        owner.cookie
+      ),
+      env
+    );
+    const createdBody: { data: { task: { id: string } } } = await created.json();
+    const taskId = createdBody.data.task.id;
+    const action = async (name: "start" | "complete") => {
+      const response = await app.fetch(postJson(`/api/tasks/${taskId}/${name}`, { targetDate }, owner.cookie), env);
+      expect(response.status).toBe(200);
+      const body: { data: { result: { completedCount: number; status: string } } } = await response.json();
+      return body.data.result;
+    };
+    expect((await action("start")).status).toBe("in_progress");
+    expect((await action("complete")).completedCount).toBe(1);
+    expect((await action("complete")).completedCount).toBe(2);
+  });
 });
 
 describe("worker app shopping API", () => {
