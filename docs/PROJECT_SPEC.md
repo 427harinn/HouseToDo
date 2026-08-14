@@ -58,6 +58,6 @@ API一覧やDB schemaをこの文書に複製しません。現在のrouteは `w
 
 ## 承認済み次期task model（未実装）
 
-次フェーズではtask recurrenceを `once`、`daily`、`weekly_fixed`、`monthly_fixed`、`weekly_flexible`、`monthly_flexible` の6種へ整理する。deadlineとnotification offsetを分離し、flexible taskはperiod内の最低1回完了で達成、追加実施は履歴に残す。start_dateは全typeで保存し、未指定時は作成日のhousehold local dateとする。
+次フェーズではtask recurrenceを `once`、`daily`、`weekly_fixed`、`monthly_fixed`、`weekly_flexible`、`monthly_flexible` の6種へ整理する。deadlineとnotification offsetを分離し、flexible taskはperiod内の最低1回完了で達成、追加実施は履歴に残す。start_dateは全typeで保存し、未指定時は作成日のhousehold local dateとする。Phase 2ではこの定義のAPI/service/repository write/read pathを実装済みとする。task UI、canonical today/week projection、new scheduler、calendar、history/template UXは未実装である。
 
 この仕様は承認済みだが未実装であり、現在の `daily` / `scheduled` / `weekly`、`notification_time`、today/week/dashboardの挙動を置き換えていない。詳細は [TASK_MODEL_DESIGN.md](TASK_MODEL_DESIGN.md) を参照する。

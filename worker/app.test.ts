@@ -669,6 +669,41 @@ describe("worker app task API", () => {
   });
 });
 
+describe("redesigned task model API", () => {
+  it("creates all six recurrences and keeps once/monthly tasks out of legacy scopes", async () => {
+    const app = createApp();
+    const env = createTestEnv();
+    const owner = await registerUser(env, { email: "model-owner@example.com", password: "very-long-password", displayName: "Model Owner" });
+    await app.fetch(postJson("/api/households", { name: "Model House" }, owner.cookie), env);
+    const common = { assignmentType: "anyone", notificationSlot: "none" };
+    const cases = [
+      { modelRecurrenceType: "once", targetDate: "2026-08-20" },
+      { modelRecurrenceType: "daily" },
+      { modelRecurrenceType: "weekly_fixed", weekdays: [1, 3] },
+      { modelRecurrenceType: "monthly_fixed", monthlyDayOfMonth: 31 },
+      { modelRecurrenceType: "weekly_flexible", weeklyDeadlineWeekday: 5 },
+      { modelRecurrenceType: "monthly_flexible", monthlyDeadlineType: "day_of_month", monthlyDeadlineDay: 15 }
+    ];
+    const ids: string[] = [];
+    for (const [index, recurrence] of cases.entries()) {
+      const response = await app.fetch(postJson("/api/tasks", { title: `Model ${index}`, ...common, ...recurrence }, owner.cookie), env);
+      expect(response.status, `recurrence ${recurrence.modelRecurrenceType}: ${await response.clone().text()}`).toBe(201);
+      const body: { data: { task: { id: string; modelRecurrenceType: string; recurrenceType: string; monthlyDeadlineDay?: number | null } } } = await response.json();
+      ids.push(body.data.task.id);
+      expect(body.data.task.modelRecurrenceType).toBe(recurrence.modelRecurrenceType);
+      if (["once", "monthly_fixed", "monthly_flexible"].includes(recurrence.modelRecurrenceType)) expect(body.data.task.recurrenceType).toBe("model_only");
+    }
+    const list = await app.fetch(new Request("https://example.test/api/tasks", { headers: { cookie: owner.cookie } }), env);
+    const listBody: { data: { tasks: Array<{ id: string; modelRecurrenceType: string }> } } = await list.json();
+    expect(listBody.data.tasks.filter((task) => ids.includes(task.id))).toHaveLength(6);
+    const patch = await app.fetch(patchJson(`/api/tasks/${ids[2]}`, { modelRecurrenceType: "monthly_fixed", monthlyDayOfMonth: 30 }, owner.cookie), env);
+    expect(patch.status).toBe(200);
+    expect((env.DB as unknown as MemoryD1).taskWeekdays.size).toBe(0);
+    const invalid = await app.fetch(postJson("/api/tasks", { title: "Invalid", ...common, modelRecurrenceType: "once" }, owner.cookie), env);
+    expect(invalid.status).toBe(400);
+  });
+});
+
 describe("worker app shopping API", () => {
   it("shares shopping items, preserves purchaser, clears purchased, and uses templates", async () => {
     const app = createApp();

@@ -10,6 +10,7 @@
 - [x] plan task model phase 1 implementation and validation
 
 Phase 1のdomain/schema/migration実装は完了。次のimplementation gateはPhase 2（API/service/repository recurrence support）とする。
+Phase 2のcanonical task create/update/read、recurrence validation、legacy compatibility mapping、specific config cleanup、API/compatibility testsは完了。UI刷新、scheduler切替、calendar/history/template UXは後続phase。
 
 ## Constraints
 

@@ -29,7 +29,7 @@ task modelの詳細、migration互換性、通知仕様は [TASK_MODEL_DESIGN.md
 - [x] record identity and calendar projection policy
 - [x] backward-compatibility and staged migration proposal
 - [x] Phase 1 domain/schema + migration implementation
-- [ ] Phase 2 API/service/repository implementation
+- [x] Phase 2 API/service/repository implementation
 - [ ] Phase 3 task create/edit/detail UI
 - [ ] Phase 4 scheduler/reminder migration
 - [ ] Phase 5 notification deep-link

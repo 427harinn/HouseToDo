@@ -7,11 +7,12 @@ import {
 } from "./constants";
 import { validationError } from "./errors";
 import { isValidDateKey } from "./date-time";
-import { NOTIFICATION_OFFSET_MINUTES } from "./task-model";
+import { NOTIFICATION_OFFSET_MINUTES, TASK_MODEL_RECURRENCE_TYPES } from "./task-model";
 import type {
   MonthlyDeadlineType,
   NotificationSlot,
   TaskAssignmentType,
+  TaskModelRecurrenceType,
   TaskRecurrenceType
 } from "../types/domain";
 
@@ -99,6 +100,7 @@ export type TaskWriteInput = {
   title: string;
   description: string | null;
   recurrenceType: TaskRecurrenceType;
+  modelRecurrenceType?: TaskModelRecurrenceType | null;
   assignmentType: TaskAssignmentType;
   assignedUserId: string | null;
   scheduledTime: string | null;
@@ -112,8 +114,11 @@ export type TaskWriteInput = {
   notificationOffsetMinutes?: number | null;
   weeklyDeadlineWeekday?: number | null;
   monthlyDayOfMonth?: number | null;
+  monthlyDeadlineDay?: number | null;
   monthlyDeadlineType?: MonthlyDeadlineType | null;
 };
+
+export type TaskPatchInput = Partial<TaskWriteInput>;
 
 export type TaskStateInput = {
   targetDate?: string;
@@ -178,9 +183,12 @@ const validateWeekdays = (value: unknown): number[] => {
 
 export const validateTaskWriteInput = (value: unknown): TaskWriteInput => {
   const input = asObject(value);
-  const title = requiredString(input, "title", "title", 100).trim();
-  const recurrenceType = input.recurrenceType;
-  const assignmentType = input.assignmentType ?? "anyone";
+  const title = requiredString(input, "title" in input ? "title" : "name", "title", 100).trim();
+  const modelRecurrenceType = input.modelRecurrenceType;
+  const recurrenceType = modelRecurrenceType ?? input.recurrenceType;
+  const assignment = input.assignment && typeof input.assignment === "object" ? asObject(input.assignment) : null;
+  const assignee = input.assignee && typeof input.assignee === "object" ? asObject(input.assignee) : null;
+  const assignmentType = input.assignmentType ?? assignment?.type ?? (assignee ? "specific" : "anyone");
   const notificationSlot = input.notificationSlot ?? "none";
   const notificationTime =
     input.notificationTime === undefined || input.notificationTime === null
@@ -196,7 +204,9 @@ export const validateTaskWriteInput = (value: unknown): TaskWriteInput => {
         : input.scheduledTime;
   const assignedUserId =
     input.assignedUserId === undefined || input.assignedUserId === null
-      ? null
+      ? typeof input.assignee === "string"
+        ? input.assignee.trim()
+        : assignee?.userId ?? assignment?.userId ?? (assignment?.user && typeof assignment.user === "object" ? asObject(assignment.user).userId : null) ?? null
       : typeof input.assignedUserId === "string"
         ? input.assignedUserId.trim()
         : input.assignedUserId;
@@ -218,7 +228,7 @@ export const validateTaskWriteInput = (value: unknown): TaskWriteInput => {
         ? rawNotificationOffsetMinutes
         : undefined;
   const weeklyDeadlineWeekday = input.weeklyDeadlineWeekday ?? null;
-  const monthlyDayOfMonth = input.monthlyDayOfMonth ?? null;
+  const monthlyDayOfMonth = input.monthlyDayOfMonth ?? input.monthlyDeadlineDay ?? null;
   const rawMonthlyDeadlineType = input.monthlyDeadlineType;
   const monthlyDeadlineType =
     rawMonthlyDeadlineType === undefined || rawMonthlyDeadlineType === null
@@ -229,8 +239,11 @@ export const validateTaskWriteInput = (value: unknown): TaskWriteInput => {
   const details: Record<string, string> = {};
 
   if (title.length === 0) details.title = "title is required.";
-  if (typeof recurrenceType !== "string" || !recurrenceTypes.has(recurrenceType)) {
+  if (typeof recurrenceType !== "string" || (!recurrenceTypes.has(recurrenceType) && !TASK_MODEL_RECURRENCE_TYPES.includes(recurrenceType as TaskModelRecurrenceType))) {
     details.recurrenceType = "recurrenceType is invalid.";
+  }
+  if (modelRecurrenceType !== undefined && modelRecurrenceType !== null && (typeof modelRecurrenceType !== "string" || !TASK_MODEL_RECURRENCE_TYPES.includes(modelRecurrenceType as TaskModelRecurrenceType))) {
+    details.modelRecurrenceType = "modelRecurrenceType is invalid.";
   }
   if (typeof assignmentType !== "string" || !assignmentTypes.has(assignmentType)) {
     details.assignmentType = "assignmentType must be anyone or specific.";
@@ -324,6 +337,9 @@ export const validateTaskWriteInput = (value: unknown): TaskWriteInput => {
   }
 
   if (recurrenceType === "once" && targetDate === null) details.targetDate = "once tasks require targetDate.";
+  if (recurrenceType === "once" && startDate !== null && targetDate !== null && targetDate < startDate) {
+    details.targetDate = "targetDate must be on or after startDate.";
+  }
   if (recurrenceType === "weekly_fixed" && weekdays.length === 0) {
     details.weekdays = "weekly_fixed tasks require at least one weekday.";
   }
@@ -339,11 +355,23 @@ export const validateTaskWriteInput = (value: unknown): TaskWriteInput => {
       details.monthlyDayOfMonth = "month_end must not include monthlyDayOfMonth.";
     }
   }
-  if (recurrenceType === "monthly_fixed" && monthlyDeadlineType !== null) {
+  if (recurrenceType === "monthly_fixed" && monthlyDeadlineType !== null && monthlyDeadlineType !== undefined) {
     details.monthlyDeadlineType = "monthlyDeadlineType is only allowed for monthly_flexible tasks.";
   }
   if (recurrenceType === "weekly_flexible" && weekdays.length > 0) {
     details.weekdays = "weekdays are only allowed for fixed weekday tasks.";
+  }
+  if (["once", "daily", "monthly_fixed", "monthly_flexible"].includes(String(recurrenceType)) && weekdays.length > 0) {
+    details.weekdays = "weekdays are not allowed for this recurrence type.";
+  }
+  if (["once", "daily", "weekly_fixed", "monthly_fixed", "monthly_flexible"].includes(String(recurrenceType)) && weeklyDeadlineWeekday !== null) {
+    details.weeklyDeadlineWeekday = "weeklyDeadlineWeekday is only allowed for weekly_flexible tasks.";
+  }
+  if (["once", "daily", "weekly_fixed", "weekly_flexible"].includes(String(recurrenceType)) && monthlyDayOfMonth !== null) {
+    details.monthlyDayOfMonth = "monthly day configuration is only allowed for monthly tasks.";
+  }
+  if (["once", "daily", "weekly_fixed", "monthly_fixed", "weekly_flexible"].includes(String(recurrenceType)) && monthlyDeadlineType !== null && monthlyDeadlineType !== undefined) {
+    details.monthlyDeadlineType = "monthlyDeadlineType is only allowed for monthly_flexible tasks.";
   }
   if (recurrenceType === "weekly_flexible" && weeklyTargetCount !== undefined && weeklyTargetCount !== null) {
     details.weeklyTargetCount = "weeklyTargetCount is not used by weekly_flexible tasks.";
@@ -356,18 +384,30 @@ export const validateTaskWriteInput = (value: unknown): TaskWriteInput => {
   ) {
     details.notificationOffsetMinutes = "notification offset requires deadlineTime.";
   }
+  if (deadlineTime === null && notificationOffsetMinutes !== undefined && notificationOffsetMinutes !== null) {
+    details.notificationOffsetMinutes = "notification offset requires deadlineTime.";
+  }
 
   if (Object.keys(details).length > 0) throw validationError(details);
 
   return {
     title,
-    description: optionalString(input, "description", 1000),
-    recurrenceType: recurrenceType as TaskRecurrenceType,
+    description: input.description !== undefined ? optionalString(input, "description", 1000) : optionalString(input, "note", 1000),
+    recurrenceType: toLegacyRecurrenceType(recurrenceType as TaskRecurrenceType, normalizedWeeklyTargetCount, modelRecurrenceType as TaskModelRecurrenceType | undefined),
+    modelRecurrenceType:
+      typeof modelRecurrenceType === "string" ? (modelRecurrenceType as TaskModelRecurrenceType) : null,
     assignmentType: assignmentType as TaskAssignmentType,
     assignedUserId: typeof assignedUserId === "string" && assignedUserId.length > 0 ? assignedUserId : null,
     scheduledTime: typeof scheduledTime === "string" ? scheduledTime : null,
     notificationSlot: notificationSlot as NotificationSlot,
-    notificationTime: typeof notificationTime === "string" ? notificationTime : null,
+    notificationTime:
+      typeof modelRecurrenceType === "string"
+        ? notificationOffsetMinutes === 0 && typeof deadlineTime === "string"
+          ? deadlineTime
+          : null
+        : typeof notificationTime === "string"
+          ? notificationTime
+          : null,
     weekdays,
     weeklyTargetCount: normalizedWeeklyTargetCount,
     startDate: typeof startDate === "string" ? startDate : null,
@@ -393,6 +433,75 @@ export const validateTaskWriteInput = (value: unknown): TaskWriteInput => {
           ? "month_end"
           : null
   };
+};
+
+const toLegacyRecurrenceType = (
+  recurrenceType: TaskRecurrenceType,
+  weeklyTargetCount: number | null,
+  explicitModel?: TaskModelRecurrenceType
+): TaskRecurrenceType => {
+  const model = explicitModel ?? recurrenceType;
+  switch (model) {
+    case "daily": return "daily";
+    case "weekly_fixed": return "scheduled";
+    case "weekly_flexible": return "weekly";
+    case "once":
+    case "monthly_fixed":
+    case "monthly_flexible": return "model_only";
+    case "scheduled": return "scheduled";
+    case "weekly": return weeklyTargetCount === 1 ? "weekly" : "weekly";
+    default: return recurrenceType;
+  }
+};
+
+const patchKeys = new Set([
+  "title", "name", "description", "note", "recurrenceType", "modelRecurrenceType", "assignmentType",
+  "assignment", "assignedUserId", "assignee", "scheduledTime", "notificationSlot", "notificationTime",
+  "weekdays", "weeklyTargetCount", "startDate", "targetDate", "deadlineTime", "notificationOffsetMinutes",
+  "weeklyDeadlineWeekday", "monthlyDayOfMonth", "monthlyDeadlineDay", "monthlyDeadlineType"
+]);
+
+export const validateTaskPatchInput = (value: unknown): TaskPatchInput => {
+  const input = asObject(value);
+  const unknown = Object.keys(input).filter((key) => !patchKeys.has(key));
+  if (unknown.length > 0) throw validationError({ [unknown[0]]: "Unsupported task field." });
+  const output: Record<string, unknown> = {};
+  for (const key of patchKeys) if (key in input) output[key] = input[key];
+  if ("name" in output && !("title" in output)) output.title = output.name;
+  if ("note" in output && !("description" in output)) output.description = output.note;
+  if ("assignment" in output && typeof output.assignment === "object" && output.assignment !== null) {
+    const assignment = asObject(output.assignment);
+    if (!("assignmentType" in output) && typeof assignment.type === "string") output.assignmentType = assignment.type;
+    if (!("assignedUserId" in output)) {
+      const user = assignment.user && typeof assignment.user === "object" ? asObject(assignment.user) : null;
+      if (typeof assignment.userId === "string") output.assignedUserId = assignment.userId;
+      else if (typeof user?.userId === "string") output.assignedUserId = user.userId;
+    }
+  }
+  if ("assignee" in output && !("assignedUserId" in output) && typeof output.assignee === "string") output.assignedUserId = output.assignee;
+  if ("monthlyDeadlineDay" in output && !("monthlyDayOfMonth" in output)) output.monthlyDayOfMonth = output.monthlyDeadlineDay;
+  if ("assignmentType" in output && output.assignmentType !== "anyone" && output.assignmentType !== "specific") {
+    throw validationError({ assignmentType: "assignmentType must be anyone or specific." });
+  }
+  if ("weekdays" in output) validateWeekdays(output.weekdays);
+  if ("deadlineTime" in output && output.deadlineTime !== null && (typeof output.deadlineTime !== "string" || !timePattern.test(output.deadlineTime))) {
+    throw validationError({ deadlineTime: "deadlineTime must be HH:mm." });
+  }
+  if ("notificationOffsetMinutes" in output && output.notificationOffsetMinutes !== null &&
+      (typeof output.notificationOffsetMinutes !== "number" || !(NOTIFICATION_OFFSET_MINUTES as readonly number[]).includes(output.notificationOffsetMinutes))) {
+    throw validationError({ notificationOffsetMinutes: "notificationOffsetMinutes must be one of the supported presets." });
+  }
+  if ("weeklyDeadlineWeekday" in output && output.weeklyDeadlineWeekday !== null &&
+      (typeof output.weeklyDeadlineWeekday !== "number" || !Number.isInteger(output.weeklyDeadlineWeekday) || output.weeklyDeadlineWeekday < 0 || output.weeklyDeadlineWeekday > 6)) {
+    throw validationError({ weeklyDeadlineWeekday: "weeklyDeadlineWeekday must be an integer from 0 to 6." });
+  }
+  if ("monthlyDayOfMonth" in output && output.monthlyDayOfMonth !== null &&
+      (typeof output.monthlyDayOfMonth !== "number" || !Number.isInteger(output.monthlyDayOfMonth) || output.monthlyDayOfMonth < 1 || output.monthlyDayOfMonth > 31)) {
+    throw validationError({ monthlyDayOfMonth: "monthlyDayOfMonth must be an integer from 1 to 31." });
+  }
+  if ("startDate" in output && output.startDate !== null && (typeof output.startDate !== "string" || !isValidDateKey(output.startDate))) throw validationError({ startDate: "startDate must be YYYY-MM-DD." });
+  if ("targetDate" in output && output.targetDate !== null && (typeof output.targetDate !== "string" || !isValidDateKey(output.targetDate))) throw validationError({ targetDate: "targetDate must be YYYY-MM-DD." });
+  return output as TaskPatchInput;
 };
 
 export const validateTaskStateInput = (value: unknown): TaskStateInput => {

@@ -1,7 +1,11 @@
 # HouseToDo 新タスクモデル設計
 
 > Status: **Approved; Phase 1 domain/schema foundation implemented**
-> Full recurrence API/UI/scheduler/calendar behavior remains unimplemented.
+> Phase 2 API/service/repository support is implemented. UI/scheduler/calendar behavior remains staged.
+
+### Phase 2 implementation boundary
+
+Task write/read APIs accept and return the six canonical recurrence types through `modelRecurrenceType`. Legacy requests remain supported. New `once`, `monthly_fixed`, and `monthly_flexible` tasks use the `model_only` legacy compatibility marker so the current today/week UI and legacy scheduler cannot misclassify them. Offsets greater than zero are never mirrored to legacy `notification_time`; only offset zero with a deadline is mirrored.
 > この文書は、次のmigration/API/UI/scheduler実装へ進むためのdesign source of truthである。ここでいうapprovedは仕様承認を意味し、現在のコード・DB・API・UIの挙動を変更したことを意味しない。
 
 ### Phase 1 compatibility storage note

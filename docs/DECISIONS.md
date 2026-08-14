@@ -492,3 +492,7 @@ recurrence、calendar、deadline、notification_atはhousehold timezoneで解決
 ## 2026-08-04 Prepare staging before production
 
 Use a Wrangler `staging` environment before production. Keep staging and production D1/R2 resources separate, use workers.dev for the first staging deployment, keep R2 private and serve images through the Worker API, and manage secrets per environment only when a real secret is required. Apply Cron only after HTTP/API and manual Scheduled checks. `APP_ENV=staging` is a secure-cookie environment; only local development omits `Secure`. Production remains documentation-only until staging is accepted.
+
+## 2026-08-14 Phase 2 task API compatibility boundary
+
+Phase 2 accepts canonical `modelRecurrenceType` values while retaining legacy request fields. `daily`, `weekly_fixed`, and `weekly_flexible` map to legacy `daily`, `scheduled`, and `weekly`; `once` and monthly types use `model_only` so legacy today/week and scheduler code cannot misclassify them. PATCH merges omitted fields and atomically replaces weekday/config state. Only deadline plus offset zero mirrors to `notification_time`; positive offsets remain outside the legacy scheduler.

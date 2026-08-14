@@ -1,11 +1,10 @@
 import type {
   NotificationSlot,
   TaskAssignmentType,
-  TaskDisplayStatus,
-  TaskRecurrenceType
+  TaskDisplayStatus
 } from "./api/tasks";
 
-export const recurrenceLabels: Record<TaskRecurrenceType, string> = {
+export const recurrenceLabels: Record<string, string> = {
   daily: "毎日のタスク",
   scheduled: "曜日指定タスク",
   weekly: "今週中のタスク",
@@ -15,6 +14,8 @@ export const recurrenceLabels: Record<TaskRecurrenceType, string> = {
   weekly_flexible: "週1回・日付不定",
   monthly_flexible: "月1回・日付不定"
 };
+
+recurrenceLabels.model_only = "API-only task";
 
 export const assignmentLabels: Record<TaskAssignmentType, string> = {
   anyone: "どちらでも",

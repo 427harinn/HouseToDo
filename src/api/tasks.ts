@@ -8,7 +8,9 @@ export type TaskRecurrenceType =
   | "weekly_fixed"
   | "monthly_fixed"
   | "weekly_flexible"
-  | "monthly_flexible";
+  | "monthly_flexible"
+  | "model_only";
+export type TaskModelRecurrenceType = "once" | "daily" | "weekly_fixed" | "monthly_fixed" | "weekly_flexible" | "monthly_flexible";
 export type TaskAssignmentType = "anyone" | "specific";
 export type NotificationSlot = "morning" | "night" | "none";
 export type TaskDisplayStatus = "pending" | "in_progress" | "completed" | "skipped";
@@ -23,7 +25,7 @@ export type Task = {
   title: string;
   description: string | null;
   recurrenceType: TaskRecurrenceType;
-  modelRecurrenceType?: Exclude<TaskRecurrenceType, "scheduled" | "weekly"> | null;
+  modelRecurrenceType?: TaskModelRecurrenceType | null;
   assignmentType: TaskAssignmentType;
   assignedUserId: string | null;
   assignment: {
@@ -41,6 +43,7 @@ export type Task = {
   notificationOffsetMinutes?: number | null;
   weeklyDeadlineWeekday?: number | null;
   monthlyDayOfMonth?: number | null;
+  monthlyDeadlineDay?: number | null;
   monthlyDeadlineType?: "month_end" | "day_of_month" | null;
   active: boolean;
   sortOrder: number;
@@ -97,6 +100,7 @@ export type CreateTaskInput = {
   notificationOffsetMinutes?: number | null;
   weeklyDeadlineWeekday?: number | null;
   monthlyDayOfMonth?: number | null;
+  monthlyDeadlineDay?: number | null;
   monthlyDeadlineType?: "month_end" | "day_of_month" | null;
 };
 

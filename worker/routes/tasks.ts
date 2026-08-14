@@ -6,6 +6,7 @@ import {
   validateIncludeInactive,
   validateLimitQuery,
   validateTaskStateInput,
+  validateTaskPatchInput,
   validateTaskWriteInput
 } from "../lib/validation";
 import { requireAuth } from "../middleware/auth";
@@ -45,6 +46,7 @@ const taskResponse = (task: Task) => ({
   notificationOffsetMinutes: task.notificationOffsetMinutes,
   weeklyDeadlineWeekday: task.weeklyDeadlineWeekday,
   monthlyDayOfMonth: task.monthlyDayOfMonth,
+  monthlyDeadlineDay: task.monthlyDeadlineType === "day_of_month" ? task.monthlyDayOfMonth : null,
   monthlyDeadlineType: task.monthlyDeadlineType,
   active: task.active,
   sortOrder: task.sortOrder,
@@ -94,7 +96,7 @@ export const getTaskRoute = (taskId: string): Handler =>
 export const updateTaskRoute = (taskId: string): Handler =>
   requireAuth(async (context) => {
     const user = requireUser(context.user);
-    const input = validateTaskWriteInput(await parseJsonBody(context.request));
+    const input = validateTaskPatchInput(await parseJsonBody(context.request));
     const task = await new TaskService(context.env.DB).updateTask(user.id, taskId, input);
     return okJson({ task: taskResponse(task) }, context.requestId);
   });

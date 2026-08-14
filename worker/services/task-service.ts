@@ -10,7 +10,7 @@ import { nowIso } from "../lib/date";
 import { HouseholdMemberRepository } from "../repositories/household-member-repository";
 import { TaskRecordRepository, type RecordStateInput } from "../repositories/task-record-repository";
 import { TaskRepository } from "../repositories/task-repository";
-import type { TaskStateInput, TaskWriteInput } from "../lib/validation";
+import { validateTaskWriteInput, type TaskPatchInput, type TaskStateInput, type TaskWriteInput } from "../lib/validation";
 import type {
   HouseholdWithRole,
   Task,
@@ -86,13 +86,44 @@ export class TaskService {
     );
   }
 
-  async updateTask(userId: string, taskId: string, input: TaskWriteInput): Promise<Task> {
+  async updateTask(userId: string, taskId: string, input: TaskPatchInput): Promise<Task> {
     const household = await this.households.requireCurrentHousehold(userId);
-    await this.requireTask(household.id, taskId);
-    await this.validateAssignee(household.id, input);
-    const updated = await this.tasks.update(household.id, taskId, { ...input, now: nowIso() });
+    const current = await this.requireTask(household.id, taskId);
+    const requestedRecurrence = input.modelRecurrenceType ?? input.recurrenceType;
+    const recurrenceChanged = requestedRecurrence !== undefined && requestedRecurrence !== (current.modelRecurrenceType ?? current.recurrenceType);
+    const mergedCandidate = {
+      title: current.title,
+      description: current.description,
+      modelRecurrenceType: input.modelRecurrenceType ?? (input.recurrenceType ? null : current.modelRecurrenceType),
+      assignmentType: current.assignmentType,
+      assignedUserId: current.assignedUserId,
+      scheduledTime: current.scheduledTime,
+      notificationSlot: current.notificationSlot,
+      notificationTime: current.notificationTime,
+      weekdays: current.weekdays,
+      weeklyTargetCount: current.weeklyTargetCount,
+      startDate: current.startDate,
+      targetDate: current.targetDate,
+      deadlineTime: current.deadlineTime,
+      notificationOffsetMinutes: current.notificationOffsetMinutes,
+      weeklyDeadlineWeekday: current.weeklyDeadlineWeekday,
+      monthlyDayOfMonth: current.monthlyDayOfMonth,
+      monthlyDeadlineType: current.monthlyDeadlineType,
+      ...input,
+      recurrenceType: input.modelRecurrenceType ?? input.recurrenceType ?? current.modelRecurrenceType ?? current.recurrenceType
+    } as Record<string, unknown>;
+    if (recurrenceChanged) {
+      const type = requestedRecurrence as string;
+      mergedCandidate.weekdays = ["weekly_fixed", "scheduled"].includes(type) ? input.weekdays ?? [] : [];
+      mergedCandidate.weeklyTargetCount = type === "weekly" ? input.weeklyTargetCount ?? null : null;
+      mergedCandidate.weeklyDeadlineWeekday = type === "weekly_flexible" ? input.weeklyDeadlineWeekday ?? null : null;
+      mergedCandidate.monthlyDayOfMonth = ["monthly_fixed", "monthly_flexible"].includes(type) ? input.monthlyDayOfMonth ?? input.monthlyDeadlineDay ?? null : null;
+      mergedCandidate.monthlyDeadlineType = type === "monthly_flexible" ? input.monthlyDeadlineType ?? null : null;
+    }
+    const merged = validateTaskWriteInput(mergedCandidate);
+    await this.validateAssignee(household.id, merged);
+    const updated = await this.tasks.update(household.id, taskId, { ...merged, now: nowIso() });
     if (!updated) throw taskNotFoundError();
-    await this.tasks.replaceWeekdays(taskId, input.weekdays);
     return this.requireTask(household.id, taskId);
   }
 
@@ -146,6 +177,9 @@ export class TaskService {
     const household = await this.households.requireCurrentHousehold(userId);
     const task = await this.requireTask(household.id, taskId);
     if (!task.active) throw inactiveTaskError();
+    if (["once", "monthly_fixed", "monthly_flexible"].includes(task.modelRecurrenceType ?? "")) {
+      throw validationError({ recurrenceType: "Actions for once/monthly model tasks are not enabled in Phase 2." });
+    }
     return task.recurrenceType === "weekly"
       ? this.changeWeeklyState(household, userId, task, action, input)
       : this.changeDailyState(household, userId, task, action, input);

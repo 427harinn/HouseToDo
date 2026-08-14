@@ -32,7 +32,7 @@ routeのsource of truthは `worker/app.ts` と `worker/routes/`です。認証�
 
 `worker/index.ts`のscheduled handlerは、期限切れimage reservation cleanup、orphan R2 cleanup、notification schedulerを同じscheduled invocationで実行します。stagingのCronは `*/5 * * * *`、localのwrangler設定は `0 18 * * *` です。schedulerはdelivery window、notification logのdedup、pending delivery claim lease、retry semanticsを使います。実際の時刻・windowの詳細はservice実装とmigrationを正とします。
 
-## 次期task modelの実装影響（未実装）
+## 次期task modelの実装影響（Phase 2 API実装済み）
 
 詳細設計は [TASK_MODEL_DESIGN.md](TASK_MODEL_DESIGN.md) をsource of truthとする。実装時はtasksへcanonical schedule/deadline列を段階追加し、`task_weekdays`と既存recordsを互換利用する。recurrence計算、period key、resolved deadline、overdue判定はdomain helperへ隔離し、将来calendarとschedulerが同じprojectionを使う。
 
@@ -42,4 +42,4 @@ Phase 1実装ではscheduler/UI互換のためlegacy `recurrence_type`を保持�
 
 ## 構成の境界
 
-現在仕様と将来設計を混在させません。deadline、notification offset、recurrence redesign、calendar等は [ROADMAP.md](ROADMAP.md) に置きます。過去の理由は [DECISIONS.md](DECISIONS.md) に残し、作業進捗は保存しません。
+現在仕様と将来設計を混在させません。Phase 2ではTaskService/Repository/API validationとread responseをcanonical modelへ対応させました。deadline scheduler、canonical today/week projection、calendar等は [ROADMAP.md](ROADMAP.md) に置きます。once/monthly系は`model_only` markerでlegacy scopeから除外します。

@@ -46,6 +46,7 @@ export type TaskCreateRecordInput = {
   notificationSlot: NotificationSlot;
   notificationTime?: string | null;
   weeklyTargetCount: number | null;
+  weekdays: number[];
   startDate?: string | null;
   targetDate?: string | null;
   deadlineTime?: string | null;
@@ -193,7 +194,7 @@ export class TaskRepository {
   async update(householdId: string, taskId: string, input: TaskUpdateRecordInput): Promise<Task | null> {
     const current = await this.findByIdForHousehold(householdId, taskId);
     if (!current) return null;
-    await this.db
+    const update = this.db
       .prepare(
         `UPDATE tasks
          SET title = ?, description = ?, recurrence_type = ?, model_recurrence_type = ?, assignment_type = ?, assigned_user_id = ?,
@@ -215,17 +216,22 @@ export class TaskRepository {
         input.weeklyTargetCount,
         input.startDate ?? current.startDate,
         input.targetDate ?? current.targetDate,
-        input.deadlineTime ?? input.notificationTime ?? current.deadlineTime,
-        input.notificationOffsetMinutes ?? (input.notificationTime ? 0 : current.notificationOffsetMinutes),
-        input.weeklyDeadlineWeekday ?? current.weeklyDeadlineWeekday,
-        input.monthlyDayOfMonth ?? current.monthlyDayOfMonth,
-        input.monthlyDeadlineType ?? current.monthlyDeadlineType,
+        input.deadlineTime,
+        input.notificationOffsetMinutes,
+        input.weeklyDeadlineWeekday,
+        input.monthlyDayOfMonth,
+        input.monthlyDeadlineType,
         input.sortOrder ?? current.sortOrder,
         input.now,
         householdId,
         taskId
       )
-      .run();
+      ;
+    await this.db.batch([
+      update,
+      this.db.prepare("DELETE FROM task_weekdays WHERE task_id = ?").bind(taskId),
+      ...(input.recurrenceType === "scheduled" ? input.weekdays : []).map((weekday) => this.prepareAddWeekday(taskId, weekday))
+    ]);
     return this.findByIdForHousehold(householdId, taskId);
   }
 
@@ -268,5 +274,7 @@ const toModelRecurrenceType = (
     case "weekly_flexible":
     case "monthly_flexible":
       return recurrenceType;
+    case "model_only":
+      return null;
   }
 };

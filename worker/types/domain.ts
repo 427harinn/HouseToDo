@@ -55,7 +55,7 @@ export type HouseholdInvite = {
   createdAt: string;
 };
 
-export type LegacyTaskRecurrenceType = "daily" | "scheduled" | "weekly";
+export type LegacyTaskRecurrenceType = "daily" | "scheduled" | "weekly" | "model_only";
 export type TaskModelRecurrenceType =
   | "once"
   | "daily"
