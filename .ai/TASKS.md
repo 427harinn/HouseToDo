@@ -19,6 +19,7 @@
 - [x] Task template CRUD, canonical six recurrence types, household authorization, and logical deactivation
 - [x] Shared task form prefill with startDate/once targetDate/task identity/history exclusion
 - [x] Recent/template Playwright UI coverage, responsive screenshots, and trace artifacts
+- [x] Verify recent/template authenticated E2E on staging and clean up temporary fixtures
 - Production rollout
 - Shopping planned purchase date
 

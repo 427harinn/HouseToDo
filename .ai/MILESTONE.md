@@ -22,7 +22,7 @@
 
 ## Next objective
 
-Recent task reuse and task template creation/edit/deactivation are complete locally. Notification deep-link, production rollout, and Shopping planned purchase date remain future work.
+Recent task reuse and task template creation/edit/deactivation are implemented and verified on staging. Notification deep-link, production rollout, and Shopping planned purchase date remain future work.
 
 ## Guardrails
 
@@ -47,3 +47,9 @@ Cron configuration and production resources remain untouched. Staging migration,
 - Task templates use the additive `0013_task_templates.sql` table and household-scoped CRUD. Templates store only canonical reusable settings, never `startDate`, once `targetDate`, task records, or execution status.
 - Task create, task detail, and `/tasks/templates` use the shared canonical form/mapping. Recent/template selection prefills the form and never creates a task immediately.
 - Local unit/API tests, typecheck, lint, build, local migration, staging config validation, and targeted host Playwright passed. Docker was unavailable, so the Worker was verified with the host dev server. Staging, production, deployment, remote D1 mutation, and git push remained untouched.
+
+## Phase 6 authenticated staging verification (2026-08-14)
+
+- Migration `0013_task_templates.sql` was applied to staging and Worker version `6d104f8e-2705-44d4-93b6-1776801c6628` was deployed to `house-to-do-staging`.
+- Authenticated E2E passed for recent API/UI prefill, new-task creation, template save/list/edit/reuse/deactivate, startDate exclusion, Home/Calendar/Dashboard exclusion, navigation regression, 390px mobile smoke, and browser error checks.
+- Temporary tasks/templates were logically deactivated. Staging D1 cleanup aggregate confirmed zero active verification fixtures and zero template-ID notification deliveries. Production, secrets, Cron, and git push remained untouched.

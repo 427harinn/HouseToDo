@@ -1,5 +1,12 @@
 # Staging runbook
 
+## 2026-08-14 Task reuse / template staging verification result
+
+- Implementation commit `4e538ad510fbc1156b07f2c92349f8db578280c9` was deployed to `house-to-do-staging` as version `6d104f8e-2705-44d4-93b6-1776801c6628` after all local gates, migration 0013 pre-check, and dry-run passed. `0013_task_templates.sql` was applied to staging; the post-check reported no pending migrations and confirmed `task_templates` plus its two indexes.
+- Authenticated staging Playwright verification passed for the existing staging test account without recording credentials: login/session/household load, `GET /api/tasks/recent`, recent task UI and form prefill, start-date exclusion, task creation with a new ID, Task detail -> template save, template list/edit/reuse/deactivate, canonical recurrence/deadline/reminder/assignment prefill, and 390px mobile overflow checks.
+- Home/dashboard and Calendar API/UI checks confirmed the template itself did not appear as a task, marker, selected-date detail, or dashboard count. Shopping, member settings, and existing navigation loaded. D1 read-only cleanup aggregate found zero active temporary tasks, zero active temporary templates, and zero notification delivery rows containing the temporary template ID. Browser page errors, unexpected console errors, and request failures were empty; expected authentication behavior was not treated as an error.
+- Temporary verification tasks were logically deactivated and the temporary template was deactivated. No existing task, template, record, or history was deleted. Production resources, secrets, Cron, and git push remain untouched.
+
 ## 2026-08-14 Calendar staging verification result
 
 - Commit `45b6e1f2212b221c338b406fd8b65cbce854f431` passed the local lint, typecheck, test, build, local migration, staging-config, and diff-check gates. The remote migration list was read-only checked: `0001` through `0012_task_model_foundation.sql` are applied and no migration is pending.

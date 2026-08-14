@@ -11,6 +11,7 @@
 - [x] Calendar UI and canonical range projection API
 - [x] Calendar staging verification and staging deployment
 - [x] Recent task reuse and task template UX
+- [x] Task reuse/template authenticated staging verification
 - [ ] Notification deep links and production rollout
 
 ## Future work
