@@ -59,4 +59,10 @@ Cron configuration and production resources remain untouched. Staging migration,
 - Shopping recent reuse reads existing household-scoped `shopping_items`, includes pending and purchased items, sorts by `created_at DESC`, deduplicates normalized names, and caps results at 8 without adding a table or migration.
 - Recent and new-form template selection prefills reusable name, quantity, and note fields; purchase state, purchaser, timestamps, item identity, history, and old images are excluded.
 - Shopping image selection now exposes separate camera and photo-library controls that share the existing validation, preview, compression, and R2 upload pipeline. Upload limits and attachment architecture are unchanged.
-- Shopping planned purchase date, Calendar integration, scheduler changes, production, staging deploy, remote D1 mutation, and git push remain out of scope.
+- Shopping planned purchase date, Calendar integration, scheduler changes, production, and git push remain out of scope.
+
+## Shopping UX Phase 1 staging verification (2026-08-14)
+
+- Commit `7d150a72e19a3ac0c1f368eccda54269a549eac7` was deployed to `house-to-do-staging` as version `e409489e-26a3-4955-bc97-da5301da4fcf` after local gates, remote migration read-only checks, and dry-run success.
+- Health returned D1/R2 true. Authenticated Shopping Recent, purchased-item reuse, Recent/Template prefill, pending-state exclusion, old-image exclusion, camera/library preview/remove, library image save through R2, existing Shopping behavior, Calendar smoke, mobile 390px layout, and browser error checks passed.
+- Temporary Shopping items were deleted and the temporary template was deactivated by the existing template semantics. No migration was applied. Production, secrets, Cron, production resources, and git push remained untouched.

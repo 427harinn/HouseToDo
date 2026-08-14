@@ -22,6 +22,7 @@
    - [x] recent shopping item reuse with household isolation, sorting, limit, and normalized-name deduplication
    - [x] Shopping new-form template prefill while preserving existing template CRUD/add semantics
    - [x] separate camera and photo-library selection with shared image processing/upload flow
+   - [x] Shopping UX Phase 1 staging deployment and authenticated verification
    - history / optional calendar integration
    - planned purchase date
 5. UI refinement

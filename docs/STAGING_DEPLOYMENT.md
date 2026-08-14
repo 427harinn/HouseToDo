@@ -1,5 +1,15 @@
 # Staging runbook
 
+## 2026-08-14 Shopping UX Phase 1 staging verification result
+
+- Implementation commit `7d150a72e19a3ac0c1f368eccda54269a549eac7` passed all local gates. The remote migration check reported no pending migrations; read-only schema inspection confirmed the existing `task_templates` table/index and no migration was applied.
+- `npx wrangler deploy --env staging --dry-run` and `npx wrangler deploy --env staging` succeeded for `house-to-do-staging`. Version ID: `e409489e-26a3-4955-bc97-da5301da4fcf`. Cron remained `*/5 * * * *`; no production/default deploy was run.
+- `/api/health` returned HTTP 200 with `db: true` and `r2: true`. Authenticated staging navigation loaded Home, Shopping, Shopping new, Shopping templates, Calendar, and Settings.
+- Shopping Recent and Template flows passed: purchased items remained eligible for Recent, Recent/Template selection prefilling did not immediately create an item, name/quantity/note were copied, and a Recent-derived item was saved as pending with no purchaser, purchase time, or historical image preview.
+- Camera and library inputs both reached the same preview/remove flow. The camera input exposed `capture="environment"`; the library input had no capture attribute. A library-selected image was saved successfully through the existing compression and R2 attachment flow. The camera-oriented input was also exercised with a staging browser file chooser; real iOS/Android OS picker behavior remains device-dependent.
+- Existing Shopping list, purchase, unpurchase, detail, edit, template management, and Calendar smoke behavior passed. Temporary items were deleted; the temporary template was deactivated (`active = 0`) using the existing semantics. Read-only cleanup checks found zero temporary Shopping items and zero active temporary templates. Browser error logs were empty.
+- Production resources, secrets, Cron configuration, production migrations, and git push remain untouched.
+
 ## 2026-08-14 Task reuse / template staging verification result
 
 - Implementation commit `4e538ad510fbc1156b07f2c92349f8db578280c9` was deployed to `house-to-do-staging` as version `6d104f8e-2705-44d4-93b6-1776801c6628` after all local gates, migration 0013 pre-check, and dry-run passed. `0013_task_templates.sql` was applied to staging; the post-check reported no pending migrations and confirmed `task_templates` plus its two indexes.
@@ -45,7 +55,7 @@
 | Static Assets | `dist/client`、SPA fallback |
 | Observability | 有効（stagingのみ） |
 | Cron | `*/5 * * * *` |
-| migration source | repositoryの `migrations/`（現在0012まで） |
+| migration source | repositoryの `migrations/`（現在0013まで） |
 
 Worker名、binding、Cron、originの現在値は `wrangler.jsonc` をsource of truthとします。Version IDは固定記載しません。remote migrationの適用済み状態は次の確認コマンドで都度確認します。
 
