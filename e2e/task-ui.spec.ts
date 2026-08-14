@@ -431,4 +431,81 @@ test.describe("task UI E2E", () => {
     await contextA.close();
     await contextB.close();
   });
+
+  test("reuses recent task definitions and manages task templates", async ({ page }) => {
+    const pageErrors: string[] = [];
+    const consoleErrors: string[] = [];
+    const requestFailures: string[] = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
+    page.on("console", (message) => {
+      if (message.type() === "error" && !message.text().includes("status of 401 (Unauthorized)")) {
+        consoleErrors.push(message.text());
+      }
+    });
+    page.on("requestfailed", (request) => requestFailures.push(`${request.method()} ${request.url()}`));
+    const id = stamp();
+    const user = { email: `reuse-${id}@example.test`, name: `Reuse User ${id}` };
+    await waitForApp(page);
+    await registerViaUi(page, user);
+    await createHouseholdViaUi(page, `Reuse House ${id}`);
+    const source = await createTaskByApi(page, {
+      title: `Recent source ${id}`,
+      modelRecurrenceType: "daily",
+      deadlineTime: "21:00",
+      notificationOffsetMinutes: 30
+    });
+    await page.request.patch(`/api/tasks/${source.id}`, {
+      headers: { ...originHeader(page), "content-type": "application/json" },
+      data: { startDate: "2026-07-01" }
+    });
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/tasks/new");
+    await expect(page.getByText("最近使ったタスク")).toBeVisible();
+    await expect(page.getByRole("button", { name: new RegExp(`Recent source ${id}`) })).toBeVisible();
+    await shot(page, "task-create-recent-mobile.png");
+    await page.getByRole("button", { name: new RegExp(`Recent source ${id}`) }).click();
+    await expect(page.locator("#task-title")).toHaveValue(`Recent source ${id}`);
+    await expect(page.locator("#task-deadline-time")).toHaveValue("21:00");
+    await expect(page.locator("#task-notification-offset")).toHaveValue("30");
+    await expect(page.locator("#task-start-date")).toHaveValue("");
+    await page.locator("#task-start-date").fill(todayKey());
+    await page.locator("#task-title").fill(`Created from recent ${id}`);
+    await page.locator('form button[type="submit"]').click();
+    await expect(page).toHaveURL(/\/tasks\/[^/]+$/);
+
+    await page.goto(`/tasks/${source.id}`);
+    await page.getByRole("button", { name: "テンプレートとして保存" }).click();
+    await expect(page).toHaveURL(/\/tasks\/templates$/);
+    await expect(page.getByRole("heading", { name: "タスクテンプレート" })).toBeVisible();
+    await expect(page.getByText(`Recent source ${id}`)).toBeVisible();
+    await shot(page, "task-template-list.png");
+
+    await page.getByRole("button", { name: "編集" }).click();
+    await expect(page).toHaveURL(/\/tasks\/templates\/[^/]+\/edit$/);
+    await expect(page.locator("#task-title")).toHaveValue(`Recent source ${id}`);
+    await expect(page.locator("#task-start-date")).toHaveCount(0);
+    await shot(page, "task-template-edit.png");
+    await page.locator("#task-title").fill(`Edited template ${id}`);
+    await page.locator('form button[type="submit"]').click();
+    await expect(page).toHaveURL(/\/tasks\/templates$/);
+    await expect(page.getByText(`Edited template ${id}`)).toBeVisible();
+
+    await page.goto("/tasks/new");
+    await expect(page.getByText("テンプレート")).toBeVisible();
+    await expect(page.getByRole("button", { name: new RegExp(`Edited template ${id}`) })).toBeVisible();
+    await shot(page, "task-create-template.png");
+    await page.getByRole("button", { name: new RegExp(`Edited template ${id}`) }).click();
+    await expect(page.locator("#task-title")).toHaveValue(`Edited template ${id}`);
+    await expect(page.locator("#task-start-date")).toHaveValue("");
+    await expect(page.locator("#task-deadline-time")).toHaveValue("21:00");
+    await expectNoHorizontalScroll(page);
+    await page.setViewportSize({ width: 320, height: 568 });
+    await expectNoHorizontalScroll(page);
+    await page.setViewportSize({ width: 430, height: 932 });
+    await expectNoHorizontalScroll(page);
+    expect(pageErrors).toEqual([]);
+    expect(consoleErrors).toEqual([]);
+    expect(requestFailures).toEqual([]);
+  });
 });

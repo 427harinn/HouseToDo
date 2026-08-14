@@ -46,7 +46,7 @@ API一覧やDB schemaをこの文書に複製しません。現在のrouteは `w
 
 ## Phase 3 task domain
 
-Canonical task projections and actions are now implemented for all six recurrence types. Today/dashboard responses add scope metadata, period bounds, completed counts, and derived overdue state while preserving existing fields. Action requests use targetDate and the server resolves occurrence/period scope. Calendar UI is implemented; notification deep links, history/template UX, staging, production, and deployment remain future work.
+Canonical task projections and actions are now implemented for all six recurrence types. Today/dashboard responses add scope metadata, period bounds, completed counts, and derived overdue state while preserving existing fields. Action requests use targetDate and the server resolves occurrence/period scope. Calendar UI, recent task reuse, and task template UX are implemented; notification deep links, production rollout, and deployment remain future work.
 
 ### Calendar UI (implemented)
 
@@ -56,7 +56,7 @@ The authenticated app provides a mobile-first monthly Calendar at `/calendar`. I
 
 以下はROADMAP上の候補であり、現在仕様ではありません。
 
-- history / templateからのtask creation
+- notification deep-link and calendar deep-link synchronization
 - shopping planned purchase date and future integrations
 - shopping history・template UX、camera / photo-library選択
 - UI refinement、WebMCP、scheduler query optimization
@@ -64,4 +64,4 @@ The authenticated app provides a mobile-first monthly Calendar at `/calendar`. I
 
 ## 実装済みtask model
 
-task recurrenceは `once`、`daily`、`weekly_fixed`、`monthly_fixed`、`weekly_flexible`、`monthly_flexible` の6種です。deadlineとnotification offsetを分離し、flexible taskはperiod内の最低1回完了で達成、追加実施は履歴に残します。start_dateは未指定時に作成日のhousehold local dateを保存します。Task UI、canonical reminder scheduler、Calendar UIまで実装済みです。notification deep-link、history/template UX、Shopping planned purchase dateは未実装です。詳細は [TASK_MODEL_DESIGN.md](TASK_MODEL_DESIGN.md) を参照します。
+task recurrenceは `once`、`daily`、`weekly_fixed`、`monthly_fixed`、`weekly_flexible`、`monthly_flexible` の6種です。deadlineとnotification offsetを分離し、flexible taskはperiod内の最低1回完了で達成、追加実施は履歴に残します。start_dateは未指定時に作成日のhousehold local dateを保存します。Task UI、canonical reminder scheduler、Calendar UI、最近使ったタスクの再利用、Taskテンプレート管理まで実装済みです。ここでいう「最近使ったタスク」は実行履歴ではなく、既存のactiveなcanonical task definitionから生成するprefill候補です。テンプレートはactive taskやtask_recordsとは別の household-scoped definition で、Home、Calendar、schedulerには表示・投入しません。notification deep-link、Shopping planned purchase dateは未実装です。詳細は [TASK_MODEL_DESIGN.md](TASK_MODEL_DESIGN.md) を参照します。

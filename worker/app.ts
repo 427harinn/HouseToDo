@@ -42,12 +42,20 @@ import {
   dashboardTodayRoute,
   deleteTaskRoute,
   getTaskRoute,
+  recentTasksRoute,
   listTasksRoute,
   taskHistoryRoute,
   todayTasksRoute,
   updateTaskRoute,
   weekTasksRoute
 } from "./routes/tasks";
+import {
+  createTaskTemplateRoute,
+  deleteTaskTemplateRoute,
+  getTaskTemplateRoute,
+  listTaskTemplatesRoute,
+  updateTaskTemplateRoute
+} from "./routes/task-templates";
 import type { Env } from "./types/env";
 import {
   vapidPublicKeyRoute,
@@ -62,6 +70,7 @@ const routeApi = withErrorHandling(
     const url = new URL(context.request.url);
     const key = `${context.request.method} ${url.pathname}`;
     const taskPath = url.pathname.match(/^\/api\/tasks\/([^/]+)(?:\/([^/]+))?$/);
+    const taskTemplatePath = url.pathname.match(/^\/api\/task-templates\/([^/]+)$/);
     const shoppingItemPath = url.pathname.match(
       /^\/api\/shopping\/items\/([^/]+)(?:\/([^/]+))?$/
     );
@@ -69,7 +78,14 @@ const routeApi = withErrorHandling(
       /^\/api\/shopping\/templates\/([^/]+)(?:\/([^/]+))?$/
     );
 
-    if (taskPath && !["today", "week", "calendar"].includes(taskPath[1])) {
+    if (taskTemplatePath) {
+      const templateId = decodeURIComponent(taskTemplatePath[1]);
+      if (context.request.method === "GET") return getTaskTemplateRoute(templateId)(context);
+      if (context.request.method === "PATCH") return updateTaskTemplateRoute(templateId)(context);
+      if (context.request.method === "DELETE") return deleteTaskTemplateRoute(templateId)(context);
+    }
+
+    if (taskPath && !["today", "week", "calendar", "recent"].includes(taskPath[1])) {
       const taskId = decodeURIComponent(taskPath[1]);
       const action = taskPath[2];
       if (!action && context.request.method === "GET")
@@ -168,6 +184,8 @@ const routeApi = withErrorHandling(
         return joinHouseholdRoute(context);
       case "GET /api/tasks":
         return listTasksRoute(context);
+      case "GET /api/tasks/recent":
+        return recentTasksRoute(context);
       case "POST /api/tasks":
         return createTaskRoute(context);
       case "GET /api/tasks/today":
@@ -176,6 +194,10 @@ const routeApi = withErrorHandling(
         return weekTasksRoute(context);
       case "GET /api/tasks/calendar":
         return calendarTasksRoute(context);
+      case "GET /api/task-templates":
+        return listTaskTemplatesRoute(context);
+      case "POST /api/task-templates":
+        return createTaskTemplateRoute(context);
       case "GET /api/dashboard/today":
         return dashboardTodayRoute(context);
       case "GET /api/shopping/items":

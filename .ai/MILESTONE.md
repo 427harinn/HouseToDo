@@ -22,7 +22,7 @@
 
 ## Next objective
 
-Notification deep-link and history/template task creation remain future phases. Shopping planned purchase date remains future work.
+Recent task reuse and task template creation/edit/deactivation are complete locally. Notification deep-link, production rollout, and Shopping planned purchase date remain future work.
 
 ## Guardrails
 
@@ -40,3 +40,10 @@ Cron configuration and production resources remain untouched. Staging migration,
 - Staging weekly and monthly flexible tasks both passed `completedCount` 1 to 2 with two completed records in one `period_key`; completed reminder suppression and skip state passed.
 - Existing offset-positive smartphone Push and notification tap verification remains accepted from Phase 5. Production and git push remain prohibited.
 - Follow-up completed: the staging validator now expects the configured `*/5 * * * *` Cron.
+
+## Phase 6 local implementation (2026-08-14)
+
+- Recent task definitions use existing active canonical tasks, sorted by `created_at DESC` with an API limit of 8. Execution history (`task_records`) is not used as the reuse source; legacy weekly target count > 1 tasks are excluded.
+- Task templates use the additive `0013_task_templates.sql` table and household-scoped CRUD. Templates store only canonical reusable settings, never `startDate`, once `targetDate`, task records, or execution status.
+- Task create, task detail, and `/tasks/templates` use the shared canonical form/mapping. Recent/template selection prefills the form and never creates a task immediately.
+- Local unit/API tests, typecheck, lint, build, local migration, staging config validation, and targeted host Playwright passed. Docker was unavailable, so the Worker was verified with the host dev server. Staging, production, deployment, remote D1 mutation, and git push remained untouched.

@@ -508,3 +508,13 @@ Phase 2 accepts canonical `modelRecurrenceType` values while retaining legacy re
 ## 2026-08-14 Canonical reminders use stable task scope keys
 
 Tasks with `model_recurrence_type` use the shared occurrence/period projector to resolve a household-local deadline, subtract `notification_offset_minutes`, and store `task:{occurrence_key|period_key}` in `notification_deliveries.target_key`. They never also enter the legacy `notification_time` path. Tasks without a canonical model retain the legacy scheduler, preserving weekly target counts greater than one. Existing delivery windows, sent deduplication, pending claim leases, failure release, and retry behavior remain unchanged.
+
+## 2026-08-14 Recent task reuse and task templates are separate
+
+**Status:** Accepted — Phase 6 local implementation
+
+「最近使ったタスク」は実行履歴ではない。activeかつcanonicalな既存task definitionを`created_at DESC`で取得し、最大8件をcreate formのprefill候補として表示する。候補を選択しても即作成しない。taskごとに1件を表示し、recent専用tableやhash dedupは追加しない。legacy weekly target count > 1、inactive task、他householdのtaskは候補から除外する。
+
+Recent/templateからコピーするのはname、note、canonical recurrence設定、deadline/reminder、assignmentである。task ID、household ID、task records、occurrence/period key、execution history、status、created/updated timestamps、startDateはコピーしない。onceのtargetDateもコピーせず、missing specific assigneeは別memberへ置換せず再選択を要求する。
+
+明示的に保存するテンプレートはactive taskとは別の`task_templates` tableに置く。canonical six recurrence typesの設定だけを保存し、startDate、once targetDate、task_records、completion stateを持たせない。household memberだけが同一householdのtemplateをlist/create/edit/deactivateでき、deactivateは`active = 0`とする。templateはHome、Calendar、Dashboard、scheduler、action対象へ投影しない。`0013_task_templates.sql`はadditiveであり、既存tasks/task_recordsを変更しない。

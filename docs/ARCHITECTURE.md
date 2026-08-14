@@ -10,9 +10,9 @@ React + Viteの静的アセットをCloudflare Workers Static Assetsへ配置し
 
 ## Databaseとmigration
 
-リポジトリのmigrationは `0001_initial.sql` から `0011_notification_delivery_claim_lease.sql` までです。D1の現在schemaはmigrationファイルと実際の適用状況を分けて確認します。remote適用済みかどうかを本文に固定記載しません。
+リポジトリのmigrationは `0001_initial.sql` から `0013_task_templates.sql` までです。D1の現在schemaはmigrationファイルと実際の適用状況を分けて確認します。今回の0013はlocalで検証済みですが、remote適用済みかどうかを本文に固定記載しません。
 
-主な領域はusers / sessions、households / members / invites、tasks / weekdays / records、shopping items / templates / images、image usage / upload reservations / orphan cleanup、push_subscriptions、notification settings / logs / delivery claimです。
+主な領域はusers / sessions、households / members / invites、tasks / weekdays / records / task templates、shopping items / templates / images、image usage / upload reservations / orphan cleanup、push_subscriptions、notification settings / logs / delivery claimです。
 
 ## APIと認証
 
@@ -46,10 +46,10 @@ The React route is `/calendar`, added to the existing lightweight parser and bot
 
 詳細設計は [TASK_MODEL_DESIGN.md](TASK_MODEL_DESIGN.md) をsource of truthとする。実装時はtasksへcanonical schedule/deadline列を段階追加し、`task_weekdays`と既存recordsを互換利用する。recurrence計算、period key、resolved deadline、overdue判定はdomain helperへ隔離し、将来calendarとschedulerが同じprojectionを使う。
 
-API/service/repository、canonical projection/actions、task create/edit/detail/dashboard UI、notification scheduler、Calendar UI/APIまで実装済みです。CronとCloudflare設定は変更していません。future occurrencesをDBへpre-generateせず、date windowからon-demand projectionします。deep-linkとhistory/template UXは後続phaseです。
+API/service/repository、canonical projection/actions、task create/edit/detail/dashboard UI、notification scheduler、Calendar UI/API、recent task reuse、task template CRUD/UIまで実装済みです。CronとCloudflare設定は変更していません。future occurrencesをDBへpre-generateせず、date windowからon-demand projectionします。notification deep-linkは後続phaseです。
 
 Phase 1実装ではscheduler/UI互換のためlegacy `recurrence_type`を保持し、`model_recurrence_type`、deadline、start date、recurrence configをadditiveに追加する。schedulerの新deadline計算への切替、record actionの新period適用は後続phaseで行う。
 
 ## 構成の境界
 
-現在仕様と将来設計を混在させません。TaskService/Repository/API validation、canonical today/week projection、Task UI、deadline reminder scheduler、Calendar projectionはcanonical modelへ対応済みです。deep-link、history/template UX等は [ROADMAP.md](ROADMAP.md) に置きます。once/monthly系は`model_only` markerでlegacy処理から除外します。
+現在仕様と将来設計を混在させません。TaskService/Repository/API validation、canonical today/week projection、Task UI、deadline reminder scheduler、Calendar projectionはcanonical modelへ対応済みです。実行履歴はtask_recordsと既存history API、最近使ったタスクはactive canonical task definitionのcreated_at降順候補、テンプレートは`task_templates`の明示保存definitionとして分離します。recentは`GET /api/tasks/recent`で最大8件を返し、legacy weekly target count > 1、inactive task、他householdのtaskは除外します。templateは日付・records/historyを持たず、household authorization後にcreate formへprefillします。どちらもHome、Calendar、schedulerのtask projectionへ混入させません。notification deep-link等は [ROADMAP.md](ROADMAP.md) に置きます。once/monthly系は`model_only` markerでlegacy処理から除外します。

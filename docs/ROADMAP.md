@@ -10,14 +10,14 @@
 - [x] Canonical Task create/edit/detail/today UI and reminder scheduler
 - [x] Calendar UI and canonical range projection API
 - [x] Calendar staging verification and staging deployment
-- [ ] Deep links, history/template UX, production rollout
+- [x] Recent task reuse and task template UX
+- [ ] Notification deep links and production rollout
 
 ## Future work
 
-1. Task history / templateからのtask creation
-2. Task notification deep-link
-3. Calendar deep-link synchronization
-4. Shopping UX
+1. Task notification deep-link
+2. Calendar deep-link synchronization
+3. Shopping UX
    - history / templates
    - camera / photo-library選択
    - optional calendar integration
@@ -39,5 +39,5 @@ task modelの詳細、migration互換性、通知仕様は [TASK_MODEL_DESIGN.md
 - [x] Phase 3 task create/edit/detail UI
 - [x] Phase 4 scheduler/reminder migration
 - [ ] Phase 5 notification deep-link
-- [ ] Phase 6 history/template UX
+- [x] Phase 6 recent task reuse and template UX
 - [x] Phase 7 calendar

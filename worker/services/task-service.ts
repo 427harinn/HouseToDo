@@ -93,6 +93,11 @@ export class TaskService {
     return this.tasks.listByHouseholdId(household.id, { includeInactive });
   }
 
+  async listRecentTasks(userId: string, limit = 8): Promise<Task[]> {
+    const household = await this.households.requireCurrentHousehold(userId);
+    return this.tasks.listRecentCanonicalByHouseholdId(household.id, Math.min(Math.max(limit, 1), 10));
+  }
+
   async getTask(userId: string, taskId: string): Promise<Task> {
     const household = await this.households.requireCurrentHousehold(userId);
     return this.requireTask(household.id, taskId);

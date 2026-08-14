@@ -15,7 +15,10 @@
 ## Remaining future phases
 
 - Notification deep-link
-- History/template task creation UX
+- [x] Recent task definition reuse with household isolation, sorting, limit, inactive filtering, and legacy compatibility behavior
+- [x] Task template CRUD, canonical six recurrence types, household authorization, and logical deactivation
+- [x] Shared task form prefill with startDate/once targetDate/task identity/history exclusion
+- [x] Recent/template Playwright UI coverage, responsive screenshots, and trace artifacts
 - Production rollout
 - Shopping planned purchase date
 

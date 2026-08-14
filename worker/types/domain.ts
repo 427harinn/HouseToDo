@@ -98,6 +98,27 @@ export type Task = {
   weekdays: number[];
 };
 
+export type TaskTemplate = {
+  id: string;
+  householdId: string;
+  title: string;
+  description: string | null;
+  modelRecurrenceType: TaskModelRecurrenceType;
+  assignmentType: TaskAssignmentType;
+  assignedUserId: string | null;
+  weekdays: number[];
+  deadlineTime: string | null;
+  notificationOffsetMinutes: number | null;
+  weeklyDeadlineWeekday: number | null;
+  monthlyDayOfMonth: number | null;
+  monthlyDeadlineType: MonthlyDeadlineType | null;
+  active: boolean;
+  sortOrder: number;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type TaskRecord = {
   id: string;
   householdId: string;

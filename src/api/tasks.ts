@@ -52,6 +52,26 @@ export type Task = {
   updatedAt: string;
 };
 
+export type TaskTemplate = {
+  id: string;
+  title: string;
+  description: string | null;
+  modelRecurrenceType: TaskModelRecurrenceType;
+  assignmentType: TaskAssignmentType;
+  assignedUserId: string | null;
+  weekdays: number[];
+  deadlineTime: string | null;
+  notificationOffsetMinutes: number | null;
+  weeklyDeadlineWeekday: number | null;
+  monthlyDayOfMonth: number | null;
+  monthlyDeadlineType: "month_end" | "day_of_month" | null;
+  active: boolean;
+  sortOrder: number;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type TodayTask = Task & {
   status: TaskDisplayStatus;
   actedBy: TaskActor | null;
@@ -145,6 +165,22 @@ export type CreateTaskInput = {
 
 export type UpdateTaskInput = Partial<CreateTaskInput>;
 
+export type CreateTaskTemplateInput = {
+  title: string;
+  description: string | null;
+  modelRecurrenceType: TaskModelRecurrenceType;
+  assignmentType: TaskAssignmentType;
+  assignedUserId: string | null;
+  weekdays: number[];
+  deadlineTime: string | null;
+  notificationOffsetMinutes: number | null;
+  weeklyDeadlineWeekday: number | null;
+  monthlyDayOfMonth: number | null;
+  monthlyDeadlineType: "month_end" | "day_of_month" | null;
+};
+
+export type UpdateTaskTemplateInput = Partial<CreateTaskTemplateInput>;
+
 export type TaskActionInput = {
   targetDate?: string;
   targetWeekStart?: string;
@@ -162,6 +198,36 @@ const withQuery = (path: string, params: Record<string, string | boolean | numbe
 
 export const listTasks = (includeInactive = false, signal?: AbortSignal) =>
   apiRequest<{ tasks: Task[] }>(withQuery("/api/tasks", { includeInactive }), { signal });
+
+export const listRecentTaskDefinitions = (limit = 8, signal?: AbortSignal) =>
+  apiRequest<{ tasks: Task[] }>(withQuery("/api/tasks/recent", { limit }), { signal });
+
+export const listTaskTemplates = (signal?: AbortSignal) =>
+  apiRequest<{ templates: TaskTemplate[] }>("/api/task-templates", { signal });
+
+export const getTaskTemplate = (templateId: string, signal?: AbortSignal) =>
+  apiRequest<{ template: TaskTemplate }>(`/api/task-templates/${templateId}`, { signal });
+
+export const createTaskTemplate = (input: CreateTaskTemplateInput, signal?: AbortSignal) =>
+  apiRequest<{ template: TaskTemplate }>("/api/task-templates", {
+    method: "POST",
+    body: JSON.stringify(input),
+    signal
+  });
+
+export const updateTaskTemplate = (templateId: string, input: UpdateTaskTemplateInput, signal?: AbortSignal) =>
+  apiRequest<{ template: TaskTemplate }>(`/api/task-templates/${templateId}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+    signal
+  });
+
+export const deactivateTaskTemplate = (templateId: string, signal?: AbortSignal) =>
+  apiRequest<{ deleted: true }>(`/api/task-templates/${templateId}`, {
+    method: "DELETE",
+    body: JSON.stringify({}),
+    signal
+  });
 
 export const createTask = (input: CreateTaskInput, signal?: AbortSignal) =>
   apiRequest<{ task: Task }>("/api/tasks", {

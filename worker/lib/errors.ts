@@ -18,6 +18,8 @@ export type AppErrorCode =
   | "TASK_IN_PROGRESS_BY_OTHER_MEMBER"
   | "TASK_RECORD_NOT_FOUND"
   | "TASK_NOT_ACTIVE"
+  | "TASK_TEMPLATE_NOT_FOUND"
+  | "TASK_TEMPLATE_NOT_ACTIVE"
   | "INVALID_TARGET_DATE"
   | "INVALID_TARGET_WEEK"
   | "SHOPPING_ITEM_NOT_FOUND"
@@ -83,6 +85,20 @@ export const inactiveTaskError = () =>
     code: "TASK_NOT_ACTIVE",
     status: 409,
     message: "Task is inactive."
+  });
+
+export const taskTemplateNotFoundError = () =>
+  new AppError({
+    code: "TASK_TEMPLATE_NOT_FOUND",
+    status: 404,
+    message: "Task template was not found."
+  });
+
+export const inactiveTaskTemplateError = () =>
+  new AppError({
+    code: "TASK_TEMPLATE_NOT_ACTIVE",
+    status: 409,
+    message: "Task template is inactive."
   });
 
 export const taskConflictError = (code: AppErrorCode, message: string) =>

@@ -1043,3 +1043,80 @@ describe("worker app shopping API", () => {
     expect(hidden.status).toBe(404);
   });
 });
+
+describe("task reuse and template API", () => {
+  it("lists recent canonical definitions with household isolation, limit, sorting, and legacy exclusion", async () => {
+    const app = createApp();
+    const db = new MemoryD1();
+    const env = createTestEnv(db);
+    const owner = await registerUser(env, { email: "reuse-owner@example.com", password: "very-long-password", displayName: "Reuse Owner" });
+    const other = await registerUser(env, { email: "reuse-other@example.com", password: "very-long-password", displayName: "Reuse Other" });
+    await app.fetch(postJson("/api/households", { name: "Reuse House" }, owner.cookie), env);
+    await app.fetch(postJson("/api/households", { name: "Other House" }, other.cookie), env);
+    const create = async (title: string, extra: Record<string, unknown> = {}) => {
+      const response = await app.fetch(postJson("/api/tasks", {
+        title, modelRecurrenceType: "daily", assignmentType: "anyone", notificationSlot: "none", ...extra
+      }, owner.cookie), env);
+      expect(response.status).toBe(201);
+      const body: { data: { task: { id: string } } } = await response.json();
+      return body.data.task.id;
+    };
+    const first = await create("first");
+    const second = await create("second");
+    const third = await create("third");
+    db.tasks.get(first)!.created_at = "2026-08-01T00:00:00.000Z";
+    db.tasks.get(second)!.created_at = "2026-08-03T00:00:00.000Z";
+    db.tasks.get(third)!.created_at = "2026-08-02T00:00:00.000Z";
+    const legacy = await app.fetch(postJson("/api/tasks", { title: "legacy weekly", recurrenceType: "weekly", weeklyTargetCount: 3, assignmentType: "anyone", notificationSlot: "none" }, owner.cookie), env);
+    expect(legacy.status).toBe(201);
+    await app.fetch(new Request(`https://example.test/api/tasks/${first}`, { method: "DELETE", headers: { "content-type": "application/json", origin: "https://example.test", cookie: owner.cookie }, body: "{}" }), env);
+
+    const recent = await app.fetch(new Request("https://example.test/api/tasks/recent?limit=2", { headers: { cookie: owner.cookie } }), env);
+    await expect(recent.json()).resolves.toMatchObject({ ok: true, data: { tasks: [{ title: "second" }, { title: "third" }] } });
+    const isolated = await app.fetch(new Request("https://example.test/api/tasks/recent", { headers: { cookie: other.cookie } }), env);
+    await expect(isolated.json()).resolves.toMatchObject({ ok: true, data: { tasks: [] } });
+  });
+
+  it("supports canonical template CRUD, six recurrence types, assignment validation, and household isolation", async () => {
+    const app = createApp();
+    const env = createTestEnv();
+    const owner = await registerUser(env, { email: "template-owner@example.com", password: "very-long-password", displayName: "Template Owner" });
+    const other = await registerUser(env, { email: "template-other@example.com", password: "very-long-password", displayName: "Template Other" });
+    await app.fetch(postJson("/api/households", { name: "Template House" }, owner.cookie), env);
+    await app.fetch(postJson("/api/households", { name: "Other Template House" }, other.cookie), env);
+    const cases = [
+      { modelRecurrenceType: "once" },
+      { modelRecurrenceType: "daily" },
+      { modelRecurrenceType: "weekly_fixed", weekdays: [2, 5] },
+      { modelRecurrenceType: "monthly_fixed", monthlyDayOfMonth: 31 },
+      { modelRecurrenceType: "weekly_flexible", weeklyDeadlineWeekday: 5 },
+      { modelRecurrenceType: "monthly_flexible", monthlyDeadlineType: "month_end" }
+    ];
+    for (const [index, schedule] of cases.entries()) {
+      const response = await app.fetch(postJson("/api/task-templates", {
+        title: `Template ${index}`, description: "reusable", assignmentType: "anyone", ...schedule
+      }, owner.cookie), env);
+      expect(response.status, JSON.stringify(schedule)).toBe(201);
+    }
+    const created = await app.fetch(postJson("/api/task-templates", {
+      title: "Editable template", modelRecurrenceType: "daily", assignmentType: "anyone", deadlineTime: "21:00", notificationOffsetMinutes: 30
+    }, owner.cookie), env);
+    expect(created.status).toBe(201);
+    const createdBody: { data: { template: { id: string; deadlineTime: string; notificationOffsetMinutes: number } } } = await created.json();
+    expect(createdBody.data.template).toMatchObject({ deadlineTime: "21:00", notificationOffsetMinutes: 30 });
+    const listed = await app.fetch(new Request("https://example.test/api/task-templates", { headers: { cookie: owner.cookie } }), env);
+    const listedBody: { data: { templates: Array<{ title: string }> } } = await listed.json();
+    expect(listedBody.data.templates.map((template) => template.title)).toContain("Template 0");
+    const updated = await app.fetch(patchJson(`/api/task-templates/${createdBody.data.template.id}`, { title: "Edited template", deadlineTime: null, notificationOffsetMinutes: null }, owner.cookie), env);
+    await expect(updated.json()).resolves.toMatchObject({ ok: true, data: { template: { title: "Edited template", deadlineTime: null, notificationOffsetMinutes: null } } });
+    const hidden = await app.fetch(new Request(`https://example.test/api/task-templates/${createdBody.data.template.id}`, { headers: { cookie: other.cookie } }), env);
+    expect(hidden.status).toBe(404);
+    const deleted = await app.fetch(new Request(`https://example.test/api/task-templates/${createdBody.data.template.id}`, { method: "DELETE", headers: { "content-type": "application/json", origin: "https://example.test", cookie: owner.cookie }, body: "{}" }), env);
+    expect(deleted.status).toBe(200);
+    const afterDelete = await app.fetch(new Request("https://example.test/api/task-templates", { headers: { cookie: owner.cookie } }), env);
+    const afterDeleteBody: { data: { templates: Array<{ title: string }> } } = await afterDelete.json();
+    expect(afterDeleteBody.data.templates.some((template) => template.title === "Edited template")).toBe(false);
+    const invalidAssignee = await app.fetch(postJson("/api/task-templates", { title: "Invalid assignee", modelRecurrenceType: "daily", assignmentType: "specific", assignedUserId: "missing", }, owner.cookie), env);
+    expect(invalidAssignee.status).toBe(400);
+  });
+});

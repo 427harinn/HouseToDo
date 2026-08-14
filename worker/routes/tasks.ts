@@ -103,6 +103,13 @@ export const listTasksRoute: Handler = requireAuth(async (context) => {
   return okJson({ tasks: tasks.map(taskResponse) }, context.requestId);
 });
 
+export const recentTasksRoute: Handler = requireAuth(async (context) => {
+  const user = requireUser(context.user);
+  const limit = validateLimitQuery(context.request, 8, 10);
+  const tasks = await new TaskService(context.env.DB).listRecentTasks(user.id, limit);
+  return okJson({ tasks: tasks.map(taskResponse) }, context.requestId);
+});
+
 export const createTaskRoute: Handler = requireAuth(async (context) => {
   const user = requireUser(context.user);
   const input = validateTaskWriteInput(await parseJsonBody(context.request));

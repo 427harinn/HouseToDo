@@ -120,6 +120,22 @@ export type TaskWriteInput = {
 
 export type TaskPatchInput = Partial<TaskWriteInput>;
 
+export type TaskTemplateWriteInput = {
+  title: string;
+  description: string | null;
+  modelRecurrenceType: TaskModelRecurrenceType;
+  assignmentType: TaskAssignmentType;
+  assignedUserId: string | null;
+  weekdays: number[];
+  deadlineTime: string | null;
+  notificationOffsetMinutes: number | null;
+  weeklyDeadlineWeekday: number | null;
+  monthlyDayOfMonth: number | null;
+  monthlyDeadlineType: MonthlyDeadlineType | null;
+};
+
+export type TaskTemplatePatchInput = Partial<TaskTemplateWriteInput>;
+
 export type TaskStateInput = {
   targetDate?: string;
   targetWeekStart?: string;
@@ -460,6 +476,92 @@ const patchKeys = new Set([
   "weekdays", "weeklyTargetCount", "startDate", "targetDate", "deadlineTime", "notificationOffsetMinutes",
   "weeklyDeadlineWeekday", "monthlyDayOfMonth", "monthlyDeadlineDay", "monthlyDeadlineType"
 ]);
+
+const templateKeys = new Set([
+  "title", "name", "description", "note", "modelRecurrenceType", "assignmentType",
+  "assignment", "assignedUserId", "assignee", "weekdays", "deadlineTime",
+  "notificationOffsetMinutes", "weeklyDeadlineWeekday", "monthlyDayOfMonth",
+  "monthlyDeadlineDay", "monthlyDeadlineType"
+]);
+
+export const validateTaskTemplateWriteInput = (value: unknown): TaskTemplateWriteInput => {
+  const input = asObject(value);
+  const unknown = Object.keys(input).filter((key) => !templateKeys.has(key));
+  if (unknown.length > 0) throw validationError({ [unknown[0]]: "Unsupported task template field." });
+  const modelRecurrenceType = input.modelRecurrenceType;
+  const assignment = input.assignment && typeof input.assignment === "object" ? asObject(input.assignment) : null;
+  const assignee = input.assignee && typeof input.assignee === "object" ? asObject(input.assignee) : null;
+  const assignmentType = input.assignmentType ?? assignment?.type ?? (assignee ? "specific" : "anyone");
+  const assignedUserId = input.assignedUserId === undefined || input.assignedUserId === null
+    ? typeof input.assignee === "string"
+      ? input.assignee.trim()
+      : assignee?.userId ?? assignment?.userId ?? (assignment?.user && typeof assignment.user === "object" ? asObject(assignment.user).userId : null) ?? null
+    : input.assignedUserId;
+  const recurrence = typeof modelRecurrenceType === "string" ? modelRecurrenceType : "";
+  const normalized = validateTaskWriteInput({
+    title: "title" in input ? input.title : input.name,
+    description: "description" in input ? input.description : input.note,
+    recurrenceType: recurrence,
+    modelRecurrenceType,
+    assignmentType,
+    assignedUserId,
+    scheduledTime: null,
+    notificationSlot: "none",
+    notificationTime: null,
+    weekdays: input.weekdays,
+    weeklyTargetCount: null,
+    startDate: null,
+    targetDate: recurrence === "once" ? "2000-01-01" : null,
+    deadlineTime: input.deadlineTime,
+    notificationOffsetMinutes: input.notificationOffsetMinutes,
+    weeklyDeadlineWeekday: input.weeklyDeadlineWeekday,
+    monthlyDayOfMonth: input.monthlyDayOfMonth ?? input.monthlyDeadlineDay,
+    monthlyDeadlineType: input.monthlyDeadlineType
+  });
+  if (!normalized.modelRecurrenceType) throw validationError({ modelRecurrenceType: "Canonical recurrence is required." });
+  return {
+    title: normalized.title,
+    description: normalized.description,
+    modelRecurrenceType: normalized.modelRecurrenceType,
+    assignmentType: normalized.assignmentType,
+    assignedUserId: normalized.assignedUserId,
+    weekdays: normalized.weekdays,
+    deadlineTime: normalized.deadlineTime ?? null,
+    notificationOffsetMinutes: normalized.notificationOffsetMinutes ?? null,
+    weeklyDeadlineWeekday: normalized.weeklyDeadlineWeekday ?? null,
+    monthlyDayOfMonth: normalized.monthlyDayOfMonth ?? null,
+    monthlyDeadlineType: normalized.monthlyDeadlineType ?? null
+  };
+};
+
+  export const validateTaskTemplatePatchInput = (value: unknown): TaskTemplatePatchInput => {
+  const input = asObject(value);
+  const unknown = Object.keys(input).filter((key) => !templateKeys.has(key));
+  if (unknown.length > 0) throw validationError({ [unknown[0]]: "Unsupported task template field." });
+  const output: Record<string, unknown> = {};
+    for (const key of templateKeys) if (key in input) output[key] = input[key];
+    if ("name" in output && !("title" in output)) output.title = output.name;
+    if ("note" in output && !("description" in output)) output.description = output.note;
+    if ("monthlyDeadlineDay" in output && !("monthlyDayOfMonth" in output)) output.monthlyDayOfMonth = output.monthlyDeadlineDay;
+    if ("assignment" in output && typeof output.assignment === "object" && output.assignment !== null) {
+      const assignment = asObject(output.assignment);
+      if (!("assignmentType" in output) && typeof assignment.type === "string") output.assignmentType = assignment.type;
+      if (!("assignedUserId" in output)) {
+        const user = assignment.user && typeof assignment.user === "object" ? asObject(assignment.user) : null;
+        if (typeof assignment.userId === "string") output.assignedUserId = assignment.userId;
+        else if (typeof user?.userId === "string") output.assignedUserId = user.userId;
+      }
+    }
+    if ("assignee" in output && !("assignedUserId" in output) && typeof output.assignee === "string") {
+      output.assignedUserId = output.assignee;
+    }
+    delete output.name;
+    delete output.note;
+    delete output.monthlyDeadlineDay;
+    delete output.assignment;
+    delete output.assignee;
+    return output as TaskTemplatePatchInput;
+  };
 
 export const validateTaskPatchInput = (value: unknown): TaskPatchInput => {
   const input = asObject(value);

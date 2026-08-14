@@ -50,15 +50,22 @@ import {
 import {
   changeTaskState,
   createTask,
+  createTaskTemplate,
   deactivateTask,
+  deactivateTaskTemplate,
   getTask,
+  getTaskTemplate,
+  listRecentTaskDefinitions,
   listTaskHistory,
   listTasks,
+  listTaskTemplates,
   listCalendarTasks,
   listTodayTasks,
   listWeekTasks,
   updateTask,
+  updateTaskTemplate,
   type Task,
+  type TaskTemplate,
   type TaskDisplayStatus,
   type TaskRecord,
   type TaskRecurrenceType,
@@ -96,7 +103,10 @@ import {
   notificationPresetLabel,
   recurrenceDescription,
   taskFormToPayload,
+  taskFormToTemplatePayload,
   taskToFormState,
+  taskTemplateToFormState,
+  taskToTemplatePayload,
   validateTaskFormState,
   type TaskFormErrors,
   type TaskFormRecurrence,
@@ -127,6 +137,7 @@ type StaticRoute =
   | "/settings/members"
   | "/tasks"
   | "/tasks/new"
+  | "/tasks/templates"
   | "/shopping"
   | "/shopping/new"
   | "/shopping/templates"
@@ -137,6 +148,7 @@ type Route =
   | { name: "/tasks/:taskId"; taskId: string }
   | { name: "/tasks/:taskId/edit"; taskId: string }
   | { name: "/tasks/:taskId/respond"; taskId: string }
+  | { name: "/tasks/templates/:templateId/edit"; templateId: string }
   | { name: "/shopping/items/:itemId"; itemId: string }
   | { name: "/shopping/items/:itemId/edit"; itemId: string }
   | { name: "/shopping/templates/:templateId/edit"; templateId: string };
@@ -146,6 +158,7 @@ type NavigationPath =
   | "/calendar"
   | "/tasks"
   | "/tasks/new"
+  | "/tasks/templates"
   | "/shopping"
   | "/shopping/new"
   | "/shopping/templates"
@@ -154,6 +167,7 @@ type NavigationPath =
   | `/tasks/${string}`
   | `/tasks/${string}/edit`
   | `/tasks/${string}/respond`
+  | `/tasks/templates/${string}/edit`
   | `/shopping/items/${string}`
   | `/shopping/items/${string}/edit`
   | `/shopping/templates/${string}/edit`;
@@ -173,6 +187,7 @@ const staticRoutes = new Set<StaticRoute>([
   "/settings/members",
   "/tasks",
   "/tasks/new",
+  "/tasks/templates",
   "/shopping",
   "/shopping/new",
   "/shopping/templates",
@@ -185,6 +200,9 @@ const parseRoute = (pathname: string): Route => {
   const taskEdit = pathname.match(/^\/tasks\/([^/]+)\/edit$/);
   if (taskEdit)
     return { name: "/tasks/:taskId/edit", taskId: decodeURIComponent(taskEdit[1]) };
+  const taskTemplateEdit = pathname.match(/^\/tasks\/templates\/([^/]+)\/edit$/);
+  if (taskTemplateEdit)
+    return { name: "/tasks/templates/:templateId/edit", templateId: decodeURIComponent(taskTemplateEdit[1]) };
   const taskRespond = pathname.match(/^\/tasks\/([^/]+)\/respond$/);
   if (taskRespond)
     return {
@@ -229,6 +247,7 @@ const isAppRoute = (route: Route) =>
   route.name === "/settings/members" ||
   route.name === "/tasks" ||
   route.name === "/tasks/new" ||
+  route.name === "/tasks/templates" ||
   route.name === "/shopping" ||
   route.name === "/shopping/new" ||
   route.name === "/shopping/templates" ||
@@ -506,6 +525,9 @@ export function App() {
   if (route.name === "/tasks") return <TaskListScreen {...shellProps} />;
   if (route.name === "/tasks/new")
     return <TaskFormScreen {...shellProps} mode="create" />;
+  if (route.name === "/tasks/templates") return <TaskTemplateListScreen {...shellProps} />;
+  if (route.name === "/tasks/templates/:templateId/edit")
+    return <TaskFormScreen {...shellProps} mode="template-edit" templateId={route.templateId} />;
   if (route.name === "/tasks/:taskId/edit")
     return <TaskFormScreen {...shellProps} mode="edit" taskId={route.taskId} />;
   if (route.name === "/tasks/:taskId")
@@ -1350,9 +1372,10 @@ function TaskListScreen({
         title="タスク"
         description="家事の登録と編集"
         action={
-          <Button variant="ghost" onClick={onLogout}>
-            ログアウト
-          </Button>
+          <div className="inline-actions">
+            <Button variant="secondary" onClick={() => onNavigate("/tasks/templates")}>テンプレート</Button>
+            <Button variant="ghost" onClick={onLogout}>ログアウト</Button>
+          </div>
         }
       />
       <ErrorMessage message={message} />
@@ -1451,27 +1474,41 @@ function TaskFormScreen({
   household,
   mode,
   taskId,
+  templateId,
   onNavigate
 }: {
   household: Household;
   user: AuthUser;
-  mode: "create" | "edit";
+  mode: "create" | "edit" | "template-edit";
   taskId?: string;
+  templateId?: string;
   onNavigate: (route: NavigationPath) => void;
   onLogout: () => void;
 }) {
+  const templateMode = mode === "template-edit";
   const [members, setMembers] = useState<HouseholdMember[]>([]);
+  const [recentTasks, setRecentTasks] = useState<Task[]>([]);
+  const [templates, setTemplates] = useState<TaskTemplate[]>([]);
   const [form, setForm] = useState<TaskFormState>(() => defaultTaskForm());
   const [originalForm, setOriginalForm] = useState<TaskFormState | null>(null);
   const [errors, setErrors] = useState<TaskFormErrors>({});
   const [message, setMessage] = useState("");
-  const [loading, setLoading] = useState(mode === "edit");
+  const [loading, setLoading] = useState(mode !== "create");
   const [submitting, setSubmitting] = useState(false);
   useEffect(() => {
     const controller = new AbortController();
-    listMembers(controller.signal)
-      .then((result) => setMembers(result.members))
-      .catch(() => undefined);
+    listMembers(controller.signal).then((result) => setMembers(result.members)).catch(() => undefined);
+    if (mode === "create") {
+      Promise.all([listRecentTaskDefinitions(8, controller.signal), listTaskTemplates(controller.signal)])
+        .then(([recent, templateResult]) => {
+          setRecentTasks(recent.tasks);
+          setTemplates(templateResult.templates.filter((template) => template.active));
+        })
+        .catch((error) => {
+          if (!(error instanceof DOMException && error.name === "AbortError")) setMessage(apiErrorMessage(error));
+        })
+        .finally(() => setLoading(false));
+    }
     if (mode === "edit" && taskId) {
       getTask(taskId, controller.signal)
         .then((result) => {
@@ -1485,8 +1522,20 @@ function TaskFormScreen({
         })
         .finally(() => setLoading(false));
     }
+    if (templateMode && templateId) {
+      getTaskTemplate(templateId, controller.signal)
+        .then((result) => {
+          const next = taskTemplateToFormState(result.template);
+          setForm(next);
+          setOriginalForm(next);
+        })
+        .catch((error) => {
+          if (!(error instanceof DOMException && error.name === "AbortError")) setMessage(apiErrorMessage(error));
+        })
+        .finally(() => setLoading(false));
+    }
     return () => controller.abort();
-  }, [mode, taskId]);
+  }, [mode, taskId, templateId, templateMode]);
   const setField = <K extends keyof TaskFormState>(
     key: K,
     value: TaskFormState[K]
@@ -1496,22 +1545,29 @@ function TaskFormScreen({
   };
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    const nextErrors = validateTaskFormState(form);
+    const nextErrors = validateTaskFormState(form, { template: templateMode });
     setErrors(nextErrors);
     setMessage("");
     if (Object.keys(nextErrors).length > 0) return;
     setSubmitting(true);
     try {
-      const payload = taskFormToPayload(form);
-      const originalPayload = originalForm ? taskFormToPayload(originalForm) : null;
-      const patch = originalPayload
-        ? Object.fromEntries(Object.entries(payload).filter(([key, value]) => JSON.stringify(value) !== JSON.stringify(originalPayload[key as keyof typeof originalPayload])))
-        : payload;
-      const result =
-        mode === "edit" && taskId
-          ? await updateTask(taskId, patch)
-          : await createTask(payload);
-      onNavigate(`/tasks/${result.task.id}`);
+      if (templateMode && templateId) {
+        const payload = taskFormToTemplatePayload(form);
+        const originalPayload = originalForm ? taskFormToTemplatePayload(originalForm) : null;
+        const patch = originalPayload
+          ? Object.fromEntries(Object.entries(payload).filter(([key, value]) => JSON.stringify(value) !== JSON.stringify(originalPayload[key as keyof typeof originalPayload])))
+          : payload;
+        await updateTaskTemplate(templateId, patch);
+        onNavigate("/tasks/templates");
+      } else {
+        const payload = taskFormToPayload(form);
+        const originalPayload = originalForm ? taskFormToPayload(originalForm) : null;
+        const patch = originalPayload
+          ? Object.fromEntries(Object.entries(payload).filter(([key, value]) => JSON.stringify(value) !== JSON.stringify(originalPayload[key as keyof typeof originalPayload])))
+          : payload;
+        const result = mode === "edit" && taskId ? await updateTask(taskId, patch) : await createTask(payload);
+        onNavigate(`/tasks/${result.task.id}`);
+      }
     } catch (error) {
       setMessage(apiErrorMessage(error));
       if (error instanceof ApiError && error.details) setErrors(error.details);
@@ -1520,12 +1576,18 @@ function TaskFormScreen({
     }
   };
   if (loading) return <LoadingScreen message="タスクを読み込んでいます" />;
+  const applyReuseForm = (next: TaskFormState) => {
+    const assigneeAvailable = !next.assignedUserId || members.some((member) => member.userId === next.assignedUserId);
+    setForm({ ...next, startDate: "", targetDate: "", assignedUserId: assigneeAvailable ? next.assignedUserId : null });
+    setErrors(assigneeAvailable ? {} : { assignedUserId: "担当メンバーを選択してください。" });
+  };
   return (
     <AppFrame current="/tasks" onNavigate={onNavigate}>
       <PageHeader
-        title={mode === "create" ? "タスクを追加" : "タスクを編集"}
+        title={mode === "create" ? "タスクを追加" : templateMode ? "テンプレートを編集" : "タスクを編集"}
         description={household.name}
       />
+      {mode === "create" ? <TaskReusePanel recentTasks={recentTasks} templates={templates} onRecentSelect={(task) => applyReuseForm(taskToFormState(task))} onTemplateSelect={(template) => applyReuseForm(taskTemplateToFormState(template))} /> : null}
       <Card>
         <form
           className="stack"
@@ -1566,14 +1628,14 @@ function TaskFormScreen({
           )}
           {form.recurrence === "weekly_flexible" ? <p className="field-hint">週の中で1回やれば完了です。</p> : null}
           {form.recurrence === "monthly_flexible" ? <p className="field-hint">月の中で1回やれば完了です。</p> : null}
-          {form.recurrence === "once" ? (
+          {!templateMode && form.recurrence === "once" ? (
             <FormField id="task-target-date" label="実施日（必須）" error={errors.targetDate}>
               <input id="task-target-date" type="date" value={form.targetDate}
                 aria-describedby={errors.targetDate ? "task-target-date-error" : undefined}
                 aria-invalid={errors.targetDate ? "true" : "false"}
                 onChange={(event) => setField("targetDate", event.target.value)} />
             </FormField>
-          ) : form.recurrence !== "legacy_weekly" ? (
+          ) : !templateMode && form.recurrence !== "legacy_weekly" ? (
             <FormField id="task-start-date" label="開始日" error={errors.startDate}>
               <input id="task-start-date" type="date" value={form.startDate}
                 onChange={(event) => setField("startDate", event.target.value)} />
@@ -1679,6 +1741,7 @@ function TaskFormScreen({
           <Button disabled={submitting} type="submit">
             {submitting ? <InlineLoading /> : "保存する"}
           </Button>
+          {templateMode ? <Button variant="ghost" onClick={() => onNavigate("/tasks/templates")}>一覧へ戻る</Button> : null}
         </form>
       </Card>
     </AppFrame>
@@ -1718,6 +1781,70 @@ function SelectField({
         {children}
       </select>
     </FormField>
+    </div>
+  );
+}
+
+function taskTemplateRecurrenceDescription(template: TaskTemplate): string {
+  return recurrenceDescription({
+    modelRecurrenceType: template.modelRecurrenceType,
+    recurrenceType: template.modelRecurrenceType,
+    weekdays: template.weekdays,
+    monthlyDayOfMonth: template.monthlyDayOfMonth,
+    weeklyDeadlineWeekday: template.weeklyDeadlineWeekday,
+    monthlyDeadlineType: template.monthlyDeadlineType
+  });
+}
+
+function TaskReusePanel({
+  recentTasks,
+  templates,
+  onRecentSelect,
+  onTemplateSelect
+}: {
+  recentTasks: Task[];
+  templates: TaskTemplate[];
+  onRecentSelect: (task: Task) => void;
+  onTemplateSelect: (template: TaskTemplate) => void;
+}) {
+  return (
+    <div className="task-reuse-grid">
+      <Card className="task-reuse-card">
+        <div className="section-heading">
+          <h2>最近使ったタスク</h2>
+          <span>{recentTasks.length}件</span>
+        </div>
+        {recentTasks.length === 0 ? (
+          <p className="field-hint">作成したタスクがここに表示されます。</p>
+        ) : (
+          <div className="task-reuse-list">
+            {recentTasks.map((task) => (
+              <button className="task-reuse-item" key={task.id} type="button" onClick={() => onRecentSelect(task)}>
+                <strong>{task.title}</strong>
+                <small>{recurrenceDescription(task)}</small>
+              </button>
+            ))}
+          </div>
+        )}
+      </Card>
+      <Card className="task-reuse-card">
+        <div className="section-heading">
+          <h2>テンプレート</h2>
+          <span>{templates.length}件</span>
+        </div>
+        {templates.length === 0 ? (
+          <p className="field-hint">タスク詳細から設定を保存できます。</p>
+        ) : (
+          <div className="task-reuse-list">
+            {templates.map((template) => (
+              <button className="task-reuse-item" key={template.id} type="button" onClick={() => onTemplateSelect(template)}>
+                <strong>{template.title}</strong>
+                <small>{taskTemplateRecurrenceDescription(template)}{template.deadlineTime ? ` / ${template.deadlineTime}まで` : ""}</small>
+              </button>
+            ))}
+          </div>
+        )}
+      </Card>
     </div>
   );
 }
@@ -1800,6 +1927,21 @@ function TaskDetailScreen({
     } catch (error) {
       setMessage(apiErrorMessage(error));
       await refresh();
+    } finally {
+      setBusyAction(null);
+    }
+  };
+  const saveAsTemplate = async () => {
+    if (!task) return;
+    const payload = taskToTemplatePayload(task);
+    if (!payload) return;
+    setBusyAction("template");
+    setMessage("");
+    try {
+      await createTaskTemplate(payload);
+      onNavigate("/tasks/templates");
+    } catch (error) {
+      setMessage(apiErrorMessage(error));
     } finally {
       setBusyAction(null);
     }
@@ -1929,6 +2071,9 @@ function TaskDetailScreen({
               編集する
             </Button>
           ) : null}
+          {!compact && visibleTask.modelRecurrenceType ? <Button variant="ghost" disabled={busyAction !== null} onClick={() => void saveAsTemplate()}>
+            {busyAction === "template" ? <InlineLoading /> : "テンプレートとして保存"}
+          </Button> : null}
         </div>
       </Card>
       {!compact ? <HistoryCard records={history} /> : null}
@@ -1962,6 +2107,83 @@ function HistoryCard({ records }: { records: TaskRecord[] }) {
         </ul>
       )}
     </Card>
+  );
+}
+
+function TaskTemplateListScreen({
+  household,
+  onNavigate
+}: {
+  household: Household;
+  user: AuthUser;
+  onNavigate: (route: NavigationPath) => void;
+  onLogout: () => void;
+}) {
+  const [templates, setTemplates] = useState<TaskTemplate[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
+  const [success, setSuccess] = useState("");
+  const [busy, setBusy] = useState<string | null>(null);
+  const refresh = useCallback(async (signal?: AbortSignal) => {
+    setLoading(true);
+    try {
+      const result = await listTaskTemplates(signal);
+      setTemplates(result.templates.filter((template) => template.active));
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === "AbortError")) setMessage(apiErrorMessage(error));
+    } finally {
+      if (!signal?.aborted) setLoading(false);
+    }
+  }, []);
+  useEffect(() => {
+    const controller = new AbortController();
+    void refresh(controller.signal);
+    return () => controller.abort();
+  }, [refresh]);
+  const deactivate = async (template: TaskTemplate) => {
+    if (!window.confirm("このテンプレートを無効化しますか？作成済みのタスクには影響しません。")) return;
+    setBusy(template.id);
+    setMessage("");
+    setSuccess("");
+    try {
+      await deactivateTaskTemplate(template.id);
+      await refresh();
+      setSuccess("テンプレートを無効化しました。");
+    } catch (error) {
+      setMessage(apiErrorMessage(error));
+    } finally {
+      setBusy(null);
+    }
+  };
+  return (
+    <AppFrame current="/tasks" onNavigate={onNavigate}>
+      <PageHeader title="タスクテンプレート" description={household.name} action={<Button onClick={() => onNavigate("/tasks/new")}>タスクを追加</Button>} />
+      <ErrorMessage message={message} />
+      <SuccessMessage message={success} />
+      <Card>
+        {loading ? <p role="status">テンプレートを読み込んでいます。</p> : templates.length === 0 ? (
+          <EmptyState title="テンプレートはまだありません" description="タスク詳細から設定を保存できます。" />
+        ) : (
+          <div className="template-list">
+            {templates.map((template) => (
+              <article className="management-card" key={template.id}>
+                <div>
+                  <strong>{template.title}</strong>
+                  <small>{taskTemplateRecurrenceDescription(template)}</small>
+                  <small>{template.deadlineTime ? `${template.deadlineTime}まで / ` : ""}{notificationPresetLabel(template.notificationOffsetMinutes)}</small>
+                </div>
+                <div className="inline-actions">
+                  <Button onClick={() => onNavigate("/tasks/new")}>作成画面で使う</Button>
+                  <Button variant="secondary" onClick={() => onNavigate(`/tasks/templates/${template.id}/edit`)}>編集</Button>
+                  <Button variant="danger" disabled={busy === template.id} onClick={() => void deactivate(template)}>無効化</Button>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </Card>
+      <Button variant="ghost" onClick={() => onNavigate("/tasks")}>タスク一覧へ戻る</Button>
+    </AppFrame>
   );
 }
 

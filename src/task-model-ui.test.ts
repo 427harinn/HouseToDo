@@ -4,7 +4,10 @@ import {
   changeTaskFormRecurrence,
   defaultTaskForm,
   taskFormToPayload,
+  taskFormToTemplatePayload,
+  taskTemplateToFormState,
   taskToFormState,
+  taskToTemplatePayload,
   validateTaskFormState
 } from "./task-model-ui";
 
@@ -61,5 +64,35 @@ describe("task model form mapping", () => {
     } satisfies Task);
     expect(legacy).toMatchObject({ recurrence: "legacy_weekly", weeklyTargetCount: 3, legacyNotificationTime: "20:00" });
     expect(taskFormToPayload(legacy)).toMatchObject({ recurrenceType: "weekly", weeklyTargetCount: 3, notificationTime: "20:00" });
+  });
+
+  it("prefills reusable definitions without copying dates or task identity", () => {
+    const task = {
+      id: "old-task", title: "ゴミ出し", description: "朝", recurrenceType: "weekly_fixed", modelRecurrenceType: "weekly_fixed",
+      assignmentType: "anyone", assignedUserId: null, assignment: { type: "anyone", user: null }, scheduledTime: null,
+      notificationSlot: "none", notificationTime: null, weekdays: [2, 5], weeklyTargetCount: null, startDate: "2026-07-01",
+      targetDate: null, deadlineTime: "21:00", notificationOffsetMinutes: 30, weeklyDeadlineWeekday: null,
+      monthlyDayOfMonth: null, monthlyDeadlineType: null, active: true, sortOrder: 1, createdBy: "user",
+      createdAt: "2026-07-01", updatedAt: "2026-07-02"
+    } satisfies Task;
+    const form = taskToFormState(task);
+    expect(form).toMatchObject({ title: "ゴミ出し", startDate: "2026-07-01", deadlineTime: "21:00" });
+    const templatePayload = taskToTemplatePayload(task);
+    expect(templatePayload).toMatchObject({ title: "ゴミ出し", modelRecurrenceType: "weekly_fixed", weekdays: [2, 5], deadlineTime: "21:00", notificationOffsetMinutes: 30 });
+    expect(templatePayload).not.toHaveProperty("startDate");
+    expect(templatePayload).not.toHaveProperty("targetDate");
+  });
+
+  it("requires a new date when once definitions are reused", () => {
+    const form = taskTemplateToFormState({
+      id: "template", title: "一度だけ", description: null, modelRecurrenceType: "once", assignmentType: "anyone",
+      assignedUserId: null, weekdays: [], deadlineTime: null, notificationOffsetMinutes: null,
+      weeklyDeadlineWeekday: null, monthlyDayOfMonth: null, monthlyDeadlineType: null,
+      active: true, sortOrder: 1, createdBy: "user", createdAt: "2026-01-01", updatedAt: "2026-01-01"
+    });
+    expect(form).toMatchObject({ targetDate: "", startDate: "", recurrence: "once" });
+    expect(validateTaskFormState(form)).toHaveProperty("targetDate");
+    expect(validateTaskFormState(form, { template: true })).not.toHaveProperty("targetDate");
+    expect(taskFormToTemplatePayload(form)).toMatchObject({ modelRecurrenceType: "once" });
   });
 });

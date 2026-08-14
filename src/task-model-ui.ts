@@ -1,4 +1,4 @@
-import type { CreateTaskInput, Task, TaskAssignmentType, TaskModelRecurrenceType } from "./api/tasks";
+import type { CreateTaskInput, CreateTaskTemplateInput, Task, TaskAssignmentType, TaskModelRecurrenceType, TaskTemplate } from "./api/tasks";
 
 export type TaskFormRecurrence = TaskModelRecurrenceType | "legacy_weekly";
 
@@ -66,6 +66,21 @@ export const taskToFormState = (task: Task): TaskFormState => {
   };
 };
 
+export const taskTemplateToFormState = (template: TaskTemplate): TaskFormState => ({
+  ...defaultTaskForm(),
+  title: template.title,
+  description: template.description ?? "",
+  recurrence: template.modelRecurrenceType,
+  assignmentType: template.assignmentType,
+  assignedUserId: template.assignedUserId,
+  weekdays: [...template.weekdays],
+  deadlineTime: template.deadlineTime ?? "",
+  notificationOffsetMinutes: template.deadlineTime ? template.notificationOffsetMinutes : null,
+  weeklyDeadlineWeekday: template.weeklyDeadlineWeekday ?? 0,
+  monthlyDayOfMonth: template.monthlyDayOfMonth ?? 1,
+  monthlyDeadlineType: template.monthlyDeadlineType ?? "month_end"
+});
+
 export const changeTaskFormRecurrence = (state: TaskFormState, recurrence: TaskFormRecurrence): TaskFormState => ({
   ...state,
   recurrence,
@@ -112,14 +127,36 @@ export const taskFormToPayload = (raw: TaskFormState): CreateTaskInput => {
   };
 };
 
+export const taskToTemplatePayload = (task: Task): CreateTaskTemplateInput | null => {
+  if (!task.modelRecurrenceType) return null;
+  return taskFormToTemplatePayload(taskToFormState(task));
+};
+
+export const taskFormToTemplatePayload = (raw: TaskFormState): CreateTaskTemplateInput => {
+  const state = normalizeTaskForm(raw);
+  return {
+    title: state.title.trim(),
+    description: state.description || null,
+    modelRecurrenceType: state.recurrence as TaskModelRecurrenceType,
+    assignmentType: state.assignmentType,
+    assignedUserId: state.assignedUserId,
+    weekdays: state.recurrence === "weekly_fixed" ? state.weekdays : [],
+    deadlineTime: state.deadlineTime || null,
+    notificationOffsetMinutes: state.deadlineTime ? state.notificationOffsetMinutes : null,
+    weeklyDeadlineWeekday: state.recurrence === "weekly_flexible" ? state.weeklyDeadlineWeekday : null,
+    monthlyDayOfMonth: state.recurrence === "monthly_fixed" || (state.recurrence === "monthly_flexible" && state.monthlyDeadlineType === "day_of_month") ? state.monthlyDayOfMonth : null,
+    monthlyDeadlineType: state.recurrence === "monthly_flexible" ? state.monthlyDeadlineType : null
+  };
+};
+
 export type TaskFormErrors = Partial<Record<keyof TaskFormState, string>>;
 
-export const validateTaskFormState = (state: TaskFormState): TaskFormErrors => {
+export const validateTaskFormState = (state: TaskFormState, options: { template?: boolean } = {}): TaskFormErrors => {
   const errors: TaskFormErrors = {};
   if (!state.title.trim()) errors.title = "タスク名を入力してください。";
   else if (state.title.trim().length > 100) errors.title = "タスク名は100文字以内で入力してください。";
   if (state.assignmentType === "specific" && !state.assignedUserId) errors.assignedUserId = "担当メンバーを選択してください。";
-  if (state.recurrence === "once" && !state.targetDate) errors.targetDate = "実施日を選択してください。";
+  if (!options.template && state.recurrence === "once" && !state.targetDate) errors.targetDate = "実施日を選択してください。";
   if (state.recurrence === "weekly_fixed" && state.weekdays.length === 0) errors.weekdays = "曜日を1つ以上選択してください。";
   if (state.recurrence === "monthly_fixed" && (!Number.isInteger(state.monthlyDayOfMonth) || state.monthlyDayOfMonth! < 1 || state.monthlyDayOfMonth! > 31)) errors.monthlyDayOfMonth = "1〜31日で入力してください。";
   if (state.recurrence === "weekly_flexible" && (!Number.isInteger(state.weeklyDeadlineWeekday) || state.weeklyDeadlineWeekday < 0 || state.weeklyDeadlineWeekday > 6)) errors.weeklyDeadlineWeekday = "締め切り曜日を選択してください。";

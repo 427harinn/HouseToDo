@@ -734,6 +734,48 @@ textarea[aria-invalid="true"] {
   background: #fbfdfc;
 }
 
+.task-reuse-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.task-reuse-card {
+  min-width: 0;
+}
+
+.task-reuse-list {
+  display: grid;
+  gap: 8px;
+}
+
+.task-reuse-item {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+  padding: 11px 12px;
+  border: 1px solid #cde7e1;
+  border-radius: var(--radius-sm);
+  background: #f7fffc;
+  color: var(--color-text);
+  text-align: left;
+}
+
+.task-reuse-item:hover {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+.task-reuse-item strong,
+.task-reuse-item small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.task-reuse-item small {
+  color: var(--color-text-muted);
+  line-height: 1.45;
+}
+
 .inline-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1154,6 +1196,10 @@ textarea[aria-invalid="true"] {
 
   .content-grid .card:first-child {
     grid-column: 1 / -1;
+  }
+
+  .task-reuse-grid {
+    grid-template-columns: 1fr 1fr;
   }
 }
 

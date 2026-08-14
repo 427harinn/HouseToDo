@@ -147,6 +147,27 @@ export type ShoppingTemplateDbRecord = {
   updated_at: string;
 };
 
+export type TaskTemplateDbRecord = {
+  id: string;
+  household_id: string;
+  title: string;
+  description: string | null;
+  model_recurrence_type: Exclude<TaskRecurrenceType, "scheduled" | "weekly" | "model_only">;
+  assignment_type: TaskAssignmentType;
+  assigned_user_id: string | null;
+  weekdays_json: string;
+  deadline_time: string | null;
+  notification_offset_minutes: number | null;
+  weekly_deadline_weekday: number | null;
+  monthly_day_of_month: number | null;
+  monthly_deadline_type: "month_end" | "day_of_month" | null;
+  active: number;
+  sort_order: number;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+};
+
 export type ShoppingItemImageDbRecord = {
   id: string;
   shopping_item_id: string;
@@ -283,6 +304,7 @@ export class MemoryD1 {
   readonly taskRecords = new Map<string, TaskRecordDbRecord>();
   readonly shoppingItems = new Map<string, ShoppingItemDbRecord>();
   readonly shoppingTemplates = new Map<string, ShoppingTemplateDbRecord>();
+  readonly taskTemplates = new Map<string, TaskTemplateDbRecord>();
   readonly shoppingItemImages = new Map<string, ShoppingItemImageDbRecord>();
   readonly orphanR2Objects = new Map<string, OrphanR2ObjectDbRecord>();
   readonly householdImageUsage = new Map<string, HouseholdImageUsageDbRecord>();
@@ -315,6 +337,7 @@ export class MemoryD1 {
       this.taskRecords,
       this.shoppingItems,
       this.shoppingTemplates,
+      this.taskTemplates,
       this.shoppingItemImages,
       this.orphanR2Objects,
       this.householdImageUsage,
@@ -350,6 +373,7 @@ export class MemoryD1 {
     | TaskRecordDbRecord
     | ShoppingItemDbRecord
     | ShoppingTemplateDbRecord
+    | TaskTemplateDbRecord
     | ShoppingItemImageDbRecord
     | OrphanR2ObjectDbRecord
     | HouseholdImageUsageDbRecord
@@ -502,6 +526,15 @@ export class MemoryD1 {
       if (!template || template.household_id !== values[0]) return null;
       return template;
     }
+    if (sql.includes("FROM task_templates") && sql.includes("WHERE household_id = ? AND id = ?")) {
+      const template = this.taskTemplates.get(toText(values[1]));
+      if (!template || template.household_id !== values[0]) return null;
+      return template;
+    }
+    if (sql.includes("MAX(sort_order)") && sql.includes("FROM task_templates")) {
+      const max = Math.max(0, ...Array.from(this.taskTemplates.values()).filter((template) => template.household_id === values[0]).map((template) => template.sort_order));
+      return { max_sort_order: max } as unknown as TaskTemplateDbRecord;
+    }
     if (
       sql.includes("FROM shopping_item_images") &&
       sql.includes("shopping_item_id = ?")
@@ -629,13 +662,18 @@ export class MemoryD1 {
         }));
     }
     if (sql.includes("FROM tasks") && sql.includes("WHERE household_id = ?")) {
-      return Array.from(this.tasks.values())
+      let rows = Array.from(this.tasks.values())
         .filter((task) => task.household_id === values[0])
         .filter((task) => (sql.includes("AND active = 1") ? task.active === 1 : true))
+        .filter((task) => (sql.includes("model_recurrence_type IS NOT NULL") ? task.model_recurrence_type !== null && task.model_recurrence_type !== undefined : true))
         .sort(
           (a, b) =>
-            a.sort_order - b.sort_order || a.created_at.localeCompare(b.created_at)
+            sql.includes("created_at DESC")
+              ? b.created_at.localeCompare(a.created_at) || b.updated_at.localeCompare(a.updated_at)
+              : a.sort_order - b.sort_order || a.created_at.localeCompare(b.created_at)
         );
+      if (sql.includes("LIMIT ?")) rows = rows.slice(0, Number(values[values.length - 1]));
+      return rows;
     }
     if (sql.includes("FROM task_weekdays")) {
       return Array.from(this.taskWeekdays.values())
@@ -726,6 +764,12 @@ export class MemoryD1 {
           sql.includes("AND active = 1") ? template.active === 1 : true
         )
         .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
+    }
+    if (sql.includes("FROM task_templates") && sql.includes("WHERE household_id = ?")) {
+      return Array.from(this.taskTemplates.values())
+        .filter((template) => template.household_id === values[0])
+        .filter((template) => sql.includes("AND active = 1") ? template.active === 1 : true)
+        .sort((a, b) => a.sort_order - b.sort_order || a.created_at.localeCompare(b.created_at));
     }
     if (
       sql.includes("FROM shopping_item_images") &&
@@ -1591,6 +1635,34 @@ export class MemoryD1 {
         created_at: toText(values[7]),
         updated_at: toText(values[8])
       });
+    }
+    if (sql.startsWith("INSERT INTO task_templates")) {
+      this.taskTemplates.set(toText(values[0]), {
+        id: toText(values[0]), household_id: toText(values[1]), title: toText(values[2]),
+        description: toNullableText(values[3]), model_recurrence_type: values[4] as TaskTemplateDbRecord["model_recurrence_type"],
+        assignment_type: values[5] as TaskAssignmentType, assigned_user_id: toNullableText(values[6]), weekdays_json: toText(values[7]),
+        deadline_time: toNullableText(values[8]), notification_offset_minutes: values[9] === null ? null : Number(values[9]),
+        weekly_deadline_weekday: values[10] === null ? null : Number(values[10]), monthly_day_of_month: values[11] === null ? null : Number(values[11]),
+        monthly_deadline_type: values[12] as TaskTemplateDbRecord["monthly_deadline_type"], active: 1, sort_order: Number(values[13]),
+        created_by: toText(values[14]), created_at: toText(values[15]), updated_at: toText(values[16])
+      });
+    }
+    if (sql.startsWith("UPDATE task_templates") && sql.includes("SET title")) {
+      const template = this.taskTemplates.get(toText(values[13]));
+      if (template && template.household_id === values[12]) {
+        this.taskTemplates.set(template.id, {
+          ...template, title: toText(values[0]), description: toNullableText(values[1]), model_recurrence_type: values[2] as TaskTemplateDbRecord["model_recurrence_type"],
+          assignment_type: values[3] as TaskAssignmentType, assigned_user_id: toNullableText(values[4]), weekdays_json: toText(values[5]),
+          deadline_time: toNullableText(values[6]), notification_offset_minutes: values[7] === null ? null : Number(values[7]),
+          weekly_deadline_weekday: values[8] === null ? null : Number(values[8]), monthly_day_of_month: values[9] === null ? null : Number(values[9]),
+          monthly_deadline_type: values[10] as TaskTemplateDbRecord["monthly_deadline_type"], updated_at: toText(values[11])
+        });
+      } else changes = 0;
+    }
+    if (sql.startsWith("UPDATE task_templates") && sql.includes("active = 0")) {
+      const template = this.taskTemplates.get(toText(values[2]));
+      if (template && template.household_id === values[1]) this.taskTemplates.set(template.id, { ...template, active: 0, updated_at: toText(values[0]) });
+      else changes = 0;
     }
     if (sql.startsWith("UPDATE shopping_templates") && sql.includes("SET name")) {
       const template = this.shoppingTemplates.get(toText(values[5]));

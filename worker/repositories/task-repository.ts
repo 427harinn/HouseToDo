@@ -121,6 +121,21 @@ export class TaskRepository {
     return this.attachWeekdays(result.results ?? []);
   }
 
+  async listRecentCanonicalByHouseholdId(householdId: string, limit: number): Promise<Task[]> {
+    const result = await this.db.prepare(
+      `SELECT id, household_id, title, description, recurrence_type, model_recurrence_type, assignment_type,
+       assigned_user_id, scheduled_time, notification_slot, notification_time, weekly_target_count,
+       start_date, target_date, deadline_time, notification_offset_minutes, weekly_deadline_weekday,
+       monthly_day_of_month, monthly_deadline_type, active, sort_order,
+       created_by, created_at, updated_at
+       FROM tasks
+       WHERE household_id = ? AND active = 1 AND model_recurrence_type IS NOT NULL
+       ORDER BY created_at DESC, updated_at DESC
+       LIMIT ?`
+    ).bind(householdId, limit).all<TaskRow>();
+    return this.attachWeekdays(result.results ?? []);
+  }
+
   async findByIdForHousehold(householdId: string, taskId: string): Promise<Task | null> {
     const row = await this.db
       .prepare(

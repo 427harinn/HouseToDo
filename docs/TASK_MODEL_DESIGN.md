@@ -1,7 +1,7 @@
 # HouseToDo 新タスクモデル設計
 
 > Status: **Approved; Phase 1–4 task model implementation complete**
-> Domain/schema, API/service/repository, occurrence/period actions, Task UI, canonical reminder scheduler, and monthly Calendar UI/API are implemented. Deep-link and history/template UX remain staged.
+> Domain/schema, API/service/repository, occurrence/period actions, Task UI, canonical reminder scheduler, monthly Calendar UI/API, recent task reuse, and task templates are implemented. Notification deep-link remains staged.
 
 ### Phase 4 implementation boundary
 
@@ -193,7 +193,7 @@ tasks
 
 state actionは既存のstart/complete/skip/resetを維持し、fixedは`targetDate`、flexibleは`periodKey`をcanonical scopeとする。旧 `targetWeekStart` はweekly互換期間のみ受け付ける。
 
-history-based createは自動候補から選択した時点では作成せず、create formへprefillする。copy対象はname/note/recurrence config/deadline/offset/assignment等、copyしないものはID、created_at、start_date、records/history。templateは明示保存・管理する再利用definitionであり、concrete start_date/records/historyを持たない。既存tasksはdefinition/template的だが、MVPでは別 `task_templates` tableを作らず、history候補とexplicit templateのUX/APIを分離できる設計を優先する。別tableが必要になる条件は、active taskのライフサイクルから独立したtemplate編集・archiving・共有権限が必要になった時とする。
+recent task reuseは実行履歴ではなく、既存tasksのactiveかつcanonicalなtask definitionから候補を作る。候補は`created_at DESC`で最大8件、legacy weekly target count > 1やinactive taskは除外する。候補・templateを選択しても即作成せず、create formへprefillする。copy対象はname/note/recurrence config/deadline/offset/assignment等、copyしないものはID、household ID、created_at/updated_at、start_date、once targetDate、records/history、status。templateは明示保存・管理する再利用definitionであり、`task_templates` tableにcanonical fieldsだけを保存し、concrete date、records/history、scheduler stateを持たない。
 
 ## 9. Scheduler impact proposal
 
@@ -216,14 +216,20 @@ schedulerは `occurrence/period -> deadline_at -> notification_at -> delivery` �
 5. templateを別tableに分離する条件と、history candidateの保存期間・privacy policy。
 6. migration後にlegacy列を削除する時期。
 
-## Phase 3 implementation status (2026-08-14)\n\nCanonical six recurrence types now use one server-side scope resolver. Fixed types use occurrence keys; flexible types use deadline-bounded period keys. Today/dashboard and Calendar expose additive scope, period, completed-count, deadline, and derived overdue fields. Canonical actions resolve scope from targetDate. Flexible reset deletes all records in the selected period. Legacy tasks, including weekly target counts greater than one, remain on the legacy path. Scheduler migration, deep links, migration changes, deployment, and production remain out of scope.\n\n## 12. Implementation phases
+## Phase 3–7 implementation status (2026-08-14)
+
+Canonical six recurrence types now use one server-side scope resolver. Fixed types use occurrence keys; flexible types use deadline-bounded period keys. Today/dashboard and Calendar expose additive scope, period, completed-count, deadline, and derived overdue fields. Canonical actions resolve scope from targetDate. Flexible reset deletes all records in the selected period. Legacy tasks, including weekly target counts greater than one, remain on the legacy path.
+
+Phase 6 recent task reuse and template UX is implemented locally. `GET /api/tasks/recent` reads active canonical task definitions with a limit of 8. `task_templates` is an additive, household-scoped table and CRUD API. Recent/template selection prefills the shared create form; it never copies task IDs, dates, task records, execution status, or history. Phase 5 notification deep links, remote migration, deployment, and production remain out of scope.
+
+## 12. Implementation phases
 
 1. **Phase 1: domain/schema + migration** — canonical fields、period helper、backfill、indexes、compatibility read/write。
 2. **Phase 2: API/service/repository** — recurrence validation、projection、scope actions、status/overdue、history response。
 3. **Phase 3: task create/edit/detail UI** — 6種UI、deadline、preset select、period status。
 4. **Phase 4: scheduler/reminder migration** — deadline-based scheduling、flexible suppression、dedup migration、legacy fallback removal。
 5. **Phase 5: task notification deep-link** — individual detail and evening summary destinations。
-6. **Phase 6: history/template creation UX** — prefill, explicit template lifecycle。
+6. **Phase 6: recent task reuse and template UX** — prefill, explicit template lifecycle。Implemented locally with additive migration `0013_task_templates.sql`.
 7. **Phase 7: calendar** — date projection, selected-date flexible details, fixed markers。
 
-各phaseはdocs-only設計承認、local tests、migration dry-run、API/UI compatibility testの順にゲートする。今回の作業ではPhase 1以降の実装を行わない。
+各phaseはdocs-only設計承認、local tests、migration dry-run、API/UI compatibility testの順にゲートする。Phase 6はlocal gatesとhost Worker Playwrightで検証済みで、staging/productionへの適用は行わない。
