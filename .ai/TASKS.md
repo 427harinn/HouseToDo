@@ -21,4 +21,4 @@
 
 ## Follow-up
 
-- [ ] Update `scripts/validate-staging-config.mjs` to expect the staging Cron `*/5 * * * *`
+- [x] Update `scripts/validate-staging-config.mjs` to expect the staging Cron `*/5 * * * *`

@@ -27,4 +27,4 @@ Cron configuration and production resources remain untouched. Staging migration,
 - Fixed flexible period completion history in local commit `d49868a49ff074eac3897506c690129f7d154ef9` without adding a migration or changing scheduler logic.
 - Staging weekly and monthly flexible tasks both passed `completedCount` 1 to 2 with two completed records in one `period_key`; completed reminder suppression and skip state passed.
 - Existing offset-positive smartphone Push and notification tap verification remains accepted from Phase 5. Production and git push remain prohibited.
-- Follow-up: update the stale staging validator that still expects `0 18 * * *` instead of the configured `*/5 * * * *`.
+- Follow-up completed: the staging validator now expects the configured `*/5 * * * *` Cron.
