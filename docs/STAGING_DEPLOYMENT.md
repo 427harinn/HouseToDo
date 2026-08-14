@@ -8,6 +8,14 @@
 - Verification stopped at the flexible recurrence achievement gate: after one weekly-flexible completion, a second completion did not increase `completedCount`; the remote task-record aggregate remained one completed record. No code fix or follow-up deploy was performed.
 - The six temporary `P5 verify ...` tasks were limited to an exact-title staging cleanup and marked inactive. Existing records and delivery evidence were retained. Production resources, migrations, deploys, Cron, and secrets were untouched; no git push was performed.
 
+## 2026-08-14 Phase 5.1 staging re-verification result
+
+- Local fix commit `d49868a49ff074eac3897506c690129f7d154ef9` was deployed after the staging migration read-only check and dry-run passed. The target was `house-to-do-staging`; `/api/health` returned HTTP 200 with D1/R2 bindings available.
+- `weekly_flexible` and `monthly_flexible` each passed the staging UI flow `complete -> もう一度実施`: `completedCount` changed from 1 to 2 and two completed history entries remained in the same `period_key`. Canonical period records used `target_date = NULL`.
+- A completed weekly-flexible task with a 15:20 JST deadline and five-minute reminder was completed at 15:12 before the reminder window. After the next Cron window, its delivery aggregate remained zero. Skip state was also confirmed for a separate temporary flexible task. No duplicate notification target scopes were found.
+- Existing offset-positive smartphone Push receipt and notification tap navigation remain accepted from Phase 5. Legacy compatibility and scheduler retry/lease behavior remain covered by the local regression suite. The four temporary `P5.1 verify ...` tasks were deactivated by exact title; records and delivery evidence were retained.
+- The repository staging validator still expects the obsolete `0 18 * * *` Cron and should be handled as a follow-up. The deployed staging Cron remained `*/5 * * * *`. Production resources, migrations, deploys, Cron, and secrets were untouched; no git push was performed.
+
 > stagingへの安全な確認・デプロイ手順です。productionのresource、secret、migration、deployは対象外で、明示承認なしに操作しません。
 
 ## 現在の構成
