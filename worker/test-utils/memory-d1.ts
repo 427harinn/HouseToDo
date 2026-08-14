@@ -75,12 +75,20 @@ export type TaskDbRecord = {
   title: string;
   description: string | null;
   recurrence_type: TaskRecurrenceType;
+  model_recurrence_type?: Exclude<TaskRecurrenceType, "scheduled" | "weekly"> | null;
   assignment_type: TaskAssignmentType;
   assigned_user_id: string | null;
   scheduled_time: string | null;
   notification_slot: NotificationSlot;
   notification_time: string | null;
   weekly_target_count: number | null;
+  start_date?: string | null;
+  target_date?: string | null;
+  deadline_time?: string | null;
+  notification_offset_minutes?: number | null;
+  weekly_deadline_weekday?: number | null;
+  monthly_day_of_month?: number | null;
+  monthly_deadline_type?: "month_end" | "day_of_month" | null;
   active: number;
   sort_order: number;
   created_by: string;
@@ -99,6 +107,8 @@ export type TaskRecordDbRecord = {
   task_id: string;
   target_date: string | null;
   target_week_start: string | null;
+  occurrence_key?: string | null;
+  period_key?: string | null;
   status: TaskRecordStatus;
   acted_by: string;
   started_at: string | null;
@@ -942,35 +952,51 @@ export class MemoryD1 {
         title: toText(values[2]),
         description: toNullableText(values[3]),
         recurrence_type: values[4] as TaskRecurrenceType,
-        assignment_type: values[5] as TaskAssignmentType,
-        assigned_user_id: toNullableText(values[6]),
-        scheduled_time: toNullableText(values[7]),
-        notification_slot: values[8] as NotificationSlot,
-        notification_time: toNullableText(values[9]),
-        weekly_target_count: values[10] === null ? null : Number(values[10]),
+        model_recurrence_type: values[5] as Exclude<TaskRecurrenceType, "scheduled" | "weekly"> | null,
+        assignment_type: values[6] as TaskAssignmentType,
+        assigned_user_id: toNullableText(values[7]),
+        scheduled_time: toNullableText(values[8]),
+        notification_slot: values[9] as NotificationSlot,
+        notification_time: toNullableText(values[10]),
+        weekly_target_count: values[11] === null ? null : Number(values[11]),
+        start_date: toNullableText(values[12]),
+        target_date: toNullableText(values[13]),
+        deadline_time: toNullableText(values[14]),
+        notification_offset_minutes: values[15] === null ? null : Number(values[15]),
+        weekly_deadline_weekday: values[16] === null ? null : Number(values[16]),
+        monthly_day_of_month: values[17] === null ? null : Number(values[17]),
+        monthly_deadline_type: values[18] as "month_end" | "day_of_month" | null,
         active: 1,
-        sort_order: Number(values[11]),
-        created_by: toText(values[12]),
-        created_at: toText(values[13]),
-        updated_at: toText(values[14])
+        sort_order: Number(values[19]),
+        created_by: toText(values[20]),
+        created_at: toText(values[21]),
+        updated_at: toText(values[22])
       });
     }
     if (sql.startsWith("UPDATE tasks") && sql.includes("SET title")) {
-      const task = this.tasks.get(toText(values[12]));
-      if (task && task.household_id === values[11]) {
+      const task = this.tasks.get(toText(values[20]));
+      if (task && task.household_id === values[19]) {
         this.tasks.set(task.id, {
           ...task,
           title: toText(values[0]),
           description: toNullableText(values[1]),
           recurrence_type: values[2] as TaskRecurrenceType,
-          assignment_type: values[3] as TaskAssignmentType,
-          assigned_user_id: toNullableText(values[4]),
-          scheduled_time: toNullableText(values[5]),
-          notification_slot: values[6] as NotificationSlot,
-          notification_time: toNullableText(values[7]),
-          weekly_target_count: values[8] === null ? null : Number(values[8]),
-          sort_order: Number(values[9]),
-          updated_at: toText(values[10])
+          model_recurrence_type: values[3] as Exclude<TaskRecurrenceType, "scheduled" | "weekly"> | null,
+          assignment_type: values[4] as TaskAssignmentType,
+          assigned_user_id: toNullableText(values[5]),
+          scheduled_time: toNullableText(values[6]),
+          notification_slot: values[7] as NotificationSlot,
+          notification_time: toNullableText(values[8]),
+          weekly_target_count: values[9] === null ? null : Number(values[9]),
+          start_date: toNullableText(values[10]),
+          target_date: toNullableText(values[11]),
+          deadline_time: toNullableText(values[12]),
+          notification_offset_minutes: values[13] === null ? null : Number(values[13]),
+          weekly_deadline_weekday: values[14] === null ? null : Number(values[14]),
+          monthly_day_of_month: values[15] === null ? null : Number(values[15]),
+          monthly_deadline_type: values[16] as "month_end" | "day_of_month" | null,
+          sort_order: Number(values[17]),
+          updated_at: toText(values[18])
         });
       } else {
         changes = 0;
@@ -1002,14 +1028,16 @@ export class MemoryD1 {
         task_id: toText(values[2]),
         target_date: toNullableText(values[3]),
         target_week_start: toNullableText(values[4]),
-        status: values[5] as TaskRecordStatus,
-        acted_by: toText(values[6]),
-        started_at: toNullableText(values[7]),
-        completed_at: toNullableText(values[8]),
-        skipped_at: toNullableText(values[9]),
-        note: toNullableText(values[10]),
-        created_at: toText(values[11]),
-        updated_at: toText(values[12])
+        occurrence_key: toNullableText(values[5]),
+        period_key: toNullableText(values[6]),
+        status: values[7] as TaskRecordStatus,
+        acted_by: toText(values[8]),
+        started_at: toNullableText(values[9]),
+        completed_at: toNullableText(values[10]),
+        skipped_at: toNullableText(values[11]),
+        note: toNullableText(values[12]),
+        created_at: toText(values[13]),
+        updated_at: toText(values[14])
       });
     }
     if (sql.startsWith("UPDATE task_records")) {

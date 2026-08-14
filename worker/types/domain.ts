@@ -55,7 +55,16 @@ export type HouseholdInvite = {
   createdAt: string;
 };
 
-export type TaskRecurrenceType = "daily" | "scheduled" | "weekly";
+export type LegacyTaskRecurrenceType = "daily" | "scheduled" | "weekly";
+export type TaskModelRecurrenceType =
+  | "once"
+  | "daily"
+  | "weekly_fixed"
+  | "monthly_fixed"
+  | "weekly_flexible"
+  | "monthly_flexible";
+export type TaskRecurrenceType = LegacyTaskRecurrenceType | TaskModelRecurrenceType;
+export type MonthlyDeadlineType = "month_end" | "day_of_month";
 export type TaskAssignmentType = "anyone" | "specific";
 export type NotificationSlot = "morning" | "night" | "none";
 export type TaskRecordStatus = "in_progress" | "completed" | "skipped";
@@ -67,12 +76,20 @@ export type Task = {
   title: string;
   description: string | null;
   recurrenceType: TaskRecurrenceType;
+  modelRecurrenceType?: TaskModelRecurrenceType | null;
   assignmentType: TaskAssignmentType;
   assignedUserId: string | null;
   scheduledTime: string | null;
   notificationSlot: NotificationSlot;
   notificationTime: string | null;
   weeklyTargetCount: number | null;
+  startDate?: string | null;
+  targetDate?: string | null;
+  deadlineTime?: string | null;
+  notificationOffsetMinutes?: number | null;
+  weeklyDeadlineWeekday?: number | null;
+  monthlyDayOfMonth?: number | null;
+  monthlyDeadlineType?: MonthlyDeadlineType | null;
   active: boolean;
   sortOrder: number;
   createdBy: string;
@@ -87,6 +104,8 @@ export type TaskRecord = {
   taskId: string;
   targetDate: string | null;
   targetWeekStart: string | null;
+  occurrenceKey?: string | null;
+  periodKey?: string | null;
   status: TaskRecordStatus;
   actedBy: string;
   actedByDisplayName: string | null;

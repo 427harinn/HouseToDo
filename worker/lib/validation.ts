@@ -7,7 +7,9 @@ import {
 } from "./constants";
 import { validationError } from "./errors";
 import { isValidDateKey } from "./date-time";
+import { NOTIFICATION_OFFSET_MINUTES } from "./task-model";
 import type {
+  MonthlyDeadlineType,
   NotificationSlot,
   TaskAssignmentType,
   TaskRecurrenceType
@@ -104,6 +106,13 @@ export type TaskWriteInput = {
   notificationTime?: string | null;
   weekdays: number[];
   weeklyTargetCount: number | null;
+  startDate?: string | null;
+  targetDate?: string | null;
+  deadlineTime?: string | null;
+  notificationOffsetMinutes?: number | null;
+  weeklyDeadlineWeekday?: number | null;
+  monthlyDayOfMonth?: number | null;
+  monthlyDeadlineType?: MonthlyDeadlineType | null;
 };
 
 export type TaskStateInput = {
@@ -124,7 +133,16 @@ export type ShoppingUpdateInput = {
   note?: string | null;
 };
 
-const recurrenceTypes = new Set(["daily", "scheduled", "weekly"]);
+const recurrenceTypes = new Set([
+  "once",
+  "daily",
+  "scheduled",
+  "weekly",
+  "weekly_fixed",
+  "monthly_fixed",
+  "weekly_flexible",
+  "monthly_flexible"
+]);
 const assignmentTypes = new Set(["anyone", "specific"]);
 const notificationSlots = new Set(["morning", "night", "none"]);
 const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -184,11 +202,35 @@ export const validateTaskWriteInput = (value: unknown): TaskWriteInput => {
         : input.assignedUserId;
   const weekdays = validateWeekdays(input.weekdays);
   const weeklyTargetCount = input.weeklyTargetCount;
+  const startDate = input.startDate === undefined || input.startDate === null ? null : input.startDate;
+  const targetDate = input.targetDate === undefined || input.targetDate === null ? null : input.targetDate;
+  const deadlineTime =
+    input.deadlineTime === undefined || input.deadlineTime === null
+      ? null
+      : typeof input.deadlineTime === "string"
+        ? input.deadlineTime.trim() || null
+        : input.deadlineTime;
+  const rawNotificationOffsetMinutes = input.notificationOffsetMinutes;
+  const notificationOffsetMinutes =
+    rawNotificationOffsetMinutes === undefined || rawNotificationOffsetMinutes === null
+      ? rawNotificationOffsetMinutes
+      : typeof rawNotificationOffsetMinutes === "number"
+        ? rawNotificationOffsetMinutes
+        : undefined;
+  const weeklyDeadlineWeekday = input.weeklyDeadlineWeekday ?? null;
+  const monthlyDayOfMonth = input.monthlyDayOfMonth ?? null;
+  const rawMonthlyDeadlineType = input.monthlyDeadlineType;
+  const monthlyDeadlineType =
+    rawMonthlyDeadlineType === undefined || rawMonthlyDeadlineType === null
+      ? rawMonthlyDeadlineType
+      : typeof rawMonthlyDeadlineType === "string"
+        ? rawMonthlyDeadlineType
+        : undefined;
   const details: Record<string, string> = {};
 
   if (title.length === 0) details.title = "title is required.";
   if (typeof recurrenceType !== "string" || !recurrenceTypes.has(recurrenceType)) {
-    details.recurrenceType = "recurrenceType must be daily, scheduled, or weekly.";
+    details.recurrenceType = "recurrenceType is invalid.";
   }
   if (typeof assignmentType !== "string" || !assignmentTypes.has(assignmentType)) {
     details.assignmentType = "assignmentType must be anyone or specific.";
@@ -204,6 +246,52 @@ export const validateTaskWriteInput = (value: unknown): TaskWriteInput => {
   } else if (scheduledTime !== null && !timePattern.test(scheduledTime)) {
     details.scheduledTime = "scheduledTime must be HH:mm.";
   }
+  if (startDate !== null && (typeof startDate !== "string" || !isValidDateKey(startDate))) {
+    details.startDate = "startDate must be YYYY-MM-DD.";
+  }
+  if (targetDate !== null && (typeof targetDate !== "string" || !isValidDateKey(targetDate))) {
+    details.targetDate = "targetDate must be YYYY-MM-DD.";
+  }
+  if (deadlineTime !== null && (typeof deadlineTime !== "string" || !timePattern.test(deadlineTime))) {
+    details.deadlineTime = "deadlineTime must be HH:mm.";
+  }
+  if (
+    notificationOffsetMinutes !== undefined &&
+    notificationOffsetMinutes !== null &&
+    (!Number.isInteger(notificationOffsetMinutes) ||
+      !(NOTIFICATION_OFFSET_MINUTES as readonly number[]).includes(notificationOffsetMinutes))
+  ) {
+    details.notificationOffsetMinutes = "notificationOffsetMinutes must be one of the supported presets.";
+  }
+  if (
+    rawNotificationOffsetMinutes !== undefined &&
+    rawNotificationOffsetMinutes !== null &&
+    typeof rawNotificationOffsetMinutes !== "number"
+  ) {
+    details.notificationOffsetMinutes = "notificationOffsetMinutes must be a number or null.";
+  }
+  if (weeklyDeadlineWeekday !== null &&
+      (typeof weeklyDeadlineWeekday !== "number" || !Number.isInteger(weeklyDeadlineWeekday) || weeklyDeadlineWeekday < 0 || weeklyDeadlineWeekday > 6)) {
+    details.weeklyDeadlineWeekday = "weeklyDeadlineWeekday must be an integer from 0 to 6.";
+  }
+  if (monthlyDayOfMonth !== null &&
+      (typeof monthlyDayOfMonth !== "number" || !Number.isInteger(monthlyDayOfMonth) || monthlyDayOfMonth < 1 || monthlyDayOfMonth > 31)) {
+    details.monthlyDayOfMonth = "monthlyDayOfMonth must be an integer from 1 to 31.";
+  }
+  if (
+    monthlyDeadlineType !== null &&
+    monthlyDeadlineType !== undefined &&
+    !["month_end", "day_of_month"].includes(monthlyDeadlineType)
+  ) {
+    details.monthlyDeadlineType = "monthlyDeadlineType must be month_end or day_of_month.";
+  }
+  if (
+    rawMonthlyDeadlineType !== undefined &&
+    rawMonthlyDeadlineType !== null &&
+    typeof rawMonthlyDeadlineType !== "string"
+  ) {
+    details.monthlyDeadlineType = "monthlyDeadlineType must be a string or null.";
+  }
   if (assignedUserId !== null && typeof assignedUserId !== "string") {
     details.assignedUserId = "assignedUserId must be a string.";
   } else if (assignmentType === "specific" && !assignedUserId) {
@@ -214,10 +302,10 @@ export const validateTaskWriteInput = (value: unknown): TaskWriteInput => {
   }
 
   let normalizedWeeklyTargetCount: number | null = null;
-  if (recurrenceType === "scheduled" && weekdays.length === 0) {
-    details.weekdays = "scheduled tasks require at least one weekday.";
+  if ((recurrenceType === "scheduled" || recurrenceType === "weekly_fixed") && weekdays.length === 0) {
+    details.weekdays = "fixed weekday tasks require at least one weekday.";
   }
-  if (recurrenceType !== "scheduled" && weekdays.length > 0) {
+  if (recurrenceType !== "scheduled" && recurrenceType !== "weekly_fixed" && weekdays.length > 0) {
     details.weekdays = "weekdays are only allowed for scheduled tasks.";
   }
   if (recurrenceType === "weekly") {
@@ -235,6 +323,40 @@ export const validateTaskWriteInput = (value: unknown): TaskWriteInput => {
     details.weeklyTargetCount = "weeklyTargetCount is only allowed for weekly tasks.";
   }
 
+  if (recurrenceType === "once" && targetDate === null) details.targetDate = "once tasks require targetDate.";
+  if (recurrenceType === "weekly_fixed" && weekdays.length === 0) {
+    details.weekdays = "weekly_fixed tasks require at least one weekday.";
+  }
+  if (recurrenceType === "monthly_fixed" && monthlyDayOfMonth === null) {
+    details.monthlyDayOfMonth = "monthly_fixed tasks require monthlyDayOfMonth.";
+  }
+  if (recurrenceType === "monthly_flexible") {
+    const resolvedDeadlineType = monthlyDeadlineType ?? "month_end";
+    if (resolvedDeadlineType === "day_of_month" && monthlyDayOfMonth === null) {
+      details.monthlyDayOfMonth = "day_of_month requires monthlyDayOfMonth.";
+    }
+    if (resolvedDeadlineType === "month_end" && monthlyDayOfMonth !== null) {
+      details.monthlyDayOfMonth = "month_end must not include monthlyDayOfMonth.";
+    }
+  }
+  if (recurrenceType === "monthly_fixed" && monthlyDeadlineType !== null) {
+    details.monthlyDeadlineType = "monthlyDeadlineType is only allowed for monthly_flexible tasks.";
+  }
+  if (recurrenceType === "weekly_flexible" && weekdays.length > 0) {
+    details.weekdays = "weekdays are only allowed for fixed weekday tasks.";
+  }
+  if (recurrenceType === "weekly_flexible" && weeklyTargetCount !== undefined && weeklyTargetCount !== null) {
+    details.weeklyTargetCount = "weeklyTargetCount is not used by weekly_flexible tasks.";
+  }
+  if (
+    notificationOffsetMinutes !== undefined &&
+    notificationOffsetMinutes !== null &&
+    deadlineTime === null &&
+    notificationTime === null
+  ) {
+    details.notificationOffsetMinutes = "notification offset requires deadlineTime.";
+  }
+
   if (Object.keys(details).length > 0) throw validationError(details);
 
   return {
@@ -247,7 +369,29 @@ export const validateTaskWriteInput = (value: unknown): TaskWriteInput => {
     notificationSlot: notificationSlot as NotificationSlot,
     notificationTime: typeof notificationTime === "string" ? notificationTime : null,
     weekdays,
-    weeklyTargetCount: normalizedWeeklyTargetCount
+    weeklyTargetCount: normalizedWeeklyTargetCount,
+    startDate: typeof startDate === "string" ? startDate : null,
+    targetDate: typeof targetDate === "string" ? targetDate : null,
+    deadlineTime: typeof deadlineTime === "string" ? deadlineTime : null,
+    notificationOffsetMinutes:
+      notificationOffsetMinutes === undefined
+        ? notificationTime !== null
+          ? 0
+          : null
+        : notificationOffsetMinutes,
+    weeklyDeadlineWeekday:
+      typeof weeklyDeadlineWeekday === "number"
+        ? weeklyDeadlineWeekday
+        : recurrenceType === "weekly_flexible"
+          ? 0
+          : null,
+    monthlyDayOfMonth: typeof monthlyDayOfMonth === "number" ? monthlyDayOfMonth : null,
+    monthlyDeadlineType:
+      typeof monthlyDeadlineType === "string"
+        ? (monthlyDeadlineType as MonthlyDeadlineType)
+        : recurrenceType === "monthly_flexible"
+          ? "month_end"
+          : null
   };
 };
 

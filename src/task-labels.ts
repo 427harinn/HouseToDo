@@ -8,7 +8,12 @@ import type {
 export const recurrenceLabels: Record<TaskRecurrenceType, string> = {
   daily: "毎日のタスク",
   scheduled: "曜日指定タスク",
-  weekly: "今週中のタスク"
+  weekly: "今週中のタスク",
+  once: "今回だけ",
+  weekly_fixed: "曜日を決める",
+  monthly_fixed: "毎月○日",
+  weekly_flexible: "週1回・日付不定",
+  monthly_flexible: "月1回・日付不定"
 };
 
 export const assignmentLabels: Record<TaskAssignmentType, string> = {

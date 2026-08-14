@@ -6,6 +6,8 @@ type TaskRecordRow = {
   task_id: string;
   target_date: string | null;
   target_week_start: string | null;
+  occurrence_key: string | null;
+  period_key: string | null;
   status: TaskRecordStatus;
   acted_by: string;
   acted_by_display_name: string | null;
@@ -23,6 +25,8 @@ export type RecordStateInput = {
   taskId: string;
   targetDate: string | null;
   targetWeekStart: string | null;
+  occurrenceKey?: string | null;
+  periodKey?: string | null;
   status: TaskRecordStatus;
   actedBy: string;
   startedAt: string | null;
@@ -33,7 +37,7 @@ export type RecordStateInput = {
 };
 
 const selectRecord = `tr.id, tr.household_id, tr.task_id, tr.target_date, tr.target_week_start,
-  tr.status, tr.acted_by, u.display_name AS acted_by_display_name, tr.started_at, tr.completed_at,
+  tr.occurrence_key, tr.period_key, tr.status, tr.acted_by, u.display_name AS acted_by_display_name, tr.started_at, tr.completed_at,
   tr.skipped_at, tr.note, tr.created_at, tr.updated_at`;
 
 const toRecord = (row: TaskRecordRow | null): TaskRecord | null =>
@@ -44,6 +48,8 @@ const toRecord = (row: TaskRecordRow | null): TaskRecord | null =>
         taskId: row.task_id,
         targetDate: row.target_date,
         targetWeekStart: row.target_week_start,
+        occurrenceKey: row.occurrence_key ?? null,
+        periodKey: row.period_key ?? null,
         status: row.status,
         actedBy: row.acted_by,
         actedByDisplayName: row.acted_by_display_name,
@@ -176,9 +182,9 @@ export class TaskRecordRepository {
     await this.db
       .prepare(
         `INSERT INTO task_records (
-          id, household_id, task_id, target_date, target_week_start, status, acted_by, started_at,
-          completed_at, skipped_at, note, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          id, household_id, task_id, target_date, target_week_start, occurrence_key, period_key,
+          status, acted_by, started_at, completed_at, skipped_at, note, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .bind(
         input.id,
@@ -186,6 +192,8 @@ export class TaskRecordRepository {
         input.taskId,
         input.targetDate,
         input.targetWeekStart,
+        input.occurrenceKey ?? null,
+        input.periodKey ?? null,
         input.status,
         input.actedBy,
         input.startedAt,

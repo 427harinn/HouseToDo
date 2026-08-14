@@ -12,7 +12,7 @@
 
 ## Next objective
 
-新しいtask domain modelの正式設計を完了した。詳細は [docs/TASK_MODEL_DESIGN.md](../docs/TASK_MODEL_DESIGN.md) にあり、statusはapproved but not implemented。次は実装承認後のPhase 1（domain/schema + migration）であり、現行仕様へはまだ反映しない。
+新しいtask domain modelの正式設計とPhase 1（domain/schema + migration）を完了した。詳細は [docs/TASK_MODEL_DESIGN.md](../docs/TASK_MODEL_DESIGN.md) にあり、保存・読み取り基盤は実装済み。schedulerのdeadline切替、全面UI、calendar、history/template UXは未実装。
 
 ## Guardrails
 

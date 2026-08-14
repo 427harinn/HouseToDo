@@ -77,6 +77,7 @@ export class TaskService {
         id: crypto.randomUUID(),
         householdId: household.id,
         ...input,
+        startDate: input.startDate ?? getLocalDate(new Date(), household.timezone),
         sortOrder: Date.now(),
         createdBy: userId,
         now

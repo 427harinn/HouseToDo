@@ -36,7 +36,9 @@ routeのsource of truthは `worker/app.ts` と `worker/routes/`です。認証�
 
 詳細設計は [TASK_MODEL_DESIGN.md](TASK_MODEL_DESIGN.md) をsource of truthとする。実装時はtasksへcanonical schedule/deadline列を段階追加し、`task_weekdays`と既存recordsを互換利用する。recurrence計算、period key、resolved deadline、overdue判定はdomain helperへ隔離し、将来calendarとschedulerが同じprojectionを使う。
 
-API/service/repository、task create/edit/detail、dashboard today/week、notification scheduler、deep-linkの順に影響するが、今回これらのコード・schema・Cron・Cloudflare設定は変更していない。future occurrencesをDBへpre-generateせず、date windowからon-demand projectionする方針である。
+API/service/repository、task create/edit/detail、dashboard today/week、notification scheduler、deep-linkの順に影響する。Phase 1ではschema/domain/repositoryの基盤だけを変更し、全面UI、schedulerの新deadline切替、Cron、Cloudflare設定は変更していない。future occurrencesをDBへpre-generateせず、date windowからon-demand projectionする方針である。
+
+Phase 1実装ではscheduler/UI互換のためlegacy `recurrence_type`を保持し、`model_recurrence_type`、deadline、start date、recurrence configをadditiveに追加する。schedulerの新deadline計算への切替、record actionの新period適用は後続phaseで行う。
 
 ## 構成の境界
 

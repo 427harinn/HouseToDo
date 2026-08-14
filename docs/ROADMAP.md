@@ -28,7 +28,7 @@ task modelの詳細、migration互換性、通知仕様は [TASK_MODEL_DESIGN.md
 - [x] recurrence/period/deadline/notification semantics
 - [x] record identity and calendar projection policy
 - [x] backward-compatibility and staged migration proposal
-- [ ] Phase 1 domain/schema + migration implementation
+- [x] Phase 1 domain/schema + migration implementation
 - [ ] Phase 2 API/service/repository implementation
 - [ ] Phase 3 task create/edit/detail UI
 - [ ] Phase 4 scheduler/reminder migration

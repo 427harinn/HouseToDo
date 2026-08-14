@@ -1,6 +1,14 @@
 import { apiRequest } from "./client";
 
-export type TaskRecurrenceType = "daily" | "scheduled" | "weekly";
+export type TaskRecurrenceType =
+  | "daily"
+  | "scheduled"
+  | "weekly"
+  | "once"
+  | "weekly_fixed"
+  | "monthly_fixed"
+  | "weekly_flexible"
+  | "monthly_flexible";
 export type TaskAssignmentType = "anyone" | "specific";
 export type NotificationSlot = "morning" | "night" | "none";
 export type TaskDisplayStatus = "pending" | "in_progress" | "completed" | "skipped";
@@ -15,6 +23,7 @@ export type Task = {
   title: string;
   description: string | null;
   recurrenceType: TaskRecurrenceType;
+  modelRecurrenceType?: Exclude<TaskRecurrenceType, "scheduled" | "weekly"> | null;
   assignmentType: TaskAssignmentType;
   assignedUserId: string | null;
   assignment: {
@@ -26,6 +35,13 @@ export type Task = {
   notificationTime?: string | null;
   weekdays: number[];
   weeklyTargetCount: number | null;
+  startDate?: string | null;
+  targetDate?: string | null;
+  deadlineTime?: string | null;
+  notificationOffsetMinutes?: number | null;
+  weeklyDeadlineWeekday?: number | null;
+  monthlyDayOfMonth?: number | null;
+  monthlyDeadlineType?: "month_end" | "day_of_month" | null;
   active: boolean;
   sortOrder: number;
   createdBy: string;
@@ -75,6 +91,13 @@ export type CreateTaskInput = {
   notificationTime?: string | null;
   weekdays: number[];
   weeklyTargetCount: number | null;
+  startDate?: string | null;
+  targetDate?: string | null;
+  deadlineTime?: string | null;
+  notificationOffsetMinutes?: number | null;
+  weeklyDeadlineWeekday?: number | null;
+  monthlyDayOfMonth?: number | null;
+  monthlyDeadlineType?: "month_end" | "day_of_month" | null;
 };
 
 export type UpdateTaskInput = CreateTaskInput;

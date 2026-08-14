@@ -2,6 +2,7 @@ import type {
   NotificationSlot,
   Task,
   TaskAssignmentType,
+  TaskModelRecurrenceType,
   TaskRecurrenceType
 } from "../types/domain";
 
@@ -11,12 +12,20 @@ type TaskRow = {
   title: string;
   description: string | null;
   recurrence_type: TaskRecurrenceType;
+  model_recurrence_type: TaskModelRecurrenceType | null;
   assignment_type: TaskAssignmentType;
   assigned_user_id: string | null;
   scheduled_time: string | null;
   notification_slot: NotificationSlot;
   notification_time: string | null;
   weekly_target_count: number | null;
+  start_date: string | null;
+  target_date: string | null;
+  deadline_time: string | null;
+  notification_offset_minutes: number | null;
+  weekly_deadline_weekday: number | null;
+  monthly_day_of_month: number | null;
+  monthly_deadline_type: "month_end" | "day_of_month" | null;
   active: number;
   sort_order: number;
   created_by: string;
@@ -30,12 +39,20 @@ export type TaskCreateRecordInput = {
   title: string;
   description: string | null;
   recurrenceType: TaskRecurrenceType;
+  modelRecurrenceType?: TaskModelRecurrenceType | null;
   assignmentType: TaskAssignmentType;
   assignedUserId: string | null;
   scheduledTime: string | null;
   notificationSlot: NotificationSlot;
   notificationTime?: string | null;
   weeklyTargetCount: number | null;
+  startDate?: string | null;
+  targetDate?: string | null;
+  deadlineTime?: string | null;
+  notificationOffsetMinutes?: number | null;
+  weeklyDeadlineWeekday?: number | null;
+  monthlyDayOfMonth?: number | null;
+  monthlyDeadlineType?: "month_end" | "day_of_month" | null;
   sortOrder: number;
   createdBy: string;
   now: string;
@@ -54,12 +71,20 @@ const toTask = (row: TaskRow, weekdays: number[] = []): Task => ({
   title: row.title,
   description: row.description,
   recurrenceType: row.recurrence_type,
+  modelRecurrenceType: row.model_recurrence_type ?? null,
   assignmentType: row.assignment_type,
   assignedUserId: row.assigned_user_id,
   scheduledTime: row.scheduled_time,
   notificationSlot: row.notification_slot,
   notificationTime: row.notification_time ?? null,
   weeklyTargetCount: row.weekly_target_count,
+  startDate: row.start_date ?? null,
+  targetDate: row.target_date ?? null,
+  deadlineTime: row.deadline_time ?? null,
+  notificationOffsetMinutes: row.notification_offset_minutes ?? null,
+  weeklyDeadlineWeekday: row.weekly_deadline_weekday ?? null,
+  monthlyDayOfMonth: row.monthly_day_of_month ?? null,
+  monthlyDeadlineType: row.monthly_deadline_type ?? null,
   active: row.active === 1,
   sortOrder: row.sort_order,
   createdBy: row.created_by,
@@ -83,8 +108,10 @@ export class TaskRepository {
     householdId: string,
     options: { includeInactive?: boolean } = {}
   ): Promise<Task[]> {
-    const sql = `SELECT id, household_id, title, description, recurrence_type, assignment_type,
-       assigned_user_id, scheduled_time, notification_slot, notification_time, weekly_target_count, active, sort_order,
+    const sql = `SELECT id, household_id, title, description, recurrence_type, model_recurrence_type, assignment_type,
+       assigned_user_id, scheduled_time, notification_slot, notification_time, weekly_target_count,
+       start_date, target_date, deadline_time, notification_offset_minutes, weekly_deadline_weekday,
+       monthly_day_of_month, monthly_deadline_type, active, sort_order,
        created_by, created_at, updated_at
        FROM tasks
        WHERE household_id = ? ${options.includeInactive ? "" : "AND active = 1"}
@@ -96,8 +123,10 @@ export class TaskRepository {
   async findByIdForHousehold(householdId: string, taskId: string): Promise<Task | null> {
     const row = await this.db
       .prepare(
-        `SELECT id, household_id, title, description, recurrence_type, assignment_type,
-         assigned_user_id, scheduled_time, notification_slot, notification_time, weekly_target_count, active, sort_order,
+        `SELECT id, household_id, title, description, recurrence_type, model_recurrence_type, assignment_type,
+         assigned_user_id, scheduled_time, notification_slot, notification_time, weekly_target_count,
+         start_date, target_date, deadline_time, notification_offset_minutes, weekly_deadline_weekday,
+         monthly_day_of_month, monthly_deadline_type, active, sort_order,
          created_by, created_at, updated_at
          FROM tasks
          WHERE household_id = ? AND id = ?`
@@ -120,10 +149,11 @@ export class TaskRepository {
     return this.db
       .prepare(
         `INSERT INTO tasks (
-          id, household_id, title, description, recurrence_type, assignment_type, assigned_user_id,
-          scheduled_time, notification_slot, notification_time, weekly_target_count, active, sort_order, created_by,
-          created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`
+          id, household_id, title, description, recurrence_type, model_recurrence_type, assignment_type, assigned_user_id,
+          scheduled_time, notification_slot, notification_time, weekly_target_count,
+          start_date, target_date, deadline_time, notification_offset_minutes, weekly_deadline_weekday,
+          monthly_day_of_month, monthly_deadline_type, active, sort_order, created_by, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`
       )
       .bind(
         input.id,
@@ -131,12 +161,20 @@ export class TaskRepository {
         input.title,
         input.description,
         input.recurrenceType,
+        input.modelRecurrenceType ?? toModelRecurrenceType(input.recurrenceType, input.weeklyTargetCount),
         input.assignmentType,
         input.assignedUserId,
         input.scheduledTime,
         input.notificationSlot,
         input.notificationTime,
         input.weeklyTargetCount,
+        input.startDate ?? null,
+        input.targetDate ?? null,
+        input.deadlineTime ?? input.notificationTime ?? null,
+        input.notificationOffsetMinutes ?? (input.notificationTime ? 0 : null),
+        input.weeklyDeadlineWeekday ?? null,
+        input.monthlyDayOfMonth ?? null,
+        input.monthlyDeadlineType ?? null,
         input.sortOrder,
         input.createdBy,
         input.now,
@@ -158,20 +196,30 @@ export class TaskRepository {
     await this.db
       .prepare(
         `UPDATE tasks
-         SET title = ?, description = ?, recurrence_type = ?, assignment_type = ?, assigned_user_id = ?,
-             scheduled_time = ?, notification_slot = ?, notification_time = ?, weekly_target_count = ?, sort_order = ?, updated_at = ?
+         SET title = ?, description = ?, recurrence_type = ?, model_recurrence_type = ?, assignment_type = ?, assigned_user_id = ?,
+             scheduled_time = ?, notification_slot = ?, notification_time = ?, weekly_target_count = ?,
+             start_date = ?, target_date = ?, deadline_time = ?, notification_offset_minutes = ?,
+             weekly_deadline_weekday = ?, monthly_day_of_month = ?, monthly_deadline_type = ?, sort_order = ?, updated_at = ?
          WHERE household_id = ? AND id = ?`
       )
       .bind(
         input.title,
         input.description,
         input.recurrenceType,
+        input.modelRecurrenceType ?? toModelRecurrenceType(input.recurrenceType, input.weeklyTargetCount),
         input.assignmentType,
         input.assignedUserId,
         input.scheduledTime,
         input.notificationSlot,
         input.notificationTime,
         input.weeklyTargetCount,
+        input.startDate ?? current.startDate,
+        input.targetDate ?? current.targetDate,
+        input.deadlineTime ?? input.notificationTime ?? current.deadlineTime,
+        input.notificationOffsetMinutes ?? (input.notificationTime ? 0 : current.notificationOffsetMinutes),
+        input.weeklyDeadlineWeekday ?? current.weeklyDeadlineWeekday,
+        input.monthlyDayOfMonth ?? current.monthlyDayOfMonth,
+        input.monthlyDeadlineType ?? current.monthlyDeadlineType,
         input.sortOrder ?? current.sortOrder,
         input.now,
         householdId,
@@ -202,3 +250,23 @@ export class TaskRepository {
     ]);
   }
 }
+
+const toModelRecurrenceType = (
+  recurrenceType: TaskRecurrenceType,
+  weeklyTargetCount: number | null
+): TaskModelRecurrenceType | null => {
+  switch (recurrenceType) {
+    case "scheduled":
+      return "weekly_fixed";
+    case "weekly":
+      return weeklyTargetCount === 1 || weeklyTargetCount === null ? "weekly_flexible" : null;
+    case "daily":
+      return "daily";
+    case "once":
+    case "weekly_fixed":
+    case "monthly_fixed":
+    case "weekly_flexible":
+    case "monthly_flexible":
+      return recurrenceType;
+  }
+};

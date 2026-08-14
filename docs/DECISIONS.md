@@ -483,6 +483,12 @@ recurrence、calendar、deadline、notification_atはhousehold timezoneで解決
 
 詳細なfield、period key、migration/API影響、未解決事項は [TASK_MODEL_DESIGN.md](TASK_MODEL_DESIGN.md) に記載する。
 
+## 2026-08-14 Phase 1はlegacy recurrenceを保持してcanonical model列を追加する
+
+**Status:** Accepted — Phase 1 implementation
+
+現行scheduler/UIの互換性を守るため、Phase 1 migrationでは既存 `tasks.recurrence_type` の値を置換しない。`model_recurrence_type` を追加して、daily/scheduledとtarget count 1のweeklyだけを安全にcanonical mappingする。weekly target countが2以上のtaskはNULLのmanual-review状態として残し、start_dateも既存行へ推測値をbackfillしない。旧列の置換・削除は後続phaseの別migrationとする。
+
 ## 2026-08-04 Prepare staging before production
 
 Use a Wrangler `staging` environment before production. Keep staging and production D1/R2 resources separate, use workers.dev for the first staging deployment, keep R2 private and serve images through the Worker API, and manage secrets per environment only when a real secret is required. Apply Cron only after HTTP/API and manual Scheduled checks. `APP_ENV=staging` is a secure-cookie environment; only local development omits `Secure`. Production remains documentation-only until staging is accepted.

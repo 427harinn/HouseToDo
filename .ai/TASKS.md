@@ -9,7 +9,7 @@
 - [x] define history/template-based task creation
 - [x] plan task model phase 1 implementation and validation
 
-実装は未着手。次のimplementation gateはPhase 1の別承認とする。
+Phase 1のdomain/schema/migration実装は完了。次のimplementation gateはPhase 2（API/service/repository recurrence support）とする。
 
 ## Constraints
 

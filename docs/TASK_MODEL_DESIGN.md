@@ -1,7 +1,12 @@
 # HouseToDo 新タスクモデル設計
 
-> Status: **Approved for implementation planning; not implemented**
+> Status: **Approved; Phase 1 domain/schema foundation implemented**
+> Full recurrence API/UI/scheduler/calendar behavior remains unimplemented.
 > この文書は、次のmigration/API/UI/scheduler実装へ進むためのdesign source of truthである。ここでいうapprovedは仕様承認を意味し、現在のコード・DB・API・UIの挙動を変更したことを意味しない。
+
+### Phase 1 compatibility storage note
+
+Phase 1では、現行scheduler/UIが直接読むlegacy `recurrence_type` を一括置換しない。`model_recurrence_type` を追加してcanonical mappingを保持し、`daily -> daily`、`scheduled -> weekly_fixed`、`weekly`（target count 1）`-> weekly_flexible`をbackfillする。`weekly_target_count > 1` は `model_recurrence_type = NULL` のmanual-review状態として残す。`start_date`は既存行を安全なhousehold-local dateへ変換できないためNULL許容で追加し、新規作成時はserviceがhousehold timezoneのlocal dateを保存する。旧列の削除・旧recurrence値の置換はPhase 2以降の別migrationとする。
 
 ## 1. 調査した現行実装
 

@@ -84,4 +84,40 @@ describe("validation helpers", () => {
       expect(() => validateTaskWriteInput({ title: "Task", recurrenceType: "daily", notificationTime: value })).toThrow(AppError);
     }
   });
+
+  it("validates the Phase 1 recurrence configuration without changing legacy inputs", () => {
+    expect(validateTaskWriteInput({
+      title: "Monthly cleanup",
+      recurrenceType: "monthly_flexible",
+      deadlineTime: "21:00",
+      notificationOffsetMinutes: 30
+    })).toMatchObject({
+      monthlyDeadlineType: "month_end",
+      monthlyDayOfMonth: null,
+      notificationOffsetMinutes: 30
+    });
+    expect(validateTaskWriteInput({
+      title: "One-off task",
+      recurrenceType: "once",
+      targetDate: "2026-08-20",
+      startDate: "2026-08-14",
+      deadlineTime: "18:00",
+      notificationOffsetMinutes: 0
+    })).toMatchObject({ targetDate: "2026-08-20", startDate: "2026-08-14" });
+    expect(() => validateTaskWriteInput({
+      title: "Invalid reminder",
+      recurrenceType: "daily",
+      notificationOffsetMinutes: 15
+    })).toThrow(AppError);
+    expect(() => validateTaskWriteInput({
+      title: "Invalid reminder",
+      recurrenceType: "daily",
+      notificationOffsetMinutes: 5
+    })).toThrow(AppError);
+    expect(() => validateTaskWriteInput({
+      title: "Legacy weekly",
+      recurrenceType: "weekly",
+      weeklyTargetCount: 2
+    })).not.toThrow();
+  });
 });
