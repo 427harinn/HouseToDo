@@ -1,5 +1,15 @@
 # Staging runbook
 
+## 2026-08-14 Shopping image picker simplification staging verification
+
+- Commit `cfbe70465313279137915c38de15281a980a8443` was deployed to `house-to-do-staging` as version `c3ee3b68-6978-4857-8045-ca6551d9c59d` after local gates, the read-only migration check, and dry-run success.
+- The staging migration list reported no pending migrations; read-only D1 inspection confirmed `0001` through `0013_task_templates.sql` are applied. No remote migration was applied.
+- `/api/health` returned HTTP 200 with `db: true` and `r2: true`. Authenticated staging browser smoke loaded Shopping list, Shopping new, Shopping templates, and Calendar without browser errors.
+- Shopping new exposes one `写真を選ぶ` button and no `写真を撮る` button or camera input. `#shopping-image` has `accept="image/*"` and no `capture` attribute.
+- A staging browser fixture selection passed preview, remove, and re-selection. Image item save/R2 upload was not repeated because the existing staging verification already covered the unchanged upload flow; no temporary item or attachment was created.
+- Real iPhone OS picker behavior was not exercised by Codex. Manual iPhone verification remains: confirm that the OS picker offers options such as Library and Take Photo from `写真を選ぶ`.
+- Production resources, secrets, Cron, production migrations, and git push remain untouched.
+
 ## 2026-08-14 Shopping UX Phase 1 staging verification result
 
 - Implementation commit `7d150a72e19a3ac0c1f368eccda54269a549eac7` passed all local gates. The remote migration check reported no pending migrations; read-only schema inspection confirmed the existing `task_templates` table/index and no migration was applied.

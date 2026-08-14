@@ -25,6 +25,7 @@
 - [x] Shopping recent item reuse from existing household items with sorting, limit, deduplication, and isolation
 - [x] Shopping new-form template prefill while preserving existing template CRUD/add behavior
 - [x] Shopping camera/library image options with shared processing and unchanged R2 constraints
+- [x] Simplify Shopping image picker to one OS-mediated file input and verify on staging
 - [x] Deploy and verify Shopping UX Phase 1 on staging; clean up temporary fixtures
 
 ## Calendar phase

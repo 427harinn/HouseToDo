@@ -66,3 +66,9 @@ Cron configuration and production resources remain untouched. Staging migration,
 - Commit `7d150a72e19a3ac0c1f368eccda54269a549eac7` was deployed to `house-to-do-staging` as version `e409489e-26a3-4955-bc97-da5301da4fcf` after local gates, remote migration read-only checks, and dry-run success.
 - Health returned D1/R2 true. Authenticated Shopping Recent, purchased-item reuse, Recent/Template prefill, pending-state exclusion, old-image exclusion, camera/library preview/remove, library image save through R2, existing Shopping behavior, Calendar smoke, mobile 390px layout, and browser error checks passed.
 - Temporary Shopping items were deleted and the temporary template was deactivated by the existing template semantics. No migration was applied. Production, secrets, Cron, production resources, and git push remained untouched.
+
+## Shopping image picker simplification staging verification (2026-08-14)
+
+- Commit `cfbe70465313279137915c38de15281a980a8443` was deployed to `house-to-do-staging` as version `c3ee3b68-6978-4857-8045-ca6551d9c59d` after local gates, read-only migration verification through `0013`, and dry-run success.
+- Shopping new showed only `写真を選ぶ`; the camera-specific button/input was absent, and the remaining input used `accept="image/*"` with no `capture` attribute. Staging fixture selection passed preview, remove, and re-selection with no browser errors.
+- No staging item or attachment was created in this smoke. Real iPhone OS picker behavior was not exercised; manual confirmation of Library/Take Photo options remains pending. Production, secrets, Cron, remote migration apply, and git push remain untouched.
