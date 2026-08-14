@@ -434,6 +434,10 @@ export class MemoryD1 {
         ) ?? null;
       return record ? this.withActedByName(record) : null;
     }
+    if (sql.includes("FROM task_records tr") && sql.includes("tr.task_id = ? AND tr.occurrence_key")) {
+      const record = Array.from(this.taskRecords.values()).find((item) => item.task_id === values[0] && item.occurrence_key === values[1]) ?? null;
+      return record ? this.withActedByName(record) : null;
+    }
     if (
       sql.includes("FROM task_records tr") &&
       sql.includes("tr.task_id = ? AND tr.target_week_start")
@@ -647,6 +651,13 @@ export class MemoryD1 {
           (item) => item.household_id === values[0] && item.target_date === values[1]
         )
         .map((item) => this.withActedByName(item));
+    }
+    if (sql.includes("FROM task_records tr") && sql.includes("tr.household_id = ? AND tr.period_key IN")) {
+      const keys = values.slice(1).map(String);
+      return Array.from(this.taskRecords.values()).filter((item) => item.household_id === values[0] && typeof item.period_key === "string" && keys.includes(item.period_key)).sort((a, b) => b.updated_at.localeCompare(a.updated_at)).map((item) => this.withActedByName(item));
+    }
+    if (sql.includes("FROM task_records tr") && sql.includes("tr.task_id = ? AND tr.period_key")) {
+      return Array.from(this.taskRecords.values()).filter((item) => item.task_id === values[0] && item.period_key === values[1]).sort((a, b) => b.updated_at.localeCompare(a.updated_at)).map((item) => this.withActedByName(item));
     }
     if (
       sql.includes("FROM task_records tr") &&
@@ -1071,10 +1082,14 @@ export class MemoryD1 {
           sql.includes("target_date") && record.target_date === values[2];
         const weekMatches =
           sql.includes("target_week_start") && record.target_week_start === values[2];
+        const occurrenceMatches =
+          sql.includes("occurrence_key") && record.occurrence_key === values[2];
+        const periodMatches =
+          sql.includes("period_key") && record.period_key === values[2];
         if (
           record.household_id === values[0] &&
           record.task_id === values[1] &&
-          (dateMatches || weekMatches)
+          (dateMatches || weekMatches || occurrenceMatches || periodMatches)
         ) {
           this.taskRecords.delete(id);
         }

@@ -59,6 +59,10 @@ const recordResponse = (record: TaskRecord) => ({
   id: record.id,
   targetDate: record.targetDate,
   targetWeekStart: record.targetWeekStart,
+  occurrenceKey: record.occurrenceKey,
+  periodKey: record.periodKey,
+  periodStart: record.periodKey ? record.periodKey.split(":").at(-2) ?? null : null,
+  periodEnd: record.periodKey ? record.periodKey.split(":").at(-1) ?? null : null,
   status: record.status,
   actedBy: {
     userId: record.actedBy,
@@ -123,6 +127,15 @@ export const todayTasksRoute: Handler = requireAuth(async (context) => {
         completedAt: task.completedAt,
         skippedAt: task.skippedAt,
         note: task.note
+        ,scopeKind: task.scopeKind,
+        occurrenceKey: task.occurrenceKey,
+        periodKey: task.periodKey,
+        periodStart: task.periodStart,
+        periodEnd: task.periodEnd,
+        deadlineDate: task.deadlineDate,
+        deadlineTime: task.deadlineTime,
+        completedCount: task.completedCount,
+        overdue: task.overdue
       }))
     },
     context.requestId

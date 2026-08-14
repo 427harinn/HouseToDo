@@ -32,6 +32,10 @@ routeのsource of truthは `worker/app.ts` と `worker/routes/`です。認証�
 
 `worker/index.ts`のscheduled handlerは、期限切れimage reservation cleanup、orphan R2 cleanup、notification schedulerを同じscheduled invocationで実行します。stagingのCronは `*/5 * * * *`、localのwrangler設定は `0 18 * * *` です。schedulerはdelivery window、notification logのdedup、pending delivery claim lease、retry semanticsを使います。実際の時刻・windowの詳細はservice実装とmigrationを正とします。
 
+## Phase 3 task projection boundary
+
+`worker/lib/task-model.ts` is the pure domain boundary for recurrence projection, stable scope keys, monthly clamping, flexible period boundaries, and deadline metadata. TaskService uses it for canonical today, week, dashboard, and action flows; TaskRecordRepository stores occurrence_key or period_key without generating pending rows. Legacy tasks bypass the canonical resolver where their semantics differ.
+
 ## 次期task modelの実装影響（Phase 2 API実装済み）
 
 詳細設計は [TASK_MODEL_DESIGN.md](TASK_MODEL_DESIGN.md) をsource of truthとする。実装時はtasksへcanonical schedule/deadline列を段階追加し、`task_weekdays`と既存recordsを互換利用する。recurrence計算、period key、resolved deadline、overdue判定はdomain helperへ隔離し、将来calendarとschedulerが同じprojectionを使う。

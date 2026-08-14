@@ -212,7 +212,7 @@ schedulerは `occurrence/period -> deadline_at -> notification_at -> delivery` �
 5. templateを別tableに分離する条件と、history candidateの保存期間・privacy policy。
 6. migration後にlegacy列を削除する時期。
 
-## 12. Implementation phases
+## Phase 3 implementation status (2026-08-14)\n\nCanonical six recurrence types now use one server-side scope resolver. Fixed types use occurrence keys; flexible types use deadline-bounded period keys. Today/dashboard expose additive scope, period, completed-count, deadline, and derived overdue fields. Canonical actions resolve scope from targetDate. Flexible reset deletes all records in the selected period. Legacy tasks, including weekly target counts greater than one, remain on the legacy path. Scheduler, calendar UI, deep links, migration, deployment, and production remain out of scope.\n\n## 12. Implementation phases
 
 1. **Phase 1: domain/schema + migration** — canonical fields、period helper、backfill、indexes、compatibility read/write。
 2. **Phase 2: API/service/repository** — recurrence validation、projection、scope actions、status/overdue、history response。

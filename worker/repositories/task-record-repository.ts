@@ -79,6 +79,23 @@ export class TaskRecordRepository {
     return toRecord(row);
   }
 
+  async findByOccurrenceKey(taskId: string, occurrenceKey: string): Promise<TaskRecord | null> {
+    const row = await this.db.prepare(`SELECT ${selectRecord} FROM task_records tr LEFT JOIN users u ON u.id = tr.acted_by WHERE tr.task_id = ? AND tr.occurrence_key = ? ORDER BY tr.updated_at DESC LIMIT 1`).bind(taskId, occurrenceKey).first<TaskRecordRow>();
+    return toRecord(row);
+  }
+
+  async listByPeriodKey(taskId: string, periodKey: string): Promise<TaskRecord[]> {
+    const result = await this.db.prepare(`SELECT ${selectRecord} FROM task_records tr LEFT JOIN users u ON u.id = tr.acted_by WHERE tr.task_id = ? AND tr.period_key = ? ORDER BY tr.updated_at DESC`).bind(taskId, periodKey).all<TaskRecordRow>();
+    return (result.results ?? []).map((row) => toRecord(row)!);
+  }
+
+  async listByPeriodKeys(householdId: string, periodKeys: string[]): Promise<TaskRecord[]> {
+    if (periodKeys.length === 0) return [];
+    const placeholders = periodKeys.map(() => "?").join(", ");
+    const result = await this.db.prepare(`SELECT ${selectRecord} FROM task_records tr LEFT JOIN users u ON u.id = tr.acted_by WHERE tr.household_id = ? AND tr.period_key IN (${placeholders}) ORDER BY tr.updated_at DESC`).bind(householdId, ...periodKeys).all<TaskRecordRow>();
+    return (result.results ?? []).map((row) => toRecord(row)!);
+  }
+
   async findWeeklyOpenRecord(taskId: string, targetWeekStart: string): Promise<TaskRecord | null> {
     const row = await this.db
       .prepare(
@@ -209,9 +226,13 @@ export class TaskRecordRepository {
   async deleteByScope(
     householdId: string,
     taskId: string,
-    scope: { targetDate?: string; targetWeekStart?: string }
+    scope: { targetDate?: string; targetWeekStart?: string; occurrenceKey?: string; periodKey?: string }
   ): Promise<boolean> {
-    const result = scope.targetDate
+    const result = scope.occurrenceKey
+      ? await this.db.prepare("DELETE FROM task_records WHERE household_id = ? AND task_id = ? AND occurrence_key = ?").bind(householdId, taskId, scope.occurrenceKey).run()
+      : scope.periodKey
+      ? await this.db.prepare("DELETE FROM task_records WHERE household_id = ? AND task_id = ? AND period_key = ?").bind(householdId, taskId, scope.periodKey).run()
+      : scope.targetDate
       ? await this.db
           .prepare("DELETE FROM task_records WHERE household_id = ? AND task_id = ? AND target_date = ?")
           .bind(householdId, taskId, scope.targetDate)

@@ -2,6 +2,13 @@
 
 > この文書は、未実装のfuture workだけを管理します。完了済みPhaseの履歴や詳細仕様は置きません。
 
+## Phase 3 status
+
+- [x] Canonical occurrence/period projection and scope actions
+- [x] Today/dashboard/history additive scope metadata
+- [x] Legacy compatibility, including weekly target count greater than one
+- [ ] Calendar UI, scheduler migration, deep links, history/template UX, staging, production, deployment
+
 ## Future work
 
 1. Task model redesign

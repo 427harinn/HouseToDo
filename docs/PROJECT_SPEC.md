@@ -44,6 +44,10 @@ manifestとService Workerを提供します。Service Workerはpush payloadを�
 
 API一覧やDB schemaをこの文書に複製しません。現在のrouteは `worker/app.ts`、domain behaviorは `worker/services/`、migrationは `migrations/`を正とします。技術的な構成は [ARCHITECTURE.md](ARCHITECTURE.md) を参照してください。
 
+## Phase 3 task domain
+
+Canonical task projections and actions are now implemented for all six recurrence types. Today/dashboard responses add scope metadata, period bounds, completed counts, and derived overdue state while preserving existing fields. Action requests use targetDate and the server resolves occurrence/period scope. Calendar UI, scheduler migration, deep links, history/template UX, staging, production, and deployment remain future work.
+
 ## Future workへの境界
 
 以下はROADMAP上の候補であり、現在仕様ではありません。

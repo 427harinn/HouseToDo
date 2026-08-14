@@ -12,7 +12,7 @@
 Phase 1のdomain/schema/migration実装は完了。次のimplementation gateはPhase 2（API/service/repository recurrence support）とする。
 Phase 2のcanonical task create/update/read、recurrence validation、legacy compatibility mapping、specific config cleanup、API/compatibility testsは完了。UI刷新、scheduler切替、calendar/history/template UXは後続phase。
 
-## Constraints
+## Phase 3\n\n- [x] Shared canonical scope resolver\n- [x] Fixed/flexible actions and stable record keys\n- [x] Today/dashboard/week/history additive integration\n- [x] Legacy weekly target-count compatibility\n- [x] Typecheck, tests, build, local migration, and diff checks\n\n## Constraints
 
 - 現行task modelは正式設計が終わるまで変更しない
 - production untouched、deploy/push禁止

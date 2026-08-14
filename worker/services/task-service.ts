@@ -1,4 +1,5 @@
-import { getLocalDate, getWeekEndDate, getWeekStartDate, isTaskScheduledForDate } from "../lib/date-time";
+import { getLocalDate, getLocalTime, getWeekEndDate, getWeekStartDate } from "../lib/date-time";
+import { projectTaskOnDate } from "../lib/task-model";
 import {
   AppError,
   inactiveTaskError,
@@ -27,6 +28,15 @@ export type TaskWithStatus = Task & {
   completedAt: string | null;
   skippedAt: string | null;
   note: string | null;
+  scopeKind?: "occurrence" | "period";
+  occurrenceKey?: string | null;
+  periodKey?: string | null;
+  periodStart?: string;
+  periodEnd?: string;
+  deadlineDate?: string;
+  deadlineTime?: string | null;
+  completedCount?: number;
+  overdue?: boolean;
 };
 
 export type WeeklyTaskSummary = Task & {
@@ -77,7 +87,9 @@ export class TaskService {
         id: crypto.randomUUID(),
         householdId: household.id,
         ...input,
-        startDate: input.startDate ?? getLocalDate(new Date(), household.timezone),
+        // Legacy requests historically became active immediately. Canonical requests
+        // receive the household-local creation date when startDate is omitted.
+        startDate: input.startDate ?? (input.modelRecurrenceType ? getLocalDate(new Date(), household.timezone) : null),
         sortOrder: Date.now(),
         createdBy: userId,
         now
@@ -136,16 +148,17 @@ export class TaskService {
   async listToday(userId: string, date?: string | null): Promise<{ date: string; tasks: TaskWithStatus[] }> {
     const household = await this.households.requireCurrentHousehold(userId);
     const targetDate = date ?? getLocalDate(new Date(), household.timezone);
-    const tasks = (await this.tasks.listByHouseholdId(household.id)).filter(
-      (task) =>
-        task.recurrenceType === "daily" ||
-        (task.recurrenceType === "scheduled" && isTaskScheduledForDate(task.weekdays, targetDate))
+    const allTasks = await this.tasks.listByHouseholdId(household.id);
+    const projections = allTasks.map((task) => ({ task, scope: projectTaskOnDate(task, targetDate) })).filter(({ task, scope }) =>
+      task.modelRecurrenceType ? scope.matchesDate : (task.recurrenceType === "daily" || task.recurrenceType === "scheduled") && scope.matchesDate
     );
     const records = byTaskId(await this.records.listDailyRecords(household.id, targetDate));
+    const periodKeys = projections.map(({ scope }) => scope.periodKey).filter((key): key is string => Boolean(key));
+    const periodRecords = byTaskId(await this.records.listByPeriodKeys(household.id, periodKeys));
     return {
       date: targetDate,
-      tasks: tasks
-        .map((task) => this.mergeDailyStatus(task, records.get(task.id)?.[0] ?? null))
+      tasks: projections
+        .map(({ task, scope }) => this.mergeProjectedStatus(task, scope, scope.periodKey ? periodRecords.get(task.id)?.filter((record) => record.periodKey === scope.periodKey) ?? [] : records.get(task.id) ?? [], household.timezone))
         .sort(compareTodayTasks)
     };
   }
@@ -158,13 +171,22 @@ export class TaskService {
     const targetWeekStart =
       weekStart ?? getWeekStartDate(getLocalDate(new Date(), household.timezone), household.weekStartsOn);
     const records = byTaskId(await this.records.listWeeklyRecords(household.id, targetWeekStart));
-    const tasks = (await this.tasks.listByHouseholdId(household.id)).filter(
-      (task) => task.recurrenceType === "weekly"
-    );
+    const allTasks = (await this.tasks.listByHouseholdId(household.id)).filter((task) => task.recurrenceType === "weekly");
+    const legacyTasks = allTasks.filter((task) => !task.modelRecurrenceType);
+    const canonicalTasks = allTasks.filter((task) => task.modelRecurrenceType === "weekly_flexible");
+    const canonicalSummaries = await Promise.all(canonicalTasks.map(async (task) => {
+      const scope = projectTaskOnDate(task, targetWeekStart).matchesDate
+        ? projectTaskOnDate(task, targetWeekStart)
+        : projectTaskOnDate(task, getWeekEndDate(targetWeekStart, household.weekStartsOn));
+      if (!scope.matchesDate || !scope.periodKey) return null;
+      const scopedRecords = await this.records.listByPeriodKey(task.id, scope.periodKey);
+      const projected = this.mergeProjectedStatus(task, scope, scopedRecords, household.timezone);
+      return { ...task, targetCount: 1, completedCount: projected.completedCount ?? 0, remainingCount: Math.max(1 - (projected.completedCount ?? 0), 0), status: projected.status, latestAction: scopedRecords[0] ?? null } as WeeklyTaskSummary;
+    }));
     return {
       weekStart: targetWeekStart,
       weekEnd: getWeekEndDate(targetWeekStart, household.weekStartsOn),
-      tasks: tasks.map((task) => this.mergeWeeklyStatus(task, records.get(task.id) ?? []))
+      tasks: [...legacyTasks.map((task) => this.mergeWeeklyStatus(task, records.get(task.id) ?? [])), ...canonicalSummaries.filter((task): task is WeeklyTaskSummary => task !== null)]
     };
   }
 
@@ -177,9 +199,7 @@ export class TaskService {
     const household = await this.households.requireCurrentHousehold(userId);
     const task = await this.requireTask(household.id, taskId);
     if (!task.active) throw inactiveTaskError();
-    if (["once", "monthly_fixed", "monthly_flexible"].includes(task.modelRecurrenceType ?? "")) {
-      throw validationError({ recurrenceType: "Actions for once/monthly model tasks are not enabled in Phase 2." });
-    }
+    if (task.modelRecurrenceType) return this.changeCanonicalState(household, userId, task, action, input);
     return task.recurrenceType === "weekly"
       ? this.changeWeeklyState(household, userId, task, action, input)
       : this.changeDailyState(household, userId, task, action, input);
@@ -199,16 +219,40 @@ export class TaskService {
     input: TaskStateInput
   ): Promise<TaskWithStatus | { reset: true }> {
     const targetDate = input.targetDate ?? getLocalDate(new Date(), household.timezone);
-    if (task.recurrenceType === "scheduled" && !isTaskScheduledForDate(task.weekdays, targetDate)) {
+    const scope = projectTaskOnDate(task, targetDate);
+    if (!scope.matchesDate) {
       throw validationError({ targetDate: "Task is not scheduled for targetDate." });
     }
     const existing = await this.records.findDailyRecord(task.id, targetDate);
     if (action === "reset") {
-      await this.records.deleteByScope(household.id, task.id, { targetDate });
+      await this.records.deleteByScope(household.id, task.id, { targetDate, occurrenceKey: scope.occurrenceKey ?? undefined });
       return { reset: true };
     }
     const record = await this.applyState(userId, household.id, task.id, targetDate, null, action, existing, input.note);
     return this.mergeDailyStatus(task, record);
+  }
+
+  private async changeCanonicalState(household: HouseholdWithRole, userId: string, task: Task, action: "start" | "complete" | "skip" | "reset", input: TaskStateInput): Promise<TaskWithStatus | { reset: true }> {
+    const targetDate = input.targetDate ?? getLocalDate(new Date(), household.timezone);
+    const scope = projectTaskOnDate(task, targetDate);
+    if (!scope.matchesDate) throw validationError({ targetDate: "Task is not scheduled for targetDate." });
+    const existingRecords = scope.scopeType === "occurrence"
+      ? (await this.records.findDailyRecord(task.id, targetDate))
+        ? [await this.records.findDailyRecord(task.id, targetDate) as TaskRecord]
+        : []
+      : await this.records.listByPeriodKey(task.id, scope.periodKey!);
+    if (action === "reset") {
+      await this.records.deleteByScope(household.id, task.id, scope.scopeType === "occurrence" ? { occurrenceKey: scope.occurrenceKey! } : { periodKey: scope.periodKey! });
+      return { reset: true };
+    }
+    const completed = existingRecords.filter((record) => record.status === "completed");
+    const skipped = existingRecords.find((record) => record.status === "skipped");
+    if (action === "skip" && completed.length > 0) throw taskConflictError("TASK_ALREADY_COMPLETED", "Completed period cannot be skipped.");
+    if (skipped && action !== "start") return this.mergeProjectedStatus(task, scope, existingRecords, household.timezone);
+    const open = existingRecords.find((record) => record.status === "in_progress") ?? null;
+    if (action === "complete" && open === null && scope.scopeType === "occurrence" && completed.length > 0) return this.mergeProjectedStatus(task, scope, existingRecords, household.timezone);
+    const record = await this.applyState(userId, household.id, task.id, scope.scopeType === "occurrence" ? targetDate : targetDate, null, action, open, input.note, scope.occurrenceKey, scope.periodKey);
+    return this.mergeProjectedStatus(task, scope, [record, ...existingRecords.filter((item) => item.id !== record.id)], household.timezone);
   }
 
   private async changeWeeklyState(
@@ -257,7 +301,9 @@ export class TaskService {
     targetWeekStart: string | null,
     action: "start" | "complete" | "skip",
     existing: TaskRecord | null,
-    note?: string | null
+    note?: string | null,
+    occurrenceKey?: string | null,
+    periodKey?: string | null
   ): Promise<TaskRecord> {
     const now = nowIso();
     if (existing?.status === "completed") return existing;
@@ -276,6 +322,8 @@ export class TaskService {
       taskId,
       targetDate,
       targetWeekStart,
+      occurrenceKey,
+      periodKey,
       status,
       actedBy: userId,
       startedAt: action === "start" ? now : existing?.startedAt ?? null,
@@ -299,6 +347,19 @@ export class TaskService {
       skippedAt: record?.skippedAt ?? null,
       note: record?.note ?? null
     };
+  }
+
+  private mergeProjectedStatus(task: Task, scope: ReturnType<typeof projectTaskOnDate>, records: TaskRecord[], timezone: string): TaskWithStatus {
+    const completedCount = records.filter((record) => record.status === "completed").length;
+    const completed = completedCount > 0;
+    const skipped = records.find((record) => record.status === "skipped") ?? null;
+    const inProgress = records.find((record) => record.status === "in_progress") ?? null;
+    const record = completed ? (records.find((item) => item.status === "completed") ?? null) : inProgress ?? skipped;
+    const status: TaskDisplayStatus = skipped ? "skipped" : completed ? "completed" : inProgress ? "in_progress" : "pending";
+    const today = getLocalDate(new Date(), timezone);
+    const time = getLocalTime(new Date(), timezone);
+    const overdue = status === "pending" && Boolean(scope.deadlineTime) && (scope.deadlineDate < today || (scope.deadlineDate === today && scope.deadlineTime! < time));
+    return { ...this.mergeDailyStatus(task, record), status, scopeKind: scope.scopeType, occurrenceKey: scope.occurrenceKey, periodKey: scope.periodKey, periodStart: scope.periodStart, periodEnd: scope.periodEnd, deadlineDate: scope.deadlineDate, deadlineTime: scope.deadlineTime, completedCount, overdue };
   }
 
   private mergeWeeklyStatus(task: Task, records: TaskRecord[]): WeeklyTaskSummary {

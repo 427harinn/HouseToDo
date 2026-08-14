@@ -14,6 +14,6 @@
 
 新しいtask domain modelの正式設計、Phase 1（domain/schema + migration）、Phase 2（API/service/repository recurrence support）を完了した。詳細は [docs/TASK_MODEL_DESIGN.md](../docs/TASK_MODEL_DESIGN.md) にあり、保存・読み取り・validation基盤は実装済み。schedulerのdeadline切替、全面UI、calendar、history/template UXは未実装。
 
-## Guardrails
+## Phase 3 completed boundary\n\nCanonical projection and start/complete/skip/reset now cover all six recurrence types while legacy runtime behavior remains protected. Scheduler, calendar UI, remote migration, deployment, production, and push remain excluded.\n\n## Guardrails
 
 今回の準備ではアプリコード、DB schema、migration、API、UI、Cron、Cloudflare resourceを変更しない。production、deploy、push、secret変更も行わない。
