@@ -12,7 +12,7 @@
 
 ## Next objective
 
-新しいtask domain modelを正式設計する。deadline、notification offset、recurrence redesign、history/templatesの詳細は次フェーズで決定し、現行仕様へ先取りしない。
+新しいtask domain modelの正式設計を完了した。詳細は [docs/TASK_MODEL_DESIGN.md](../docs/TASK_MODEL_DESIGN.md) にあり、statusはapproved but not implemented。次は実装承認後のPhase 1（domain/schema + migration）であり、現行仕様へはまだ反映しない。
 
 ## Guardrails
 

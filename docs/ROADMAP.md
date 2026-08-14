@@ -20,4 +20,18 @@
 7. Scheduler query optimization
 8. Production rollout
 
-task modelの詳細、migration互換性、通知仕様は次フェーズで正式設計します。ここでは候補と順序だけを示し、現在仕様へ先取りしません。
+task modelの詳細、migration互換性、通知仕様は [TASK_MODEL_DESIGN.md](TASK_MODEL_DESIGN.md) として仕様化を完了した。これはapproved but not implementedであり、現在仕様への反映は実装phaseの完了後に行う。
+
+### Task model redesign status
+
+- [x] current implementation audit and detailed design
+- [x] recurrence/period/deadline/notification semantics
+- [x] record identity and calendar projection policy
+- [x] backward-compatibility and staged migration proposal
+- [ ] Phase 1 domain/schema + migration implementation
+- [ ] Phase 2 API/service/repository implementation
+- [ ] Phase 3 task create/edit/detail UI
+- [ ] Phase 4 scheduler/reminder migration
+- [ ] Phase 5 notification deep-link
+- [ ] Phase 6 history/template UX
+- [ ] Phase 7 calendar

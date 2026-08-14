@@ -2,12 +2,14 @@
 
 > current milestoneの未完了taskだけを管理します。完了済みtaskの保管場所にはしません。
 
-- [ ] finalize task domain specification
-- [ ] design migration and backward-compatibility strategy
-- [ ] define notification offset presets and delivery semantics
-- [ ] define recurrence redesign for flexible weekly/monthly tasks
-- [ ] define history/template-based task creation
-- [ ] plan task model phase 1 implementation and validation
+- [x] finalize task domain specification（docs/TASK_MODEL_DESIGN.md）
+- [x] design migration and backward-compatibility strategy
+- [x] define notification offset presets and delivery semantics
+- [x] define recurrence redesign for flexible weekly/monthly tasks
+- [x] define history/template-based task creation
+- [x] plan task model phase 1 implementation and validation
+
+実装は未着手。次のimplementation gateはPhase 1の別承認とする。
 
 ## Constraints
 

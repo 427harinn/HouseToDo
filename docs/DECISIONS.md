@@ -457,6 +457,32 @@ Complete the major D1 mutation first, then attempt the R2 delete through one sha
 
 This prioritizes preventing deletion of a valid image over complete orphan recovery. A queue-registration failure after a successful D1 mutation is logged as a structural consistency risk and remains an operational follow-up; no public cleanup endpoint or production Cron registration is added.
 
+## 2026-08-14 新task modelはdeadlineとnotification offsetを分離する
+
+**Status:** Accepted — planned, not implemented
+
+次期task modelではdeadlineをtask occurrence/periodの属性、通知をdeadlineからのpreset offsetとして別概念にする。`notification_offset_minutes` は `NULL`, `0`, `5`, `10`, `30`, `60`, `120` のいずれかとし、deadlineがないtaskはtime-based overdue/reminderを持たない。
+
+## 2026-08-14 flexible recurrenceはperiod modelとする
+
+**Status:** Accepted — planned, not implemented
+
+`weekly_flexible` と `monthly_flexible` は日付occurrenceの集合ではなくdeadlineで閉じるperiodとして扱う。最低1回のcompletedで達成し、同periodの追加completeは複数recordとして保存する。将来occurrence/recordをpre-generateしない。
+
+## 2026-08-14 month-end semanticを保持する
+
+**Status:** Accepted — planned, not implemented
+
+monthly flexibleのdefaultは `month_end` semanticを保存し、表示時に月の実際の末日へresolveする。`day_of_month` の存在しない月は末日にclampする。
+
+## 2026-08-14 shared task date/deadlineはhousehold timezone基準とする
+
+**Status:** Accepted — planned, not implemented
+
+recurrence、calendar、deadline、notification_atはhousehold timezoneで解決し、recipientごとにshared deadline instantを変更しない。evening summaryの表示・送信時刻は既存のuser notification setting timezoneを維持する。
+
+詳細なfield、period key、migration/API影響、未解決事項は [TASK_MODEL_DESIGN.md](TASK_MODEL_DESIGN.md) に記載する。
+
 ## 2026-08-04 Prepare staging before production
 
 Use a Wrangler `staging` environment before production. Keep staging and production D1/R2 resources separate, use workers.dev for the first staging deployment, keep R2 private and serve images through the Worker API, and manage secrets per environment only when a real secret is required. Apply Cron only after HTTP/API and manual Scheduled checks. `APP_ENV=staging` is a secure-cookie environment; only local development omits `Secure`. Production remains documentation-only until staging is accepted.
