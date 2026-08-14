@@ -1,5 +1,13 @@
 # Staging runbook
 
+## 2026-08-14 Phase 5 staging verification result
+
+- Staging-only migration `0012_task_model_foundation.sql` was applied successfully. The remote migration list is clean, and the canonical task columns plus `task_records.occurrence_key` / `period_key` are present.
+- `wrangler deploy --env staging --dry-run` and `wrangler deploy --env staging` succeeded for `house-to-do-staging`; `/api/health` returned HTTP 200 with D1/R2 bindings available. Cron remained `*/5 * * * *`.
+- Existing staging login, household, task, shopping, and settings screens loaded. The six canonical task types were created and displayed in separate UI groups. A daily `5 minutes before` reminder produced one `sent` delivery with a canonical occurrence target key.
+- Verification stopped at the flexible recurrence achievement gate: after one weekly-flexible completion, a second completion did not increase `completedCount`; the remote task-record aggregate remained one completed record. No code fix or follow-up deploy was performed.
+- The six temporary `P5 verify ...` tasks were limited to an exact-title staging cleanup and marked inactive. Existing records and delivery evidence were retained. Production resources, migrations, deploys, Cron, and secrets were untouched; no git push was performed.
+
 > stagingへの安全な確認・デプロイ手順です。productionのresource、secret、migration、deployは対象外で、明示承認なしに操作しません。
 
 ## 現在の構成
