@@ -14,6 +14,12 @@
 - `GET /api/tasks/calendar` uses the Phase 3 projector, derives status/overdue state, validates a maximum 62-day range, and does not pre-generate occurrence rows.
 - Local API/unit and Playwright coverage includes six recurrence types, monthly clamp, responsive widths, screenshots, and traces.
 
+## Calendar staging verification (2026-08-14)
+
+- Commit `45b6e1f2212b221c338b406fd8b65cbce854f431` was deployed to `house-to-do-staging` as version `5cb54728-1dac-441b-aaa6-d803ad350351` after local gates, read-only migration verification through `0012`, and dry-run success.
+- Health, authenticated navigation, month navigation, fixed markers, flexible selected-date sections, one flexible completion display, task detail/back navigation, aria-labels, and empty browser error logs passed. Temporary Calendar fixtures were marked inactive by exact title.
+- Production, secrets, remote migration apply, Cron configuration, and git push remain untouched.
+
 ## Next objective
 
 Notification deep-link and history/template task creation remain future phases. Shopping planned purchase date remains future work.

@@ -9,13 +9,14 @@
 - [x] Legacy compatibility, including weekly target count greater than one
 - [x] Canonical Task create/edit/detail/today UI and reminder scheduler
 - [x] Calendar UI and canonical range projection API
-- [ ] Deep links, history/template UX, staging, production, deployment
+- [x] Calendar staging verification and staging deployment
+- [ ] Deep links, history/template UX, production rollout
 
 ## Future work
 
 1. Task history / templateからのtask creation
 2. Task notification deep-link
-3. Calendar UI (implemented; deep-link synchronization remains future work)
+3. Calendar deep-link synchronization
 4. Shopping UX
    - history / templates
    - camera / photo-library選択

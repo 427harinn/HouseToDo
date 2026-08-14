@@ -16,7 +16,7 @@
 
 - Notification deep-link
 - History/template task creation UX
-- Staging and production rollout
+- Production rollout
 - Shopping planned purchase date
 
 ## Calendar phase
@@ -25,6 +25,7 @@
 - [x] Add bounded canonical Calendar range API with fixed markers and selected flexible detail
 - [x] Reuse Phase 3 projection/status/overdue logic without occurrence pre-generation
 - [x] Add Calendar API coverage, responsive Playwright coverage, screenshots, and traces
+- [x] Deploy and verify Calendar on staging; deactivate temporary fixtures
 
 ## Follow-up
 

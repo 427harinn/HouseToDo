@@ -1,5 +1,14 @@
 # Staging runbook
 
+## 2026-08-14 Calendar staging verification result
+
+- Commit `45b6e1f2212b221c338b406fd8b65cbce854f431` passed the local lint, typecheck, test, build, local migration, staging-config, and diff-check gates. The remote migration list was read-only checked: `0001` through `0012_task_model_foundation.sql` are applied and no migration is pending.
+- `npx wrangler deploy --env staging --dry-run` and `npx wrangler deploy --env staging` succeeded for `house-to-do-staging`. Version ID: `5cb54728-1dac-441b-aaa6-d803ad350351`. Cron remained `*/5 * * * *`; no remote migration apply was run.
+- `/api/health` returned HTTP 200 with `db: true` and `r2: true`. Existing staging login loaded Home, Calendar, Shopping, and Settings. Calendar displayed the household-local August 2026 month, selected date, previous/next month, and Today navigation.
+- Staging Calendar smoke verified the existing daily task plus temporary `weekly_fixed`, `monthly_fixed`, `weekly_flexible`, and `monthly_flexible` tasks. Fixed markers appeared on the expected dates; flexible tasks stayed out of grid markers and appeared in the selected-date weekly/monthly sections. Task detail navigation and browser back returned to Calendar. One flexible completion displayed `1回実施` and `完了`.
+- Temporary Calendar fixtures were identified by exact title and marked inactive after verification. Calendar returned to the existing-task-only state. Browser error logs were empty. The active once marker remained covered by the local projection tests and the existing inactive staging once fixture; no existing staging data was changed.
+- Production resources, secrets, Cron, and migrations were untouched; no git push was performed.
+
 ## 2026-08-14 Phase 5 staging verification result
 
 - Staging-only migration `0012_task_model_foundation.sql` was applied successfully. The remote migration list is clean, and the canonical task columns plus `task_records.occurrence_key` / `period_key` are present.
@@ -29,7 +38,7 @@
 | Static Assets | `dist/client`、SPA fallback |
 | Observability | 有効（stagingのみ） |
 | Cron | `*/5 * * * *` |
-| migration source | repositoryの `migrations/`（現在0011まで） |
+| migration source | repositoryの `migrations/`（現在0012まで） |
 
 Worker名、binding、Cron、originの現在値は `wrangler.jsonc` をsource of truthとします。Version IDは固定記載しません。remote migrationの適用済み状態は次の確認コマンドで都度確認します。
 
