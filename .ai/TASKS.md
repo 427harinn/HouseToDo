@@ -15,9 +15,16 @@
 ## Remaining future phases
 
 - Notification deep-link
-- Calendar UI
 - History/template task creation UX
 - Staging and production rollout
+- Shopping planned purchase date
+
+## Calendar phase
+
+- [x] Add household-timezone monthly Calendar route and bottom navigation entry
+- [x] Add bounded canonical Calendar range API with fixed markers and selected flexible detail
+- [x] Reuse Phase 3 projection/status/overdue logic without occurrence pre-generation
+- [x] Add Calendar API coverage, responsive Playwright coverage, screenshots, and traces
 
 ## Follow-up
 

@@ -46,18 +46,22 @@ API一覧やDB schemaをこの文書に複製しません。現在のrouteは `w
 
 ## Phase 3 task domain
 
-Canonical task projections and actions are now implemented for all six recurrence types. Today/dashboard responses add scope metadata, period bounds, completed counts, and derived overdue state while preserving existing fields. Action requests use targetDate and the server resolves occurrence/period scope. Calendar UI, scheduler migration, deep links, history/template UX, staging, production, and deployment remain future work.
+Canonical task projections and actions are now implemented for all six recurrence types. Today/dashboard responses add scope metadata, period bounds, completed counts, and derived overdue state while preserving existing fields. Action requests use targetDate and the server resolves occurrence/period scope. Calendar UI is implemented; notification deep links, history/template UX, staging, production, and deployment remain future work.
+
+### Calendar UI (implemented)
+
+The authenticated app provides a mobile-first monthly Calendar at `/calendar`. It uses the household timezone, shows a 42-cell month grid with fixed-task count markers, and places selected-date task detail below the grid. `once`, `daily`, `weekly_fixed`, and `monthly_fixed` are projected into grid markers; `weekly_flexible` and `monthly_flexible` appear only in the selected period sections. The range API is `GET /api/tasks/calendar?from=YYYY-MM-DD&to=YYYY-MM-DD&selectedDate=YYYY-MM-DD`, accepts a maximum 62-day range, and reuses the canonical Phase 3 projector and derived status/overdue fields without generating occurrence rows.
 
 ## Future workへの境界
 
 以下はROADMAP上の候補であり、現在仕様ではありません。
 
 - history / templateからのtask creation
-- calendar UI / integration
+- shopping planned purchase date and future integrations
 - shopping history・template UX、camera / photo-library選択
 - UI refinement、WebMCP、scheduler query optimization
 - production rollout
 
 ## 実装済みtask model
 
-task recurrenceは `once`、`daily`、`weekly_fixed`、`monthly_fixed`、`weekly_flexible`、`monthly_flexible` の6種です。deadlineとnotification offsetを分離し、flexible taskはperiod内の最低1回完了で達成、追加実施は履歴に残します。start_dateは未指定時に作成日のhousehold local dateを保存します。Task UIとcanonical reminder schedulerまで実装済みです。calendar、notification deep-link、history/template UXは未実装です。詳細は [TASK_MODEL_DESIGN.md](TASK_MODEL_DESIGN.md) を参照します。
+task recurrenceは `once`、`daily`、`weekly_fixed`、`monthly_fixed`、`weekly_flexible`、`monthly_flexible` の6種です。deadlineとnotification offsetを分離し、flexible taskはperiod内の最低1回完了で達成、追加実施は履歴に残します。start_dateは未指定時に作成日のhousehold local dateを保存します。Task UI、canonical reminder scheduler、Calendar UIまで実装済みです。notification deep-link、history/template UX、Shopping planned purchase dateは未実装です。詳細は [TASK_MODEL_DESIGN.md](TASK_MODEL_DESIGN.md) を参照します。

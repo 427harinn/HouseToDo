@@ -4,6 +4,14 @@
 
 Statusは原則 `Accepted`。変更された判断には `Superseded` と `Superseded by` を追記し、単なる履歴は削除せず短く保ちます。
 
+## 2026-08-14 Calendarはbounded range projectionとする
+
+**Status:** Accepted; implemented
+
+Calendarは `GET /api/tasks/calendar` の household-local date range projectionをsource of truthとし、rangeは最大62日、grid markerは固定 occurrence中心、flexible taskはselected-date detailだけに返す。`projectTaskOnDate`と既存のstatus/overdue mergeを再利用し、将来occurrenceをDBへ生成しない。
+
+**理由:** recurrence semanticsをfrontendへ複製せず、monthly clamp・flexible period boundary・record stateをTask domainで一貫させるため。bounded rangeは異常な巨大取得と不要なrecord走査を防ぐ。
+
 ## 2026-08-10 Web Push receiver情報をログへ出さない
 
 **Status:** Accepted

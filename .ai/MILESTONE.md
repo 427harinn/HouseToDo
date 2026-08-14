@@ -8,9 +8,15 @@
 - Reminder scheduler uses canonical deadlines, offsets, household timezone, and stable scope keys.
 - Legacy tasks, including weekly target counts greater than one, retain compatibility behavior.
 
+## Calendar phase completed
+
+- Monthly `/calendar` UI with household-local today, month navigation, selected-date detail, fixed markers, flexible period sections, loading/error states, and task detail navigation.
+- `GET /api/tasks/calendar` uses the Phase 3 projector, derives status/overdue state, validates a maximum 62-day range, and does not pre-generate occurrence rows.
+- Local API/unit and Playwright coverage includes six recurrence types, monthly clamp, responsive widths, screenshots, and traces.
+
 ## Next objective
 
-Notification deep-link, calendar UI, and history/template task creation remain future phases.
+Notification deep-link and history/template task creation remain future phases. Shopping planned purchase date remains future work.
 
 ## Guardrails
 

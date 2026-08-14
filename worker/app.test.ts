@@ -703,6 +703,81 @@ describe("redesigned task model API", () => {
     expect(invalid.status).toBe(400);
   });
 
+  it("projects fixed markers and flexible selected-date detail without generating occurrence rows", async () => {
+    const app = createApp();
+    const env = createTestEnv();
+    const owner = await registerUser(env, { email: "calendar-owner@example.com", password: "very-long-password", displayName: "Calendar Owner" });
+    await app.fetch(postJson("/api/households", { name: "Calendar House" }, owner.cookie), env);
+    const create = async (input: Record<string, unknown>) => {
+      const response = await app.fetch(postJson("/api/tasks", {
+        title: String(input.title),
+        assignmentType: "anyone",
+        notificationSlot: "none",
+        startDate: "2026-08-01",
+        ...input
+      }, owner.cookie), env);
+      expect(response.status).toBe(201);
+      const body: { data: { task: { id: string } } } = await response.json();
+      return body.data.task.id;
+    };
+    await create({ title: "once", modelRecurrenceType: "once", targetDate: "2026-08-14" });
+    const dailyId = await create({ title: "daily", modelRecurrenceType: "daily" });
+    await create({ title: "weekly fixed", modelRecurrenceType: "weekly_fixed", weekdays: [2, 5] });
+    await create({ title: "monthly fixed", modelRecurrenceType: "monthly_fixed", monthlyDayOfMonth: 31 });
+    const weeklyFlexibleId = await create({ title: "weekly flexible", modelRecurrenceType: "weekly_flexible", weeklyDeadlineWeekday: 5 });
+    await create({ title: "monthly flexible", modelRecurrenceType: "monthly_flexible", monthlyDeadlineType: "month_end" });
+
+    const calendar = await app.fetch(new Request("https://example.test/api/tasks/calendar?from=2026-08-01&to=2026-08-31&selectedDate=2026-08-14", { headers: { cookie: owner.cookie } }), env);
+    expect(calendar.status).toBe(200);
+    const body: {
+      data: {
+        dates: Record<string, { fixedCount: number }>;
+        selected: { fixed: Array<{ title: string }>; weeklyFlexible: Array<{ title: string; completedCount?: number }>; monthlyFlexible: Array<{ title: string }> };
+      };
+    } = await calendar.json();
+    expect(body.data.dates["2026-08-14"]?.fixedCount).toBe(3);
+    expect(body.data.dates["2026-08-15"]?.fixedCount).toBe(1);
+    expect(body.data.selected.fixed.map((task) => task.title)).toEqual(expect.arrayContaining(["once", "daily", "weekly fixed"]));
+    expect(body.data.selected.weeklyFlexible.map((task) => task.title)).toEqual(["weekly flexible"]);
+    expect(body.data.selected.monthlyFlexible.map((task) => task.title)).toEqual(["monthly flexible"]);
+
+    await app.fetch(postJson(`/api/tasks/${dailyId}/complete`, { targetDate: "2026-08-14" }, owner.cookie), env);
+    const completed = await app.fetch(new Request("https://example.test/api/tasks/calendar?from=2026-08-01&to=2026-08-31&selectedDate=2026-08-14", { headers: { cookie: owner.cookie } }), env);
+    const completedBody: { data: { selected: { fixed: Array<{ title: string; status: string }> } } } = await completed.json();
+    expect(completedBody.data.selected.fixed.find((task) => task.title === "daily")?.status).toBe("completed");
+    expect((env.DB as unknown as MemoryD1).taskRecords.size).toBe(1);
+
+    await app.fetch(postJson(`/api/tasks/${weeklyFlexibleId}/complete`, { targetDate: "2026-08-14" }, owner.cookie), env);
+    const weeklyFlexible = await app.fetch(new Request("https://example.test/api/tasks/calendar?from=2026-08-01&to=2026-08-31&selectedDate=2026-08-14", { headers: { cookie: owner.cookie } }), env);
+    const weeklyFlexibleBody: { data: { selected: { weeklyFlexible: Array<{ title: string; status: string; completedCount?: number }> } } } = await weeklyFlexible.json();
+    expect(weeklyFlexibleBody.data.selected.weeklyFlexible[0]?.status).toBe("completed");
+    expect(weeklyFlexibleBody.data.selected.weeklyFlexible[0]?.completedCount).toBe(1);
+    const nextWeek = await app.fetch(new Request("https://example.test/api/tasks/calendar?from=2026-08-01&to=2026-08-31&selectedDate=2026-08-21", { headers: { cookie: owner.cookie } }), env);
+    const nextWeekBody: { data: { selected: { weeklyFlexible: Array<{ title: string; status: string; completedCount?: number }> } } } = await nextWeek.json();
+    expect(nextWeekBody.data.selected.weeklyFlexible[0]?.status).toBe("pending");
+    expect(nextWeekBody.data.selected.weeklyFlexible[0]?.completedCount).toBe(0);
+  });
+
+  it("clamps monthly fixed markers and rejects oversized calendar ranges", async () => {
+    const app = createApp();
+    const env = createTestEnv();
+    const owner = await registerUser(env, { email: "calendar-clamp@example.com", password: "very-long-password", displayName: "Calendar Clamp" });
+    await app.fetch(postJson("/api/households", { name: "Calendar Clamp House" }, owner.cookie), env);
+    await app.fetch(postJson("/api/tasks", { title: "monthly 31", modelRecurrenceType: "monthly_fixed", monthlyDayOfMonth: 31, startDate: "2026-01-01", assignmentType: "anyone", notificationSlot: "none" }, owner.cookie), env);
+    const february = await app.fetch(new Request("https://example.test/api/tasks/calendar?from=2026-02-01&to=2026-02-28&selectedDate=2026-02-28", { headers: { cookie: owner.cookie } }), env);
+    const februaryBody: { data: { dates: Record<string, { fixedCount: number }> } } = await february.json();
+    expect(februaryBody.data.dates["2026-02-28"]?.fixedCount).toBe(1);
+    const april = await app.fetch(new Request("https://example.test/api/tasks/calendar?from=2026-04-01&to=2026-04-30&selectedDate=2026-04-30", { headers: { cookie: owner.cookie } }), env);
+    const aprilBody: { data: { dates: Record<string, { fixedCount: number }> } } = await april.json();
+    expect(aprilBody.data.dates["2026-04-30"]?.fixedCount).toBe(1);
+    expect(aprilBody.data.dates["2026-04-29"]?.fixedCount).toBe(0);
+    const may = await app.fetch(new Request("https://example.test/api/tasks/calendar?from=2026-05-01&to=2026-05-31&selectedDate=2026-05-31", { headers: { cookie: owner.cookie } }), env);
+    const mayBody: { data: { dates: Record<string, { fixedCount: number }> } } = await may.json();
+    expect(mayBody.data.dates["2026-05-31"]?.fixedCount).toBe(1);
+    const oversized = await app.fetch(new Request("https://example.test/api/tasks/calendar?from=2026-01-01&to=2026-03-04", { headers: { cookie: owner.cookie } }), env);
+    expect(oversized.status).toBe(400);
+  });
+
   it.each([
     ["weekly_flexible", { weeklyDeadlineWeekday: 5 }],
     ["monthly_flexible", { monthlyDeadlineType: "month_end" }]

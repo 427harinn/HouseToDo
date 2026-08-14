@@ -54,6 +54,7 @@ import {
   getTask,
   listTaskHistory,
   listTasks,
+  listCalendarTasks,
   listTodayTasks,
   listWeekTasks,
   updateTask,
@@ -122,6 +123,7 @@ type StaticRoute =
   | "/household/create"
   | "/household/join"
   | "/home"
+  | "/calendar"
   | "/settings/members"
   | "/tasks"
   | "/tasks/new"
@@ -141,6 +143,7 @@ type Route =
 
 type NavigationPath =
   | "/home"
+  | "/calendar"
   | "/tasks"
   | "/tasks/new"
   | "/shopping"
@@ -166,6 +169,7 @@ const staticRoutes = new Set<StaticRoute>([
   "/household/create",
   "/household/join",
   "/home",
+  "/calendar",
   "/settings/members",
   "/tasks",
   "/tasks/new",
@@ -221,6 +225,7 @@ const isOnboardingRoute = (route: Route) =>
 
 const isAppRoute = (route: Route) =>
   route.name === "/home" ||
+  route.name === "/calendar" ||
   route.name === "/settings/members" ||
   route.name === "/tasks" ||
   route.name === "/tasks/new" ||
@@ -236,9 +241,9 @@ const validateEmail = (email: string) =>
   /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 const normalizeInviteCode = (code: string) => code.trim();
 
-const todayInTokyo = () => {
+const todayInTimezone = (timezone = "Asia/Tokyo") => {
   const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Tokyo",
+    timeZone: timezone,
     year: "numeric",
     month: "2-digit",
     day: "2-digit"
@@ -246,6 +251,8 @@ const todayInTokyo = () => {
   const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
   return `${values.year}-${values.month}-${values.day}`;
 };
+
+const todayInTokyo = () => todayInTimezone("Asia/Tokyo");
 
 const addDays = (dateKey: string, days: number) => {
   const date = new Date(`${dateKey}T00:00:00Z`);
@@ -264,8 +271,16 @@ const formatDate = (dateKey: string) =>
     month: "long",
     day: "numeric",
     weekday: "short",
-    timeZone: "Asia/Tokyo"
-  }).format(new Date(`${dateKey}T00:00:00+09:00`));
+    timeZone: "UTC"
+  }).format(new Date(`${dateKey}T00:00:00Z`));
+
+const formatCalendarDate = (dateKey: string) =>
+  new Intl.DateTimeFormat("ja-JP", { month: "long", day: "numeric", weekday: "short", timeZone: "UTC" })
+    .format(new Date(`${dateKey}T00:00:00Z`));
+
+const formatCalendarMonth = (monthKey: string) =>
+  new Intl.DateTimeFormat("ja-JP", { year: "numeric", month: "long", timeZone: "UTC" })
+    .format(new Date(`${monthKey.slice(0, 7)}-01T00:00:00Z`));
 
 const formatDateTime = (value: string | null) =>
   value
@@ -487,6 +502,7 @@ export function App() {
     user: auth.user
   };
   if (route.name === "/settings/members") return <MembersScreen {...shellProps} />;
+  if (route.name === "/calendar") return <CalendarScreen {...shellProps} />;
   if (route.name === "/tasks") return <TaskListScreen {...shellProps} />;
   if (route.name === "/tasks/new")
     return <TaskFormScreen {...shellProps} mode="create" />;
@@ -845,7 +861,7 @@ function AppFrame({
   children,
   onNavigate
 }: {
-  current: "/home" | "/tasks" | "/shopping" | "/settings/members";
+  current: "/home" | "/calendar" | "/tasks" | "/shopping" | "/settings/members";
   children: ReactNode;
   onNavigate: (route: NavigationPath) => void;
 }) {
@@ -854,6 +870,153 @@ function AppFrame({
       {children}
       <BottomNavigation current={current} onNavigate={onNavigate} />
     </main>
+  );
+}
+
+function CalendarScreen({
+  household,
+  onNavigate,
+  onLogout
+}: {
+  household: Household;
+  user: AuthUser;
+  onNavigate: (route: NavigationPath) => void;
+  onLogout: () => void;
+}) {
+  const initialDate = (() => {
+    const queryDate = new URLSearchParams(window.location.search).get("date");
+    return queryDate && /^\d{4}-\d{2}-\d{2}$/.test(queryDate)
+      ? queryDate
+      : todayInTimezone(household.timezone);
+  })();
+  const [visibleMonth, setVisibleMonth] = useState(`${initialDate.slice(0, 7)}-01`);
+  const [selectedDate, setSelectedDate] = useState(initialDate);
+  const [data, setData] = useState<Awaited<ReturnType<typeof listCalendarTasks>> | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
+
+  const gridStart = addDays(visibleMonth, -((new Date(`${visibleMonth}T00:00:00Z`).getUTCDay() - household.weekStartsOn + 7) % 7));
+  const gridEnd = addDays(gridStart, 41);
+  const gridDates = Array.from({ length: 42 }, (_, index) => addDays(gridStart, index));
+  const refresh = useCallback(async (signal?: AbortSignal) => {
+    setLoading(true);
+    setMessage("");
+    try {
+      const result = await listCalendarTasks(gridStart, gridEnd, selectedDate, signal);
+      setData(result);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      setMessage(apiErrorMessage(error));
+    } finally {
+      if (!signal?.aborted) setLoading(false);
+    }
+  }, [gridStart, gridEnd, selectedDate]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void refresh(controller.signal);
+    return () => controller.abort();
+  }, [refresh]);
+
+  const moveMonth = (offset: number) => {
+    const current = new Date(`${visibleMonth}T00:00:00Z`);
+    current.setUTCMonth(current.getUTCMonth() + offset);
+    const next = current.toISOString().slice(0, 7) + "-01";
+    setVisibleMonth(next);
+    setSelectedDate(next);
+  };
+  const goToday = () => {
+    const today = data?.today ?? todayInTimezone(household.timezone);
+    setVisibleMonth(`${today.slice(0, 7)}-01`);
+    setSelectedDate(today);
+  };
+  const marker = (date: string) => data?.dates[date] ?? { fixedCount: 0, fixedCompletedCount: 0, fixedSkippedCount: 0 };
+  const selectedTitle = selectedDate === (data?.today ?? todayInTimezone(household.timezone))
+    ? "今日のタスク"
+    : `${formatCalendarDate(selectedDate)}のタスク`;
+  const flexibleLabel = selectedDate === (data?.today ?? todayInTimezone(household.timezone));
+
+  return (
+    <AppFrame current="/calendar" onNavigate={onNavigate}>
+      <PageHeader
+        title="カレンダー"
+        description={household.name}
+        action={<Button variant="ghost" onClick={onLogout}>ログアウト</Button>}
+      />
+      <ErrorMessage message={message ? `Calendarを取得できませんでした。${message}` : ""} />
+      <Card className="calendar-card">
+        <div className="calendar-toolbar">
+          <Button variant="ghost" onClick={() => moveMonth(-1)} aria-label="前月">‹</Button>
+          <h2>{formatCalendarMonth(visibleMonth)}</h2>
+          <Button variant="ghost" onClick={() => moveMonth(1)} aria-label="次月">›</Button>
+        </div>
+        <div className="calendar-toolbar__sub">
+          <span>{loading ? "更新中…" : ""}</span>
+          <Button variant="secondary" onClick={goToday}>今日</Button>
+        </div>
+        <div className="calendar-weekdays" aria-hidden="true">
+          {Array.from({ length: 7 }, (_, index) => weekdayLabels[(household.weekStartsOn + index) % 7]).map((label) => <span key={label}>{label}</span>)}
+        </div>
+        <div className="calendar-grid" role="grid" aria-label={`${formatCalendarMonth(visibleMonth)}のカレンダー`}>
+          {gridDates.map((date) => {
+            const item = marker(date);
+            const inMonth = date.slice(0, 7) === visibleMonth.slice(0, 7);
+            const isToday = date === (data?.today ?? todayInTimezone(household.timezone));
+            const isSelected = date === selectedDate;
+            return (
+              <button
+                className={`calendar-cell${inMonth ? "" : " calendar-cell--outside"}${isToday ? " calendar-cell--today" : ""}${isSelected ? " calendar-cell--selected" : ""}`}
+                key={date}
+                type="button"
+                role="gridcell"
+                aria-current={isToday ? "date" : undefined}
+                aria-label={`${formatCalendarDate(date)}、タスク${item.fixedCount}件`}
+                aria-pressed={isSelected}
+                onClick={() => {
+                  setSelectedDate(date);
+                  setVisibleMonth(`${date.slice(0, 7)}-01`);
+                }}
+              >
+                <span className="calendar-cell__date">{Number(date.slice(8, 10))}</span>
+                {item.fixedCount > 0 ? <span className="calendar-cell__marker" aria-label={`固定タスク${item.fixedCount}件`}>{item.fixedCount}</span> : <span className="calendar-cell__marker calendar-cell__marker--empty" aria-hidden="true" />}
+                {item.fixedCompletedCount > 0 ? <span className="calendar-cell__complete" aria-label={`完了${item.fixedCompletedCount}件`}>✓</span> : null}
+              </button>
+            );
+          })}
+        </div>
+      </Card>
+      <Card className="calendar-detail">
+        <h2>{selectedTitle}</h2>
+        {data ? (
+          <>
+            <CalendarSection title="固定タスク" tasks={data.selected.fixed} onNavigate={onNavigate} emptyTitle="固定タスクはありません" />
+            <CalendarSection title={flexibleLabel ? "今週中" : "この週のタスク"} tasks={data.selected.weeklyFlexible} onNavigate={onNavigate} emptyTitle="週のタスクはありません" contextLabel={flexibleLabel ? "今週中" : "この週のタスク"} />
+            <CalendarSection title={flexibleLabel ? "今月中" : "この期間のタスク"} tasks={data.selected.monthlyFlexible} onNavigate={onNavigate} emptyTitle="月のタスクはありません" contextLabel={flexibleLabel ? "今月中" : "この期間のタスク"} />
+          </>
+        ) : <p role="status">カレンダーを読み込んでいます。</p>}
+      </Card>
+    </AppFrame>
+  );
+}
+
+function CalendarSection({
+  title,
+  tasks,
+  onNavigate,
+  emptyTitle,
+  contextLabel
+}: {
+  title: string;
+  tasks: TodayTask[];
+  onNavigate: (route: NavigationPath) => void;
+  emptyTitle: string;
+  contextLabel?: string;
+}) {
+  return (
+    <section className="calendar-detail__section" aria-label={title}>
+      <div className="section-heading"><h3>{title}</h3><span>{tasks.length}件</span></div>
+      <TaskCardList tasks={tasks} members={[]} emptyTitle={emptyTitle} onNavigate={onNavigate} contextLabel={contextLabel} />
+    </section>
   );
 }
 
@@ -1028,13 +1191,15 @@ function TaskCardList({
   members,
   emptyTitle,
   emptyDescription = "時間のあるときに確認しましょう。",
-  onNavigate
+  onNavigate,
+  contextLabel
 }: {
   tasks: TodayTask[];
   members: Array<Pick<HouseholdMember, "userId" | "displayName" | "color">>;
   emptyTitle: string;
   emptyDescription?: string;
   onNavigate: (route: NavigationPath) => void;
+  contextLabel?: string;
 }) {
   if (tasks.length === 0)
     return <EmptyState title={emptyTitle} description={emptyDescription} />;
@@ -1046,6 +1211,7 @@ function TaskCardList({
           task={task}
           members={members}
           onNavigate={onNavigate}
+          contextLabel={contextLabel}
         />
       ))}
     </div>
@@ -1055,11 +1221,13 @@ function TaskCardList({
 function TodayTaskCard({
   task,
   members,
-  onNavigate
+  onNavigate,
+  contextLabel
 }: {
   task: TodayTask;
   members: Array<Pick<HouseholdMember, "userId" | "displayName" | "color">>;
   onNavigate: (route: NavigationPath) => void;
+  contextLabel?: string;
 }) {
   const assignedMember = task.assignedUserId
     ? members.find((member) => member.userId === task.assignedUserId)
@@ -1076,7 +1244,7 @@ function TodayTaskCard({
       <span className="task-card__body">
         <strong>{task.title}</strong>
         <small>
-          {task.modelRecurrenceType === "weekly_flexible" ? "今週中" : task.modelRecurrenceType === "monthly_flexible" ? "今月中" : formatSchedule(task.deadlineTime ?? task.scheduledTime)} / 担当:{" "}
+          {contextLabel ?? (task.modelRecurrenceType === "weekly_flexible" ? "今週中" : task.modelRecurrenceType === "monthly_flexible" ? "今月中" : formatSchedule(task.deadlineTime ?? task.scheduledTime))} / 担当:{" "}
           {assignedMember?.displayName ?? assignmentLabels[task.assignmentType]}
         </small>
         {task.deadlineDate ? <small>{formatDate(task.deadlineDate)} {task.deadlineTime ? `${task.deadlineTime}まで` : ""}</small> : null}
@@ -3480,7 +3648,7 @@ function GuestScreen({
         current="/home"
         onNavigate={
           onNavigate as (
-            path: "/home" | "/tasks" | "/shopping" | "/settings/members"
+            path: "/home" | "/calendar" | "/tasks" | "/shopping" | "/settings/members"
           ) => void
         }
       />

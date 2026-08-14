@@ -101,6 +101,26 @@ export type WeeklyTask = Task & {
   overdue?: boolean;
 };
 
+export type CalendarDateMarker = {
+  fixedCount: number;
+  fixedCompletedCount: number;
+  fixedSkippedCount: number;
+};
+
+export type CalendarResponse = {
+  from: string;
+  to: string;
+  today: string;
+  timezone: string;
+  selectedDate: string;
+  dates: Record<string, CalendarDateMarker>;
+  selected: {
+    fixed: TodayTask[];
+    weeklyFlexible: TodayTask[];
+    monthlyFlexible: TodayTask[];
+  };
+};
+
 export type CreateTaskInput = {
   title: string;
   description: string | null;
@@ -175,6 +195,17 @@ export const listTodayTasks = (date?: string, signal?: AbortSignal) =>
 export const listWeekTasks = (weekStart?: string, signal?: AbortSignal) =>
   apiRequest<{ weekStart: string; weekEnd: string; tasks: WeeklyTask[] }>(
     withQuery("/api/tasks/week", { weekStart }),
+    { signal }
+  );
+
+export const listCalendarTasks = (
+  from: string,
+  to: string,
+  selectedDate?: string,
+  signal?: AbortSignal
+) =>
+  apiRequest<CalendarResponse>(
+    withQuery("/api/tasks/calendar", { from, to, selectedDate }),
     { signal }
   );
 

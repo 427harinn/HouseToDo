@@ -1,7 +1,7 @@
 # HouseToDo 新タスクモデル設計
 
 > Status: **Approved; Phase 1–4 task model implementation complete**
-> Domain/schema, API/service/repository, occurrence/period actions, Task UI, and canonical reminder scheduler are implemented. Calendar, deep-link, and history/template UX remain staged.
+> Domain/schema, API/service/repository, occurrence/period actions, Task UI, canonical reminder scheduler, and monthly Calendar UI/API are implemented. Deep-link and history/template UX remain staged.
 
 ### Phase 4 implementation boundary
 
@@ -216,7 +216,7 @@ schedulerは `occurrence/period -> deadline_at -> notification_at -> delivery` �
 5. templateを別tableに分離する条件と、history candidateの保存期間・privacy policy。
 6. migration後にlegacy列を削除する時期。
 
-## Phase 3 implementation status (2026-08-14)\n\nCanonical six recurrence types now use one server-side scope resolver. Fixed types use occurrence keys; flexible types use deadline-bounded period keys. Today/dashboard expose additive scope, period, completed-count, deadline, and derived overdue fields. Canonical actions resolve scope from targetDate. Flexible reset deletes all records in the selected period. Legacy tasks, including weekly target counts greater than one, remain on the legacy path. Scheduler, calendar UI, deep links, migration, deployment, and production remain out of scope.\n\n## 12. Implementation phases
+## Phase 3 implementation status (2026-08-14)\n\nCanonical six recurrence types now use one server-side scope resolver. Fixed types use occurrence keys; flexible types use deadline-bounded period keys. Today/dashboard and Calendar expose additive scope, period, completed-count, deadline, and derived overdue fields. Canonical actions resolve scope from targetDate. Flexible reset deletes all records in the selected period. Legacy tasks, including weekly target counts greater than one, remain on the legacy path. Scheduler migration, deep links, migration changes, deployment, and production remain out of scope.\n\n## 12. Implementation phases
 
 1. **Phase 1: domain/schema + migration** — canonical fields、period helper、backfill、indexes、compatibility read/write。
 2. **Phase 2: API/service/repository** — recurrence validation、projection、scope actions、status/overdue、history response。

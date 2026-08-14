@@ -1,12 +1,13 @@
 import type { ReactNode } from "react";
 
-type NavigationPath = "/home" | "/tasks" | "/shopping" | "/settings/members";
+type NavigationPath = "/home" | "/calendar" | "/tasks" | "/shopping" | "/settings/members";
 
 type ButtonProps = {
   children: ReactNode;
   type?: "button" | "submit";
   variant?: "primary" | "secondary" | "ghost" | "danger";
   disabled?: boolean;
+  "aria-label"?: string;
   onClick?: () => void;
 };
 
@@ -15,12 +16,14 @@ export function Button({
   type = "button",
   variant = "primary",
   disabled = false,
+  "aria-label": ariaLabel,
   onClick
 }: ButtonProps) {
   return (
     <button
       className={`button button--${variant}`}
       disabled={disabled}
+      aria-label={ariaLabel}
       onClick={onClick}
       type={type}
     >
@@ -198,6 +201,7 @@ export function BottomNavigation({
 }) {
   const items: Array<{ path: NavigationPath; label: string }> = [
     { path: "/home", label: "ホーム" },
+    { path: "/calendar", label: "カレンダー" },
     { path: "/tasks", label: "タスク" },
     { path: "/shopping", label: "買い物" },
     { path: "/settings/members", label: "設定" }

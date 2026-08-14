@@ -37,6 +37,7 @@ import {
 } from "./routes/shopping-images";
 import {
   changeTaskStateRoute,
+  calendarTasksRoute,
   createTaskRoute,
   dashboardTodayRoute,
   deleteTaskRoute,
@@ -68,7 +69,7 @@ const routeApi = withErrorHandling(
       /^\/api\/shopping\/templates\/([^/]+)(?:\/([^/]+))?$/
     );
 
-    if (taskPath && taskPath[1] !== "today" && taskPath[1] !== "week") {
+    if (taskPath && !["today", "week", "calendar"].includes(taskPath[1])) {
       const taskId = decodeURIComponent(taskPath[1]);
       const action = taskPath[2];
       if (!action && context.request.method === "GET")
@@ -173,6 +174,8 @@ const routeApi = withErrorHandling(
         return todayTasksRoute(context);
       case "GET /api/tasks/week":
         return weekTasksRoute(context);
+      case "GET /api/tasks/calendar":
+        return calendarTasksRoute(context);
       case "GET /api/dashboard/today":
         return dashboardTodayRoute(context);
       case "GET /api/shopping/items":

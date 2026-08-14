@@ -2,6 +2,7 @@ import { unauthenticatedError } from "../lib/errors";
 import { okJson } from "../lib/response";
 import {
   parseJsonBody,
+  validateCalendarRangeQuery,
   validateDateQuery,
   validateIncludeInactive,
   validateLimitQuery,
@@ -74,6 +75,25 @@ const recordResponse = (record: TaskRecord) => ({
   note: record.note,
   createdAt: record.createdAt,
   updatedAt: record.updatedAt
+});
+
+const taskWithStatusResponse = (task: Awaited<ReturnType<TaskService["listToday"]>>["tasks"][number]) => ({
+  ...taskResponse(task),
+  status: task.status,
+  actedBy: task.actedBy,
+  startedAt: task.startedAt,
+  completedAt: task.completedAt,
+  skippedAt: task.skippedAt,
+  note: task.note,
+  scopeKind: task.scopeKind,
+  occurrenceKey: task.occurrenceKey,
+  periodKey: task.periodKey,
+  periodStart: task.periodStart,
+  periodEnd: task.periodEnd,
+  deadlineDate: task.deadlineDate,
+  deadlineTime: task.deadlineTime,
+  completedCount: task.completedCount,
+  overdue: task.overdue
 });
 
 export const listTasksRoute: Handler = requireAuth(async (context) => {
@@ -161,6 +181,25 @@ export const weekTasksRoute: Handler = requireAuth(async (context) => {
     },
     context.requestId
   );
+});
+
+export const calendarTasksRoute: Handler = requireAuth(async (context) => {
+  const user = requireUser(context.user);
+  const query = validateCalendarRangeQuery(context.request);
+  const data = await new TaskService(context.env.DB).listCalendar(user.id, query.from, query.to, query.selectedDate);
+  return okJson({
+    from: data.from,
+    to: data.to,
+    today: data.today,
+    timezone: data.timezone,
+    selectedDate: data.selectedDate,
+    dates: data.dates,
+    selected: {
+      fixed: data.selected.fixed.map(taskWithStatusResponse),
+      weeklyFlexible: data.selected.weeklyFlexible.map(taskWithStatusResponse),
+      monthlyFlexible: data.selected.monthlyFlexible.map(taskWithStatusResponse)
+    }
+  }, context.requestId);
 });
 
 export const changeTaskStateRoute = (

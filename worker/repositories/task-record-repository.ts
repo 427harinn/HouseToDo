@@ -96,6 +96,21 @@ export class TaskRecordRepository {
     return (result.results ?? []).map((row) => toRecord(row)!);
   }
 
+  async listCalendarRecords(householdId: string, from: string, to: string, periodKeys: string[]): Promise<TaskRecord[]> {
+    const periodClause = periodKeys.length > 0
+      ? ` OR tr.period_key IN (${periodKeys.map(() => "?").join(", ")})`
+      : "";
+    const result = await this.db.prepare(
+      `SELECT ${selectRecord}
+       FROM task_records tr
+       LEFT JOIN users u ON u.id = tr.acted_by
+       WHERE tr.household_id = ?
+         AND (tr.target_date >= ? AND tr.target_date <= ?${periodClause})
+       ORDER BY tr.updated_at DESC`
+    ).bind(householdId, from, to, ...periodKeys).all<TaskRecordRow>();
+    return (result.results ?? []).map((row) => toRecord(row)!);
+  }
+
   async findWeeklyOpenRecord(taskId: string, targetWeekStart: string): Promise<TaskRecord | null> {
     const row = await this.db
       .prepare(

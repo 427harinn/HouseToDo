@@ -526,6 +526,35 @@ export const validateDateQuery = (request: Request, key: "date" | "weekStart"): 
   return value;
 };
 
+export type CalendarRangeQuery = {
+  from: string;
+  to: string;
+  selectedDate: string | null;
+};
+
+export const validateCalendarRangeQuery = (request: Request): CalendarRangeQuery => {
+  const params = new URL(request.url).searchParams;
+  const from = params.get("from");
+  const to = params.get("to");
+  const selectedDate = params.get("selectedDate");
+  const details: Record<string, string> = {};
+  if (!from || !isValidDateKey(from)) details.from = "from must be YYYY-MM-DD.";
+  if (!to || !isValidDateKey(to)) details.to = "to must be YYYY-MM-DD.";
+  if (selectedDate !== null && !isValidDateKey(selectedDate)) {
+    details.selectedDate = "selectedDate must be YYYY-MM-DD.";
+  }
+  if (Object.keys(details).length > 0) throw validationError(details);
+  const first = Date.parse(`${from!}T00:00:00Z`);
+  const last = Date.parse(`${to!}T00:00:00Z`);
+  const days = Math.floor((last - first) / 86_400_000) + 1;
+  if (from! > to!) throw validationError({ range: "from must be before or equal to to." });
+  if (days < 1 || days > 62) throw validationError({ range: "Calendar range must contain from 1 to 62 days." });
+  if (selectedDate !== null && (selectedDate < from! || selectedDate > to!)) {
+    throw validationError({ selectedDate: "selectedDate must be inside the requested range." });
+  }
+  return { from: from!, to: to!, selectedDate };
+};
+
 export const validateIncludeInactive = (request: Request): boolean => {
   const value = new URL(request.url).searchParams.get("includeInactive");
   if (value === null) return false;

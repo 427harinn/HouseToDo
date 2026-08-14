@@ -11,7 +11,7 @@
 - PWA manifestとService Worker、通知権限・Push購読の設定
 - staging/development/testでのテストPush、タスク通知設定、evening summary、5分間隔scheduler
 
-新しいtask model（deadline、notification offset、recurrence redesign等）は未実装のfuture workです。詳細は [PROJECT_SPEC](docs/PROJECT_SPEC.md) と [ROADMAP](docs/ROADMAP.md) を参照してください。
+新しいtask model（deadline、notification offset、recurrence redesign等）とcanonical monthly Calendar UIは実装済みです。詳細は [PROJECT_SPEC](docs/PROJECT_SPEC.md) と [ROADMAP](docs/ROADMAP.md) を参照してください。
 
 ## 技術スタック
 

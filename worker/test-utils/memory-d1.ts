@@ -644,6 +644,21 @@ export class MemoryD1 {
     }
     if (
       sql.includes("FROM task_records tr") &&
+      sql.includes("tr.household_id = ?") &&
+      sql.includes("tr.target_date >= ? AND tr.target_date <= ?")
+    ) {
+      const periodKeys = values.slice(3).map(String);
+      return Array.from(this.taskRecords.values())
+        .filter((item) => item.household_id === values[0])
+        .filter((item) =>
+          (item.target_date !== null && item.target_date >= String(values[1]) && item.target_date <= String(values[2])) ||
+          (item.period_key !== null && periodKeys.includes(item.period_key ?? ""))
+        )
+        .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
+        .map((item) => this.withActedByName(item));
+    }
+    if (
+      sql.includes("FROM task_records tr") &&
       sql.includes("tr.household_id = ? AND tr.target_date")
     ) {
       return Array.from(this.taskRecords.values())
