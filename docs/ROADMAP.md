@@ -24,7 +24,9 @@
    - [x] separate camera and photo-library selection with shared image processing/upload flow
    - [x] Shopping UX Phase 1 staging deployment and authenticated verification
    - history / optional calendar integration
-   - planned purchase date
+   - [x] optional planned purchase date with create/edit/clear and purchase-state persistence
+   - [x] household-scoped Shopping projection in Calendar with separate marker/detail UI
+   - Shopping planned-date notifications
 5. UI refinement
 6. WebMCP
 7. Scheduler query optimization

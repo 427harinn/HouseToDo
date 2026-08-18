@@ -153,6 +153,7 @@ export type ShoppingItem = {
   name: string;
   quantity: string | null;
   note: string | null;
+  plannedPurchaseDate: string | null;
   status: ShoppingItemStatus;
   addedBy: string;
   purchasedBy: string | null;

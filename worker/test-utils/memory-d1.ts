@@ -125,6 +125,7 @@ export type ShoppingItemDbRecord = {
   name: string;
   quantity: string | null;
   note: string | null;
+  planned_purchase_date?: string | null;
   status: ShoppingItemStatus;
   added_by: string;
   purchased_by: string | null;
@@ -738,6 +739,14 @@ export class MemoryD1 {
       let rows = Array.from(this.shoppingItems.values()).filter(
         (item) => item.household_id === values[0]
       );
+      if (sql.includes("si.planned_purchase_date >= ?")) {
+        rows = rows.filter(
+          (item) =>
+            typeof item.planned_purchase_date === "string" &&
+            item.planned_purchase_date >= String(values[1]) &&
+            item.planned_purchase_date <= String(values[2])
+        );
+      }
       if (sql.includes("si.status = 'pending'") || sql.includes("status = 'pending'")) {
         rows = rows.filter((item) => item.status === "pending");
       }
@@ -1174,24 +1183,26 @@ export class MemoryD1 {
         name: toText(values[2]),
         quantity: toNullableText(values[3]),
         note: toNullableText(values[4]),
+        planned_purchase_date: toNullableText(values[5]),
         status: "pending",
-        added_by: toText(values[5]),
+        added_by: toText(values[6]),
         purchased_by: null,
         purchased_at: null,
-        sort_order: Number(values[6]),
-        created_at: toText(values[7]),
-        updated_at: toText(values[8])
+        sort_order: Number(values[7]),
+        created_at: toText(values[8]),
+        updated_at: toText(values[9])
       });
     }
     if (sql.startsWith("UPDATE shopping_items") && sql.includes("SET name")) {
-      const item = this.shoppingItems.get(toText(values[5]));
-      if (item && item.household_id === values[4]) {
+      const item = this.shoppingItems.get(toText(values[6]));
+      if (item && item.household_id === values[5]) {
         this.shoppingItems.set(item.id, {
           ...item,
           name: toText(values[0]),
           quantity: toNullableText(values[1]),
           note: toNullableText(values[2]),
-          updated_at: toText(values[3])
+          planned_purchase_date: toNullableText(values[3]),
+          updated_at: toText(values[4])
         });
       } else {
         changes = 0;
@@ -1717,6 +1728,7 @@ export class MemoryD1 {
   private withPurchasedByName(item: ShoppingItemDbRecord) {
     return {
       ...item,
+      planned_purchase_date: item.planned_purchase_date ?? null,
       purchased_by_display_name: item.purchased_by
         ? (this.users.get(item.purchased_by)?.display_name ?? null)
         : null

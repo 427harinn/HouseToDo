@@ -6,6 +6,7 @@ type ShoppingItemRow = {
   name: string;
   quantity: string | null;
   note: string | null;
+  planned_purchase_date: string | null;
   status: ShoppingItemStatus;
   added_by: string;
   purchased_by: string | null;
@@ -22,6 +23,7 @@ export type CreateShoppingItemInput = {
   name: string;
   quantity: string | null;
   note: string | null;
+  plannedPurchaseDate: string | null;
   addedBy: string;
   sortOrder: number;
   now: string;
@@ -31,10 +33,11 @@ export type UpdateShoppingItemInput = {
   name?: string;
   quantity?: string | null;
   note?: string | null;
+  plannedPurchaseDate?: string | null;
   now: string;
 };
 
-const selectItem = `si.id, si.household_id, si.name, si.quantity, si.note, si.status,
+const selectItem = `si.id, si.household_id, si.name, si.quantity, si.note, si.planned_purchase_date, si.status,
   si.added_by, si.purchased_by, u.display_name AS purchased_by_display_name,
   si.purchased_at, si.sort_order, si.created_at, si.updated_at`;
 
@@ -46,6 +49,7 @@ const toItem = (row: ShoppingItemRow | null): ShoppingItem | null =>
         name: row.name,
         quantity: row.quantity,
         note: row.note,
+        plannedPurchaseDate: row.planned_purchase_date,
         status: row.status,
         addedBy: row.added_by,
         purchasedBy: row.purchased_by,
@@ -122,6 +126,22 @@ export class ShoppingItemRepository {
     return (result.results ?? []).map((row) => toItem(row)!);
   }
 
+  async listPlannedByHouseholdId(householdId: string, from: string, to: string): Promise<ShoppingItem[]> {
+    const result = await this.db
+      .prepare(
+        `SELECT ${selectItem}
+         FROM shopping_items si
+         LEFT JOIN users u ON u.id = si.purchased_by
+         WHERE si.household_id = ?
+           AND si.planned_purchase_date >= ?
+           AND si.planned_purchase_date <= ?
+         ORDER BY si.planned_purchase_date ASC, si.sort_order ASC, si.created_at ASC`
+      )
+      .bind(householdId, from, to)
+      .all<ShoppingItemRow>();
+    return (result.results ?? []).map((row) => toItem(row)!);
+  }
+
   async countPending(householdId: string): Promise<number> {
     const row = await this.db
       .prepare("SELECT COUNT(*) AS count FROM shopping_items WHERE household_id = ? AND status = 'pending'")
@@ -155,9 +175,9 @@ export class ShoppingItemRepository {
     await this.db
       .prepare(
         `INSERT INTO shopping_items (
-          id, household_id, name, quantity, note, status, added_by, purchased_by,
+          id, household_id, name, quantity, note, planned_purchase_date, status, added_by, purchased_by,
           purchased_at, sort_order, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, 'pending', ?, NULL, NULL, ?, ?, ?)`
+        ) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, NULL, NULL, ?, ?, ?)`
       )
       .bind(
         input.id,
@@ -165,6 +185,7 @@ export class ShoppingItemRepository {
         input.name,
         input.quantity,
         input.note,
+        input.plannedPurchaseDate,
         input.addedBy,
         input.sortOrder,
         input.now,
@@ -184,13 +205,14 @@ export class ShoppingItemRepository {
     await this.db
       .prepare(
         `UPDATE shopping_items
-         SET name = ?, quantity = ?, note = ?, updated_at = ?
+         SET name = ?, quantity = ?, note = ?, planned_purchase_date = ?, updated_at = ?
          WHERE household_id = ? AND id = ?`
       )
       .bind(
         input.name ?? current.name,
         "quantity" in input ? input.quantity ?? null : current.quantity,
         "note" in input ? input.note ?? null : current.note,
+        "plannedPurchaseDate" in input ? input.plannedPurchaseDate ?? null : current.plannedPurchaseDate,
         input.now,
         householdId,
         itemId

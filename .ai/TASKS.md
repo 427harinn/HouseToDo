@@ -21,7 +21,14 @@
 - [x] Recent/template Playwright UI coverage, responsive screenshots, and trace artifacts
 - [x] Verify recent/template authenticated E2E on staging and clean up temporary fixtures
 - Production rollout
-- Shopping planned purchase date
+- [x] Add nullable Shopping planned purchase date with additive migration and validation
+- [x] Preserve planned date across purchase/unpurchase; support update and explicit clear
+- [x] Exclude planned date from Recent and Template prefill/storage
+- [x] Add bounded household-scoped Shopping projection to the existing Calendar API
+- [x] Add distinct Calendar Shopping markers, selected-date section, purchased state, and detail navigation
+- [x] Verify create/update/clear/invalid/persistence/range/isolation/date-move API behavior
+- [x] Verify Shopping/Calendar/Recent/Template/responsive/accessibility UI with screenshots and trace
+- Shopping planned-date notifications
 - [x] Shopping recent item reuse from existing household items with sorting, limit, deduplication, and isolation
 - [x] Shopping new-form template prefill while preserving existing template CRUD/add behavior
 - [x] Shopping camera/library image options with shared processing and unchanged R2 constraints

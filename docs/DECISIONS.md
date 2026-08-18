@@ -538,3 +538,13 @@ The Shopping form exposes a camera input using the supported image types plus `c
 **Status:** Accepted — Shopping UX Phase 1 implementation
 
 Existing Shopping template list, CRUD, household authorization, and `/api/shopping/templates/:id/add` behavior remain compatible. The Shopping new form additionally lists active templates as prefill candidates so users can edit before saving, matching the Task form family resemblance without changing shared-household scope or copying images.
+
+## 2026-08-18 Shopping planned dates are local instance data projected through the existing Calendar API
+
+**Status:** Accepted — local implementation
+
+Add nullable `shopping_items.planned_purchase_date` through an additive migration and store it as a validated `YYYY-MM-DD` household-local date. Do not rebuild the table or convert the value to a UTC timestamp. Purchase and unpurchase mutations preserve it; explicit PATCH `null` clears it.
+
+Extend `GET /api/tasks/calendar` additively instead of introducing a second Calendar endpoint or performing client-side filtering. Query only the requested household/date range and return minimal Shopping summaries, with separate Shopping marker counts and a separate selected-date `買うもの` section. Include pending and purchased items, but exclude attachments.
+
+Treat the date as shopping-instance-specific data. Recent and Template prefill must not copy it, and Shopping templates do not persist it. The field has no Push, Cron, scheduler, or Task overdue semantics in this phase.

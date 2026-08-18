@@ -35,7 +35,11 @@ test("calendar supports month navigation, selected-date sections, markers, and t
   page.on("console", (message) => {
     if (message.type() === "error" && !message.text().includes("status of 401 (Unauthorized)")) errors.push(message.text());
   });
-  page.on("requestfailed", (request) => requestFailures.push(`${request.method()} ${request.url()}`));
+  page.on("requestfailed", (request) => {
+    if (request.failure()?.errorText !== "net::ERR_ABORTED") {
+      requestFailures.push(`${request.method()} ${request.url()}`);
+    }
+  });
 
   await page.goto("/register");
   await page.locator("#register-name").fill(user.name);

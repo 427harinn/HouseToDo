@@ -1089,7 +1089,132 @@ describe("worker app shopping API", () => {
     expect(body.data.items[0]).not.toHaveProperty("id");
     expect(body.data.items[0]).not.toHaveProperty("status");
     expect(body.data.items[0]).not.toHaveProperty("purchasedAt");
+    expect(body.data.items[0]).not.toHaveProperty("plannedPurchaseDate");
     expect(body.data.items[0]).not.toHaveProperty("image");
+  });
+
+  it("keeps planned purchase dates through purchase changes and projects only the household calendar range", async () => {
+    const app = createApp();
+    const env = createTestEnv();
+    const owner = await registerUser(env, {
+      email: "planned-shopping-owner@example.com",
+      password: "very-long-password",
+      displayName: "Planned Owner"
+    });
+    const other = await registerUser(env, {
+      email: "planned-shopping-other@example.com",
+      password: "very-long-password",
+      displayName: "Planned Other"
+    });
+    await app.fetch(postJson("/api/households", { name: "Planned House" }, owner.cookie), env);
+    await app.fetch(postJson("/api/households", { name: "Other Planned House" }, other.cookie), env);
+
+    const create = async (name: string, plannedPurchaseDate?: string | null, cookie = owner.cookie) => {
+      const response = await app.fetch(
+        postJson("/api/shopping/items", { name, plannedPurchaseDate }, cookie),
+        env
+      );
+      expect(response.status).toBe(201);
+      const body: { data: { item: { id: string; plannedPurchaseDate: string | null } } } = await response.json();
+      return body.data.item;
+    };
+
+    const milk = await create("牛乳", "2026-08-20");
+    expect(milk.plannedPurchaseDate).toBe("2026-08-20");
+    await create("予定なし", null);
+    await create("範囲外", "2026-09-01");
+    await create("別家庭", "2026-08-20", other.cookie);
+
+    const invalid = await app.fetch(
+      postJson("/api/shopping/items", { name: "不正", plannedPurchaseDate: "2026-02-30" }, owner.cookie),
+      env
+    );
+    expect(invalid.status).toBe(400);
+
+    const calendarAtFirstDate = await app.fetch(
+      new Request("https://example.test/api/tasks/calendar?from=2026-08-01&to=2026-08-31&selectedDate=2026-08-20", {
+        headers: { cookie: owner.cookie }
+      }),
+      env
+    );
+    const firstBody: {
+      data: {
+        dates: Record<string, { shoppingCount: number; purchasedShoppingCount: number }>;
+        selected: { shopping: Array<{ id: string; name: string; status: string; plannedPurchaseDate: string }> };
+      };
+    } = await calendarAtFirstDate.json();
+    expect(firstBody.data.dates["2026-08-20"]).toMatchObject({ shoppingCount: 1, purchasedShoppingCount: 0 });
+    expect(firstBody.data.selected.shopping).toEqual([
+      expect.objectContaining({ id: milk.id, name: "牛乳", status: "pending", plannedPurchaseDate: "2026-08-20" })
+    ]);
+
+    const purchased = await app.fetch(
+      postJson(`/api/shopping/items/${milk.id}/purchase`, {}, owner.cookie),
+      env
+    );
+    await expect(purchased.json()).resolves.toMatchObject({
+      data: { item: { status: "purchased", plannedPurchaseDate: "2026-08-20" } }
+    });
+    const purchasedCalendar = await app.fetch(
+      new Request("https://example.test/api/tasks/calendar?from=2026-08-20&to=2026-08-20&selectedDate=2026-08-20", {
+        headers: { cookie: owner.cookie }
+      }),
+      env
+    );
+    await expect(purchasedCalendar.json()).resolves.toMatchObject({
+      data: {
+        dates: { "2026-08-20": { shoppingCount: 1, purchasedShoppingCount: 1 } },
+        selected: { shopping: [{ id: milk.id, status: "purchased", plannedPurchaseDate: "2026-08-20" }] }
+      }
+    });
+
+    const unpurchased = await app.fetch(
+      postJson(`/api/shopping/items/${milk.id}/unpurchase`, {}, owner.cookie),
+      env
+    );
+    await expect(unpurchased.json()).resolves.toMatchObject({
+      data: { item: { status: "pending", plannedPurchaseDate: "2026-08-20" } }
+    });
+
+    const moved = await app.fetch(
+      patchJson(`/api/shopping/items/${milk.id}`, { plannedPurchaseDate: "2026-08-22" }, owner.cookie),
+      env
+    );
+    await expect(moved.json()).resolves.toMatchObject({
+      data: { item: { plannedPurchaseDate: "2026-08-22" } }
+    });
+    const movedCalendar = await app.fetch(
+      new Request("https://example.test/api/tasks/calendar?from=2026-08-20&to=2026-08-22&selectedDate=2026-08-22", {
+        headers: { cookie: owner.cookie }
+      }),
+      env
+    );
+    await expect(movedCalendar.json()).resolves.toMatchObject({
+      data: {
+        dates: {
+          "2026-08-20": { shoppingCount: 0 },
+          "2026-08-22": { shoppingCount: 1 }
+        },
+        selected: { shopping: [{ id: milk.id, plannedPurchaseDate: "2026-08-22" }] }
+      }
+    });
+
+    const cleared = await app.fetch(
+      patchJson(`/api/shopping/items/${milk.id}`, { plannedPurchaseDate: null }, owner.cookie),
+      env
+    );
+    await expect(cleared.json()).resolves.toMatchObject({
+      data: { item: { id: milk.id, plannedPurchaseDate: null } }
+    });
+    const clearedCalendar = await app.fetch(
+      new Request("https://example.test/api/tasks/calendar?from=2026-08-22&to=2026-08-22&selectedDate=2026-08-22", {
+        headers: { cookie: owner.cookie }
+      }),
+      env
+    );
+    await expect(clearedCalendar.json()).resolves.toMatchObject({
+      data: { dates: { "2026-08-22": { shoppingCount: 0 } }, selected: { shopping: [] } }
+    });
   });
 });
 

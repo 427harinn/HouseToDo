@@ -3,7 +3,9 @@ import { okJson } from "../lib/response";
 import {
   parseJsonBody,
   validateShoppingUpdateInput,
-  validateShoppingWriteInput
+  validateShoppingWriteInput,
+  validateShoppingTemplateUpdateInput,
+  validateShoppingTemplateWriteInput
 } from "../lib/validation";
 import { requireAuth } from "../middleware/auth";
 import type { Handler } from "../middleware/error-handler";
@@ -22,6 +24,7 @@ export const itemResponse = (item: ShoppingItem) => ({
   name: item.name,
   quantity: item.quantity,
   note: item.note,
+  plannedPurchaseDate: item.plannedPurchaseDate,
   status: item.status,
   addedBy: item.addedBy,
   purchasedBy: item.purchasedBy
@@ -134,7 +137,7 @@ export const listShoppingTemplatesRoute: Handler = requireAuth(async (context) =
 
 export const createShoppingTemplateRoute: Handler = requireAuth(async (context) => {
   const user = requireUser(context.user);
-  const input = validateShoppingWriteInput(await parseJsonBody(context.request), "買い物テンプレート");
+  const input = validateShoppingTemplateWriteInput(await parseJsonBody(context.request));
   const template = await new ShoppingTemplateService(context.env.DB).createTemplate(user.id, input);
   return okJson({ template: templateResponse(template) }, context.requestId, { status: 201 });
 });
@@ -149,7 +152,7 @@ export const getShoppingTemplateRoute = (templateId: string): Handler =>
 export const updateShoppingTemplateRoute = (templateId: string): Handler =>
   requireAuth(async (context) => {
     const user = requireUser(context.user);
-    const input = validateShoppingUpdateInput(await parseJsonBody(context.request), "買い物テンプレート");
+    const input = validateShoppingTemplateUpdateInput(await parseJsonBody(context.request));
     const template = await new ShoppingTemplateService(context.env.DB).updateTemplate(user.id, templateId, input);
     return okJson({ template: templateResponse(template) }, context.requestId);
   });

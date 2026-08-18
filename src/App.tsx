@@ -68,6 +68,7 @@ import {
   updateTask,
   updateTaskTemplate,
   type Task,
+  type CalendarShoppingItem,
   type TaskTemplate,
   type TaskDisplayStatus,
   type TaskRecord,
@@ -955,7 +956,13 @@ function CalendarScreen({
     setVisibleMonth(`${today.slice(0, 7)}-01`);
     setSelectedDate(today);
   };
-  const marker = (date: string) => data?.dates[date] ?? { fixedCount: 0, fixedCompletedCount: 0, fixedSkippedCount: 0 };
+  const marker = (date: string) => data?.dates[date] ?? {
+    fixedCount: 0,
+    fixedCompletedCount: 0,
+    fixedSkippedCount: 0,
+    shoppingCount: 0,
+    purchasedShoppingCount: 0
+  };
   const selectedTitle = selectedDate === (data?.today ?? todayInTimezone(household.timezone))
     ? "今日のタスク"
     : `${formatCalendarDate(selectedDate)}のタスク`;
@@ -995,7 +1002,7 @@ function CalendarScreen({
                 type="button"
                 role="gridcell"
                 aria-current={isToday ? "date" : undefined}
-                aria-label={`${formatCalendarDate(date)}、タスク${item.fixedCount}件`}
+                aria-label={`${formatCalendarDate(date)}、タスク${item.fixedCount}件、買うもの${item.shoppingCount}件`}
                 aria-pressed={isSelected}
                 onClick={() => {
                   setSelectedDate(date);
@@ -1003,7 +1010,14 @@ function CalendarScreen({
                 }}
               >
                 <span className="calendar-cell__date">{Number(date.slice(8, 10))}</span>
-                {item.fixedCount > 0 ? <span className="calendar-cell__marker" aria-label={`固定タスク${item.fixedCount}件`}>{item.fixedCount}</span> : <span className="calendar-cell__marker calendar-cell__marker--empty" aria-hidden="true" />}
+                <span className="calendar-cell__markers">
+                  {item.fixedCount > 0 ? <span className="calendar-cell__marker" aria-label={`固定タスク${item.fixedCount}件`}>{item.fixedCount}</span> : <span className="calendar-cell__marker calendar-cell__marker--empty" aria-hidden="true" />}
+                  {item.shoppingCount > 0 ? (
+                    <span className="calendar-cell__shopping-marker" aria-label={`買うもの${item.shoppingCount}件`}>
+                      <span aria-hidden="true">買</span>{item.shoppingCount}
+                    </span>
+                  ) : null}
+                </span>
                 {item.fixedCompletedCount > 0 ? <span className="calendar-cell__complete" aria-label={`完了${item.fixedCompletedCount}件`}>✓</span> : null}
               </button>
             );
@@ -1017,10 +1031,50 @@ function CalendarScreen({
             <CalendarSection title="固定タスク" tasks={data.selected.fixed} onNavigate={onNavigate} emptyTitle="固定タスクはありません" />
             <CalendarSection title={flexibleLabel ? "今週中" : "この週のタスク"} tasks={data.selected.weeklyFlexible} onNavigate={onNavigate} emptyTitle="週のタスクはありません" contextLabel={flexibleLabel ? "今週中" : "この週のタスク"} />
             <CalendarSection title={flexibleLabel ? "今月中" : "この期間のタスク"} tasks={data.selected.monthlyFlexible} onNavigate={onNavigate} emptyTitle="月のタスクはありません" contextLabel={flexibleLabel ? "今月中" : "この期間のタスク"} />
+            {data.selected.shopping.length > 0 ? (
+              <CalendarShoppingSection items={data.selected.shopping} onNavigate={onNavigate} />
+            ) : null}
           </>
         ) : <p role="status">カレンダーを読み込んでいます。</p>}
       </Card>
     </AppFrame>
+  );
+}
+
+function CalendarShoppingSection({
+  items,
+  onNavigate
+}: {
+  items: CalendarShoppingItem[];
+  onNavigate: (route: NavigationPath) => void;
+}) {
+  return (
+    <section className="calendar-detail__section" aria-label="買うもの">
+      <div className="section-heading"><h3>買うもの</h3><span>{items.length}件</span></div>
+      <div className="calendar-shopping-list">
+        {items.map((item) => {
+          const purchased = item.status === "purchased";
+          return (
+            <button
+              className={`calendar-shopping-item${purchased ? " calendar-shopping-item--purchased" : ""}`}
+              key={item.id}
+              onClick={() => onNavigate(`/shopping/items/${item.id}`)}
+              type="button"
+              aria-label={`${item.name}、${purchased ? "購入済み" : "未購入"}、詳細を開く`}
+            >
+              <span className="calendar-shopping-item__icon" aria-hidden="true">{purchased ? "✓" : "買"}</span>
+              <span className="calendar-shopping-item__body">
+                <strong>{item.name}</strong>
+                {[item.quantity, item.note].filter(Boolean).length > 0 ? (
+                  <small>{[item.quantity, item.note].filter(Boolean).join(" / ")}</small>
+                ) : null}
+                <small className="calendar-shopping-item__status">{purchased ? "購入済み" : "未購入"}</small>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
@@ -2694,18 +2748,20 @@ function shoppingErrorMessage(error: unknown) {
 const emptyShoppingForm: CreateShoppingItemInput = {
   name: "",
   quantity: null,
-  note: null
+  note: null,
+  plannedPurchaseDate: null
 };
 
 const normalizeShoppingForm = <
-  T extends { name: string; quantity?: string | null; note?: string | null }
+  T extends { name: string; quantity?: string | null; note?: string | null; plannedPurchaseDate?: string | null }
 >(
   form: T
 ): T => ({
   ...form,
   name: form.name.trim(),
   quantity: form.quantity?.trim() ? form.quantity.trim() : null,
-  note: form.note?.trim() ? form.note.trim() : null
+  note: form.note?.trim() ? form.note.trim() : null,
+  plannedPurchaseDate: form.plannedPurchaseDate?.trim() ? form.plannedPurchaseDate.trim() : null
 });
 
 const validateShoppingForm = (form: CreateShoppingItemInput) => {
@@ -2718,6 +2774,8 @@ const validateShoppingForm = (form: CreateShoppingItemInput) => {
     errors.quantity = "数量は50文字以内で入力してください。";
   if ((normalized.note?.length ?? 0) > 500)
     errors.note = "メモは500文字以内で入力してください。";
+  if (normalized.plannedPurchaseDate && !/^\d{4}-\d{2}-\d{2}$/.test(normalized.plannedPurchaseDate))
+    errors.plannedPurchaseDate = "購入予定日を正しく入力してください。";
   return errors;
 };
 
@@ -3044,6 +3102,7 @@ function ShoppingItemCard({
         {item.image ? <ShoppingThumbnail item={item} /> : null}
         <strong>{item.name}</strong>
         <span>{[item.quantity, item.note].filter(Boolean).join(" / ")}</span>
+        {item.plannedPurchaseDate ? <small>購入予定: {formatDate(item.plannedPurchaseDate)}</small> : null}
         <small>
           {purchased && item.purchasedAt
             ? `${purchaser || "メンバー"}さんが購入 ${shoppingTime(item.purchasedAt)}`
@@ -3152,6 +3211,12 @@ function ShoppingItemDetailScreen({
             <div>
               <dt>メモ</dt>
               <dd>{item.note}</dd>
+            </div>
+          ) : null}
+          {item.plannedPurchaseDate ? (
+            <div>
+              <dt>購入予定日</dt>
+              <dd>{formatDate(item.plannedPurchaseDate)}</dd>
             </div>
           ) : null}
           <div>
@@ -3297,7 +3362,8 @@ function ShoppingItemFormScreen({
         setForm({
           name: result.item.name,
           quantity: result.item.quantity,
-          note: result.item.note
+          note: result.item.note,
+          plannedPurchaseDate: result.item.plannedPurchaseDate
         });
         setExistingImage(result.item.image);
       })
@@ -3445,7 +3511,7 @@ function ShoppingItemFormScreen({
           recentItems={recentItems}
           templates={templates}
           onRecentSelect={(source) => {
-            setForm({ name: source.name, quantity: source.quantity, note: source.note });
+            setForm({ name: source.name, quantity: source.quantity, note: source.note, plannedPurchaseDate: null });
             setErrors({});
             setMessage("");
             setSelectedImage(null);
@@ -3453,7 +3519,7 @@ function ShoppingItemFormScreen({
             setPreviewUrl("");
           }}
           onTemplateSelect={(source) => {
-            setForm({ name: source.name, quantity: source.quantity, note: source.note });
+            setForm({ name: source.name, quantity: source.quantity, note: source.note, plannedPurchaseDate: null });
             setErrors({});
             setMessage("");
             setSelectedImage(null);
@@ -3496,6 +3562,17 @@ function ShoppingItemFormScreen({
               value={form.note ?? ""}
               onChange={(event) => setField("note", event.target.value)}
             />
+          </FormField>
+          <FormField id="shopping-planned-purchase-date" label="購入予定日" error={errors.plannedPurchaseDate}>
+            <input
+              id="shopping-planned-purchase-date"
+              aria-describedby={errors.plannedPurchaseDate ? "shopping-planned-purchase-date-error" : "shopping-planned-purchase-date-hint"}
+              aria-invalid={errors.plannedPurchaseDate ? "true" : "false"}
+              type="date"
+              value={form.plannedPurchaseDate ?? ""}
+              onChange={(event) => setField("plannedPurchaseDate", event.target.value || null)}
+            />
+            <small className="field-hint" id="shopping-planned-purchase-date-hint">決まっていなければ空欄でOK</small>
           </FormField>
           <div className="shopping-image-field" aria-live="polite">
             <label htmlFor="shopping-image">商品の写真（任意）</label>

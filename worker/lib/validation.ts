@@ -146,13 +146,18 @@ export type ShoppingWriteInput = {
   name: string;
   quantity: string | null;
   note: string | null;
+  plannedPurchaseDate: string | null;
 };
 
 export type ShoppingUpdateInput = {
   name?: string;
   quantity?: string | null;
   note?: string | null;
+  plannedPurchaseDate?: string | null;
 };
+
+export type ShoppingTemplateWriteInput = Omit<ShoppingWriteInput, "plannedPurchaseDate">;
+export type ShoppingTemplateUpdateInput = Omit<ShoppingUpdateInput, "plannedPurchaseDate">;
 
 const recurrenceTypes = new Set([
   "once",
@@ -682,10 +687,22 @@ export const validateShoppingWriteInput = (value: unknown, label = "買い物項
   if (name.length === 0) details.name = "商品名を入力してください。";
   const quantity = optionalString(input, "quantity", 50);
   const note = optionalString(input, "note", 500);
+  const plannedPurchaseDate = input.plannedPurchaseDate ?? null;
+  if (
+    plannedPurchaseDate !== null &&
+    (typeof plannedPurchaseDate !== "string" || !isValidDateKey(plannedPurchaseDate))
+  ) {
+    details.plannedPurchaseDate = "購入予定日はYYYY-MM-DD形式で入力してください。";
+  }
   if (Object.keys(details).length > 0) {
     throw validationError(details, `${label}の入力内容を確認してください。`);
   }
-  return { name, quantity, note };
+  return {
+    name,
+    quantity,
+    note,
+    plannedPurchaseDate: plannedPurchaseDate as string | null
+  };
 };
 
 export const validateShoppingUpdateInput = (value: unknown, label = "買い物項目"): ShoppingUpdateInput => {
@@ -718,10 +735,47 @@ export const validateShoppingUpdateInput = (value: unknown, label = "買い物�
     else output.note = input.note.trim().length > 0 ? input.note.trim() : null;
   }
 
+  if ("plannedPurchaseDate" in input) {
+    if (input.plannedPurchaseDate === null || input.plannedPurchaseDate === "") {
+      output.plannedPurchaseDate = null;
+    } else if (
+      typeof input.plannedPurchaseDate !== "string" ||
+      !isValidDateKey(input.plannedPurchaseDate)
+    ) {
+      details.plannedPurchaseDate = "購入予定日はYYYY-MM-DD形式で入力してください。";
+    } else {
+      output.plannedPurchaseDate = input.plannedPurchaseDate;
+    }
+  }
+
   if (Object.keys(details).length > 0) {
     throw validationError(details, `${label}の入力内容を確認してください。`);
   }
-  if (!("name" in output) && !("quantity" in output) && !("note" in output)) {
+  if (!("name" in output) && !("quantity" in output) && !("note" in output) && !("plannedPurchaseDate" in output)) {
+    throw validationError({ body: "更新する項目を少なくとも1つ指定してください。" });
+  }
+  return output;
+};
+
+export const validateShoppingTemplateWriteInput = (
+  value: unknown,
+  label = "買い物テンプレート"
+): ShoppingTemplateWriteInput => {
+  const { name, quantity, note } = validateShoppingWriteInput(value, label);
+  return { name, quantity, note };
+};
+
+export const validateShoppingTemplateUpdateInput = (
+  value: unknown,
+  label = "買い物テンプレート"
+): ShoppingTemplateUpdateInput => {
+  const input = validateShoppingUpdateInput(value, label);
+  const { name, quantity, note } = input;
+  const output: ShoppingTemplateUpdateInput = {};
+  if (name !== undefined) output.name = name;
+  if (quantity !== undefined || "quantity" in input) output.quantity = quantity ?? null;
+  if (note !== undefined || "note" in input) output.note = note ?? null;
+  if (Object.keys(output).length === 0) {
     throw validationError({ body: "更新する項目を少なくとも1つ指定してください。" });
   }
   return output;

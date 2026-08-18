@@ -58,16 +58,23 @@ Shopping item creation now shows `最近使ったもの` and `テンプレート
 
 Shopping templates keep their existing household authorization and immediate-add API for compatibility. The shopping new form also supports template selection followed by edit and save, matching the Task prefill interaction. Image selection now exposes separate `写真を撮る` (camera input with `capture="environment"`) and `写真を選ぶ` (library/file input without `capture`) controls. Both use the existing validation, compression, preview, remove, upload, attachment-limit, and R2 pipeline.
 
+### Shopping planned purchase date and Calendar integration (implemented locally)
+
+Shopping items accept an optional `plannedPurchaseDate` in `YYYY-MM-DD` form. It is a household-local calendar date, not a UTC timestamp. The value can be created, changed, or cleared without changing the item itself. Purchasing or restoring an item preserves the planned date.
+
+`GET /api/tasks/calendar` keeps its task projection contract and additively includes planned Shopping counts for each date plus a minimal `selected.shopping` projection. The Calendar grid exposes task and Shopping counts as distinct text markers and in each date cell's accessible label. Selected-date detail places Shopping items in a separate `買うもの` section, identifies `未購入` and `購入済み` with text and icons, and links to the existing Shopping detail route. Shopping items without a planned date do not appear in Calendar.
+
+Planned dates are specific to one shopping-item instance. Shopping Recent and Shopping Template prefill copy only reusable fields and always start with an empty planned date. Shopping templates do not store this field. Shopping notifications, scheduler participation, and overdue semantics are not part of this phase.
+
 ## Future workへの境界
 
 以下はROADMAP上の候補であり、現在仕様ではありません。
 
 - notification deep-link and calendar deep-link synchronization
-- shopping planned purchase date and future integrations
-- shopping history、planned purchase date、Calendar integration
+- shopping history and future Shopping integrations
 - UI refinement、WebMCP、scheduler query optimization
 - production rollout
 
 ## 実装済みtask model
 
-task recurrenceは `once`、`daily`、`weekly_fixed`、`monthly_fixed`、`weekly_flexible`、`monthly_flexible` の6種です。deadlineとnotification offsetを分離し、flexible taskはperiod内の最低1回完了で達成、追加実施は履歴に残します。start_dateは未指定時に作成日のhousehold local dateを保存します。Task UI、canonical reminder scheduler、Calendar UI、最近使ったタスクの再利用、Taskテンプレート管理まで実装済みです。ここでいう「最近使ったタスク」は実行履歴ではなく、既存のactiveなcanonical task definitionから生成するprefill候補です。テンプレートはactive taskやtask_recordsとは別の household-scoped definition で、Home、Calendar、schedulerには表示・投入しません。notification deep-link、Shopping planned purchase dateは未実装です。詳細は [TASK_MODEL_DESIGN.md](TASK_MODEL_DESIGN.md) を参照します。
+task recurrenceは `once`、`daily`、`weekly_fixed`、`monthly_fixed`、`weekly_flexible`、`monthly_flexible` の6種です。deadlineとnotification offsetを分離し、flexible taskはperiod内の最低1回完了で達成、追加実施は履歴に残します。start_dateは未指定時に作成日のhousehold local dateを保存します。Task UI、canonical reminder scheduler、Calendar UI、最近使ったタスクの再利用、Taskテンプレート管理まで実装済みです。ここでいう「最近使ったタスク」は実行履歴ではなく、既存のactiveなcanonical task definitionから生成するprefill候補です。テンプレートはactive taskやtask_recordsとは別の household-scoped definition で、Home、Calendar、schedulerには表示・投入しません。notification deep-linkは未実装です。詳細は [TASK_MODEL_DESIGN.md](TASK_MODEL_DESIGN.md) を参照します。

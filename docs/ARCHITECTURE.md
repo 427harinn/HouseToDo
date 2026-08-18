@@ -10,7 +10,7 @@ React + Viteの静的アセットをCloudflare Workers Static Assetsへ配置し
 
 ## Databaseとmigration
 
-リポジトリのmigrationは `0001_initial.sql` から `0013_task_templates.sql` までです。D1の現在schemaはmigrationファイルと実際の適用状況を分けて確認します。今回の0013はlocalで検証済みですが、remote適用済みかどうかを本文に固定記載しません。
+リポジトリのmigrationは `0001_initial.sql` から `0014_shopping_planned_purchase_date.sql` までです。0014は `shopping_items.planned_purchase_date TEXT NULL` と household/date range indexをadditiveに追加し、table rebuildや既存rowの書き換えを行いません。fresh local DBの0001→0014とexisting local DBの0013→0014を検証します。D1の現在schemaはmigrationファイルと実際の適用状況を分けて確認し、remote適用済みかどうかを本文に固定記載しません。
 
 主な領域はusers / sessions、households / members / invites、tasks / weekdays / records / task templates、shopping items / templates / images、image usage / upload reservations / orphan cleanup、push_subscriptions、notification settings / logs / delivery claimです。
 
@@ -41,6 +41,10 @@ routeのsource of truthは `worker/app.ts` と `worker/routes/`です。認証�
 `GET /api/tasks/calendar` is implemented in `TaskService.listCalendar`. The route validates an inclusive `from`/`to` range of 1–62 household-local dates and accepts an optional `selectedDate`. The service loads active household tasks, projects the requested date window with `projectTaskOnDate`, and reads matching task records in one range/period query. Fixed occurrence markers return counts and completion/skipped counts per date. Selected-date detail returns fixed tasks plus the active weekly/monthly flexible periods with the same `TaskWithStatus` merge used by today/dashboard flows. No occurrence rows are pre-generated and no migration is required.
 
 The React route is `/calendar`, added to the existing lightweight parser and bottom navigation. Household `timezone` and `weekStartsOn` drive the initial today selection and calendar layout; date keys remain `YYYY-MM-DD` local household dates and are not converted through UTC instants in the API.
+
+The same route additively integrates planned Shopping items without changing task projection semantics. `ShoppingItemRepository.listPlannedByHouseholdId` performs a bounded household-scoped `planned_purchase_date >= from AND planned_purchase_date <= to` query. The route adds `shoppingCount` and `purchasedShoppingCount` to date markers and a minimal `selected.shopping` list; it does not load attachment payloads. Pending and purchased rows are both included. Calendar item activation uses the existing Shopping detail route.
+
+`planned_purchase_date` is stored as a nullable `YYYY-MM-DD` household-local date. Create/update validation rejects invalid calendar dates; PATCH omission preserves it and explicit `null` clears it. Purchase/unpurchase repository updates do not touch this column. Recent/template response and prefill boundaries exclude the date because it belongs to one shopping instance. The notification scheduler does not query or interpret this field.
 
 ## Shopping UX Phase 1 boundary
 

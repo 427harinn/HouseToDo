@@ -14,8 +14,9 @@ import { requireAuth } from "../middleware/auth";
 import type { Handler } from "../middleware/error-handler";
 import { DashboardService } from "../services/dashboard-service";
 import { TaskService } from "../services/task-service";
+import { ShoppingService } from "../services/shopping-service";
 import type { AuthenticatedUser } from "../types/api";
-import type { Task, TaskRecord } from "../types/domain";
+import type { ShoppingItem, Task, TaskRecord } from "../types/domain";
 
 const requireUser = (user: AuthenticatedUser | undefined): AuthenticatedUser => {
   if (!user) throw unauthenticatedError();
@@ -54,6 +55,19 @@ const taskResponse = (task: Task) => ({
   createdBy: task.createdBy,
   createdAt: task.createdAt,
   updatedAt: task.updatedAt
+});
+
+const calendarShoppingResponse = (item: ShoppingItem) => ({
+  id: item.id,
+  name: item.name,
+  quantity: item.quantity,
+  note: item.note,
+  status: item.status,
+  plannedPurchaseDate: item.plannedPurchaseDate,
+  purchasedAt: item.purchasedAt,
+  purchasedBy: item.purchasedBy
+    ? { userId: item.purchasedBy, displayName: item.purchasedByDisplayName }
+    : null
 });
 
 const recordResponse = (record: TaskRecord) => ({
@@ -193,18 +207,39 @@ export const weekTasksRoute: Handler = requireAuth(async (context) => {
 export const calendarTasksRoute: Handler = requireAuth(async (context) => {
   const user = requireUser(context.user);
   const query = validateCalendarRangeQuery(context.request);
-  const data = await new TaskService(context.env.DB).listCalendar(user.id, query.from, query.to, query.selectedDate);
+  const [data, shoppingItems] = await Promise.all([
+    new TaskService(context.env.DB).listCalendar(user.id, query.from, query.to, query.selectedDate),
+    new ShoppingService(context.env.DB).listPlannedItems(user.id, query.from, query.to)
+  ]);
+  const shoppingByDate = new Map<string, ShoppingItem[]>();
+  for (const item of shoppingItems) {
+    if (!item.plannedPurchaseDate) continue;
+    shoppingByDate.set(item.plannedPurchaseDate, [
+      ...(shoppingByDate.get(item.plannedPurchaseDate) ?? []),
+      item
+    ]);
+  }
   return okJson({
     from: data.from,
     to: data.to,
     today: data.today,
     timezone: data.timezone,
     selectedDate: data.selectedDate,
-    dates: data.dates,
+    dates: Object.fromEntries(
+      Object.entries(data.dates).map(([date, marker]) => {
+        const planned = shoppingByDate.get(date) ?? [];
+        return [date, {
+          ...marker,
+          shoppingCount: planned.length,
+          purchasedShoppingCount: planned.filter((item) => item.status === "purchased").length
+        }];
+      })
+    ),
     selected: {
       fixed: data.selected.fixed.map(taskWithStatusResponse),
       weeklyFlexible: data.selected.weeklyFlexible.map(taskWithStatusResponse),
-      monthlyFlexible: data.selected.monthlyFlexible.map(taskWithStatusResponse)
+      monthlyFlexible: data.selected.monthlyFlexible.map(taskWithStatusResponse),
+      shopping: (shoppingByDate.get(data.selectedDate) ?? []).map(calendarShoppingResponse)
     }
   }, context.requestId);
 });

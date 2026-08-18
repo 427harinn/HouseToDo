@@ -53,6 +53,11 @@ export class ShoppingService {
     }));
   }
 
+  async listPlannedItems(userId: string, from: string, to: string): Promise<ShoppingItem[]> {
+    const household = await this.households.requireCurrentHousehold(userId);
+    return this.items.listPlannedByHouseholdId(household.id, from, to);
+  }
+
   async getItem(userId: string, itemId: string): Promise<ShoppingItem> {
     const household = await this.households.requireCurrentHousehold(userId);
     const item = await this.items.findByIdForHousehold(household.id, itemId);
@@ -134,7 +139,8 @@ export class ShoppingService {
     return this.createItem(userId, {
       name: template.name,
       quantity: template.quantity,
-      note: template.note
+      note: template.note,
+      plannedPurchaseDate: null
     });
   }
 }

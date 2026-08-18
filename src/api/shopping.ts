@@ -9,6 +9,7 @@ export type ShoppingItem = {
   name: string;
   quantity: string | null;
   note: string | null;
+  plannedPurchaseDate: string | null;
   status: ShoppingItemStatus;
   addedBy: string;
   purchasedBy: { userId: string; displayName: string | null } | null;
@@ -35,6 +36,7 @@ export type ShoppingWriteInput = {
   name: string;
   quantity?: string | null;
   note?: string | null;
+  plannedPurchaseDate?: string | null;
 };
 
 export type ShoppingItemList = {
@@ -58,6 +60,7 @@ export type ShoppingUpdateInput = {
   name?: string;
   quantity?: string | null;
   note?: string | null;
+  plannedPurchaseDate?: string | null;
 };
 
 export const listShoppingItems = (signal?: AbortSignal) =>

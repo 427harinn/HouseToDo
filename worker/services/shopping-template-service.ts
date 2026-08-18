@@ -3,7 +3,7 @@ import {
   inactiveShoppingTemplateError,
   shoppingTemplateNotFoundError
 } from "../lib/errors";
-import type { ShoppingUpdateInput, ShoppingWriteInput } from "../lib/validation";
+import type { ShoppingTemplateUpdateInput, ShoppingTemplateWriteInput } from "../lib/validation";
 import { ShoppingTemplateRepository } from "../repositories/shopping-template-repository";
 import type { ShoppingTemplate } from "../types/domain";
 import { HouseholdService } from "./household-service";
@@ -29,7 +29,7 @@ export class ShoppingTemplateService {
     return template;
   }
 
-  async createTemplate(userId: string, input: ShoppingWriteInput): Promise<ShoppingTemplate> {
+  async createTemplate(userId: string, input: ShoppingTemplateWriteInput): Promise<ShoppingTemplate> {
     const household = await this.households.requireCurrentHousehold(userId);
     const now = nowIso();
     return this.templates.create({
@@ -45,7 +45,7 @@ export class ShoppingTemplateService {
   async updateTemplate(
     userId: string,
     templateId: string,
-    input: ShoppingUpdateInput
+    input: ShoppingTemplateUpdateInput
   ): Promise<ShoppingTemplate> {
     const household = await this.households.requireCurrentHousehold(userId);
     const current = await this.templates.findByIdForHousehold(household.id, templateId);

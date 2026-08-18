@@ -1,4 +1,5 @@
 import { apiRequest } from "./client";
+import type { ShoppingItemStatus } from "./shopping";
 
 export type TaskRecurrenceType =
   | "daily"
@@ -125,6 +126,19 @@ export type CalendarDateMarker = {
   fixedCount: number;
   fixedCompletedCount: number;
   fixedSkippedCount: number;
+  shoppingCount: number;
+  purchasedShoppingCount: number;
+};
+
+export type CalendarShoppingItem = {
+  id: string;
+  name: string;
+  quantity: string | null;
+  note: string | null;
+  status: ShoppingItemStatus;
+  plannedPurchaseDate: string;
+  purchasedAt: string | null;
+  purchasedBy: TaskActor | null;
 };
 
 export type CalendarResponse = {
@@ -138,6 +152,7 @@ export type CalendarResponse = {
     fixed: TodayTask[];
     weeklyFlexible: TodayTask[];
     monthlyFlexible: TodayTask[];
+    shopping: CalendarShoppingItem[];
   };
 };
 

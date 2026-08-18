@@ -22,7 +22,7 @@
 
 ## Next objective
 
-Recent task reuse and task template creation/edit/deactivation are implemented and verified on staging. Notification deep-link, production rollout, and Shopping planned purchase date remain future work.
+Shopping planned purchase dates and their Calendar projection are implemented locally. Notification deep-link, Shopping notifications, staging deployment, and production rollout remain future work.
 
 ## Guardrails
 
@@ -72,3 +72,11 @@ Cron configuration and production resources remain untouched. Staging migration,
 - Commit `cfbe70465313279137915c38de15281a980a8443` was deployed to `house-to-do-staging` as version `c3ee3b68-6978-4857-8045-ca6551d9c59d` after local gates, read-only migration verification through `0013`, and dry-run success.
 - Shopping new showed only `写真を選ぶ`; the camera-specific button/input was absent, and the remaining input used `accept="image/*"` with no `capture` attribute. Staging fixture selection passed preview, remove, and re-selection with no browser errors.
 - No staging item or attachment was created in this smoke. Real iPhone OS picker behavior was not exercised; manual confirmation of Library/Take Photo options remains pending. Production, secrets, Cron, remote migration apply, and git push remain untouched.
+
+## Shopping planned purchase date local implementation (2026-08-18)
+
+- Additive migration `0014_shopping_planned_purchase_date.sql` adds nullable `planned_purchase_date` and a household/date range index; fresh and existing local migration paths are verified.
+- Shopping create/edit/detail support an optional household-local date. Purchase/unpurchase preserve it, PATCH `null` clears it, and invalid dates are rejected.
+- Recent and Template prefill always leave the date empty; Shopping templates do not store it.
+- Existing `GET /api/tasks/calendar` additively returns bounded household-scoped Shopping markers and selected-date summaries. The Calendar renders a separate `買うもの` section, purchased text/icon state, and Shopping detail navigation.
+- Shopping notifications, Cron, scheduler behavior, staging/production resources, remote D1, deployment, and git push remain untouched.
