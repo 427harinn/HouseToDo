@@ -2,10 +2,12 @@ import { expect, test, type Page } from "@playwright/test";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 
-const artifactRoot = process.env.PLAYWRIGHT_ARTIFACT_DIR ?? "artifacts/playwright/shopping-calendar-ui";
-const artifactDir = artifactRoot.endsWith("/all-e2e") || artifactRoot.endsWith("\\all-e2e")
-  ? path.join(artifactRoot, "shopping-calendar-ui")
-  : artifactRoot;
+const artifactRoot =
+  process.env.PLAYWRIGHT_ARTIFACT_DIR ?? "artifacts/playwright/shopping-calendar-ui";
+const artifactDir =
+  artifactRoot.endsWith("/all-e2e") || artifactRoot.endsWith("\\all-e2e")
+    ? path.join(artifactRoot, "shopping-calendar-ui")
+    : artifactRoot;
 const password = "very-long-password";
 
 const stamp = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -31,17 +33,25 @@ const formatCalendarDate = (value: string) =>
     weekday: "short",
     timeZone: "UTC"
   }).format(new Date(`${value}T00:00:00Z`));
-const shot = async (page: Page, name: string) => {
+const shot = async (page: Page, name: string, fullPage = true) => {
   await mkdir(artifactDir, { recursive: true });
-  await page.screenshot({ path: path.resolve(artifactDir, name), fullPage: true });
+  await page.screenshot({ path: path.resolve(artifactDir, name), fullPage });
 };
 const expectNoHorizontalScroll = async (page: Page) => {
-  await expect.poll(() => page.evaluate(
-    () => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1
-  )).toBe(true);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          document.documentElement.scrollWidth <=
+          document.documentElement.clientWidth + 1
+      )
+    )
+    .toBe(true);
 };
 
-test("planned shopping date integrates with Calendar, purchase state, reuse exclusions, and responsive UI", async ({ page }) => {
+test("planned shopping date integrates with Calendar, purchase state, reuse exclusions, and responsive UI", async ({
+  page
+}) => {
   const id = stamp();
   const today = dateKey();
   const movedDate = addDays(today, 1);
@@ -51,7 +61,10 @@ test("planned shopping date integrates with Calendar, purchase state, reuse excl
   const requestFailures: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   page.on("console", (message) => {
-    if (message.type() === "error" && !message.text().includes("status of 401 (Unauthorized)")) {
+    if (
+      message.type() === "error" &&
+      !message.text().includes("status of 401 (Unauthorized)")
+    ) {
       errors.push(message.text());
     }
   });
@@ -105,29 +118,79 @@ test("planned shopping date integrates with Calendar, purchase state, reuse excl
   await expect(page.getByRole("heading", { name: itemName })).toBeVisible();
   await expect(page.getByText("購入予定日")).toBeVisible();
 
+  const unscheduledItemName = `トイレットペーパー ${id}`;
+  const unscheduledResponse = await page.request.post("/api/shopping/items", {
+    headers: origin,
+    data: { name: unscheduledItemName }
+  });
+  expect(unscheduledResponse.status()).toBe(201);
+
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/calendar");
-  const todayCell = page.locator(`.calendar-cell[aria-label^="${formatCalendarDate(today)}"]`);
-  await expect(todayCell).toHaveAttribute("aria-label", new RegExp("タスク2件、買うもの1件"));
+  const todayCell = page.locator(
+    `.calendar-cell[aria-label^="${formatCalendarDate(today)}"]`
+  );
+  await expect(todayCell).toHaveAttribute(
+    "aria-label",
+    new RegExp("タスク2件、買うもの1件")
+  );
   await expect(page.getByRole("heading", { name: "買うもの" })).toBeVisible();
-  await expect(page.getByRole("button", { name: new RegExp(`${itemName}、未購入`) })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: new RegExp(`${itemName}、未購入`) })
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", {
+      name: new RegExp(`${unscheduledItemName}、未購入、予定日未定`)
+    })
+  ).toBeVisible();
   await expectNoHorizontalScroll(page);
-  await shot(page, "calendar-shopping-mobile.png");
-  await shot(page, "calendar-task-shopping-mixed.png");
+  await shot(page, "calendar-shopping-unscheduled.png");
+  await shot(page, "calendar-shopping-mixed-schedule.png");
 
+  const otherDateCell = page.locator(
+    `.calendar-cell[aria-label^="${formatCalendarDate(movedDate)}"]`
+  );
+  await expect(otherDateCell).toHaveAttribute("aria-label", new RegExp("買うもの0件"));
+  await otherDateCell.click();
+  await expect(
+    page.getByRole("button", {
+      name: new RegExp(`${unscheduledItemName}、未購入、予定日未定`)
+    })
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: new RegExp(`${itemName}、未購入`) })
+  ).toBeHidden();
+
+  await page.goto(`/calendar?date=${today}`);
+  await expect(
+    page.getByRole("button", { name: new RegExp(`${itemName}、未購入`) })
+  ).toBeVisible();
   await page.getByRole("button", { name: new RegExp(`${itemName}、未購入`) }).click();
   await expect(page).toHaveURL(/\/shopping\/items\/[^/]+$/);
   await expect(page.getByRole("heading", { name: itemName })).toBeVisible();
 
   await page.goto("/shopping");
   await page.getByRole("button", { name: `${itemName}を購入済みにする` }).click();
-  await expect(page.getByRole("button", { name: `${itemName}を未購入へ戻す` })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: `${itemName}を未購入へ戻す` })
+  ).toBeVisible();
   await page.goto("/calendar");
-  await expect(page.getByRole("button", { name: new RegExp(`${itemName}、購入済み`) })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: new RegExp(`${itemName}、購入済み`) })
+  ).toBeVisible();
   await expect(todayCell).toHaveAttribute("aria-label", new RegExp("買うもの1件"));
-  await shot(page, "calendar-shopping-purchased.png");
+  await page.goto("/shopping");
+  const shoppingPurchaseDateTime = page.getByText(/2026\/\d+\/\d+ \d{2}:\d{2}/);
+  await expect(shoppingPurchaseDateTime).toBeVisible();
+  await shoppingPurchaseDateTime.evaluate((element) =>
+    element.scrollIntoView({ block: "center", inline: "nearest" })
+  );
+  await shot(page, "shopping-purchased-datetime.png", false);
+  await page.goto("/calendar");
 
   await page.getByRole("button", { name: new RegExp(`${itemName}、購入済み`) }).click();
+  await expect(page.getByText("購入日時")).toBeVisible();
+  await expect(page.getByText(/2026\/\d+\/\d+ \d{2}:\d{2}/)).toBeVisible();
   await page.getByRole("button", { name: "編集" }).click();
   await expect(page.getByLabel("購入予定日")).toHaveValue(today);
   await page.getByLabel("購入予定日").fill(movedDate);
@@ -135,12 +198,18 @@ test("planned shopping date integrates with Calendar, purchase state, reuse excl
   await expect(page.getByText("購入予定日")).toBeVisible();
 
   await page.goto("/calendar");
-  const originalCell = page.locator(`.calendar-cell[aria-label^="${formatCalendarDate(today)}"]`);
-  const movedCell = page.locator(`.calendar-cell[aria-label^="${formatCalendarDate(movedDate)}"]`);
+  const originalCell = page.locator(
+    `.calendar-cell[aria-label^="${formatCalendarDate(today)}"]`
+  );
+  const movedCell = page.locator(
+    `.calendar-cell[aria-label^="${formatCalendarDate(movedDate)}"]`
+  );
   await expect(originalCell).toHaveAttribute("aria-label", new RegExp("買うもの0件"));
   await expect(movedCell).toHaveAttribute("aria-label", new RegExp("買うもの1件"));
   await movedCell.click();
-  await expect(page.getByRole("button", { name: new RegExp(`${itemName}、購入済み`) })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: new RegExp(`${itemName}、購入済み`) })
+  ).toBeVisible();
 
   await page.goto("/shopping/new");
   await page.getByRole("button", { name: new RegExp(itemName) }).click();

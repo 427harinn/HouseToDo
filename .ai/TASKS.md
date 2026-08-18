@@ -29,6 +29,9 @@
 - [x] Verify create/update/clear/invalid/persistence/range/isolation/date-move API behavior
 - [x] Verify Shopping/Calendar/Recent/Template/responsive/accessibility UI with screenshots and trace
 - [x] Deploy migration 0014 and Shopping planned-date Calendar integration to staging; verify authenticated flows and clean temporary fixtures
+- [x] Show unplanned Shopping in every Calendar selected-date detail without adding grid markers/counts
+- [x] Show purchase date and time consistently in Shopping list, detail, and Calendar cards using household timezone
+- [x] Verify unplanned/date-mixed ordering, marker/aria counts, purchase datetime, responsive UI, screenshots, and traces locally
 - Shopping planned-date notifications
 - [x] Shopping recent item reuse from existing household items with sorting, limit, deduplication, and isolation
 - [x] Shopping new-form template prefill while preserving existing template CRUD/add behavior

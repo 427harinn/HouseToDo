@@ -43,6 +43,7 @@ import {
   type UpdateShoppingTemplateInput
 } from "./api/shopping";
 import { processShoppingImage, type ProcessedImage } from "./lib/image-processing";
+import { formatDateTime as formatDateTimeInTimezone } from "./lib/format";
 import {
   createHousehold,
   createInvite,
@@ -294,6 +295,13 @@ const formatDate = (dateKey: string) =>
     month: "long",
     day: "numeric",
     weekday: "short",
+    timeZone: "UTC"
+  }).format(new Date(`${dateKey}T00:00:00Z`));
+
+const formatShoppingPlannedDate = (dateKey: string) =>
+  new Intl.DateTimeFormat("ja-JP", {
+    month: "long",
+    day: "numeric",
     timeZone: "UTC"
   }).format(new Date(`${dateKey}T00:00:00Z`));
 
@@ -1032,7 +1040,11 @@ function CalendarScreen({
             <CalendarSection title={flexibleLabel ? "今週中" : "この週のタスク"} tasks={data.selected.weeklyFlexible} onNavigate={onNavigate} emptyTitle="週のタスクはありません" contextLabel={flexibleLabel ? "今週中" : "この週のタスク"} />
             <CalendarSection title={flexibleLabel ? "今月中" : "この期間のタスク"} tasks={data.selected.monthlyFlexible} onNavigate={onNavigate} emptyTitle="月のタスクはありません" contextLabel={flexibleLabel ? "今月中" : "この期間のタスク"} />
             {data.selected.shopping.length > 0 ? (
-              <CalendarShoppingSection items={data.selected.shopping} onNavigate={onNavigate} />
+              <CalendarShoppingSection
+                items={data.selected.shopping}
+                onNavigate={onNavigate}
+                timezone={household.timezone}
+              />
             ) : null}
           </>
         ) : <p role="status">カレンダーを読み込んでいます。</p>}
@@ -1043,10 +1055,12 @@ function CalendarScreen({
 
 function CalendarShoppingSection({
   items,
-  onNavigate
+  onNavigate,
+  timezone
 }: {
   items: CalendarShoppingItem[];
   onNavigate: (route: NavigationPath) => void;
+  timezone: string;
 }) {
   return (
     <section className="calendar-detail__section" aria-label="買うもの">
@@ -1054,13 +1068,16 @@ function CalendarShoppingSection({
       <div className="calendar-shopping-list">
         {items.map((item) => {
           const purchased = item.status === "purchased";
+          const plannedLabel = item.plannedPurchaseDate
+            ? `${formatShoppingPlannedDate(item.plannedPurchaseDate)}予定`
+            : "予定日未定";
           return (
             <button
               className={`calendar-shopping-item${purchased ? " calendar-shopping-item--purchased" : ""}`}
               key={item.id}
               onClick={() => onNavigate(`/shopping/items/${item.id}`)}
               type="button"
-              aria-label={`${item.name}、${purchased ? "購入済み" : "未購入"}、詳細を開く`}
+              aria-label={`${item.name}、${purchased ? "購入済み" : "未購入"}、${plannedLabel}、詳細を開く`}
             >
               <span className="calendar-shopping-item__icon" aria-hidden="true">{purchased ? "✓" : "買"}</span>
               <span className="calendar-shopping-item__body">
@@ -1068,7 +1085,11 @@ function CalendarShoppingSection({
                 {[item.quantity, item.note].filter(Boolean).length > 0 ? (
                   <small>{[item.quantity, item.note].filter(Boolean).join(" / ")}</small>
                 ) : null}
+                <small>{plannedLabel}</small>
                 <small className="calendar-shopping-item__status">{purchased ? "購入済み" : "未購入"}</small>
+                {purchased && item.purchasedAt ? (
+                  <small>購入日時 {shoppingPurchaseDateTime(item.purchasedAt, timezone)}</small>
+                ) : null}
               </span>
             </button>
           );
@@ -2783,14 +2804,8 @@ const memberName = (members: HouseholdMember[], userId: string | null | undefine
   members.find((member) => member.userId === userId)?.displayName ??
   (userId ? "メンバー" : "");
 
-const shoppingTime = (value: string | null) =>
-  value
-    ? new Intl.DateTimeFormat("ja-JP", {
-        hour: "2-digit",
-        minute: "2-digit",
-        timeZone: "Asia/Tokyo"
-      }).format(new Date(value))
-    : "";
+const shoppingPurchaseDateTime = (value: string | null, timezone: string) =>
+  formatDateTimeInTimezone(value, timezone);
 
 function useShoppingData() {
   const [pending, setPending] = useState<ShoppingItem[]>([]);
@@ -3008,6 +3023,7 @@ function ShoppingListScreen({
                 item={item}
                 key={item.id}
                 members={members}
+                timezone={household.timezone}
                 onDelete={() => void runItemAction(item.id, "delete")}
                 onEdit={() => onNavigate(`/shopping/items/${item.id}/edit`)}
                 onOpen={() => onNavigate(`/shopping/items/${item.id}`)}
@@ -3043,6 +3059,7 @@ function ShoppingListScreen({
                     item={item}
                     key={item.id}
                     members={members}
+                    timezone={household.timezone}
                     onDelete={() => void runItemAction(item.id, "delete")}
                     onEdit={() => onNavigate(`/shopping/items/${item.id}/edit`)}
                     onOpen={() => onNavigate(`/shopping/items/${item.id}`)}
@@ -3068,6 +3085,7 @@ function ShoppingListScreen({
 function ShoppingItemCard({
   item,
   members,
+  timezone,
   busy,
   onPrimary,
   onOpen,
@@ -3076,6 +3094,7 @@ function ShoppingItemCard({
 }: {
   item: ShoppingItem;
   members: HouseholdMember[];
+  timezone: string;
   busy: boolean;
   onPrimary: () => void;
   onOpen: () => void;
@@ -3105,7 +3124,7 @@ function ShoppingItemCard({
         {item.plannedPurchaseDate ? <small>購入予定: {formatDate(item.plannedPurchaseDate)}</small> : null}
         <small>
           {purchased && item.purchasedAt
-            ? `${purchaser || "メンバー"}さんが購入 ${shoppingTime(item.purchasedAt)}`
+            ? `${purchaser || "メンバー"}さんが購入 ${shoppingPurchaseDateTime(item.purchasedAt, timezone)}`
             : `追加: ${memberName(members, item.addedBy) || "メンバー"}`}
         </small>
       </button>
@@ -3144,7 +3163,8 @@ function ShoppingThumbnail({ item }: { item: ShoppingItem }) {
 
 function ShoppingItemDetailScreen({
   itemId,
-  onNavigate
+  onNavigate,
+  household
 }: {
   household: Household;
   user: AuthUser;
@@ -3226,11 +3246,13 @@ function ShoppingItemDetailScreen({
           {item.purchasedBy ? (
             <div>
               <dt>購入者</dt>
-              <dd>
-                {item.purchasedBy.displayName ??
-                  memberName(members, item.purchasedBy.userId)}{" "}
-                / {shoppingTime(item.purchasedAt)}
-              </dd>
+              <dd>{item.purchasedBy.displayName ?? memberName(members, item.purchasedBy.userId)}</dd>
+            </div>
+          ) : null}
+          {item.status === "purchased" && item.purchasedAt ? (
+            <div>
+              <dt>購入日時</dt>
+              <dd>{shoppingPurchaseDateTime(item.purchasedAt, household.timezone)}</dd>
             </div>
           ) : null}
         </dl>

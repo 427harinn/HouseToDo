@@ -142,6 +142,25 @@ export class ShoppingItemRepository {
     return (result.results ?? []).map((row) => toItem(row)!);
   }
 
+  async listUnplannedByHouseholdId(householdId: string): Promise<ShoppingItem[]> {
+    const result = await this.db
+      .prepare(
+        `SELECT ${selectItem}
+         FROM shopping_items si
+         LEFT JOIN users u ON u.id = si.purchased_by
+         WHERE si.household_id = ?
+           AND si.planned_purchase_date IS NULL
+         ORDER BY
+           CASE WHEN si.status = 'pending' THEN 0 ELSE 1 END ASC,
+           CASE WHEN si.status = 'pending' THEN si.sort_order END ASC,
+           CASE WHEN si.status = 'pending' THEN si.created_at END ASC,
+           CASE WHEN si.status = 'purchased' THEN si.purchased_at END DESC`
+      )
+      .bind(householdId)
+      .all<ShoppingItemRow>();
+    return (result.results ?? []).map((row) => toItem(row)!);
+  }
+
   async countPending(householdId: string): Promise<number> {
     const row = await this.db
       .prepare("SELECT COUNT(*) AS count FROM shopping_items WHERE household_id = ? AND status = 'pending'")

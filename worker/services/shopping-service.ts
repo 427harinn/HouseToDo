@@ -58,6 +58,11 @@ export class ShoppingService {
     return this.items.listPlannedByHouseholdId(household.id, from, to);
   }
 
+  async listUnplannedItems(userId: string): Promise<ShoppingItem[]> {
+    const household = await this.households.requireCurrentHousehold(userId);
+    return this.items.listUnplannedByHouseholdId(household.id);
+  }
+
   async getItem(userId: string, itemId: string): Promise<ShoppingItem> {
     const household = await this.households.requireCurrentHousehold(userId);
     const item = await this.items.findByIdForHousehold(household.id, itemId);

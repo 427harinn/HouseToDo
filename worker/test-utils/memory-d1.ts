@@ -747,7 +747,10 @@ export class MemoryD1 {
             item.planned_purchase_date <= String(values[2])
         );
       }
-      if (sql.includes("si.status = 'pending'") || sql.includes("status = 'pending'")) {
+      if (sql.includes("si.planned_purchase_date IS NULL")) {
+        rows = rows.filter((item) => item.planned_purchase_date == null);
+      }
+      if (sql.includes("AND si.status = 'pending'") || sql.includes("AND status = 'pending'")) {
         rows = rows.filter((item) => item.status === "pending");
       }
       if (sql.includes("NOT EXISTS")) {

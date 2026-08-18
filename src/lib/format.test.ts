@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatBytes } from "./format";
+import { formatBytes, formatDateTime } from "./format";
 
 describe("formatBytes", () => {
   it.each([
@@ -15,5 +15,19 @@ describe("formatBytes", () => {
     [-1, "0 B"]
   ])("formats %s bytes as %s", (bytes, expected) => {
     expect(formatBytes(bytes)).toBe(expected);
+  });
+});
+
+describe("formatDateTime", () => {
+  it("formats a UTC purchase timestamp in the household timezone", () => {
+    expect(formatDateTime("2026-08-18T10:32:00.000Z", "Asia/Tokyo")).toBe("2026/8/18 19:32");
+  });
+
+  it("applies the timezone at a date boundary", () => {
+    expect(formatDateTime("2026-08-18T15:32:00.000Z", "Asia/Tokyo")).toBe("2026/8/19 00:32");
+  });
+
+  it("returns an empty string for a missing timestamp", () => {
+    expect(formatDateTime(null, "Asia/Tokyo")).toBe("");
   });
 });

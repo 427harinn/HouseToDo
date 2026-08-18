@@ -96,6 +96,7 @@ const mockFetch = (
     if (url.endsWith("/api/households/current")) return Promise.resolve(ok({ household: householdData }));
     if (url.endsWith("/api/households/current/members")) return Promise.resolve(ok({ members }));
     if (url.endsWith("/api/households/current/image-usage")) return Promise.resolve(imageUsageData ? ok(imageUsageData) : failure("INTERNAL_ERROR", 500));
+    if (url.endsWith("/api/shopping/items/shop-2")) return Promise.resolve(ok({ item: purchasedItem }));
     if (url.endsWith("/api/shopping/items")) return Promise.resolve(ok({ pending: [shoppingItem], purchased: [purchasedItem] }));
     if (url.startsWith("/api/shopping/recent")) return Promise.resolve(ok({ items: [{ name: "牛乳", quantity: "2本", note: "低脂肪ではないもの", createdAt: "2026-08-02T00:00:00Z" }] }));
     if (url.endsWith("/api/shopping/templates")) return Promise.resolve(ok({ templates: [template] }));
@@ -513,9 +514,21 @@ describe("App shopping UI", () => {
     expect(screen.getAllByText("1本 / 低脂肪ではないもの").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "キッチンペーパーを買い物リストへ追加" })).toBeInTheDocument();
     expect(screen.getByText(/たくやさんが購入/)).toBeInTheDocument();
+    expect(screen.getByText(/2026\/8\/1 10:32/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /購入済み 1件/ }));
     expect(screen.queryByText(/たくやさんが購入/)).not.toBeInTheDocument();
+  }, 15000);
+
+  it("shows the purchase date and time in shopping detail", async () => {
+    mockFetch();
+    window.history.replaceState({}, "", "/shopping/items/shop-2");
+
+    render(<App />);
+
+    expect(await screen.findByRole("heading", { name: purchasedItem.name })).toBeInTheDocument();
+    expect(screen.getByText("購入日時")).toBeInTheDocument();
+    expect(screen.getByText("2026/8/1 10:32")).toBeInTheDocument();
   }, 15000);
 
   it("prefills shopping forms from recent items and templates without reusing image inputs", async () => {

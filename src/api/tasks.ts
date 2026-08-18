@@ -136,7 +136,7 @@ export type CalendarShoppingItem = {
   quantity: string | null;
   note: string | null;
   status: ShoppingItemStatus;
-  plannedPurchaseDate: string;
+  plannedPurchaseDate: string | null;
   purchasedAt: string | null;
   purchasedBy: TaskActor | null;
 };

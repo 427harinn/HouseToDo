@@ -1121,7 +1121,9 @@ describe("worker app shopping API", () => {
 
     const milk = await create("牛乳", "2026-08-20");
     expect(milk.plannedPurchaseDate).toBe("2026-08-20");
-    await create("予定なし", null);
+    const unscheduled = await create("予定日未定", null);
+    const purchasedUnscheduled = await create("購入済み予定日未定", null);
+    await app.fetch(postJson(`/api/shopping/items/${purchasedUnscheduled.id}/purchase`, {}, owner.cookie), env);
     await create("範囲外", "2026-09-01");
     await create("別家庭", "2026-08-20", other.cookie);
 
@@ -1140,13 +1142,53 @@ describe("worker app shopping API", () => {
     const firstBody: {
       data: {
         dates: Record<string, { shoppingCount: number; purchasedShoppingCount: number }>;
-        selected: { shopping: Array<{ id: string; name: string; status: string; plannedPurchaseDate: string }> };
+        selected: { shopping: Array<{ id: string; name: string; status: string; plannedPurchaseDate: string | null }> };
       };
     } = await calendarAtFirstDate.json();
     expect(firstBody.data.dates["2026-08-20"]).toMatchObject({ shoppingCount: 1, purchasedShoppingCount: 0 });
-    expect(firstBody.data.selected.shopping).toEqual([
-      expect.objectContaining({ id: milk.id, name: "牛乳", status: "pending", plannedPurchaseDate: "2026-08-20" })
+    expect(firstBody.data.selected.shopping.map((item) => item.id)).toEqual([
+      milk.id,
+      unscheduled.id,
+      purchasedUnscheduled.id
     ]);
+    expect(firstBody.data.selected.shopping).toEqual([
+      expect.objectContaining({ id: milk.id, name: "牛乳", status: "pending", plannedPurchaseDate: "2026-08-20" }),
+      expect.objectContaining({ id: unscheduled.id, name: "予定日未定", status: "pending", plannedPurchaseDate: null }),
+      expect.objectContaining({ id: purchasedUnscheduled.id, name: "購入済み予定日未定", status: "purchased", plannedPurchaseDate: null })
+    ]);
+
+    const otherSelectedDate = await app.fetch(
+      new Request("https://example.test/api/tasks/calendar?from=2026-08-21&to=2026-08-21&selectedDate=2026-08-21", {
+        headers: { cookie: owner.cookie }
+      }),
+      env
+    );
+    await expect(otherSelectedDate.json()).resolves.toMatchObject({
+      data: {
+        dates: { "2026-08-21": { shoppingCount: 0, purchasedShoppingCount: 0 } },
+        selected: { shopping: [
+          { id: unscheduled.id, plannedPurchaseDate: null },
+          { id: purchasedUnscheduled.id, plannedPurchaseDate: null }
+        ] }
+      }
+    });
+
+    const septemberSelectedDate = await app.fetch(
+      new Request("https://example.test/api/tasks/calendar?from=2026-09-01&to=2026-09-01&selectedDate=2026-09-01", {
+        headers: { cookie: owner.cookie }
+      }),
+      env
+    );
+    await expect(septemberSelectedDate.json()).resolves.toMatchObject({
+      data: {
+        dates: { "2026-09-01": { shoppingCount: 1, purchasedShoppingCount: 0 } },
+        selected: { shopping: [
+          { name: "範囲外", plannedPurchaseDate: "2026-09-01" },
+          { id: unscheduled.id, plannedPurchaseDate: null },
+          { id: purchasedUnscheduled.id, plannedPurchaseDate: null }
+        ] }
+      }
+    });
 
     const purchased = await app.fetch(
       postJson(`/api/shopping/items/${milk.id}/purchase`, {}, owner.cookie),
@@ -1164,7 +1206,11 @@ describe("worker app shopping API", () => {
     await expect(purchasedCalendar.json()).resolves.toMatchObject({
       data: {
         dates: { "2026-08-20": { shoppingCount: 1, purchasedShoppingCount: 1 } },
-        selected: { shopping: [{ id: milk.id, status: "purchased", plannedPurchaseDate: "2026-08-20" }] }
+        selected: { shopping: [
+          { id: milk.id, status: "purchased", plannedPurchaseDate: "2026-08-20" },
+          { id: unscheduled.id, status: "pending", plannedPurchaseDate: null },
+          { id: purchasedUnscheduled.id, status: "purchased", plannedPurchaseDate: null }
+        ] }
       }
     });
 
@@ -1195,7 +1241,11 @@ describe("worker app shopping API", () => {
           "2026-08-20": { shoppingCount: 0 },
           "2026-08-22": { shoppingCount: 1 }
         },
-        selected: { shopping: [{ id: milk.id, plannedPurchaseDate: "2026-08-22" }] }
+        selected: { shopping: [
+          { id: milk.id, plannedPurchaseDate: "2026-08-22" },
+          { id: unscheduled.id, plannedPurchaseDate: null },
+          { id: purchasedUnscheduled.id, plannedPurchaseDate: null }
+        ] }
       }
     });
 
@@ -1213,7 +1263,14 @@ describe("worker app shopping API", () => {
       env
     );
     await expect(clearedCalendar.json()).resolves.toMatchObject({
-      data: { dates: { "2026-08-22": { shoppingCount: 0 } }, selected: { shopping: [] } }
+      data: {
+        dates: { "2026-08-22": { shoppingCount: 0 } },
+        selected: { shopping: [
+          { id: milk.id, plannedPurchaseDate: null },
+          { id: unscheduled.id, plannedPurchaseDate: null },
+          { id: purchasedUnscheduled.id, plannedPurchaseDate: null }
+        ] }
+      }
     });
   });
 });

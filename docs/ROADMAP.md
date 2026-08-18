@@ -27,6 +27,7 @@
    - [x] optional planned purchase date with create/edit/clear and purchase-state persistence
    - [x] household-scoped Shopping projection in Calendar with separate marker/detail UI
    - [x] Shopping planned purchase date and Calendar integration staging deployment/verification
+   - [x] Calendar selected-date visibility for unplanned Shopping and purchase datetime display
    - Shopping planned-date notifications
 5. UI refinement
 6. WebMCP

@@ -548,3 +548,13 @@ Add nullable `shopping_items.planned_purchase_date` through an additive migratio
 Extend `GET /api/tasks/calendar` additively instead of introducing a second Calendar endpoint or performing client-side filtering. Query only the requested household/date range and return minimal Shopping summaries, with separate Shopping marker counts and a separate selected-date `買うもの` section. Include pending and purchased items, but exclude attachments.
 
 Treat the date as shopping-instance-specific data. Recent and Template prefill must not copy it, and Shopping templates do not persist it. The field has no Push, Cron, scheduler, or Task overdue semantics in this phase.
+
+## 2026-08-18 Unplanned Shopping is selected-date context, not a Calendar marker
+
+**Status:** Accepted — local implementation
+
+`planned_purchase_date IS NULL` means that the purchase date is undecided, not that the item is excluded from Calendar. The existing Calendar range query remains the marker source. Selected-date detail performs a separate household-scoped unplanned query and shows dated items first, followed by unplanned items. Unplanned items are labeled `予定日未定`; dated items retain their planned-date label.
+
+Both pending and purchased unplanned items are included. This follows the current Shopping UX, where purchased rows remain reviewable until the user physically clears them; there is no durable purchase-history table and no scheduler or notification behavior is added. Unplanned items never contribute to grid marker counts or cell `aria-label` counts.
+
+Purchase timestamps remain the existing ISO values in `purchased_at` and API `purchasedAt`. The UI formats date and time using the household timezone in one shared helper. No schema or migration change is needed.

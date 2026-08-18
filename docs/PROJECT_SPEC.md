@@ -62,7 +62,9 @@ Shopping templates keep their existing household authorization and immediate-add
 
 Shopping items accept an optional `plannedPurchaseDate` in `YYYY-MM-DD` form. It is a household-local calendar date, not a UTC timestamp. The value can be created, changed, or cleared without changing the item itself. Purchasing or restoring an item preserves the planned date.
 
-`GET /api/tasks/calendar` keeps its task projection contract and additively includes planned Shopping counts for each date plus a minimal `selected.shopping` projection. The Calendar grid exposes task and Shopping counts as distinct text markers and in each date cell's accessible label. Selected-date detail places Shopping items in a separate `買うもの` section, identifies `未購入` and `購入済み` with text and icons, and links to the existing Shopping detail route. Shopping items without a planned date do not appear in Calendar.
+`GET /api/tasks/calendar` keeps its task projection contract and additively includes planned Shopping counts for each date plus a minimal `selected.shopping` projection. The Calendar grid exposes task and Shopping counts as distinct text markers and in each date cell's accessible label. Selected-date detail places Shopping items in a separate `買うもの` section, identifies `未購入` and `購入済み` with text and icons, labels planned items as `8月20日予定` and unplanned items as `予定日未定`, and links to the existing Shopping detail route. Pending and purchased items without a planned date appear in every selected-date detail, but are not included in any grid marker/count.
+
+Purchased Shopping items display their stored purchase date and time in the household timezone in the Shopping list, detail, and Calendar card.
 
 Planned dates are specific to one shopping-item instance. Shopping Recent and Shopping Template prefill copy only reusable fields and always start with an empty planned date. Shopping templates do not store this field. Shopping notifications, scheduler participation, and overdue semantics are not part of this phase.
 

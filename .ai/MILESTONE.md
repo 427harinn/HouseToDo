@@ -92,3 +92,9 @@ Cron configuration and production resources remain untouched. Staging migration,
 - Local full suite uses semantic Task/Notification locators and no longer relies on the obsolete Task action button count.
 - Local `npm run test:e2e` and staging `npm run test:e2e:staging` are separated. Missing staging URL/credentials produce an explicit skip and never redirect the staging spec to local.
 - Existing single-worker execution and failure screenshot/trace/video artifact settings remain in force. No application behavior or migration changed.
+
+## Shopping / Calendar UX follow-up (2026-08-18)
+
+- Shopping items with `plannedPurchaseDate = null` are returned by a separate household-scoped Calendar selected-date query and appear on every selected date; planned items remain first, followed by `予定日未定` items.
+- Unplanned items do not contribute to Calendar grid Shopping markers or cell `aria-label` counts. Pending and purchased unplanned rows are both included because purchased-item cleanup physically deletes them and no durable history is retained.
+- Existing ISO `purchased_at` / `purchasedAt` values now render as date plus time using the household timezone in Shopping list, detail, and Calendar selected-date cards. No migration or remote mutation was made.

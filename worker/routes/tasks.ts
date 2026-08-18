@@ -207,18 +207,24 @@ export const weekTasksRoute: Handler = requireAuth(async (context) => {
 export const calendarTasksRoute: Handler = requireAuth(async (context) => {
   const user = requireUser(context.user);
   const query = validateCalendarRangeQuery(context.request);
-  const [data, shoppingItems] = await Promise.all([
+  const shopping = new ShoppingService(context.env.DB);
+  const [data, plannedShoppingItems, unplannedShoppingItems] = await Promise.all([
     new TaskService(context.env.DB).listCalendar(user.id, query.from, query.to, query.selectedDate),
-    new ShoppingService(context.env.DB).listPlannedItems(user.id, query.from, query.to)
+    shopping.listPlannedItems(user.id, query.from, query.to),
+    shopping.listUnplannedItems(user.id)
   ]);
   const shoppingByDate = new Map<string, ShoppingItem[]>();
-  for (const item of shoppingItems) {
+  for (const item of plannedShoppingItems) {
     if (!item.plannedPurchaseDate) continue;
     shoppingByDate.set(item.plannedPurchaseDate, [
       ...(shoppingByDate.get(item.plannedPurchaseDate) ?? []),
       item
     ]);
   }
+  const selectedShopping = [
+    ...(shoppingByDate.get(data.selectedDate) ?? []),
+    ...unplannedShoppingItems
+  ];
   return okJson({
     from: data.from,
     to: data.to,
@@ -239,7 +245,7 @@ export const calendarTasksRoute: Handler = requireAuth(async (context) => {
       fixed: data.selected.fixed.map(taskWithStatusResponse),
       weeklyFlexible: data.selected.weeklyFlexible.map(taskWithStatusResponse),
       monthlyFlexible: data.selected.monthlyFlexible.map(taskWithStatusResponse),
-      shopping: (shoppingByDate.get(data.selectedDate) ?? []).map(calendarShoppingResponse)
+      shopping: selectedShopping.map(calendarShoppingResponse)
     }
   }, context.requestId);
 });
