@@ -28,6 +28,7 @@
 - [x] Add distinct Calendar Shopping markers, selected-date section, purchased state, and detail navigation
 - [x] Verify create/update/clear/invalid/persistence/range/isolation/date-move API behavior
 - [x] Verify Shopping/Calendar/Recent/Template/responsive/accessibility UI with screenshots and trace
+- [x] Deploy migration 0014 and Shopping planned-date Calendar integration to staging; verify authenticated flows and clean temporary fixtures
 - Shopping planned-date notifications
 - [x] Shopping recent item reuse from existing household items with sorting, limit, deduplication, and isolation
 - [x] Shopping new-form template prefill while preserving existing template CRUD/add behavior

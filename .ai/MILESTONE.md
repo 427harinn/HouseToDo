@@ -22,7 +22,7 @@
 
 ## Next objective
 
-Shopping planned purchase dates and their Calendar projection are implemented locally. Notification deep-link, Shopping notifications, staging deployment, and production rollout remain future work.
+Shopping planned purchase dates and their Calendar projection are verified on staging. Notification deep-link, Shopping notifications, and production rollout remain future work.
 
 ## Guardrails
 
@@ -80,3 +80,9 @@ Cron configuration and production resources remain untouched. Staging migration,
 - Recent and Template prefill always leave the date empty; Shopping templates do not store it.
 - Existing `GET /api/tasks/calendar` additively returns bounded household-scoped Shopping markers and selected-date summaries. The Calendar renders a separate `買うもの` section, purchased text/icon state, and Shopping detail navigation.
 - Shopping notifications, Cron, scheduler behavior, staging/production resources, remote D1, deployment, and git push remain untouched.
+
+## Shopping planned purchase date staging verification (2026-08-18)
+
+- Migration `0014_shopping_planned_purchase_date.sql` was the only pending staging migration, applied successfully, and verified with the nullable column and household/date index. Worker version `88403adb-b678-4528-916e-a67829cc5812` was deployed to `house-to-do-staging` after dry-run and all local gates passed.
+- Health, authenticated Shopping create/detail/edit/clear, purchase/unpurchase persistence, Recent/Template date exclusion, Calendar Shopping marker/aria-label/separate section, purchased state, detail navigation, date movement, existing Task marker/sections, and 390px no-overflow smoke passed with empty browser warning/error logs.
+- Temporary Shopping items were cleared and deleted; the temporary template was deactivated by existing semantics. Read-only cleanup found zero temporary Shopping items, zero active temporary templates, and zero Shopping notification deliveries. Cron, secrets, R2 images, production resources, production migration/deploy, and git push remained untouched.

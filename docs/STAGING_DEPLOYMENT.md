@@ -1,5 +1,15 @@
 # Staging runbook
 
+## 2026-08-18 Shopping planned purchase date / Calendar staging verification
+
+- Implementation commit `ef5a89bf0ff8c3789fc0702670b2c5c77a32582e` passed lint, typecheck, 201 tests, build, local migration, staging-config validation, and diff-check. Docker was unavailable, so the documented host gates were used.
+- The pre-apply migration list showed only `0014_shopping_planned_purchase_date.sql` pending after `0013`. The additive migration was applied to staging D1; the post-check reported no pending migrations and confirmed nullable `shopping_items.planned_purchase_date` plus `idx_shopping_items_household_planned_purchase_date (household_id, planned_purchase_date)`.
+- Staging dry-run and deployment succeeded for `house-to-do-staging`. Version ID: `88403adb-b678-4528-916e-a67829cc5812`. `/api/health` returned HTTP 200 with `db: true` and `r2: true`; Cron remained `*/5 * * * *`.
+- Authenticated staging verification passed for Shopping create/detail/edit/clear, purchase/unpurchase date persistence, Calendar's separate `買うもの` section and distinct marker/count/aria-label, purchased text/icon state, Shopping detail navigation, and date movement between Calendar cells. Existing fixed Task markers and weekly/monthly flexible sections remained intact.
+- Recent reused pending and purchased items while leaving the planned date empty. Template direct-add created items without a planned date, and `shopping_templates` has no planned-date column. The bounded range and household isolation remain covered by the passing local API tests; staging used a representative in-range household fixture without creating another household.
+- The Shopping planned-date form and Calendar marker/section passed a 390px staging smoke with no horizontal overflow. Browser warning/error logs were empty. Read-only D1 checks found no notification deliveries for the temporary items, confirming that Shopping remains outside scheduler/Push behavior.
+- All temporary Shopping items were deleted after clearing their planned dates. The temporary template was deactivated (`active = 0`) using existing semantics; final read-only checks found zero temporary Shopping items and zero active temporary templates. Images/R2, secrets, production resources, production migrations/deploys, and git push were untouched.
+
 ## 2026-08-14 Shopping image picker simplification staging verification
 
 - Commit `cfbe70465313279137915c38de15281a980a8443` was deployed to `house-to-do-staging` as version `c3ee3b68-6978-4857-8045-ca6551d9c59d` after local gates, the read-only migration check, and dry-run success.
