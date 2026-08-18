@@ -62,6 +62,12 @@ API/service/repository、canonical projection/actions、task create/edit/detail/
 
 Phase 1実装ではscheduler/UI互換のためlegacy `recurrence_type`を保持し、`model_recurrence_type`、deadline、start date、recurrence configをadditiveに追加する。schedulerの新deadline計算への切替、record actionの新period適用は後続phaseで行う。
 
+## E2E test infrastructure
+
+`npm run test:e2e`はlocal/self-contained specを単一workerで実行します。共有local D1/R2の衝突を避けるため、parallelismとretryは増やしません。Docker unavailable時は、build済みlocal Workerを許可Originの`http://127.0.0.1:5174`で起動してhost Playwrightを実行します。
+
+`e2e/staging`はlocal suiteからstagingへ接続しません。staging専用configと`npm run test:e2e:staging`でのみ実行し、厳密なstaging workers.dev URLと7つのcredential/base URL環境変数が揃わない場合は、理由付きでskipします。staging specがlocal URLへfallbackする経路はありません。local configのtrace/screenshot/video設定は維持し、failure artifactは`PLAYWRIGHT_ARTIFACT_DIR`配下に保存します。
+
 ## 構成の境界
 
 現在仕様と将来設計を混在させません。TaskService/Repository/API validation、canonical today/week projection、Task UI、deadline reminder scheduler、Calendar projectionはcanonical modelへ対応済みです。実行履歴はtask_recordsと既存history API、最近使ったタスクはactive canonical task definitionのcreated_at降順候補、テンプレートは`task_templates`の明示保存definitionとして分離します。recentは`GET /api/tasks/recent`で最大8件を返し、legacy weekly target count > 1、inactive task、他householdのtaskは除外します。templateは日付・records/historyを持たず、household authorization後にcreate formへprefillします。どちらもHome、Calendar、schedulerのtask projectionへ混入させません。notification deep-link等は [ROADMAP.md](ROADMAP.md) に置きます。once/monthly系は`model_only` markerでlegacy処理から除外します。

@@ -2,6 +2,22 @@ import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
+const stagingProject = process.env.STAGING_E2E_PROJECT === "1";
+const requiredStagingEnv = [
+  "STAGING_E2E_BASE_URL",
+  "STAGING_E2E_OWNER_EMAIL",
+  "STAGING_E2E_OWNER_PASSWORD",
+  "STAGING_E2E_MEMBER_EMAIL",
+  "STAGING_E2E_MEMBER_PASSWORD",
+  "STAGING_E2E_CROSS_EMAIL",
+  "STAGING_E2E_CROSS_PASSWORD"
+] as const;
+const missingStagingEnv = requiredStagingEnv.filter((name) => !process.env[name]);
+const stagingE2eReady = stagingProject && missingStagingEnv.length === 0;
+const stagingSkipReason = stagingProject
+  ? `staging E2E skipped: ${missingStagingEnv.join(", ")} are not set`
+  : "staging-only E2E; run npm run test:e2e:staging with staging URL and credentials";
+
 const artifactDir = path.resolve(
   process.env.PLAYWRIGHT_ARTIFACT_DIR ?? "artifacts/playwright/staging-e2e-remaining"
 );
@@ -392,6 +408,8 @@ const collectBrowserSignals = (page: Page, context: BrowserContextName) => {
 };
 
 test.describe("staging remaining E2E", () => {
+  test.skip(!stagingE2eReady, stagingSkipReason);
+
   test("isolates owner, member, unauthenticated, and cross-house contexts", async ({
     browser
   }) => {

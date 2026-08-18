@@ -50,3 +50,9 @@
 ## 完了時
 
 変更ファイル、検証コマンド、結果、未対応事項を簡潔に報告します。コード・API・DB・UI・運用に影響する変更では、関連文書のsource of truthも更新します。
+
+## E2E test boundary
+
+- `npm run test:e2e`はlocal/self-contained suiteです。staging-only specは明示skipされ、staging URLへ向けません。
+- `npm run test:e2e:staging`は`STAGING_E2E_BASE_URL`とowner/member/crossのemail/password環境変数を要求します。不足時は理由付きskipとし、local URLへfallbackしません。
+- Playwrightのsingle worker、既存のbrowser error checks、failure screenshot/trace/video artifact方針を維持します。retry追加、固定sleep追加、button count assertion追加でgreenにしません。

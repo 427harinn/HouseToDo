@@ -61,3 +61,21 @@ Dockerが利用できる場合は、プロジェクトのcompose設定に従っ�
 stagingは `house-to-do-staging` Worker、`house-to-do-staging` D1、`house-to-do-attachments-staging` R2を使います。現在のCronはwrangler設定上 `*/5 * * * *` です。手順と確認コマンドは [STAGING_DEPLOYMENT](docs/STAGING_DEPLOYMENT.md) を参照してください。
 
 productionは明示的な承認なしに操作しません。push、deploy、remote migration、secret変更も作業範囲に明記された場合のみ実行します。
+
+## E2E verification
+
+Local/self-contained E2Eは次で実行します。Dockerが使える場合は`docker compose run --rm e2e`でも同じsuiteを実行できます。
+
+```powershell
+npm run test:e2e
+```
+
+Docker unavailable時のhost Worker実行では、認証APIのOrigin許可に合わせて`PLAYWRIGHT_BASE_URL=http://127.0.0.1:5174`を使います。local configはstaging-only specを実行せず、`staging-only E2E; run npm run test:e2e:staging with staging URL and credentials`として明示skipします。
+
+Staging E2Eは専用commandだけを使います。
+
+```powershell
+npm run test:e2e:staging
+```
+
+`STAGING_E2E_BASE_URL`、`STAGING_E2E_OWNER_EMAIL`、`STAGING_E2E_OWNER_PASSWORD`、`STAGING_E2E_MEMBER_EMAIL`、`STAGING_E2E_MEMBER_PASSWORD`、`STAGING_E2E_CROSS_EMAIL`、`STAGING_E2E_CROSS_PASSWORD`がすべて必要です。不足時はlocal URLへfallbackせず、明示skipになります。値はrepositoryへ記録しません。

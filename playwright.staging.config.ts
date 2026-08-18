@@ -1,10 +1,18 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const baseUrl = process.env.STAGING_E2E_BASE_URL;
-if (!baseUrl) throw new Error("STAGING_E2E_BASE_URL is required");
+process.env.STAGING_E2E_PROJECT = "1";
 
-const parsed = new URL(baseUrl);
-if (
+const baseUrl = process.env.STAGING_E2E_BASE_URL;
+let parsed: URL | null = null;
+if (baseUrl) {
+  try {
+    parsed = new URL(baseUrl);
+  } catch {
+    throw new Error("STAGING_E2E_BASE_URL must be a valid URL");
+  }
+}
+
+if (parsed && (
   parsed.protocol !== "https:" ||
   parsed.hostname !== "house-to-do-staging.427harinn.workers.dev" ||
   parsed.pathname !== "/" ||
@@ -12,15 +20,19 @@ if (
   parsed.password ||
   parsed.search ||
   parsed.hash
-) {
+)) {
   throw new Error("staging E2E accepts only the exact staging workers.dev URL");
 }
-if (/production|prod/i.test(baseUrl)) throw new Error("production URL is forbidden");
+if (baseUrl && /production|prod/i.test(baseUrl)) throw new Error("production URL is forbidden");
 
 const artifactDir =
   process.env.PLAYWRIGHT_ARTIFACT_DIR ?? "artifacts/playwright/staging-e2e-remaining";
 
-console.log(`staging E2E target: ${parsed.origin}`);
+console.log(
+  parsed
+    ? `staging E2E target: ${parsed.origin}`
+    : "staging E2E skipped: STAGING_E2E_BASE_URL and staging credentials are not set"
+);
 
 export default defineConfig({
   testDir: "./e2e/staging",
@@ -34,7 +46,7 @@ export default defineConfig({
     ["html", { outputFolder: `${artifactDir}/html-report`, open: "never" }]
   ],
   use: {
-    baseURL: parsed.origin,
+    baseURL: parsed?.origin ?? "https://staging-e2e-not-configured.invalid",
     trace: "off",
     screenshot: "only-on-failure",
     video: "off",

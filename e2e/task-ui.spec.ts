@@ -196,7 +196,10 @@ const createTaskViaUi = async (
   return page.url().split("/").pop()!;
 };
 
-const taskActionPanel = (page: Page) => page.locator("section.card").nth(1);
+const taskActionPanel = (page: Page) =>
+  page.locator("section.card").filter({
+    has: page.getByRole("heading", { name: "操作", exact: true })
+  });
 
 test.describe("task UI E2E", () => {
   test("covers task UI, screenshots, responsive sizes, and two isolated users", async ({ browser }: { browser: Browser }) => {
@@ -309,30 +312,32 @@ test.describe("task UI E2E", () => {
     await pageB.goto(`/tasks/${conflictTask.id}`);
     await expect(pageB.getByRole("heading", { name: `conflict ${id}` })).toBeVisible();
     await changeStateByApi(pageA, conflictTask.id, "start");
-    await taskActionPanel(pageB).locator("button").nth(1).click();
+    await taskActionPanel(pageB).getByRole("button", { name: "今からやります", exact: true }).click();
     await expect(pageB.getByRole("alert")).toBeVisible();
     await shot(pageB, "11-task-conflict.png");
 
     await pageA.goto(`/tasks/${uiDailyId}`);
-    await taskActionPanel(pageA).locator("button").nth(1).click();
+    await taskActionPanel(pageA).getByRole("button", { name: "今からやります", exact: true }).click();
     await expect(pageA.locator('[role="alert"], [role="status"]')).toBeVisible();
-    await expect(taskActionPanel(pageA).locator("button")).toHaveCount(4);
+    for (const name of ["完了しました", "パスする", "対応を取り消す", "編集する", "テンプレートとして保存"]) {
+      await expect(taskActionPanel(pageA).getByRole("button", { name, exact: true })).toBeVisible();
+    }
 
     await pageA.goto(`/tasks/${pendingTask.id}`);
-    await taskActionPanel(pageA).locator("button").nth(1).click();
+    await taskActionPanel(pageA).getByRole("button", { name: "今からやります", exact: true }).click();
     await expect(pageA.locator('[role="alert"], [role="status"]')).toBeVisible();
-    await taskActionPanel(pageA).locator("button").first().click();
+    await taskActionPanel(pageA).getByRole("button", { name: "完了しました", exact: true }).click();
     await expect(pageA.getByRole("heading", { name: `pending long task ${id}` })).toBeVisible();
 
     const skipUiTask = await createTaskByApi(pageA, { title: `skip-ui ${id}` });
     await pageA.goto(`/tasks/${skipUiTask.id}`);
     await pageA.locator("#skip-note").fill("skip note from UI");
-    await taskActionPanel(pageA).locator("button").nth(2).click();
+    await taskActionPanel(pageA).getByRole("button", { name: "パスする", exact: true }).click();
     await expect(pageA.getByText("skip note from UI")).toBeVisible();
 
     await pageA.goto(`/tasks/${skippedTask.id}`);
     pageA.once("dialog", (dialog) => dialog.accept());
-    await taskActionPanel(pageA).locator("button.button--danger").click();
+    await taskActionPanel(pageA).getByRole("button", { name: "対応を取り消す", exact: true }).click();
     await expect(pageA.getByRole("heading", { name: `skipped ${id}` })).toBeVisible();
 
     const editTask = await createTaskByApi(pageA, { title: `edit-source ${id}` });
@@ -423,7 +428,7 @@ test.describe("task UI E2E", () => {
     expect(consoleErrors).toEqual([]);
     expect(requestFailures).toEqual([]);
     await pageA.goto("/tasks");
-    await pageA.locator(".page-header button").click();
+    await pageA.getByRole("button", { name: "ログアウト", exact: true }).click();
     await expect(pageA).toHaveURL(/\/login/);
     await pageA.goto("/tasks");
     await expect(pageA).toHaveURL(/\/login/);

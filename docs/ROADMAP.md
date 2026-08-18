@@ -48,3 +48,10 @@ task modelの詳細、migration互換性、通知仕様は [TASK_MODEL_DESIGN.md
 - [ ] Phase 5 notification deep-link
 - [x] Phase 6 recent task reuse and template UX
 - [x] Phase 7 calendar
+
+## Test infrastructure quality
+
+- [x] Full Playwright suiteの既知failureを現行UIのsemantic locator/expectationへ更新
+- [x] local E2Eとcredential依存staging E2Eを専用config/commandへ分離
+- [x] staging credential不足時の明示skip、既存artifact、single-worker方針を維持
+- [x] Task、Notification、Shopping、Calendar、Recent/Templateのtargeted regressionを確認

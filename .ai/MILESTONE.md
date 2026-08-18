@@ -86,3 +86,9 @@ Cron configuration and production resources remain untouched. Staging migration,
 - Migration `0014_shopping_planned_purchase_date.sql` was the only pending staging migration, applied successfully, and verified with the nullable column and household/date index. Worker version `88403adb-b678-4528-916e-a67829cc5812` was deployed to `house-to-do-staging` after dry-run and all local gates passed.
 - Health, authenticated Shopping create/detail/edit/clear, purchase/unpurchase persistence, Recent/Template date exclusion, Calendar Shopping marker/aria-label/separate section, purchased state, detail navigation, date movement, existing Task marker/sections, and 390px no-overflow smoke passed with empty browser warning/error logs.
 - Temporary Shopping items were cleared and deleted; the temporary template was deactivated by existing semantics. Read-only cleanup found zero temporary Shopping items, zero active temporary templates, and zero Shopping notification deliveries. Cron, secrets, R2 images, production resources, production migration/deploy, and git push remained untouched.
+
+## Playwright suite maintenance (2026-08-18)
+
+- Local full suite uses semantic Task/Notification locators and no longer relies on the obsolete Task action button count.
+- Local `npm run test:e2e` and staging `npm run test:e2e:staging` are separated. Missing staging URL/credentials produce an explicit skip and never redirect the staging spec to local.
+- Existing single-worker execution and failure screenshot/trace/video artifact settings remain in force. No application behavior or migration changed.

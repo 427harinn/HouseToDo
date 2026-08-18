@@ -47,3 +47,11 @@
 ## Follow-up
 
 - [x] Update `scripts/validate-staging-config.mjs` to expect the staging Cron `*/5 * * * *`
+
+## Playwright suite quality
+
+- [x] Fix current Notification heading ambiguity with an exact accessible-name locator
+- [x] Replace obsolete Task action button count with semantic action assertions
+- [x] Separate local E2E from credential-dependent staging E2E with explicit skip behavior
+- [x] Preserve browser error checks, artifacts, single-worker isolation, and no-retry policy
+- [x] Verify full suite twice and run Task, Notification, Shopping, Calendar, and reuse/template regressions

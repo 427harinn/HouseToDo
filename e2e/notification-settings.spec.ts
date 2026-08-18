@@ -55,7 +55,7 @@ test.describe("notification settings local fixture", () => {
     for (const width of [320, 390, 430, 1280]) {
       await page.setViewportSize({ width, height: 800 });
       await page.goto("/settings/members");
-      await expect(page.getByRole("heading", { name: "通知" })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "通知", exact: true })).toBeVisible();
       await expect(page.getByText("未設定")).toBeVisible();
       await page.getByRole("button", { name: "通知を有効にする" }).click();
       await expect(page.getByText("通知ON")).toBeVisible();
