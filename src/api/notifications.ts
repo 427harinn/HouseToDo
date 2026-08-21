@@ -27,6 +27,8 @@ export const sendTestPushNotification = () =>
 export type NotificationSettings = {
   eveningSummaryEnabled: boolean;
   eveningSummaryTime: string;
+  morningSummaryEnabled: boolean;
+  morningSummaryTime: string;
   timezone: string;
 };
 

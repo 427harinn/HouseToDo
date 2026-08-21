@@ -1,6 +1,11 @@
 import type { ReactNode } from "react";
 
-type NavigationPath = "/home" | "/calendar" | "/tasks" | "/shopping" | "/settings/members";
+type NavigationPath =
+  | "/home"
+  | "/calendar"
+  | "/tasks"
+  | "/shopping"
+  | "/settings/members";
 
 type ButtonProps = {
   children: ReactNode;
@@ -92,7 +97,13 @@ export function PasswordInput(props: InputProps) {
   );
 }
 
-export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
+export function Card({
+  children,
+  className = ""
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
   return <section className={`card ${className}`.trim()}>{children}</section>;
 }
 
@@ -171,15 +182,17 @@ export function EmptyState({
 
 export function MemberAvatar({
   name,
-  color
+  color,
+  imageUrl
 }: {
   name: string;
   color?: string | null;
+  imageUrl?: string | null;
 }) {
   const initial = name.trim().charAt(0) || "?";
   return (
     <span className="member-avatar" style={{ backgroundColor: color ?? undefined }}>
-      {initial}
+      {imageUrl ? <img src={imageUrl} alt="" /> : initial}
     </span>
   );
 }

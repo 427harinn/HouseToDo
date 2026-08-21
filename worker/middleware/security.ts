@@ -14,7 +14,9 @@ const parseAllowedOrigins = (env: Env): string[] => {
       .filter(Boolean);
   }
 
-  return env.APP_ENV === "development" || env.APP_ENV === "test" ? developmentOrigins : [];
+  return env.APP_ENV === "development" || env.APP_ENV === "test"
+    ? developmentOrigins
+    : [];
 };
 
 export const validateStateChangingRequest = (request: Request, env: Env): void => {
@@ -26,9 +28,18 @@ export const validateStateChangingRequest = (request: Request, env: Env): void =
   }
 
   const contentType = request.headers.get("content-type") ?? "";
-  const isShoppingImageUpload = request.method === "PUT" && new URL(request.url).pathname.match(/^\/api\/shopping\/items\/[^/]+\/image$/);
-  if (!contentType.toLowerCase().includes("application/json") && !(isShoppingImageUpload && contentType.toLowerCase().includes("multipart/form-data"))) {
-    throw validationError({ body: "Content-Typeはapplication/jsonで送信してください。" });
+  const pathname = new URL(request.url).pathname;
+  const isImageUpload =
+    request.method === "PUT" &&
+    (/^\/api\/shopping\/items\/[^/]+\/image$/.test(pathname) ||
+      pathname === "/api/account/avatar");
+  if (
+    !contentType.toLowerCase().includes("application/json") &&
+    !(isImageUpload && contentType.toLowerCase().includes("multipart/form-data"))
+  ) {
+    throw validationError({
+      body: "Content-Typeはapplication/jsonで送信してください。"
+    });
   }
 };
 

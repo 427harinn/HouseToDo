@@ -64,7 +64,16 @@ import {
   unregisterPushSubscriptionRoute,
   testPushNotificationRoute
 } from "./routes/notifications";
-import { getNotificationSettingsRoute, updateNotificationSettingsRoute } from "./routes/notification-settings";
+import {
+  getNotificationSettingsRoute,
+  updateNotificationSettingsRoute
+} from "./routes/notification-settings";
+import {
+  deleteProfileImageRoute,
+  getProfileImageRoute,
+  profileImageMetadataRoute,
+  uploadProfileImageRoute
+} from "./routes/account";
 
 const routeApi = withErrorHandling(
   withStateChangingRequestProtection((context) => {
@@ -78,12 +87,20 @@ const routeApi = withErrorHandling(
     const shoppingTemplatePath = url.pathname.match(
       /^\/api\/shopping\/templates\/([^/]+)(?:\/([^/]+))?$/
     );
+    const userAvatarPath = url.pathname.match(/^\/api\/users\/([^/]+)\/avatar$/);
+
+    if (userAvatarPath && context.request.method === "GET") {
+      return getProfileImageRoute(decodeURIComponent(userAvatarPath[1]))(context);
+    }
 
     if (taskTemplatePath) {
       const templateId = decodeURIComponent(taskTemplatePath[1]);
-      if (context.request.method === "GET") return getTaskTemplateRoute(templateId)(context);
-      if (context.request.method === "PATCH") return updateTaskTemplateRoute(templateId)(context);
-      if (context.request.method === "DELETE") return deleteTaskTemplateRoute(templateId)(context);
+      if (context.request.method === "GET")
+        return getTaskTemplateRoute(templateId)(context);
+      if (context.request.method === "PATCH")
+        return updateTaskTemplateRoute(templateId)(context);
+      if (context.request.method === "DELETE")
+        return deleteTaskTemplateRoute(templateId)(context);
     }
 
     if (taskPath && !["today", "week", "calendar", "recent"].includes(taskPath[1])) {
@@ -157,6 +174,12 @@ const routeApi = withErrorHandling(
         return logoutRoute(context);
       case "GET /api/auth/me":
         return meRoute(context);
+      case "GET /api/account/avatar":
+        return profileImageMetadataRoute(context);
+      case "PUT /api/account/avatar":
+        return uploadProfileImageRoute(context);
+      case "DELETE /api/account/avatar":
+        return deleteProfileImageRoute(context);
       case "GET /api/notifications/vapid-public-key":
         return vapidPublicKeyRoute(context);
       case "POST /api/notifications/subscriptions":

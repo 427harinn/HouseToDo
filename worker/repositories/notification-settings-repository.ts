@@ -5,6 +5,8 @@ export type UserNotificationSettings = {
   eveningSummaryTime: string;
   timezone: string;
   updatedAt: string;
+  morningSummaryEnabled: boolean;
+  morningSummaryTime: string;
 };
 
 type SettingsRow = {
@@ -14,6 +16,8 @@ type SettingsRow = {
   evening_summary_time: string;
   timezone: string;
   updated_at: string;
+  morning_summary_enabled?: number;
+  morning_summary_time?: string;
 };
 
 const toSettings = (row: SettingsRow): UserNotificationSettings => ({
@@ -22,39 +26,64 @@ const toSettings = (row: SettingsRow): UserNotificationSettings => ({
   eveningSummaryEnabled: row.evening_summary_enabled === 1,
   eveningSummaryTime: row.evening_summary_time,
   timezone: row.timezone,
-  updatedAt: row.updated_at
+  updatedAt: row.updated_at,
+  morningSummaryEnabled: row.morning_summary_enabled === 1,
+  morningSummaryTime: row.morning_summary_time ?? "09:00"
 });
 
 export class NotificationSettingsRepository {
   constructor(private readonly db: D1Database) {}
 
-  async find(userId: string, householdId: string): Promise<UserNotificationSettings | null> {
-    const row = await this.db.prepare(
-      `SELECT user_id, household_id, evening_summary_enabled, evening_summary_time, timezone, updated_at
+  async find(
+    userId: string,
+    householdId: string
+  ): Promise<UserNotificationSettings | null> {
+    const row = await this.db
+      .prepare(
+        `SELECT user_id, household_id, evening_summary_enabled, evening_summary_time, morning_summary_enabled, morning_summary_time, timezone, updated_at
        FROM user_notification_settings WHERE user_id = ? AND household_id = ?`
-    ).bind(userId, householdId).first<SettingsRow>();
+      )
+      .bind(userId, householdId)
+      .first<SettingsRow>();
     return row ? toSettings(row) : null;
   }
 
   async listEnabled(): Promise<UserNotificationSettings[]> {
-    const result = await this.db.prepare(
-      `SELECT user_id, household_id, evening_summary_enabled, evening_summary_time, timezone, updated_at
-       FROM user_notification_settings WHERE evening_summary_enabled = 1`
-    ).all<SettingsRow>();
+    const result = await this.db
+      .prepare(
+        `SELECT user_id, household_id, evening_summary_enabled, evening_summary_time, morning_summary_enabled, morning_summary_time, timezone, updated_at
+       FROM user_notification_settings WHERE evening_summary_enabled = 1 OR morning_summary_enabled = 1`
+      )
+      .all<SettingsRow>();
     return (result.results ?? []).map(toSettings);
   }
 
-  async upsert(input: Omit<UserNotificationSettings, "updatedAt"> & { updatedAt: string }): Promise<UserNotificationSettings> {
-    await this.db.prepare(
-      `INSERT INTO user_notification_settings
-       (user_id, household_id, evening_summary_enabled, evening_summary_time, timezone, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?)
+  async upsert(
+    input: Omit<UserNotificationSettings, "updatedAt"> & { updatedAt: string }
+  ): Promise<UserNotificationSettings> {
+    await this.db
+      .prepare(
+        `INSERT INTO user_notification_settings
+       (user_id, household_id, evening_summary_enabled, evening_summary_time, morning_summary_enabled, morning_summary_time, timezone, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(user_id, household_id) DO UPDATE SET
        evening_summary_enabled = excluded.evening_summary_enabled,
        evening_summary_time = excluded.evening_summary_time,
+       morning_summary_enabled = excluded.morning_summary_enabled,
+       morning_summary_time = excluded.morning_summary_time,
        timezone = excluded.timezone, updated_at = excluded.updated_at`
-    ).bind(input.userId, input.householdId, input.eveningSummaryEnabled ? 1 : 0,
-      input.eveningSummaryTime, input.timezone, input.updatedAt).run();
+      )
+      .bind(
+        input.userId,
+        input.householdId,
+        input.eveningSummaryEnabled ? 1 : 0,
+        input.eveningSummaryTime,
+        input.morningSummaryEnabled ? 1 : 0,
+        input.morningSummaryTime,
+        input.timezone,
+        input.updatedAt
+      )
+      .run();
     return (await this.find(input.userId, input.householdId))!;
   }
 }

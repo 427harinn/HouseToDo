@@ -32,7 +32,9 @@ const toHouseholdResponse = (
 
 export const currentHouseholdRoute: Handler = requireAuth(async (context) => {
   const user = requireUser(context.user);
-  const household = await new HouseholdService(context.env.DB).getCurrentHousehold(user.id);
+  const household = await new HouseholdService(context.env.DB).getCurrentHousehold(
+    user.id
+  );
   return okJson({ household: toHouseholdResponse(household) }, context.requestId);
 });
 
@@ -43,11 +45,9 @@ export const createHouseholdRoute: Handler = requireAuth(async (context) => {
     user.id,
     input
   );
-  return okJson(
-    { household: toHouseholdResponse(household) },
-    context.requestId,
-    { status: 201 }
-  );
+  return okJson({ household: toHouseholdResponse(household) }, context.requestId, {
+    status: 201
+  });
 });
 
 export const updateCurrentHouseholdRoute: Handler = requireAuth(async (context) => {
@@ -62,7 +62,9 @@ export const updateCurrentHouseholdRoute: Handler = requireAuth(async (context) 
 
 export const currentHouseholdMembersRoute: Handler = requireAuth(async (context) => {
   const user = requireUser(context.user);
-  const members = await new HouseholdService(context.env.DB).listCurrentMembers(user.id);
+  const members = await new HouseholdService(context.env.DB).listCurrentMembers(
+    user.id
+  );
   return okJson(
     {
       members: members.map((member) => ({
@@ -70,7 +72,10 @@ export const currentHouseholdMembersRoute: Handler = requireAuth(async (context)
         displayName: member.displayName,
         role: member.role,
         color: member.color,
-        joinedAt: member.joinedAt
+        joinedAt: member.joinedAt,
+        avatarUrl: member.avatar
+          ? `/api/users/${encodeURIComponent(member.userId)}/avatar?v=${encodeURIComponent(member.avatarUpdatedAt ?? "")}`
+          : null
       }))
     },
     context.requestId

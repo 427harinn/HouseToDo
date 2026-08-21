@@ -1,6 +1,11 @@
 import { SESSION_COOKIE_NAME } from "../lib/constants";
 import { conflictError, unauthenticatedError } from "../lib/errors";
-import { generateSessionToken, hashPassword, sha256Hex, verifyPassword } from "../lib/crypto";
+import {
+  generateSessionToken,
+  hashPassword,
+  sha256Hex,
+  verifyPassword
+} from "../lib/crypto";
 import { nowIso, sessionExpiresAt } from "../lib/date";
 import { readCookie } from "../lib/cookies";
 import { SessionRepository } from "../repositories/session-repository";
@@ -15,10 +20,16 @@ export type AuthSessionResult = {
   token: string;
 };
 
+export const avatarUrlFor = (userId: string, user: User): string | null =>
+  user.avatar
+    ? `/api/users/${encodeURIComponent(userId)}/avatar?v=${encodeURIComponent(user.updatedAt)}`
+    : null;
+
 const toAuthenticatedUser = (user: User): AuthenticatedUser => ({
   id: user.id,
   email: user.email,
-  displayName: user.displayName
+  displayName: user.displayName,
+  avatarUrl: avatarUrlFor(user.id, user)
 });
 
 export class AuthService {
@@ -30,11 +41,14 @@ export class AuthService {
     this.sessions = new SessionRepository(db);
   }
 
-  async register(input: {
-    email: string;
-    password: string;
-    displayName: string;
-  }, onStage?: RegisterStageLogger): Promise<AuthSessionResult> {
+  async register(
+    input: {
+      email: string;
+      password: string;
+      displayName: string;
+    },
+    onStage?: RegisterStageLogger
+  ): Promise<AuthSessionResult> {
     onStage?.("user-lookup-start");
     const existing = await this.users.findByEmail(input.email);
     if (existing) throw conflictError("このメールアドレスはすでに登録されています。");
@@ -76,7 +90,10 @@ export class AuthService {
     if (!token) throw unauthenticatedError();
 
     const now = nowIso();
-    const session = await this.sessions.findValidByTokenHash(await sha256Hex(token), now);
+    const session = await this.sessions.findValidByTokenHash(
+      await sha256Hex(token),
+      now
+    );
     if (!session) throw unauthenticatedError();
 
     const user = await this.users.findById(session.userId);
@@ -85,7 +102,10 @@ export class AuthService {
     return toAuthenticatedUser(user);
   }
 
-  private async createSession(user: User, onStage?: RegisterStageLogger): Promise<AuthSessionResult> {
+  private async createSession(
+    user: User,
+    onStage?: RegisterStageLogger
+  ): Promise<AuthSessionResult> {
     const now = nowIso();
     const token = generateSessionToken();
     onStage?.("session-insert-start");

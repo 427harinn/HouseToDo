@@ -2,6 +2,7 @@ export type AuthUser = {
   id: string;
   email: string;
   displayName: string;
+  avatarUrl?: string | null;
 };
 
 export type HouseholdRole = "owner" | "member";
@@ -20,6 +21,7 @@ export type HouseholdMember = {
   role: HouseholdRole;
   color: string | null;
   joinedAt: string;
+  avatarUrl?: string | null;
 };
 
 export type CreatedInvite = {
