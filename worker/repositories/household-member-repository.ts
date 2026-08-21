@@ -1,4 +1,8 @@
-import type { HouseholdMember, HouseholdMemberProfile, HouseholdRole } from "../types/domain";
+import type {
+  HouseholdMember,
+  HouseholdMemberProfile,
+  HouseholdRole
+} from "../types/domain";
 
 type HouseholdMemberRow = {
   household_id: string;
@@ -10,6 +14,12 @@ type HouseholdMemberRow = {
 
 type HouseholdMemberProfileRow = HouseholdMemberRow & {
   display_name: string;
+  avatar_type: string | null;
+  avatar_value: string | null;
+  avatar_size_bytes: number | null;
+  avatar_width: number | null;
+  avatar_height: number | null;
+  avatar_updated_at: string | null;
 };
 
 export type AddHouseholdMemberInput = {
@@ -33,13 +43,31 @@ const toMember = (row: HouseholdMemberRow | null): HouseholdMember | null => {
 
 const toMemberProfile = (row: HouseholdMemberProfileRow): HouseholdMemberProfile => ({
   ...toMember(row)!,
-  displayName: row.display_name
+  displayName: row.display_name,
+  avatar:
+    row.avatar_type === "r2" &&
+    row.avatar_value &&
+    row.avatar_size_bytes &&
+    row.avatar_width &&
+    row.avatar_height
+      ? {
+          type: "r2",
+          key: row.avatar_value,
+          sizeBytes: row.avatar_size_bytes,
+          width: row.avatar_width,
+          height: row.avatar_height
+        }
+      : null,
+  avatarUpdatedAt: row.avatar_updated_at
 });
 
 export class HouseholdMemberRepository {
   constructor(private readonly db: D1Database) {}
 
-  async findMembership(householdId: string, userId: string): Promise<HouseholdMember | null> {
+  async findMembership(
+    householdId: string,
+    userId: string
+  ): Promise<HouseholdMember | null> {
     const row = await this.db
       .prepare(
         "SELECT household_id, user_id, role, color, joined_at FROM household_members WHERE household_id = ? AND user_id = ?"
@@ -52,7 +80,9 @@ export class HouseholdMemberRepository {
   async listByHouseholdId(householdId: string): Promise<HouseholdMemberProfile[]> {
     const result = await this.db
       .prepare(
-        `SELECT hm.household_id, hm.user_id, hm.role, hm.color, hm.joined_at, u.display_name
+        `SELECT hm.household_id, hm.user_id, hm.role, hm.color, hm.joined_at, u.display_name,
+                u.avatar_type, u.avatar_value, u.avatar_size_bytes, u.avatar_width, u.avatar_height,
+                u.updated_at AS avatar_updated_at
          FROM household_members hm
          INNER JOIN users u ON u.id = hm.user_id
          WHERE hm.household_id = ?
@@ -68,7 +98,13 @@ export class HouseholdMemberRepository {
       .prepare(
         "INSERT INTO household_members (household_id, user_id, role, color, joined_at) VALUES (?, ?, ?, ?, ?)"
       )
-      .bind(input.householdId, input.userId, input.role, input.color ?? null, input.joinedAt);
+      .bind(
+        input.householdId,
+        input.userId,
+        input.role,
+        input.color ?? null,
+        input.joinedAt
+      );
   }
 
   async add(input: AddHouseholdMemberInput): Promise<HouseholdMember> {

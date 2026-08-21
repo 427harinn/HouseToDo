@@ -2,6 +2,7 @@ import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
 import type { ReactNode } from "react";
 import { login, logout, me, register } from "./api/auth";
+import { deleteProfileImage, uploadProfileImage } from "./api/account";
 import { ApiError, apiMessage } from "./api/client";
 import {
   getNotificationSettings,
@@ -207,7 +208,10 @@ const parseRoute = (pathname: string): Route => {
     return { name: "/tasks/:taskId/edit", taskId: decodeURIComponent(taskEdit[1]) };
   const taskTemplateEdit = pathname.match(/^\/tasks\/templates\/([^/]+)\/edit$/);
   if (taskTemplateEdit)
-    return { name: "/tasks/templates/:templateId/edit", templateId: decodeURIComponent(taskTemplateEdit[1]) };
+    return {
+      name: "/tasks/templates/:templateId/edit",
+      templateId: decodeURIComponent(taskTemplateEdit[1])
+    };
   const taskRespond = pathname.match(/^\/tasks\/([^/]+)\/respond$/);
   if (taskRespond)
     return {
@@ -306,12 +310,19 @@ const formatShoppingPlannedDate = (dateKey: string) =>
   }).format(new Date(`${dateKey}T00:00:00Z`));
 
 const formatCalendarDate = (dateKey: string) =>
-  new Intl.DateTimeFormat("ja-JP", { month: "long", day: "numeric", weekday: "short", timeZone: "UTC" })
-    .format(new Date(`${dateKey}T00:00:00Z`));
+  new Intl.DateTimeFormat("ja-JP", {
+    month: "long",
+    day: "numeric",
+    weekday: "short",
+    timeZone: "UTC"
+  }).format(new Date(`${dateKey}T00:00:00Z`));
 
 const formatCalendarMonth = (monthKey: string) =>
-  new Intl.DateTimeFormat("ja-JP", { year: "numeric", month: "long", timeZone: "UTC" })
-    .format(new Date(`${monthKey.slice(0, 7)}-01T00:00:00Z`));
+  new Intl.DateTimeFormat("ja-JP", {
+    year: "numeric",
+    month: "long",
+    timeZone: "UTC"
+  }).format(new Date(`${monthKey.slice(0, 7)}-01T00:00:00Z`));
 
 const formatDateTime = (value: string | null) =>
   value
@@ -329,9 +340,12 @@ const actorName = (actor: { displayName: string | null } | null) =>
 
 const taskDeadlineLabel = (task: Task): string => {
   const time = task.deadlineTime ? ` ${task.deadlineTime}まで` : "";
-  if (task.modelRecurrenceType === "weekly_flexible") return `${weekdayLabels[task.weeklyDeadlineWeekday ?? 0]}曜${time || "まで"}`;
-  if (task.modelRecurrenceType === "monthly_flexible") return `${task.monthlyDeadlineType === "day_of_month" ? `${task.monthlyDayOfMonth}日` : "月末"}${time || "まで"}`;
-  if (task.modelRecurrenceType === "once" && task.targetDate) return `${formatDate(task.targetDate)}${time}`;
+  if (task.modelRecurrenceType === "weekly_flexible")
+    return `${weekdayLabels[task.weeklyDeadlineWeekday ?? 0]}曜${time || "まで"}`;
+  if (task.modelRecurrenceType === "monthly_flexible")
+    return `${task.monthlyDeadlineType === "day_of_month" ? `${task.monthlyDayOfMonth}日` : "月末"}${time || "まで"}`;
+  if (task.modelRecurrenceType === "once" && task.targetDate)
+    return `${formatDate(task.targetDate)}${time}`;
   return task.deadlineTime ? `${task.deadlineTime}まで` : "設定なし";
 };
 
@@ -352,9 +366,13 @@ const apiErrorMessage = (error: unknown) => {
 };
 
 const taskActionScope = (task: Task | TodayTask | WeeklyTask, household: Household) => {
-  if (task.modelRecurrenceType) return {
-    targetDate: task.modelRecurrenceType === "once" ? (task.targetDate ?? todayInTokyo()) : todayInTokyo()
-  };
+  if (task.modelRecurrenceType)
+    return {
+      targetDate:
+        task.modelRecurrenceType === "once"
+          ? (task.targetDate ?? todayInTokyo())
+          : todayInTokyo()
+    };
   if (task.recurrenceType === "weekly") {
     return { targetWeekStart: weekStartFor(todayInTokyo(), household.weekStartsOn) };
   }
@@ -537,9 +555,16 @@ export function App() {
   if (route.name === "/tasks") return <TaskListScreen {...shellProps} />;
   if (route.name === "/tasks/new")
     return <TaskFormScreen {...shellProps} mode="create" />;
-  if (route.name === "/tasks/templates") return <TaskTemplateListScreen {...shellProps} />;
+  if (route.name === "/tasks/templates")
+    return <TaskTemplateListScreen {...shellProps} />;
   if (route.name === "/tasks/templates/:templateId/edit")
-    return <TaskFormScreen {...shellProps} mode="template-edit" templateId={route.templateId} />;
+    return (
+      <TaskFormScreen
+        {...shellProps}
+        mode="template-edit"
+        templateId={route.templateId}
+      />
+    );
   if (route.name === "/tasks/:taskId/edit")
     return <TaskFormScreen {...shellProps} mode="edit" taskId={route.taskId} />;
   if (route.name === "/tasks/:taskId")
@@ -925,26 +950,42 @@ function CalendarScreen({
   })();
   const [visibleMonth, setVisibleMonth] = useState(`${initialDate.slice(0, 7)}-01`);
   const [selectedDate, setSelectedDate] = useState(initialDate);
-  const [data, setData] = useState<Awaited<ReturnType<typeof listCalendarTasks>> | null>(null);
+  const [data, setData] = useState<Awaited<
+    ReturnType<typeof listCalendarTasks>
+  > | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
 
-  const gridStart = addDays(visibleMonth, -((new Date(`${visibleMonth}T00:00:00Z`).getUTCDay() - household.weekStartsOn + 7) % 7));
+  const gridStart = addDays(
+    visibleMonth,
+    -(
+      (new Date(`${visibleMonth}T00:00:00Z`).getUTCDay() - household.weekStartsOn + 7) %
+      7
+    )
+  );
   const gridEnd = addDays(gridStart, 41);
   const gridDates = Array.from({ length: 42 }, (_, index) => addDays(gridStart, index));
-  const refresh = useCallback(async (signal?: AbortSignal) => {
-    setLoading(true);
-    setMessage("");
-    try {
-      const result = await listCalendarTasks(gridStart, gridEnd, selectedDate, signal);
-      setData(result);
-    } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") return;
-      setMessage(apiErrorMessage(error));
-    } finally {
-      if (!signal?.aborted) setLoading(false);
-    }
-  }, [gridStart, gridEnd, selectedDate]);
+  const refresh = useCallback(
+    async (signal?: AbortSignal) => {
+      setLoading(true);
+      setMessage("");
+      try {
+        const result = await listCalendarTasks(
+          gridStart,
+          gridEnd,
+          selectedDate,
+          signal
+        );
+        setData(result);
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setMessage(apiErrorMessage(error));
+      } finally {
+        if (!signal?.aborted) setLoading(false);
+      }
+    },
+    [gridStart, gridEnd, selectedDate]
+  );
 
   useEffect(() => {
     const controller = new AbortController();
@@ -964,44 +1005,69 @@ function CalendarScreen({
     setVisibleMonth(`${today.slice(0, 7)}-01`);
     setSelectedDate(today);
   };
-  const marker = (date: string) => data?.dates[date] ?? {
-    fixedCount: 0,
-    fixedCompletedCount: 0,
-    fixedSkippedCount: 0,
-    shoppingCount: 0,
-    purchasedShoppingCount: 0
-  };
-  const selectedTitle = selectedDate === (data?.today ?? todayInTimezone(household.timezone))
-    ? "今日のタスク"
-    : `${formatCalendarDate(selectedDate)}のタスク`;
-  const flexibleLabel = selectedDate === (data?.today ?? todayInTimezone(household.timezone));
+  const marker = (date: string) =>
+    data?.dates[date] ?? {
+      fixedCount: 0,
+      fixedCompletedCount: 0,
+      fixedSkippedCount: 0,
+      shoppingCount: 0,
+      purchasedShoppingCount: 0
+    };
+  const selectedTitle =
+    selectedDate === (data?.today ?? todayInTimezone(household.timezone))
+      ? "今日のタスク"
+      : `${formatCalendarDate(selectedDate)}のタスク`;
+  const flexibleLabel =
+    selectedDate === (data?.today ?? todayInTimezone(household.timezone));
 
   return (
     <AppFrame current="/calendar" onNavigate={onNavigate}>
       <PageHeader
         title="カレンダー"
         description={household.name}
-        action={<Button variant="ghost" onClick={onLogout}>ログアウト</Button>}
+        action={
+          <Button variant="ghost" onClick={onLogout}>
+            ログアウト
+          </Button>
+        }
       />
-      <ErrorMessage message={message ? `Calendarを取得できませんでした。${message}` : ""} />
+      <ErrorMessage
+        message={message ? `Calendarを取得できませんでした。${message}` : ""}
+      />
       <Card className="calendar-card">
         <div className="calendar-toolbar">
-          <Button variant="ghost" onClick={() => moveMonth(-1)} aria-label="前月">‹</Button>
+          <Button variant="ghost" onClick={() => moveMonth(-1)} aria-label="前月">
+            ‹
+          </Button>
           <h2>{formatCalendarMonth(visibleMonth)}</h2>
-          <Button variant="ghost" onClick={() => moveMonth(1)} aria-label="次月">›</Button>
+          <Button variant="ghost" onClick={() => moveMonth(1)} aria-label="次月">
+            ›
+          </Button>
         </div>
         <div className="calendar-toolbar__sub">
           <span>{loading ? "更新中…" : ""}</span>
-          <Button variant="secondary" onClick={goToday}>今日</Button>
+          <Button variant="secondary" onClick={goToday}>
+            今日
+          </Button>
         </div>
         <div className="calendar-weekdays" aria-hidden="true">
-          {Array.from({ length: 7 }, (_, index) => weekdayLabels[(household.weekStartsOn + index) % 7]).map((label) => <span key={label}>{label}</span>)}
+          {Array.from(
+            { length: 7 },
+            (_, index) => weekdayLabels[(household.weekStartsOn + index) % 7]
+          ).map((label) => (
+            <span key={label}>{label}</span>
+          ))}
         </div>
-        <div className="calendar-grid" role="grid" aria-label={`${formatCalendarMonth(visibleMonth)}のカレンダー`}>
+        <div
+          className="calendar-grid"
+          role="grid"
+          aria-label={`${formatCalendarMonth(visibleMonth)}のカレンダー`}
+        >
           {gridDates.map((date) => {
             const item = marker(date);
             const inMonth = date.slice(0, 7) === visibleMonth.slice(0, 7);
-            const isToday = date === (data?.today ?? todayInTimezone(household.timezone));
+            const isToday =
+              date === (data?.today ?? todayInTimezone(household.timezone));
             const isSelected = date === selectedDate;
             return (
               <button
@@ -1019,14 +1085,37 @@ function CalendarScreen({
               >
                 <span className="calendar-cell__date">{Number(date.slice(8, 10))}</span>
                 <span className="calendar-cell__markers">
-                  {item.fixedCount > 0 ? <span className="calendar-cell__marker" aria-label={`固定タスク${item.fixedCount}件`}>{item.fixedCount}</span> : <span className="calendar-cell__marker calendar-cell__marker--empty" aria-hidden="true" />}
+                  {item.fixedCount > 0 ? (
+                    <span
+                      className="calendar-cell__marker"
+                      aria-label={`固定タスク${item.fixedCount}件`}
+                    >
+                      {item.fixedCount}
+                    </span>
+                  ) : (
+                    <span
+                      className="calendar-cell__marker calendar-cell__marker--empty"
+                      aria-hidden="true"
+                    />
+                  )}
                   {item.shoppingCount > 0 ? (
-                    <span className="calendar-cell__shopping-marker" aria-label={`買うもの${item.shoppingCount}件`}>
-                      <span aria-hidden="true">買</span>{item.shoppingCount}
+                    <span
+                      className="calendar-cell__shopping-marker"
+                      aria-label={`買うもの${item.shoppingCount}件`}
+                    >
+                      <span aria-hidden="true">買</span>
+                      {item.shoppingCount}
                     </span>
                   ) : null}
                 </span>
-                {item.fixedCompletedCount > 0 ? <span className="calendar-cell__complete" aria-label={`完了${item.fixedCompletedCount}件`}>✓</span> : null}
+                {item.fixedCompletedCount > 0 ? (
+                  <span
+                    className="calendar-cell__complete"
+                    aria-label={`完了${item.fixedCompletedCount}件`}
+                  >
+                    ✓
+                  </span>
+                ) : null}
               </button>
             );
           })}
@@ -1036,9 +1125,26 @@ function CalendarScreen({
         <h2>{selectedTitle}</h2>
         {data ? (
           <>
-            <CalendarSection title="固定タスク" tasks={data.selected.fixed} onNavigate={onNavigate} emptyTitle="固定タスクはありません" />
-            <CalendarSection title={flexibleLabel ? "今週中" : "この週のタスク"} tasks={data.selected.weeklyFlexible} onNavigate={onNavigate} emptyTitle="週のタスクはありません" contextLabel={flexibleLabel ? "今週中" : "この週のタスク"} />
-            <CalendarSection title={flexibleLabel ? "今月中" : "この期間のタスク"} tasks={data.selected.monthlyFlexible} onNavigate={onNavigate} emptyTitle="月のタスクはありません" contextLabel={flexibleLabel ? "今月中" : "この期間のタスク"} />
+            <CalendarSection
+              title="固定タスク"
+              tasks={data.selected.fixed}
+              onNavigate={onNavigate}
+              emptyTitle="固定タスクはありません"
+            />
+            <CalendarSection
+              title={flexibleLabel ? "今週中" : "この週のタスク"}
+              tasks={data.selected.weeklyFlexible}
+              onNavigate={onNavigate}
+              emptyTitle="週のタスクはありません"
+              contextLabel={flexibleLabel ? "今週中" : "この週のタスク"}
+            />
+            <CalendarSection
+              title={flexibleLabel ? "今月中" : "この期間のタスク"}
+              tasks={data.selected.monthlyFlexible}
+              onNavigate={onNavigate}
+              emptyTitle="月のタスクはありません"
+              contextLabel={flexibleLabel ? "今月中" : "この期間のタスク"}
+            />
             {data.selected.shopping.length > 0 ? (
               <CalendarShoppingSection
                 items={data.selected.shopping}
@@ -1047,7 +1153,9 @@ function CalendarScreen({
               />
             ) : null}
           </>
-        ) : <p role="status">カレンダーを読み込んでいます。</p>}
+        ) : (
+          <p role="status">カレンダーを読み込んでいます。</p>
+        )}
       </Card>
     </AppFrame>
   );
@@ -1064,7 +1172,10 @@ function CalendarShoppingSection({
 }) {
   return (
     <section className="calendar-detail__section" aria-label="買うもの">
-      <div className="section-heading"><h3>買うもの</h3><span>{items.length}件</span></div>
+      <div className="section-heading">
+        <h3>買うもの</h3>
+        <span>{items.length}件</span>
+      </div>
       <div className="calendar-shopping-list">
         {items.map((item) => {
           const purchased = item.status === "purchased";
@@ -1079,16 +1190,24 @@ function CalendarShoppingSection({
               type="button"
               aria-label={`${item.name}、${purchased ? "購入済み" : "未購入"}、${plannedLabel}、詳細を開く`}
             >
-              <span className="calendar-shopping-item__icon" aria-hidden="true">{purchased ? "✓" : "買"}</span>
+              <span className="calendar-shopping-item__icon" aria-hidden="true">
+                {purchased ? "✓" : "買"}
+              </span>
               <span className="calendar-shopping-item__body">
                 <strong>{item.name}</strong>
                 {[item.quantity, item.note].filter(Boolean).length > 0 ? (
-                  <small>{[item.quantity, item.note].filter(Boolean).join(" / ")}</small>
+                  <small>
+                    {[item.quantity, item.note].filter(Boolean).join(" / ")}
+                  </small>
                 ) : null}
                 <small>{plannedLabel}</small>
-                <small className="calendar-shopping-item__status">{purchased ? "購入済み" : "未購入"}</small>
+                <small className="calendar-shopping-item__status">
+                  {purchased ? "購入済み" : "未購入"}
+                </small>
                 {purchased && item.purchasedAt ? (
-                  <small>購入日時 {shoppingPurchaseDateTime(item.purchasedAt, timezone)}</small>
+                  <small>
+                    購入日時 {shoppingPurchaseDateTime(item.purchasedAt, timezone)}
+                  </small>
                 ) : null}
               </span>
             </button>
@@ -1114,8 +1233,17 @@ function CalendarSection({
 }) {
   return (
     <section className="calendar-detail__section" aria-label={title}>
-      <div className="section-heading"><h3>{title}</h3><span>{tasks.length}件</span></div>
-      <TaskCardList tasks={tasks} members={[]} emptyTitle={emptyTitle} onNavigate={onNavigate} contextLabel={contextLabel} />
+      <div className="section-heading">
+        <h3>{title}</h3>
+        <span>{tasks.length}件</span>
+      </div>
+      <TaskCardList
+        tasks={tasks}
+        members={[]}
+        emptyTitle={emptyTitle}
+        onNavigate={onNavigate}
+        contextLabel={contextLabel}
+      />
     </section>
   );
 }
@@ -1165,10 +1293,20 @@ function HomeScreen({
   const { data, loading, message, refresh } = useDashboardData();
   const todayTasks = data?.todayTasks ?? [];
   const weeklyTasks = data?.weeklyTasks ?? [];
-  const fixedTodayTasks = todayTasks.filter((task) => task.modelRecurrenceType !== "weekly_flexible" && task.modelRecurrenceType !== "monthly_flexible");
-  const weeklyFlexibleTasks = todayTasks.filter((task) => task.modelRecurrenceType === "weekly_flexible");
-  const monthlyFlexibleTasks = todayTasks.filter((task) => task.modelRecurrenceType === "monthly_flexible");
-  const legacyWeeklyTasks = weeklyTasks.filter((task) => task.modelRecurrenceType !== "weekly_flexible");
+  const fixedTodayTasks = todayTasks.filter(
+    (task) =>
+      task.modelRecurrenceType !== "weekly_flexible" &&
+      task.modelRecurrenceType !== "monthly_flexible"
+  );
+  const weeklyFlexibleTasks = todayTasks.filter(
+    (task) => task.modelRecurrenceType === "weekly_flexible"
+  );
+  const monthlyFlexibleTasks = todayTasks.filter(
+    (task) => task.modelRecurrenceType === "monthly_flexible"
+  );
+  const legacyWeeklyTasks = weeklyTasks.filter(
+    (task) => task.modelRecurrenceType !== "weekly_flexible"
+  );
   const undone = (data?.summary.pending ?? 0) + (data?.summary.inProgress ?? 0);
   const nowTasks = todayTasks
     .filter((task) => task.status === "pending" || task.status === "in_progress")
@@ -1221,27 +1359,37 @@ function HomeScreen({
         />
       </SectionCard>
       <SectionCard title="今週中" loading={loading}>
-        <TaskCardList tasks={weeklyFlexibleTasks} members={data?.members ?? []}
-          emptyTitle="今週中のタスクはありません" onNavigate={onNavigate} />
+        <TaskCardList
+          tasks={weeklyFlexibleTasks}
+          members={data?.members ?? []}
+          emptyTitle="今週中のタスクはありません"
+          onNavigate={onNavigate}
+        />
       </SectionCard>
       <SectionCard title="今月中" loading={loading}>
-        <TaskCardList tasks={monthlyFlexibleTasks} members={data?.members ?? []}
-          emptyTitle="今月中のタスクはありません" onNavigate={onNavigate} />
+        <TaskCardList
+          tasks={monthlyFlexibleTasks}
+          members={data?.members ?? []}
+          emptyTitle="今月中のタスクはありません"
+          onNavigate={onNavigate}
+        />
       </SectionCard>
-      {legacyWeeklyTasks.length > 0 ? <SectionCard title="週に複数回（旧形式）" loading={loading}>
-        {legacyWeeklyTasks.length === 0 ? (
-          <EmptyState
-            title="今週中のタスクはありません"
-            description="必要なときにタスクを追加できます。"
-          />
-        ) : (
-          <div className="task-list">
-            {legacyWeeklyTasks.map((task) => (
-              <WeeklyTaskCard key={task.id} task={task} onNavigate={onNavigate} />
-            ))}
-          </div>
-        )}
-      </SectionCard> : null}
+      {legacyWeeklyTasks.length > 0 ? (
+        <SectionCard title="週に複数回（旧形式）" loading={loading}>
+          {legacyWeeklyTasks.length === 0 ? (
+            <EmptyState
+              title="今週中のタスクはありません"
+              description="必要なときにタスクを追加できます。"
+            />
+          ) : (
+            <div className="task-list">
+              {legacyWeeklyTasks.map((task) => (
+                <WeeklyTaskCard key={task.id} task={task} onNavigate={onNavigate} />
+              ))}
+            </div>
+          )}
+        </SectionCard>
+      ) : null}
       <SectionCard title="買い物" loading={loading}>
         <div className="shopping-preview">
           <strong>未購入 {data?.shopping.pendingCount ?? 0}件</strong>
@@ -1344,11 +1492,25 @@ function TodayTaskCard({
       <span className="task-card__body">
         <strong>{task.title}</strong>
         <small>
-          {contextLabel ?? (task.modelRecurrenceType === "weekly_flexible" ? "今週中" : task.modelRecurrenceType === "monthly_flexible" ? "今月中" : formatSchedule(task.deadlineTime ?? task.scheduledTime))} / 担当:{" "}
-          {assignedMember?.displayName ?? assignmentLabels[task.assignmentType]}
+          {contextLabel ??
+            (task.modelRecurrenceType === "weekly_flexible"
+              ? "今週中"
+              : task.modelRecurrenceType === "monthly_flexible"
+                ? "今月中"
+                : formatSchedule(task.deadlineTime ?? task.scheduledTime))}{" "}
+          / 担当: {assignedMember?.displayName ?? assignmentLabels[task.assignmentType]}
         </small>
-        {task.deadlineDate ? <small>{formatDate(task.deadlineDate)} {task.deadlineTime ? `${task.deadlineTime}まで` : ""}</small> : null}
-        {(task.completedCount ?? 0) > 0 && (task.modelRecurrenceType === "weekly_flexible" || task.modelRecurrenceType === "monthly_flexible") ? <small>{task.completedCount}回実施</small> : null}
+        {task.deadlineDate ? (
+          <small>
+            {formatDate(task.deadlineDate)}{" "}
+            {task.deadlineTime ? `${task.deadlineTime}まで` : ""}
+          </small>
+        ) : null}
+        {(task.completedCount ?? 0) > 0 &&
+        (task.modelRecurrenceType === "weekly_flexible" ||
+          task.modelRecurrenceType === "monthly_flexible") ? (
+          <small>{task.completedCount}回実施</small>
+        ) : null}
         {task.overdue ? <small className="overdue-label">期限超過</small> : null}
         {task.actedBy ? (
           <small>
@@ -1396,7 +1558,13 @@ function WeeklyTaskCard({
   );
 }
 
-function StatusBadge({ status, overdue = false }: { status: TaskDisplayStatus; overdue?: boolean }) {
+function StatusBadge({
+  status,
+  overdue = false
+}: {
+  status: TaskDisplayStatus;
+  overdue?: boolean;
+}) {
   return (
     <span className={`status-badge status-badge--${overdue ? "overdue" : status}`}>
       {overdue ? "期限超過" : statusLabels[status]}
@@ -1435,13 +1603,43 @@ function TaskListScreen({
     return () => controller.abort();
   }, [refresh]);
   const groups: Array<[string, Task[]]> = [
-    ["今回だけ", tasks.filter((task) => task.active && task.modelRecurrenceType === "once")],
-    ["毎日", tasks.filter((task) => task.active && task.modelRecurrenceType === "daily")],
-    ["曜日を決める", tasks.filter((task) => task.active && task.modelRecurrenceType === "weekly_fixed")],
-    ["毎月○日", tasks.filter((task) => task.active && task.modelRecurrenceType === "monthly_fixed")],
-    ["週1回・日付不定", tasks.filter((task) => task.active && task.modelRecurrenceType === "weekly_flexible")],
-    ["月1回・日付不定", tasks.filter((task) => task.active && task.modelRecurrenceType === "monthly_flexible")],
-    ["週に複数回（旧形式）", tasks.filter((task) => task.active && !task.modelRecurrenceType && task.recurrenceType === "weekly")],
+    [
+      "今回だけ",
+      tasks.filter((task) => task.active && task.modelRecurrenceType === "once")
+    ],
+    [
+      "毎日",
+      tasks.filter((task) => task.active && task.modelRecurrenceType === "daily")
+    ],
+    [
+      "曜日を決める",
+      tasks.filter((task) => task.active && task.modelRecurrenceType === "weekly_fixed")
+    ],
+    [
+      "毎月○日",
+      tasks.filter(
+        (task) => task.active && task.modelRecurrenceType === "monthly_fixed"
+      )
+    ],
+    [
+      "週1回・日付不定",
+      tasks.filter(
+        (task) => task.active && task.modelRecurrenceType === "weekly_flexible"
+      )
+    ],
+    [
+      "月1回・日付不定",
+      tasks.filter(
+        (task) => task.active && task.modelRecurrenceType === "monthly_flexible"
+      )
+    ],
+    [
+      "週に複数回（旧形式）",
+      tasks.filter(
+        (task) =>
+          task.active && !task.modelRecurrenceType && task.recurrenceType === "weekly"
+      )
+    ],
     ["無効なタスク", tasks.filter((task) => !task.active)]
   ];
   return (
@@ -1451,8 +1649,12 @@ function TaskListScreen({
         description="家事の登録と編集"
         action={
           <div className="inline-actions">
-            <Button variant="secondary" onClick={() => onNavigate("/tasks/templates")}>テンプレート</Button>
-            <Button variant="ghost" onClick={onLogout}>ログアウト</Button>
+            <Button variant="secondary" onClick={() => onNavigate("/tasks/templates")}>
+              テンプレート
+            </Button>
+            <Button variant="ghost" onClick={onLogout}>
+              ログアウト
+            </Button>
           </div>
         }
       />
@@ -1520,12 +1722,13 @@ function TaskManagementCard({
     <div className="management-card">
       <div>
         <strong>{task.title}</strong>
-        <small>
-          {recurrenceDescription(task)}
-        </small>
+        <small>{recurrenceDescription(task)}</small>
         <small>
           {assignmentLabels[task.assignmentType]} /{" "}
-          {task.modelRecurrenceType ? notificationPresetLabel(task.notificationOffsetMinutes ?? null) : notificationLabels[task.notificationSlot]} / {task.active ? "有効" : "無効"}
+          {task.modelRecurrenceType
+            ? notificationPresetLabel(task.notificationOffsetMinutes ?? null)
+            : notificationLabels[task.notificationSlot]}{" "}
+          / {task.active ? "有効" : "無効"}
         </small>
       </div>
       <div className="inline-actions">
@@ -1575,15 +1778,21 @@ function TaskFormScreen({
   const [submitting, setSubmitting] = useState(false);
   useEffect(() => {
     const controller = new AbortController();
-    listMembers(controller.signal).then((result) => setMembers(result.members)).catch(() => undefined);
+    listMembers(controller.signal)
+      .then((result) => setMembers(result.members))
+      .catch(() => undefined);
     if (mode === "create") {
-      Promise.all([listRecentTaskDefinitions(8, controller.signal), listTaskTemplates(controller.signal)])
+      Promise.all([
+        listRecentTaskDefinitions(8, controller.signal),
+        listTaskTemplates(controller.signal)
+      ])
         .then(([recent, templateResult]) => {
           setRecentTasks(recent.tasks);
           setTemplates(templateResult.templates.filter((template) => template.active));
         })
         .catch((error) => {
-          if (!(error instanceof DOMException && error.name === "AbortError")) setMessage(apiErrorMessage(error));
+          if (!(error instanceof DOMException && error.name === "AbortError"))
+            setMessage(apiErrorMessage(error));
         })
         .finally(() => setLoading(false));
     }
@@ -1608,16 +1817,14 @@ function TaskFormScreen({
           setOriginalForm(next);
         })
         .catch((error) => {
-          if (!(error instanceof DOMException && error.name === "AbortError")) setMessage(apiErrorMessage(error));
+          if (!(error instanceof DOMException && error.name === "AbortError"))
+            setMessage(apiErrorMessage(error));
         })
         .finally(() => setLoading(false));
     }
     return () => controller.abort();
   }, [mode, taskId, templateId, templateMode]);
-  const setField = <K extends keyof TaskFormState>(
-    key: K,
-    value: TaskFormState[K]
-  ) => {
+  const setField = <K extends keyof TaskFormState>(key: K, value: TaskFormState[K]) => {
     setForm((current) => normalizeTaskForm({ ...current, [key]: value }));
     setErrors((current) => ({ ...current, [key]: undefined }));
   };
@@ -1631,9 +1838,17 @@ function TaskFormScreen({
     try {
       if (templateMode && templateId) {
         const payload = taskFormToTemplatePayload(form);
-        const originalPayload = originalForm ? taskFormToTemplatePayload(originalForm) : null;
+        const originalPayload = originalForm
+          ? taskFormToTemplatePayload(originalForm)
+          : null;
         const patch = originalPayload
-          ? Object.fromEntries(Object.entries(payload).filter(([key, value]) => JSON.stringify(value) !== JSON.stringify(originalPayload[key as keyof typeof originalPayload])))
+          ? Object.fromEntries(
+              Object.entries(payload).filter(
+                ([key, value]) =>
+                  JSON.stringify(value) !==
+                  JSON.stringify(originalPayload[key as keyof typeof originalPayload])
+              )
+            )
           : payload;
         await updateTaskTemplate(templateId, patch);
         onNavigate("/tasks/templates");
@@ -1641,9 +1856,18 @@ function TaskFormScreen({
         const payload = taskFormToPayload(form);
         const originalPayload = originalForm ? taskFormToPayload(originalForm) : null;
         const patch = originalPayload
-          ? Object.fromEntries(Object.entries(payload).filter(([key, value]) => JSON.stringify(value) !== JSON.stringify(originalPayload[key as keyof typeof originalPayload])))
+          ? Object.fromEntries(
+              Object.entries(payload).filter(
+                ([key, value]) =>
+                  JSON.stringify(value) !==
+                  JSON.stringify(originalPayload[key as keyof typeof originalPayload])
+              )
+            )
           : payload;
-        const result = mode === "edit" && taskId ? await updateTask(taskId, patch) : await createTask(payload);
+        const result =
+          mode === "edit" && taskId
+            ? await updateTask(taskId, patch)
+            : await createTask(payload);
         onNavigate(`/tasks/${result.task.id}`);
       }
     } catch (error) {
@@ -1655,17 +1879,41 @@ function TaskFormScreen({
   };
   if (loading) return <LoadingScreen message="タスクを読み込んでいます" />;
   const applyReuseForm = (next: TaskFormState) => {
-    const assigneeAvailable = !next.assignedUserId || members.some((member) => member.userId === next.assignedUserId);
-    setForm({ ...next, startDate: "", targetDate: "", assignedUserId: assigneeAvailable ? next.assignedUserId : null });
-    setErrors(assigneeAvailable ? {} : { assignedUserId: "担当メンバーを選択してください。" });
+    const assigneeAvailable =
+      !next.assignedUserId ||
+      members.some((member) => member.userId === next.assignedUserId);
+    setForm({
+      ...next,
+      startDate: "",
+      targetDate: "",
+      assignedUserId: assigneeAvailable ? next.assignedUserId : null
+    });
+    setErrors(
+      assigneeAvailable ? {} : { assignedUserId: "担当メンバーを選択してください。" }
+    );
   };
   return (
     <AppFrame current="/tasks" onNavigate={onNavigate}>
       <PageHeader
-        title={mode === "create" ? "タスクを追加" : templateMode ? "テンプレートを編集" : "タスクを編集"}
+        title={
+          mode === "create"
+            ? "タスクを追加"
+            : templateMode
+              ? "テンプレートを編集"
+              : "タスクを編集"
+        }
         description={household.name}
       />
-      {mode === "create" ? <TaskReusePanel recentTasks={recentTasks} templates={templates} onRecentSelect={(task) => applyReuseForm(taskToFormState(task))} onTemplateSelect={(template) => applyReuseForm(taskTemplateToFormState(template))} /> : null}
+      {mode === "create" ? (
+        <TaskReusePanel
+          recentTasks={recentTasks}
+          templates={templates}
+          onRecentSelect={(task) => applyReuseForm(taskToFormState(task))}
+          onTemplateSelect={(template) =>
+            applyReuseForm(taskTemplateToFormState(template))
+          }
+        />
+      ) : null}
       <Card>
         <form
           className="stack"
@@ -1691,11 +1939,21 @@ function TaskFormScreen({
           {form.recurrence === "legacy_weekly" ? (
             <div className="legacy-task-notice" role="note">
               <strong>週に{form.weeklyTargetCount}回（旧形式）</strong>
-              <span>回数の意味を変えずに編集します。新しい「週1回・日付不定」には自動変換しません。</span>
+              <span>
+                回数の意味を変えずに編集します。新しい「週1回・日付不定」には自動変換しません。
+              </span>
             </div>
           ) : (
-            <SelectField id="task-type" label="繰り返し" value={form.recurrence}
-              onChange={(value) => setForm((current) => changeTaskFormRecurrence(current, value as TaskFormRecurrence))}>
+            <SelectField
+              id="task-type"
+              label="繰り返し"
+              value={form.recurrence}
+              onChange={(value) =>
+                setForm((current) =>
+                  changeTaskFormRecurrence(current, value as TaskFormRecurrence)
+                )
+              }
+            >
               <option value="once">今回だけ</option>
               <option value="daily">毎日</option>
               <option value="weekly_fixed">曜日を決める</option>
@@ -1704,98 +1962,263 @@ function TaskFormScreen({
               <option value="monthly_flexible">月1回・日付不定</option>
             </SelectField>
           )}
-          {form.recurrence === "weekly_flexible" ? <p className="field-hint">週の中で1回やれば完了です。</p> : null}
-          {form.recurrence === "monthly_flexible" ? <p className="field-hint">月の中で1回やれば完了です。</p> : null}
+          {form.recurrence === "weekly_flexible" ? (
+            <p className="field-hint">週の中で1回やれば完了です。</p>
+          ) : null}
+          {form.recurrence === "monthly_flexible" ? (
+            <p className="field-hint">月の中で1回やれば完了です。</p>
+          ) : null}
           {!templateMode && form.recurrence === "once" ? (
-            <FormField id="task-target-date" label="実施日（必須）" error={errors.targetDate}>
-              <input id="task-target-date" type="date" value={form.targetDate}
-                aria-describedby={errors.targetDate ? "task-target-date-error" : undefined}
+            <FormField
+              id="task-target-date"
+              label="実施日（必須）"
+              error={errors.targetDate}
+            >
+              <input
+                id="task-target-date"
+                type="date"
+                value={form.targetDate}
+                aria-describedby={
+                  errors.targetDate ? "task-target-date-error" : undefined
+                }
                 aria-invalid={errors.targetDate ? "true" : "false"}
-                onChange={(event) => setField("targetDate", event.target.value)} />
+                onChange={(event) => setField("targetDate", event.target.value)}
+              />
             </FormField>
           ) : !templateMode && form.recurrence !== "legacy_weekly" ? (
             <FormField id="task-start-date" label="開始日" error={errors.startDate}>
-              <input id="task-start-date" type="date" value={form.startDate}
-                onChange={(event) => setField("startDate", event.target.value)} />
+              <input
+                id="task-start-date"
+                type="date"
+                value={form.startDate}
+                onChange={(event) => setField("startDate", event.target.value)}
+              />
               <span className="field-hint">未指定なら今日から</span>
             </FormField>
           ) : null}
           {form.recurrence === "weekly_fixed" ? (
             <div className="form-field">
-              <span className="field-label" id="task-weekdays-label">曜日（必須）</span>
-              <div className="weekday-picker" role="group" aria-labelledby="task-weekdays-label"
-                aria-describedby={errors.weekdays ? "task-weekdays-error" : undefined}>
+              <span className="field-label" id="task-weekdays-label">
+                曜日（必須）
+              </span>
+              <div
+                className="weekday-picker"
+                role="group"
+                aria-labelledby="task-weekdays-label"
+                aria-describedby={errors.weekdays ? "task-weekdays-error" : undefined}
+              >
                 {weekdayLabels.map((label, day) => {
                   const selected = form.weekdays.includes(day);
-                  return <button aria-pressed={selected} key={label} type="button"
-                    onClick={() => setField("weekdays", selected ? form.weekdays.filter((item) => item !== day) : [...form.weekdays, day])}>
-                    {selected ? "✓ " : ""}{label}
-                  </button>;
+                  return (
+                    <button
+                      aria-pressed={selected}
+                      key={label}
+                      type="button"
+                      onClick={() =>
+                        setField(
+                          "weekdays",
+                          selected
+                            ? form.weekdays.filter((item) => item !== day)
+                            : [...form.weekdays, day]
+                        )
+                      }
+                    >
+                      {selected ? "✓ " : ""}
+                      {label}
+                    </button>
+                  );
                 })}
               </div>
-              {errors.weekdays ? <p className="field-error" id="task-weekdays-error">{errors.weekdays}</p> : null}
+              {errors.weekdays ? (
+                <p className="field-error" id="task-weekdays-error">
+                  {errors.weekdays}
+                </p>
+              ) : null}
             </div>
           ) : null}
           {form.recurrence === "monthly_fixed" ? (
-            <FormField id="task-monthly-day" label="実施日（1〜31日）" error={errors.monthlyDayOfMonth}>
-              <input id="task-monthly-day" type="number" min="1" max="31" value={form.monthlyDayOfMonth ?? ""}
-                aria-describedby={errors.monthlyDayOfMonth ? "task-monthly-day-error" : undefined}
-                onChange={(event) => setField("monthlyDayOfMonth", event.target.value ? Number(event.target.value) : null)} />
-              <span className="field-hint">その月に日付がない場合は月末になります。</span>
+            <FormField
+              id="task-monthly-day"
+              label="実施日（1〜31日）"
+              error={errors.monthlyDayOfMonth}
+            >
+              <input
+                id="task-monthly-day"
+                type="number"
+                min="1"
+                max="31"
+                value={form.monthlyDayOfMonth ?? ""}
+                aria-describedby={
+                  errors.monthlyDayOfMonth ? "task-monthly-day-error" : undefined
+                }
+                onChange={(event) =>
+                  setField(
+                    "monthlyDayOfMonth",
+                    event.target.value ? Number(event.target.value) : null
+                  )
+                }
+              />
+              <span className="field-hint">
+                その月に日付がない場合は月末になります。
+              </span>
             </FormField>
           ) : null}
           {form.recurrence === "weekly_flexible" ? (
-            <SelectField id="task-weekly-deadline" label="締め切り曜日（今週いつまでにやるか）"
-              value={String(form.weeklyDeadlineWeekday)} error={errors.weeklyDeadlineWeekday}
-              onChange={(value) => setField("weeklyDeadlineWeekday", Number(value))}>
-              {weekdayLabels.map((label, day) => <option key={label} value={day}>{label}曜日</option>)}
+            <SelectField
+              id="task-weekly-deadline"
+              label="締め切り曜日（今週いつまでにやるか）"
+              value={String(form.weeklyDeadlineWeekday)}
+              error={errors.weeklyDeadlineWeekday}
+              onChange={(value) => setField("weeklyDeadlineWeekday", Number(value))}
+            >
+              {weekdayLabels.map((label, day) => (
+                <option key={label} value={day}>
+                  {label}曜日
+                </option>
+              ))}
             </SelectField>
           ) : null}
           {form.recurrence === "monthly_flexible" ? (
-            <fieldset className="choice-field" aria-describedby={errors.monthlyDayOfMonth ? "task-monthly-rule-error" : undefined}>
+            <fieldset
+              className="choice-field"
+              aria-describedby={
+                errors.monthlyDayOfMonth ? "task-monthly-rule-error" : undefined
+              }
+            >
               <legend>締め切り日</legend>
-              <label><input type="radio" name="monthly-deadline" checked={form.monthlyDeadlineType === "month_end"}
-                onChange={() => setField("monthlyDeadlineType", "month_end")} />月末</label>
-              <label><input type="radio" name="monthly-deadline" checked={form.monthlyDeadlineType === "day_of_month"}
-                onChange={() => setField("monthlyDeadlineType", "day_of_month")} />日付指定</label>
-              {form.monthlyDeadlineType === "day_of_month" ? <input id="task-monthly-deadline-day" type="number" min="1" max="31"
-                aria-label="締め切り日の日付" value={form.monthlyDayOfMonth ?? ""}
-                onChange={(event) => setField("monthlyDayOfMonth", event.target.value ? Number(event.target.value) : null)} /> : null}
-              {errors.monthlyDayOfMonth ? <p className="field-error" id="task-monthly-rule-error">{errors.monthlyDayOfMonth}</p> : null}
+              <label>
+                <input
+                  type="radio"
+                  name="monthly-deadline"
+                  checked={form.monthlyDeadlineType === "month_end"}
+                  onChange={() => setField("monthlyDeadlineType", "month_end")}
+                />
+                月末
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name="monthly-deadline"
+                  checked={form.monthlyDeadlineType === "day_of_month"}
+                  onChange={() => setField("monthlyDeadlineType", "day_of_month")}
+                />
+                日付指定
+              </label>
+              {form.monthlyDeadlineType === "day_of_month" ? (
+                <input
+                  id="task-monthly-deadline-day"
+                  type="number"
+                  min="1"
+                  max="31"
+                  aria-label="締め切り日の日付"
+                  value={form.monthlyDayOfMonth ?? ""}
+                  onChange={(event) =>
+                    setField(
+                      "monthlyDayOfMonth",
+                      event.target.value ? Number(event.target.value) : null
+                    )
+                  }
+                />
+              ) : null}
+              {errors.monthlyDayOfMonth ? (
+                <p className="field-error" id="task-monthly-rule-error">
+                  {errors.monthlyDayOfMonth}
+                </p>
+              ) : null}
             </fieldset>
           ) : null}
           {form.recurrence === "legacy_weekly" ? (
             <>
-              <FormField id="task-weekly-count" label="週内必要回数（2〜7）" error={errors.weeklyTargetCount}>
-                <input id="task-weekly-count" min="2" max="7" type="number" value={form.weeklyTargetCount}
-                  onChange={(event) => setField("weeklyTargetCount", Number(event.target.value))} />
+              <FormField
+                id="task-weekly-count"
+                label="週内必要回数（2〜7）"
+                error={errors.weeklyTargetCount}
+              >
+                <input
+                  id="task-weekly-count"
+                  min="2"
+                  max="7"
+                  type="number"
+                  value={form.weeklyTargetCount}
+                  onChange={(event) =>
+                    setField("weeklyTargetCount", Number(event.target.value))
+                  }
+                />
               </FormField>
               <FormField id="task-notification-time" label="通知時刻（旧形式）">
-                <input id="task-notification-time" type="time" value={form.legacyNotificationTime}
-                  onChange={(event) => setField("legacyNotificationTime", event.target.value)} />
+                <input
+                  id="task-notification-time"
+                  type="time"
+                  value={form.legacyNotificationTime}
+                  onChange={(event) =>
+                    setField("legacyNotificationTime", event.target.value)
+                  }
+                />
               </FormField>
             </>
           ) : (
             <>
-              <FormField id="task-deadline-time" label="締め切り時刻" error={errors.deadlineTime}>
-                <input id="task-deadline-time" type="time" value={form.deadlineTime}
-                  onChange={(event) => setForm((current) => normalizeTaskForm({ ...current, deadlineTime: event.target.value, notificationOffsetMinutes: event.target.value ? current.notificationOffsetMinutes : null }))} />
+              <FormField
+                id="task-deadline-time"
+                label="締め切り時刻"
+                error={errors.deadlineTime}
+              >
+                <input
+                  id="task-deadline-time"
+                  type="time"
+                  value={form.deadlineTime}
+                  onChange={(event) =>
+                    setForm((current) =>
+                      normalizeTaskForm({
+                        ...current,
+                        deadlineTime: event.target.value,
+                        notificationOffsetMinutes: event.target.value
+                          ? current.notificationOffsetMinutes
+                          : null
+                      })
+                    )
+                  }
+                />
               </FormField>
-              <SelectField id="task-notification-offset" label="通知" value={form.notificationOffsetMinutes === null ? "none" : String(form.notificationOffsetMinutes)}
-                error={errors.notificationOffsetMinutes} disabled={!form.deadlineTime}
-                onChange={(value) => setField("notificationOffsetMinutes", value === "none" ? null : Number(value))}>
-                <option value="none">通知なし</option><option value="0">締め切り時刻</option>
-                <option value="5">5分前</option><option value="10">10分前</option><option value="30">30分前</option>
-                <option value="60">1時間前</option><option value="120">2時間前</option>
+              <SelectField
+                id="task-notification-offset"
+                label="通知"
+                value={
+                  form.notificationOffsetMinutes === null
+                    ? "none"
+                    : String(form.notificationOffsetMinutes)
+                }
+                error={errors.notificationOffsetMinutes}
+                disabled={!form.deadlineTime}
+                onChange={(value) =>
+                  setField(
+                    "notificationOffsetMinutes",
+                    value === "none" ? null : Number(value)
+                  )
+                }
+              >
+                <option value="none">通知なし</option>
+                <option value="0">締め切り時刻</option>
+                <option value="5">5分前</option>
+                <option value="10">10分前</option>
+                <option value="30">30分前</option>
+                <option value="60">1時間前</option>
+                <option value="120">2時間前</option>
               </SelectField>
-              {!form.deadlineTime ? <p className="field-hint">通知を使うには締め切り時刻を設定してください。</p> : null}
+              {!form.deadlineTime ? (
+                <p className="field-hint">
+                  通知を使うには締め切り時刻を設定してください。
+                </p>
+              ) : null}
             </>
           )}
           <SelectField
             id="task-assignment"
             label="担当"
             value={form.assignmentType}
-            onChange={(value) => setField("assignmentType", value as TaskFormState["assignmentType"])}
+            onChange={(value) =>
+              setField("assignmentType", value as TaskFormState["assignmentType"])
+            }
           >
             <option value="anyone">どちらでも</option>
             <option value="specific">特定のメンバー</option>
@@ -1819,7 +2242,11 @@ function TaskFormScreen({
           <Button disabled={submitting} type="submit">
             {submitting ? <InlineLoading /> : "保存する"}
           </Button>
-          {templateMode ? <Button variant="ghost" onClick={() => onNavigate("/tasks/templates")}>一覧へ戻る</Button> : null}
+          {templateMode ? (
+            <Button variant="ghost" onClick={() => onNavigate("/tasks/templates")}>
+              一覧へ戻る
+            </Button>
+          ) : null}
         </form>
       </Card>
     </AppFrame>
@@ -1847,18 +2274,18 @@ function SelectField({
 }) {
   return (
     <div hidden={hidden}>
-    <FormField id={id} label={label} error={error}>
-      <select
-        id={id}
-        disabled={disabled}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        aria-describedby={error ? `${id}-error` : undefined}
-        aria-invalid={error ? "true" : "false"}
-      >
-        {children}
-      </select>
-    </FormField>
+      <FormField id={id} label={label} error={error}>
+        <select
+          id={id}
+          disabled={disabled}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          aria-describedby={error ? `${id}-error` : undefined}
+          aria-invalid={error ? "true" : "false"}
+        >
+          {children}
+        </select>
+      </FormField>
     </div>
   );
 }
@@ -1897,7 +2324,12 @@ function TaskReusePanel({
         ) : (
           <div className="task-reuse-list">
             {recentTasks.map((task) => (
-              <button className="task-reuse-item" key={task.id} type="button" onClick={() => onRecentSelect(task)}>
+              <button
+                className="task-reuse-item"
+                key={task.id}
+                type="button"
+                onClick={() => onRecentSelect(task)}
+              >
                 <strong>{task.title}</strong>
                 <small>{recurrenceDescription(task)}</small>
               </button>
@@ -1915,9 +2347,17 @@ function TaskReusePanel({
         ) : (
           <div className="task-reuse-list">
             {templates.map((template) => (
-              <button className="task-reuse-item" key={template.id} type="button" onClick={() => onTemplateSelect(template)}>
+              <button
+                className="task-reuse-item"
+                key={template.id}
+                type="button"
+                onClick={() => onTemplateSelect(template)}
+              >
                 <strong>{template.title}</strong>
-                <small>{taskTemplateRecurrenceDescription(template)}{template.deadlineTime ? ` / ${template.deadlineTime}まで` : ""}</small>
+                <small>
+                  {taskTemplateRecurrenceDescription(template)}
+                  {template.deadlineTime ? ` / ${template.deadlineTime}まで` : ""}
+                </small>
               </button>
             ))}
           </div>
@@ -2058,14 +2498,42 @@ function TaskDetailScreen({
             <dt>繰り返し</dt>
             <dd>{recurrenceDescription(visibleTask)}</dd>
           </div>
-          {visibleTask.startDate ? <div><dt>開始日</dt><dd>{formatDate(visibleTask.startDate)}</dd></div> : null}
-          <div><dt>締め切り</dt><dd>{visibleTask.modelRecurrenceType ? taskDeadlineLabel(visibleTask) : formatSchedule(visibleTask.scheduledTime)}</dd></div>
+          {visibleTask.startDate ? (
+            <div>
+              <dt>開始日</dt>
+              <dd>{formatDate(visibleTask.startDate)}</dd>
+            </div>
+          ) : null}
+          <div>
+            <dt>締め切り</dt>
+            <dd>
+              {visibleTask.modelRecurrenceType
+                ? taskDeadlineLabel(visibleTask)
+                : formatSchedule(visibleTask.scheduledTime)}
+            </dd>
+          </div>
           <div>
             <dt>通知</dt>
-            <dd>{visibleTask.modelRecurrenceType ? notificationPresetLabel(visibleTask.notificationOffsetMinutes ?? null) : notificationLabels[visibleTask.notificationSlot]}</dd>
+            <dd>
+              {visibleTask.modelRecurrenceType
+                ? notificationPresetLabel(visibleTask.notificationOffsetMinutes ?? null)
+                : notificationLabels[visibleTask.notificationSlot]}
+            </dd>
           </div>
-          {(todayTask?.completedCount ?? 0) > 0 && (visibleTask.modelRecurrenceType === "weekly_flexible" || visibleTask.modelRecurrenceType === "monthly_flexible") ? <div><dt>今期の実施</dt><dd>{todayTask?.completedCount}回実施</dd></div> : null}
-          {todayTask?.overdue ? <div><dt>状態</dt><dd className="overdue-label">期限超過</dd></div> : null}
+          {(todayTask?.completedCount ?? 0) > 0 &&
+          (visibleTask.modelRecurrenceType === "weekly_flexible" ||
+            visibleTask.modelRecurrenceType === "monthly_flexible") ? (
+            <div>
+              <dt>今期の実施</dt>
+              <dd>{todayTask?.completedCount}回実施</dd>
+            </div>
+          ) : null}
+          {todayTask?.overdue ? (
+            <div>
+              <dt>状態</dt>
+              <dd className="overdue-label">期限超過</dd>
+            </div>
+          ) : null}
           <div>
             <dt>担当</dt>
             <dd>{assignmentLabels[visibleTask.assignmentType]}</dd>
@@ -2094,12 +2562,21 @@ function TaskDetailScreen({
           <p>{actorName(actedBy)}さんが今日はパスしました。</p>
         ) : null}
         <div className="stack">
-          {(status !== "completed" || visibleTask.modelRecurrenceType === "weekly_flexible" || visibleTask.modelRecurrenceType === "monthly_flexible") && !otherInProgress ? (
+          {(status !== "completed" ||
+            visibleTask.modelRecurrenceType === "weekly_flexible" ||
+            visibleTask.modelRecurrenceType === "monthly_flexible") &&
+          !otherInProgress ? (
             <Button
               disabled={busyAction !== null}
               onClick={() => void runAction("complete")}
             >
-              {busyAction === "complete" ? <InlineLoading /> : status === "completed" ? "もう一度実施" : "完了しました"}
+              {busyAction === "complete" ? (
+                <InlineLoading />
+              ) : status === "completed" ? (
+                "もう一度実施"
+              ) : (
+                "完了しました"
+              )}
             </Button>
           ) : null}
           {status === "pending" ? (
@@ -2149,20 +2626,40 @@ function TaskDetailScreen({
               編集する
             </Button>
           ) : null}
-          {!compact && visibleTask.modelRecurrenceType ? <Button variant="ghost" disabled={busyAction !== null} onClick={() => void saveAsTemplate()}>
-            {busyAction === "template" ? <InlineLoading /> : "テンプレートとして保存"}
-          </Button> : null}
+          {!compact && visibleTask.modelRecurrenceType ? (
+            <Button
+              variant="ghost"
+              disabled={busyAction !== null}
+              onClick={() => void saveAsTemplate()}
+            >
+              {busyAction === "template" ? <InlineLoading /> : "テンプレートとして保存"}
+            </Button>
+          ) : null}
         </div>
       </Card>
-      {!compact ? <HistoryCard records={history} /> : null}
+      {!compact ? (
+        <HistoryCard
+          records={history}
+          onEdit={() => onNavigate(`/tasks/${taskId}/edit`)}
+        />
+      ) : null}
     </AppFrame>
   );
 }
 
-function HistoryCard({ records }: { records: TaskRecord[] }) {
+function HistoryCard({
+  records,
+  onEdit
+}: {
+  records: TaskRecord[];
+  onEdit: () => void;
+}) {
   return (
     <Card>
       <h2>最近の履歴</h2>
+      <Button variant="secondary" onClick={onEdit}>
+        元のタスク設定を編集
+      </Button>
       {records.length === 0 ? (
         <EmptyState
           title="まだ履歴はありません"
@@ -2208,7 +2705,8 @@ function TaskTemplateListScreen({
       const result = await listTaskTemplates(signal);
       setTemplates(result.templates.filter((template) => template.active));
     } catch (error) {
-      if (!(error instanceof DOMException && error.name === "AbortError")) setMessage(apiErrorMessage(error));
+      if (!(error instanceof DOMException && error.name === "AbortError"))
+        setMessage(apiErrorMessage(error));
     } finally {
       if (!signal?.aborted) setLoading(false);
     }
@@ -2219,7 +2717,12 @@ function TaskTemplateListScreen({
     return () => controller.abort();
   }, [refresh]);
   const deactivate = async (template: TaskTemplate) => {
-    if (!window.confirm("このテンプレートを無効化しますか？作成済みのタスクには影響しません。")) return;
+    if (
+      !window.confirm(
+        "このテンプレートを無効化しますか？作成済みのタスクには影響しません。"
+      )
+    )
+      return;
     setBusy(template.id);
     setMessage("");
     setSuccess("");
@@ -2235,12 +2738,21 @@ function TaskTemplateListScreen({
   };
   return (
     <AppFrame current="/tasks" onNavigate={onNavigate}>
-      <PageHeader title="タスクテンプレート" description={household.name} action={<Button onClick={() => onNavigate("/tasks/new")}>タスクを追加</Button>} />
+      <PageHeader
+        title="タスクテンプレート"
+        description={household.name}
+        action={<Button onClick={() => onNavigate("/tasks/new")}>タスクを追加</Button>}
+      />
       <ErrorMessage message={message} />
       <SuccessMessage message={success} />
       <Card>
-        {loading ? <p role="status">テンプレートを読み込んでいます。</p> : templates.length === 0 ? (
-          <EmptyState title="テンプレートはまだありません" description="タスク詳細から設定を保存できます。" />
+        {loading ? (
+          <p role="status">テンプレートを読み込んでいます。</p>
+        ) : templates.length === 0 ? (
+          <EmptyState
+            title="テンプレートはまだありません"
+            description="タスク詳細から設定を保存できます。"
+          />
         ) : (
           <div className="template-list">
             {templates.map((template) => (
@@ -2248,25 +2760,44 @@ function TaskTemplateListScreen({
                 <div>
                   <strong>{template.title}</strong>
                   <small>{taskTemplateRecurrenceDescription(template)}</small>
-                  <small>{template.deadlineTime ? `${template.deadlineTime}まで / ` : ""}{notificationPresetLabel(template.notificationOffsetMinutes)}</small>
+                  <small>
+                    {template.deadlineTime ? `${template.deadlineTime}まで / ` : ""}
+                    {notificationPresetLabel(template.notificationOffsetMinutes)}
+                  </small>
                 </div>
                 <div className="inline-actions">
-                  <Button onClick={() => onNavigate("/tasks/new")}>作成画面で使う</Button>
-                  <Button variant="secondary" onClick={() => onNavigate(`/tasks/templates/${template.id}/edit`)}>編集</Button>
-                  <Button variant="danger" disabled={busy === template.id} onClick={() => void deactivate(template)}>無効化</Button>
+                  <Button onClick={() => onNavigate("/tasks/new")}>
+                    作成画面で使う
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={() => onNavigate(`/tasks/templates/${template.id}/edit`)}
+                  >
+                    編集
+                  </Button>
+                  <Button
+                    variant="danger"
+                    disabled={busy === template.id}
+                    onClick={() => void deactivate(template)}
+                  >
+                    無効化
+                  </Button>
                 </div>
               </article>
             ))}
           </div>
         )}
       </Card>
-      <Button variant="ghost" onClick={() => onNavigate("/tasks")}>タスク一覧へ戻る</Button>
+      <Button variant="ghost" onClick={() => onNavigate("/tasks")}>
+        タスク一覧へ戻る
+      </Button>
     </AppFrame>
   );
 }
 
 function MembersScreen({
   household,
+  user,
   onNavigate,
   onLogout
 }: {
@@ -2329,7 +2860,11 @@ function MembersScreen({
           <ul className="member-list">
             {members.map((member) => (
               <li key={member.userId}>
-                <MemberAvatar color={member.color} name={member.displayName} />
+                <MemberAvatar
+                  color={member.color}
+                  imageUrl={member.avatarUrl}
+                  name={member.displayName}
+                />
                 <div>
                   <strong>{member.displayName}</strong>
                   <span>
@@ -2341,6 +2876,7 @@ function MembersScreen({
           </ul>
         )}
       </Card>
+      <ProfileImageSection user={user} />
       <ImageUsageSection />
       <NotificationSettingsSection />
       <Card>
@@ -2378,6 +2914,97 @@ function MembersScreen({
   );
 }
 
+function ProfileImageSection({ user }: { user: AuthUser }) {
+  const [avatarUrl, setAvatarUrl] = useState(user.avatarUrl);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const [success, setSuccess] = useState("");
+  useEffect(
+    () => () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    },
+    [previewUrl]
+  );
+  const choose = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.currentTarget.value = "";
+    if (!file) return;
+    setMessage("");
+    setSuccess("");
+    const nextPreview = URL.createObjectURL(file);
+    setPreviewUrl(nextPreview);
+    try {
+      const processed = await processShoppingImage(file);
+      setBusy(true);
+      const result = await uploadProfileImage(processed);
+      setAvatarUrl(result.avatarUrl);
+      setSuccess("プロフィール画像を保存しました。");
+    } catch (error) {
+      setMessage(
+        error instanceof Error && error.message === "source-image-too-large"
+          ? "元画像は10MB以下にしてください。"
+          : "プロフィール画像を保存できませんでした。JPEG/PNG/WebP、10MB以下の画像を選択してください。要求形式へ変換できない画像は使用できません。"
+      );
+    } finally {
+      setBusy(false);
+      setPreviewUrl(null);
+      URL.revokeObjectURL(nextPreview);
+    }
+  };
+  const remove = async () => {
+    setBusy(true);
+    setMessage("");
+    setSuccess("");
+    try {
+      await deleteProfileImage();
+      setAvatarUrl(null);
+      setSuccess("プロフィール画像を削除しました。");
+    } catch (error) {
+      setMessage(apiErrorMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Card>
+      <div className="section-heading">
+        <h2>プロフィール画像</h2>
+        <span>{avatarUrl ? "設定済み" : "未設定"}</span>
+      </div>
+      <div className="profile-image-row">
+        <MemberAvatar name={user.displayName} imageUrl={previewUrl ?? avatarUrl} />
+        <div className="stack">
+          <p className="field-hint">
+            JPEG / PNG /
+            WebP、元画像10MB以下。保存時はWebP・最大1MB・1280pxに変換します。
+          </p>
+          <label
+            className="button button--secondary profile-image-picker"
+            htmlFor="profile-image-input"
+          >
+            画像を選択
+          </label>
+          <input
+            id="profile-image-input"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={(event) => void choose(event)}
+            disabled={busy}
+          />
+          {avatarUrl ? (
+            <Button variant="ghost" disabled={busy} onClick={() => void remove()}>
+              初期状態に戻す
+            </Button>
+          ) : null}
+        </div>
+      </div>
+      <ErrorMessage message={message} />
+      <SuccessMessage message={success} />
+    </Card>
+  );
+}
+
 type NotificationUiState = "unsupported" | "default" | "denied" | "enabled";
 
 const getNotificationRegistration =
@@ -2397,6 +3024,8 @@ function NotificationSettingsSection() {
   const [summary, setSummary] = useState<NotificationSettings>({
     eveningSummaryEnabled: false,
     eveningSummaryTime: "21:00",
+    morningSummaryEnabled: false,
+    morningSummaryTime: "09:00",
     timezone: "Asia/Tokyo"
   });
   const [summaryBusy, setSummaryBusy] = useState(false);
@@ -2431,14 +3060,24 @@ function NotificationSettingsSection() {
 
   useEffect(() => {
     void refresh().catch(() => setState("unsupported"));
-    void getNotificationSettings().then(setSummary).catch(() => undefined);
+    void getNotificationSettings()
+      .then(setSummary)
+      .catch(() => undefined);
   }, [refresh]);
 
   const saveSummary = async () => {
     setSummaryBusy(true);
-    try { setSummary(await updateNotificationSettings(summary)); }
-    catch (error) { setMessage(error instanceof ApiError ? apiMessage(error) : "通知設定を保存できませんでした。"); }
-    finally { setSummaryBusy(false); }
+    try {
+      setSummary(await updateNotificationSettings(summary));
+    } catch (error) {
+      setMessage(
+        error instanceof ApiError
+          ? apiMessage(error)
+          : "通知設定を保存できませんでした。"
+      );
+    } finally {
+      setSummaryBusy(false);
+    }
   };
 
   const enable = async () => {
@@ -2551,7 +3190,6 @@ function NotificationSettingsSection() {
     }
   };
 
-
   const status =
     state === "unsupported"
       ? "このブラウザでは通知を利用できません"
@@ -2593,19 +3231,66 @@ function NotificationSettingsSection() {
           {testPushState === "sending" ? <InlineLoading /> : "テスト通知を送る"}
         </Button>
       ) : null}
-      <div className="stack">
-        <h3>夜まとめ通知</h3>
-        <label><input type="checkbox" checked={summary.eveningSummaryEnabled}
-          onChange={(event) => setSummary({ ...summary, eveningSummaryEnabled: event.target.checked })} /> 有効にする</label>
-        <label>時刻 <input type="time" value={summary.eveningSummaryTime}
-          onChange={(event) => setSummary({ ...summary, eveningSummaryTime: event.target.value })} /></label>
-        <label>タイムゾーン <input value={summary.timezone}
-          onChange={(event) => setSummary({ ...summary, timezone: event.target.value })} /></label>
-        <Button variant="secondary" disabled={summaryBusy} onClick={() => void saveSummary()}>
-          {summaryBusy ? <InlineLoading /> : "夜まとめ設定を保存"}
+      <div className="stack notification-summary-settings">
+        <h3>朝のまとめ通知</h3>
+        <label>
+          <input
+            type="checkbox"
+            checked={summary.morningSummaryEnabled}
+            onChange={(event) =>
+              setSummary({ ...summary, morningSummaryEnabled: event.target.checked })
+            }
+          />{" "}
+          有効にする
+        </label>
+        <label>
+          時刻{" "}
+          <input
+            type="time"
+            value={summary.morningSummaryTime}
+            onChange={(event) =>
+              setSummary({ ...summary, morningSummaryTime: event.target.value })
+            }
+          />
+        </label>
+        <h3>夜のまとめ通知</h3>
+        <label>
+          <input
+            type="checkbox"
+            checked={summary.eveningSummaryEnabled}
+            onChange={(event) =>
+              setSummary({ ...summary, eveningSummaryEnabled: event.target.checked })
+            }
+          />{" "}
+          有効にする
+        </label>
+        <label>
+          時刻{" "}
+          <input
+            type="time"
+            value={summary.eveningSummaryTime}
+            onChange={(event) =>
+              setSummary({ ...summary, eveningSummaryTime: event.target.value })
+            }
+          />
+        </label>
+        <label>
+          タイムゾーン{" "}
+          <input
+            value={summary.timezone}
+            onChange={(event) =>
+              setSummary({ ...summary, timezone: event.target.value })
+            }
+          />
+        </label>
+        <Button
+          variant="secondary"
+          disabled={summaryBusy}
+          onClick={() => void saveSummary()}
+        >
+          {summaryBusy ? <InlineLoading /> : "朝/夜まとめ設定を保存"}
         </Button>
       </div>
-
     </Card>
   );
 }
@@ -2774,7 +3459,12 @@ const emptyShoppingForm: CreateShoppingItemInput = {
 };
 
 const normalizeShoppingForm = <
-  T extends { name: string; quantity?: string | null; note?: string | null; plannedPurchaseDate?: string | null }
+  T extends {
+    name: string;
+    quantity?: string | null;
+    note?: string | null;
+    plannedPurchaseDate?: string | null;
+  }
 >(
   form: T
 ): T => ({
@@ -2782,7 +3472,9 @@ const normalizeShoppingForm = <
   name: form.name.trim(),
   quantity: form.quantity?.trim() ? form.quantity.trim() : null,
   note: form.note?.trim() ? form.note.trim() : null,
-  plannedPurchaseDate: form.plannedPurchaseDate?.trim() ? form.plannedPurchaseDate.trim() : null
+  plannedPurchaseDate: form.plannedPurchaseDate?.trim()
+    ? form.plannedPurchaseDate.trim()
+    : null
 });
 
 const validateShoppingForm = (form: CreateShoppingItemInput) => {
@@ -2795,7 +3487,10 @@ const validateShoppingForm = (form: CreateShoppingItemInput) => {
     errors.quantity = "数量は50文字以内で入力してください。";
   if ((normalized.note?.length ?? 0) > 500)
     errors.note = "メモは500文字以内で入力してください。";
-  if (normalized.plannedPurchaseDate && !/^\d{4}-\d{2}-\d{2}$/.test(normalized.plannedPurchaseDate))
+  if (
+    normalized.plannedPurchaseDate &&
+    !/^\d{4}-\d{2}-\d{2}$/.test(normalized.plannedPurchaseDate)
+  )
     errors.plannedPurchaseDate = "購入予定日を正しく入力してください。";
   return errors;
 };
@@ -3121,7 +3816,9 @@ function ShoppingItemCard({
         {item.image ? <ShoppingThumbnail item={item} /> : null}
         <strong>{item.name}</strong>
         <span>{[item.quantity, item.note].filter(Boolean).join(" / ")}</span>
-        {item.plannedPurchaseDate ? <small>購入予定: {formatDate(item.plannedPurchaseDate)}</small> : null}
+        {item.plannedPurchaseDate ? (
+          <small>購入予定: {formatDate(item.plannedPurchaseDate)}</small>
+        ) : null}
         <small>
           {purchased && item.purchasedAt
             ? `${purchaser || "メンバー"}さんが購入 ${shoppingPurchaseDateTime(item.purchasedAt, timezone)}`
@@ -3246,7 +3943,10 @@ function ShoppingItemDetailScreen({
           {item.purchasedBy ? (
             <div>
               <dt>購入者</dt>
-              <dd>{item.purchasedBy.displayName ?? memberName(members, item.purchasedBy.userId)}</dd>
+              <dd>
+                {item.purchasedBy.displayName ??
+                  memberName(members, item.purchasedBy.userId)}
+              </dd>
             </div>
           ) : null}
           {item.status === "purchased" && item.purchasedAt ? (
@@ -3533,7 +4233,12 @@ function ShoppingItemFormScreen({
           recentItems={recentItems}
           templates={templates}
           onRecentSelect={(source) => {
-            setForm({ name: source.name, quantity: source.quantity, note: source.note, plannedPurchaseDate: null });
+            setForm({
+              name: source.name,
+              quantity: source.quantity,
+              note: source.note,
+              plannedPurchaseDate: null
+            });
             setErrors({});
             setMessage("");
             setSelectedImage(null);
@@ -3541,7 +4246,12 @@ function ShoppingItemFormScreen({
             setPreviewUrl("");
           }}
           onTemplateSelect={(source) => {
-            setForm({ name: source.name, quantity: source.quantity, note: source.note, plannedPurchaseDate: null });
+            setForm({
+              name: source.name,
+              quantity: source.quantity,
+              note: source.note,
+              plannedPurchaseDate: null
+            });
             setErrors({});
             setMessage("");
             setSelectedImage(null);
@@ -3585,16 +4295,28 @@ function ShoppingItemFormScreen({
               onChange={(event) => setField("note", event.target.value)}
             />
           </FormField>
-          <FormField id="shopping-planned-purchase-date" label="購入予定日" error={errors.plannedPurchaseDate}>
+          <FormField
+            id="shopping-planned-purchase-date"
+            label="購入予定日"
+            error={errors.plannedPurchaseDate}
+          >
             <input
               id="shopping-planned-purchase-date"
-              aria-describedby={errors.plannedPurchaseDate ? "shopping-planned-purchase-date-error" : "shopping-planned-purchase-date-hint"}
+              aria-describedby={
+                errors.plannedPurchaseDate
+                  ? "shopping-planned-purchase-date-error"
+                  : "shopping-planned-purchase-date-hint"
+              }
               aria-invalid={errors.plannedPurchaseDate ? "true" : "false"}
               type="date"
               value={form.plannedPurchaseDate ?? ""}
-              onChange={(event) => setField("plannedPurchaseDate", event.target.value || null)}
+              onChange={(event) =>
+                setField("plannedPurchaseDate", event.target.value || null)
+              }
             />
-            <small className="field-hint" id="shopping-planned-purchase-date-hint">決まっていなければ空欄でOK</small>
+            <small className="field-hint" id="shopping-planned-purchase-date-hint">
+              決まっていなければ空欄でOK
+            </small>
           </FormField>
           <div className="shopping-image-field" aria-live="polite">
             <label htmlFor="shopping-image">商品の写真（任意）</label>
@@ -3624,7 +4346,13 @@ function ShoppingItemFormScreen({
             ) : null}
             <div className="shopping-image-options" aria-label="画像の追加方法">
               <Button
-                disabled={imageStatus !== "idle" || submitting || (mode === "create" && !!imageUsage && imageUsage.activeCount >= imageUsage.activeCountLimit)}
+                disabled={
+                  imageStatus !== "idle" ||
+                  submitting ||
+                  (mode === "create" &&
+                    !!imageUsage &&
+                    imageUsage.activeCount >= imageUsage.activeCountLimit)
+                }
                 onClick={() => libraryInputRef.current?.click()}
               >
                 写真を選ぶ
@@ -3714,9 +4442,17 @@ function ShoppingReusePanel({
         ) : (
           <div className="shopping-reuse-list">
             {recentItems.map((item) => (
-              <button className="shopping-reuse-item" key={`${item.name}-${item.createdAt}`} type="button" onClick={() => onRecentSelect(item)}>
+              <button
+                className="shopping-reuse-item"
+                key={`${item.name}-${item.createdAt}`}
+                type="button"
+                onClick={() => onRecentSelect(item)}
+              >
                 <strong>{item.name}</strong>
-                <small>{[item.quantity, item.note].filter(Boolean).join(" / ") || "数量・メモなし"}</small>
+                <small>
+                  {[item.quantity, item.note].filter(Boolean).join(" / ") ||
+                    "数量・メモなし"}
+                </small>
               </button>
             ))}
           </div>
@@ -3732,9 +4468,17 @@ function ShoppingReusePanel({
         ) : (
           <div className="shopping-reuse-list">
             {templates.slice(0, 8).map((template) => (
-              <button className="shopping-reuse-item" key={template.id} type="button" onClick={() => onTemplateSelect(template)}>
+              <button
+                className="shopping-reuse-item"
+                key={template.id}
+                type="button"
+                onClick={() => onTemplateSelect(template)}
+              >
                 <strong>{template.name}</strong>
-                <small>{[template.quantity, template.note].filter(Boolean).join(" / ") || "数量・メモなし"}</small>
+                <small>
+                  {[template.quantity, template.note].filter(Boolean).join(" / ") ||
+                    "数量・メモなし"}
+                </small>
               </button>
             ))}
           </div>

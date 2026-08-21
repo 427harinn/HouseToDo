@@ -5,6 +5,15 @@ export type User = {
   displayName: string;
   createdAt: string;
   updatedAt: string;
+  avatar: UserAvatar | null;
+};
+
+export type UserAvatar = {
+  type: "r2";
+  key: string;
+  sizeBytes: number;
+  width: number;
+  height: number;
 };
 
 export type Session = {
@@ -42,6 +51,8 @@ export type HouseholdMember = {
 
 export type HouseholdMemberProfile = HouseholdMember & {
   displayName: string;
+  avatar: UserAvatar | null;
+  avatarUpdatedAt: string | null;
 };
 
 export type HouseholdInvite = {

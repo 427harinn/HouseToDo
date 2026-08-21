@@ -29,6 +29,11 @@ export type UserRecord = {
   display_name: string;
   created_at: string;
   updated_at: string;
+  avatar_type?: string | null;
+  avatar_value?: string | null;
+  avatar_size_bytes?: number | null;
+  avatar_width?: number | null;
+  avatar_height?: number | null;
 };
 
 export type SessionRecord = {
@@ -153,7 +158,10 @@ export type TaskTemplateDbRecord = {
   household_id: string;
   title: string;
   description: string | null;
-  model_recurrence_type: Exclude<TaskRecurrenceType, "scheduled" | "weekly" | "model_only">;
+  model_recurrence_type: Exclude<
+    TaskRecurrenceType,
+    "scheduled" | "weekly" | "model_only"
+  >;
   assignment_type: TaskAssignmentType;
   assigned_user_id: string | null;
   weekdays_json: string;
@@ -261,6 +269,8 @@ export type UserNotificationSettingsDbRecord = {
   evening_summary_time: string;
   timezone: string;
   updated_at: string;
+  morning_summary_enabled?: number;
+  morning_summary_time?: string;
 };
 
 class MemoryPreparedStatement {
@@ -381,6 +391,7 @@ export class MemoryD1 {
     | ImageUploadReservationDbRecord
     | PushSubscriptionDbRecord
     | NotificationDeliveryDbRecord
+    | UserNotificationSettingsDbRecord
     | {
         create_count: number;
         create_bytes: number;
@@ -427,6 +438,16 @@ export class MemoryD1 {
     if (sql.includes("FROM household_members WHERE household_id")) {
       return this.members.get(`${toText(values[0])}:${toText(values[1])}`) ?? null;
     }
+    if (
+      sql.includes(
+        "FROM user_notification_settings WHERE user_id = ? AND household_id = ?"
+      )
+    ) {
+      return (
+        this.notificationSettings.get(`${String(values[0])}:${String(values[1])}`) ??
+        null
+      );
+    }
     if (sql.includes("FROM household_invites WHERE code_hash")) {
       const invite =
         Array.from(this.invites.values()).find(
@@ -459,8 +480,14 @@ export class MemoryD1 {
         ) ?? null;
       return record ? this.withActedByName(record) : null;
     }
-    if (sql.includes("FROM task_records tr") && sql.includes("tr.task_id = ? AND tr.occurrence_key")) {
-      const record = Array.from(this.taskRecords.values()).find((item) => item.task_id === values[0] && item.occurrence_key === values[1]) ?? null;
+    if (
+      sql.includes("FROM task_records tr") &&
+      sql.includes("tr.task_id = ? AND tr.occurrence_key")
+    ) {
+      const record =
+        Array.from(this.taskRecords.values()).find(
+          (item) => item.task_id === values[0] && item.occurrence_key === values[1]
+        ) ?? null;
       return record ? this.withActedByName(record) : null;
     }
     if (
@@ -527,13 +554,21 @@ export class MemoryD1 {
       if (!template || template.household_id !== values[0]) return null;
       return template;
     }
-    if (sql.includes("FROM task_templates") && sql.includes("WHERE household_id = ? AND id = ?")) {
+    if (
+      sql.includes("FROM task_templates") &&
+      sql.includes("WHERE household_id = ? AND id = ?")
+    ) {
       const template = this.taskTemplates.get(toText(values[1]));
       if (!template || template.household_id !== values[0]) return null;
       return template;
     }
     if (sql.includes("MAX(sort_order)") && sql.includes("FROM task_templates")) {
-      const max = Math.max(0, ...Array.from(this.taskTemplates.values()).filter((template) => template.household_id === values[0]).map((template) => template.sort_order));
+      const max = Math.max(
+        0,
+        ...Array.from(this.taskTemplates.values())
+          .filter((template) => template.household_id === values[0])
+          .map((template) => template.sort_order)
+      );
       return { max_sort_order: max } as unknown as TaskTemplateDbRecord;
     }
     if (
@@ -637,7 +672,8 @@ export class MemoryD1 {
     }
     if (sql.includes("FROM user_notification_settings")) {
       return Array.from(this.notificationSettings.values()).filter(
-        (setting) => setting.evening_summary_enabled === 1
+        (setting) =>
+          setting.evening_summary_enabled === 1 || setting.morning_summary_enabled === 1
       );
     }
     if (
@@ -666,14 +702,20 @@ export class MemoryD1 {
       let rows = Array.from(this.tasks.values())
         .filter((task) => task.household_id === values[0])
         .filter((task) => (sql.includes("AND active = 1") ? task.active === 1 : true))
-        .filter((task) => (sql.includes("model_recurrence_type IS NOT NULL") ? task.model_recurrence_type !== null && task.model_recurrence_type !== undefined : true))
-        .sort(
-          (a, b) =>
-            sql.includes("created_at DESC")
-              ? b.created_at.localeCompare(a.created_at) || b.updated_at.localeCompare(a.updated_at)
-              : a.sort_order - b.sort_order || a.created_at.localeCompare(b.created_at)
+        .filter((task) =>
+          sql.includes("model_recurrence_type IS NOT NULL")
+            ? task.model_recurrence_type !== null &&
+              task.model_recurrence_type !== undefined
+            : true
+        )
+        .sort((a, b) =>
+          sql.includes("created_at DESC")
+            ? b.created_at.localeCompare(a.created_at) ||
+              b.updated_at.localeCompare(a.updated_at)
+            : a.sort_order - b.sort_order || a.created_at.localeCompare(b.created_at)
         );
-      if (sql.includes("LIMIT ?")) rows = rows.slice(0, Number(values[values.length - 1]));
+      if (sql.includes("LIMIT ?"))
+        rows = rows.slice(0, Number(values[values.length - 1]));
       return rows;
     }
     if (sql.includes("FROM task_weekdays")) {
@@ -689,9 +731,12 @@ export class MemoryD1 {
       const periodKeys = values.slice(3).map(String);
       return Array.from(this.taskRecords.values())
         .filter((item) => item.household_id === values[0])
-        .filter((item) =>
-          (item.target_date !== null && item.target_date >= String(values[1]) && item.target_date <= String(values[2])) ||
-          (item.period_key !== null && periodKeys.includes(item.period_key ?? ""))
+        .filter(
+          (item) =>
+            (item.target_date !== null &&
+              item.target_date >= String(values[1]) &&
+              item.target_date <= String(values[2])) ||
+            (item.period_key !== null && periodKeys.includes(item.period_key ?? ""))
         )
         .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
         .map((item) => this.withActedByName(item));
@@ -706,12 +751,29 @@ export class MemoryD1 {
         )
         .map((item) => this.withActedByName(item));
     }
-    if (sql.includes("FROM task_records tr") && sql.includes("tr.household_id = ? AND tr.period_key IN")) {
+    if (
+      sql.includes("FROM task_records tr") &&
+      sql.includes("tr.household_id = ? AND tr.period_key IN")
+    ) {
       const keys = values.slice(1).map(String);
-      return Array.from(this.taskRecords.values()).filter((item) => item.household_id === values[0] && typeof item.period_key === "string" && keys.includes(item.period_key)).sort((a, b) => b.updated_at.localeCompare(a.updated_at)).map((item) => this.withActedByName(item));
+      return Array.from(this.taskRecords.values())
+        .filter(
+          (item) =>
+            item.household_id === values[0] &&
+            typeof item.period_key === "string" &&
+            keys.includes(item.period_key)
+        )
+        .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
+        .map((item) => this.withActedByName(item));
     }
-    if (sql.includes("FROM task_records tr") && sql.includes("tr.task_id = ? AND tr.period_key")) {
-      return Array.from(this.taskRecords.values()).filter((item) => item.task_id === values[0] && item.period_key === values[1]).sort((a, b) => b.updated_at.localeCompare(a.updated_at)).map((item) => this.withActedByName(item));
+    if (
+      sql.includes("FROM task_records tr") &&
+      sql.includes("tr.task_id = ? AND tr.period_key")
+    ) {
+      return Array.from(this.taskRecords.values())
+        .filter((item) => item.task_id === values[0] && item.period_key === values[1])
+        .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
+        .map((item) => this.withActedByName(item));
     }
     if (
       sql.includes("FROM task_records tr") &&
@@ -750,13 +812,19 @@ export class MemoryD1 {
       if (sql.includes("si.planned_purchase_date IS NULL")) {
         rows = rows.filter((item) => item.planned_purchase_date == null);
       }
-      if (sql.includes("AND si.status = 'pending'") || sql.includes("AND status = 'pending'")) {
+      if (
+        sql.includes("AND si.status = 'pending'") ||
+        sql.includes("AND status = 'pending'")
+      ) {
         rows = rows.filter((item) => item.status === "pending");
       }
       if (sql.includes("NOT EXISTS")) {
         const seen = new Set<string>();
         rows = rows
-          .sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id))
+          .sort(
+            (a, b) =>
+              b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id)
+          )
           .filter((item) => {
             const key = item.name.trim().toLocaleLowerCase();
             if (seen.has(key)) return false;
@@ -765,7 +833,8 @@ export class MemoryD1 {
           });
       }
       if (sql.includes("LIMIT ?")) rows = rows.slice(0, Number(values[1]));
-      if (sql.includes("NOT EXISTS")) return rows.map((item) => this.withPurchasedByName(item));
+      if (sql.includes("NOT EXISTS"))
+        return rows.map((item) => this.withPurchasedByName(item));
       return rows
         .sort((a, b) =>
           a.status === b.status
@@ -792,8 +861,13 @@ export class MemoryD1 {
     if (sql.includes("FROM task_templates") && sql.includes("WHERE household_id = ?")) {
       return Array.from(this.taskTemplates.values())
         .filter((template) => template.household_id === values[0])
-        .filter((template) => sql.includes("AND active = 1") ? template.active === 1 : true)
-        .sort((a, b) => a.sort_order - b.sort_order || a.created_at.localeCompare(b.created_at));
+        .filter((template) =>
+          sql.includes("AND active = 1") ? template.active === 1 : true
+        )
+        .sort(
+          (a, b) =>
+            a.sort_order - b.sort_order || a.created_at.localeCompare(b.created_at)
+        );
     }
     if (
       sql.includes("FROM shopping_item_images") &&
@@ -860,7 +934,10 @@ export class MemoryD1 {
           claimed_at: String(values[5]),
           created_at: String(values[6])
         });
-      } else if (existing.status === "pending" && existing.claimed_at <= String(values[7])) {
+      } else if (
+        existing.status === "pending" &&
+        existing.claimed_at <= String(values[7])
+      ) {
         this.notificationDeliveries.delete(existing.id);
         this.notificationDeliveries.set(String(values[0]), {
           ...existing,
@@ -876,7 +953,11 @@ export class MemoryD1 {
     if (sql.startsWith("UPDATE notification_deliveries SET status = 'sent'")) {
       const row = this.notificationDeliveries.get(String(values[1]));
       if (row && row.status === "pending")
-        this.notificationDeliveries.set(row.id, { ...row, status: "sent", sent_at: String(values[0]) });
+        this.notificationDeliveries.set(row.id, {
+          ...row,
+          status: "sent",
+          sent_at: String(values[0])
+        });
       else changes = 0;
     }
     if (sql.startsWith("DELETE FROM notification_deliveries")) {
@@ -962,8 +1043,60 @@ export class MemoryD1 {
         password_hash: String(values[2]),
         display_name: String(values[3]),
         created_at: String(values[4]),
-        updated_at: String(values[5])
+        updated_at: String(values[5]),
+        avatar_type: null,
+        avatar_value: null,
+        avatar_size_bytes: null,
+        avatar_width: null,
+        avatar_height: null
       });
+    }
+    if (sql.startsWith("INSERT INTO user_notification_settings")) {
+      const key = `${String(values[0])}:${String(values[1])}`;
+      this.notificationSettings.set(key, {
+        user_id: String(values[0]),
+        household_id: String(values[1]),
+        evening_summary_enabled: Number(values[2]),
+        evening_summary_time: String(values[3]),
+        morning_summary_enabled: Number(values[4]),
+        morning_summary_time: String(values[5]),
+        timezone: String(values[6]),
+        updated_at: String(values[7])
+      });
+    }
+    if (sql.startsWith("UPDATE users SET avatar_type = 'r2'")) {
+      const user = this.users.get(String(values[5]));
+      const expectedType = values[6] as string | null;
+      const expectedKey = values[7] as string | null;
+      if (
+        user &&
+        (user.avatar_type ?? null) === expectedType &&
+        (user.avatar_value ?? null) === expectedKey
+      ) {
+        this.users.set(user.id, {
+          ...user,
+          avatar_type: "r2",
+          avatar_value: String(values[0]),
+          avatar_size_bytes: Number(values[1]),
+          avatar_width: Number(values[2]),
+          avatar_height: Number(values[3]),
+          updated_at: String(values[4])
+        });
+      } else changes = 0;
+    }
+    if (sql.startsWith("UPDATE users SET avatar_type = NULL")) {
+      const user = this.users.get(String(values[1]));
+      if (user && user.avatar_type === "r2" && user.avatar_value === values[2])
+        this.users.set(user.id, {
+          ...user,
+          avatar_type: null,
+          avatar_value: null,
+          avatar_size_bytes: null,
+          avatar_width: null,
+          avatar_height: null,
+          updated_at: String(values[0])
+        });
+      else changes = 0;
     }
     if (sql.startsWith("INSERT INTO sessions")) {
       this.sessions.set(String(values[0]), {
@@ -1046,7 +1179,10 @@ export class MemoryD1 {
         title: toText(values[2]),
         description: toNullableText(values[3]),
         recurrence_type: values[4] as TaskRecurrenceType,
-        model_recurrence_type: values[5] as Exclude<TaskRecurrenceType, "scheduled" | "weekly"> | null,
+        model_recurrence_type: values[5] as Exclude<
+          TaskRecurrenceType,
+          "scheduled" | "weekly"
+        > | null,
         assignment_type: values[6] as TaskAssignmentType,
         assigned_user_id: toNullableText(values[7]),
         scheduled_time: toNullableText(values[8]),
@@ -1075,7 +1211,10 @@ export class MemoryD1 {
           title: toText(values[0]),
           description: toNullableText(values[1]),
           recurrence_type: values[2] as TaskRecurrenceType,
-          model_recurrence_type: values[3] as Exclude<TaskRecurrenceType, "scheduled" | "weekly"> | null,
+          model_recurrence_type: values[3] as Exclude<
+            TaskRecurrenceType,
+            "scheduled" | "weekly"
+          > | null,
           assignment_type: values[4] as TaskAssignmentType,
           assigned_user_id: toNullableText(values[5]),
           scheduled_time: toNullableText(values[6]),
@@ -1664,30 +1803,58 @@ export class MemoryD1 {
     }
     if (sql.startsWith("INSERT INTO task_templates")) {
       this.taskTemplates.set(toText(values[0]), {
-        id: toText(values[0]), household_id: toText(values[1]), title: toText(values[2]),
-        description: toNullableText(values[3]), model_recurrence_type: values[4] as TaskTemplateDbRecord["model_recurrence_type"],
-        assignment_type: values[5] as TaskAssignmentType, assigned_user_id: toNullableText(values[6]), weekdays_json: toText(values[7]),
-        deadline_time: toNullableText(values[8]), notification_offset_minutes: values[9] === null ? null : Number(values[9]),
-        weekly_deadline_weekday: values[10] === null ? null : Number(values[10]), monthly_day_of_month: values[11] === null ? null : Number(values[11]),
-        monthly_deadline_type: values[12] as TaskTemplateDbRecord["monthly_deadline_type"], active: 1, sort_order: Number(values[13]),
-        created_by: toText(values[14]), created_at: toText(values[15]), updated_at: toText(values[16])
+        id: toText(values[0]),
+        household_id: toText(values[1]),
+        title: toText(values[2]),
+        description: toNullableText(values[3]),
+        model_recurrence_type:
+          values[4] as TaskTemplateDbRecord["model_recurrence_type"],
+        assignment_type: values[5] as TaskAssignmentType,
+        assigned_user_id: toNullableText(values[6]),
+        weekdays_json: toText(values[7]),
+        deadline_time: toNullableText(values[8]),
+        notification_offset_minutes: values[9] === null ? null : Number(values[9]),
+        weekly_deadline_weekday: values[10] === null ? null : Number(values[10]),
+        monthly_day_of_month: values[11] === null ? null : Number(values[11]),
+        monthly_deadline_type:
+          values[12] as TaskTemplateDbRecord["monthly_deadline_type"],
+        active: 1,
+        sort_order: Number(values[13]),
+        created_by: toText(values[14]),
+        created_at: toText(values[15]),
+        updated_at: toText(values[16])
       });
     }
     if (sql.startsWith("UPDATE task_templates") && sql.includes("SET title")) {
       const template = this.taskTemplates.get(toText(values[13]));
       if (template && template.household_id === values[12]) {
         this.taskTemplates.set(template.id, {
-          ...template, title: toText(values[0]), description: toNullableText(values[1]), model_recurrence_type: values[2] as TaskTemplateDbRecord["model_recurrence_type"],
-          assignment_type: values[3] as TaskAssignmentType, assigned_user_id: toNullableText(values[4]), weekdays_json: toText(values[5]),
-          deadline_time: toNullableText(values[6]), notification_offset_minutes: values[7] === null ? null : Number(values[7]),
-          weekly_deadline_weekday: values[8] === null ? null : Number(values[8]), monthly_day_of_month: values[9] === null ? null : Number(values[9]),
-          monthly_deadline_type: values[10] as TaskTemplateDbRecord["monthly_deadline_type"], updated_at: toText(values[11])
+          ...template,
+          title: toText(values[0]),
+          description: toNullableText(values[1]),
+          model_recurrence_type:
+            values[2] as TaskTemplateDbRecord["model_recurrence_type"],
+          assignment_type: values[3] as TaskAssignmentType,
+          assigned_user_id: toNullableText(values[4]),
+          weekdays_json: toText(values[5]),
+          deadline_time: toNullableText(values[6]),
+          notification_offset_minutes: values[7] === null ? null : Number(values[7]),
+          weekly_deadline_weekday: values[8] === null ? null : Number(values[8]),
+          monthly_day_of_month: values[9] === null ? null : Number(values[9]),
+          monthly_deadline_type:
+            values[10] as TaskTemplateDbRecord["monthly_deadline_type"],
+          updated_at: toText(values[11])
         });
       } else changes = 0;
     }
     if (sql.startsWith("UPDATE task_templates") && sql.includes("active = 0")) {
       const template = this.taskTemplates.get(toText(values[2]));
-      if (template && template.household_id === values[1]) this.taskTemplates.set(template.id, { ...template, active: 0, updated_at: toText(values[0]) });
+      if (template && template.household_id === values[1])
+        this.taskTemplates.set(template.id, {
+          ...template,
+          active: 0,
+          updated_at: toText(values[0])
+        });
       else changes = 0;
     }
     if (sql.startsWith("UPDATE shopping_templates") && sql.includes("SET name")) {

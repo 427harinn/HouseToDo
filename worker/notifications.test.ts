@@ -42,6 +42,73 @@ const register = async (app: ReturnType<typeof createApp>, env: Env, email: stri
 };
 
 describe("notification subscription API", () => {
+  it("stores independent morning and evening summary settings", async () => {
+    const app = createApp();
+    const env = createTestEnv();
+    const cookie = await register(app, env, "summary-settings@example.com");
+    await app.fetch(
+      request("/api/households", {
+        method: "POST",
+        headers: { cookie },
+        body: JSON.stringify({ name: "Summary House" })
+      }),
+      env
+    );
+    const initial = await app.fetch(
+      request("/api/notifications/settings", { headers: { cookie } }),
+      env
+    );
+    await expect(initial.json()).resolves.toMatchObject({
+      data: {
+        morningSummaryEnabled: false,
+        morningSummaryTime: "09:00",
+        eveningSummaryEnabled: false,
+        eveningSummaryTime: "21:00"
+      }
+    });
+    const saved = await app.fetch(
+      request("/api/notifications/settings", {
+        method: "PATCH",
+        headers: { cookie },
+        body: JSON.stringify({
+          morningSummaryEnabled: false,
+          morningSummaryTime: "08:15",
+          eveningSummaryEnabled: true,
+          eveningSummaryTime: "22:30",
+          timezone: "America/Los_Angeles"
+        })
+      }),
+      env
+    );
+    expect(saved.status).toBe(200);
+    await expect(saved.json()).resolves.toMatchObject({
+      data: {
+        morningSummaryEnabled: false,
+        morningSummaryTime: "08:15",
+        eveningSummaryEnabled: true,
+        eveningSummaryTime: "22:30",
+        timezone: "America/Los_Angeles"
+      }
+    });
+    const independent = await app.fetch(
+      request("/api/notifications/settings", {
+        method: "PATCH",
+        headers: { cookie },
+        body: JSON.stringify({
+          morningSummaryEnabled: true,
+          morningSummaryTime: "07:45",
+          eveningSummaryEnabled: false,
+          eveningSummaryTime: "22:30",
+          timezone: "America/Los_Angeles"
+        })
+      }),
+      env
+    );
+    await expect(independent.json()).resolves.toMatchObject({
+      data: { morningSummaryEnabled: true, eveningSummaryEnabled: false }
+    });
+  });
+
   it("returns only the configured public key for authenticated users", async () => {
     const app = createApp();
     const env = createTestEnv(undefined, "public-key");
@@ -306,7 +373,9 @@ describe("notification subscription API", () => {
         }
       }
     });
-    expect(JSON.stringify(body)).not.toMatch(/endpoint|p256dh|auth|vapid|authorization|secret/i);
+    expect(JSON.stringify(body)).not.toMatch(
+      /endpoint|p256dh|auth|vapid|authorization|secret/i
+    );
     vi.restoreAllMocks();
   });
 });
