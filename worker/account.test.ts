@@ -37,9 +37,16 @@ const register = async (env: Env, email: string) => {
   return response.headers.get("set-cookie") ?? "";
 };
 
-const webp = (size = 17) => {
-  const bytes = new Uint8Array(size);
-  bytes.set([82, 73, 70, 70, 8, 0, 0, 0, 87, 69, 66, 80]);
+const webp = (width = 80, height = 80, size = 30) => {
+  const bytes = new Uint8Array(Math.max(size, 30));
+  bytes.set([82, 73, 70, 70, (bytes.length - 8) & 0xff, 0, 0, 0, 87, 69, 66, 80]);
+  bytes.set([86, 80, 56, 88, 10, 0, 0, 0], 12);
+  bytes[24] = (width - 1) & 0xff;
+  bytes[25] = ((width - 1) >> 8) & 0xff;
+  bytes[26] = (width - 1) >> 16;
+  bytes[27] = (height - 1) & 0xff;
+  bytes[28] = ((height - 1) >> 8) & 0xff;
+  bytes[29] = (height - 1) >> 16;
   return bytes;
 };
 
@@ -70,10 +77,10 @@ describe("profile image API", () => {
     expect((env.ATTACHMENTS as unknown as MemoryR2).objects.size).toBe(1);
 
     await service.upload(userId, {
-      body: webp(18).buffer,
+      body: webp(81, 81).buffer,
       contentType: "image/webp",
-      width: 80,
-      height: 80
+      width: 81,
+      height: 81
     });
     expect((env.ATTACHMENTS as unknown as MemoryR2).objects.size).toBe(1);
     await expect(
@@ -86,7 +93,15 @@ describe("profile image API", () => {
     ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
     await expect(
       service.upload(userId, {
-        body: new Uint8Array(1024 * 1024 + 1).buffer,
+        body: webp(80, 80, 1024 * 1024 + 1).buffer,
+        contentType: "image/webp",
+        width: 80,
+        height: 80
+      })
+    ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    await expect(
+      service.upload(userId, {
+        body: webp(1281, 80).buffer,
         contentType: "image/webp",
         width: 80,
         height: 80

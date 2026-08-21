@@ -1,6 +1,7 @@
 import { nowIso } from "../lib/date";
 import { AppError, validationError } from "../lib/errors";
 import { getImageLimits } from "../lib/image-limits";
+import { readWebpDimensions } from "../lib/webp";
 import { HouseholdImageUsageRepository } from "../repositories/household-image-usage-repository";
 import { HouseholdMemberRepository } from "../repositories/household-member-repository";
 import { OrphanR2ObjectRepository } from "../repositories/orphan-r2-object-repository";
@@ -19,15 +20,6 @@ export type ProfileImageUploadInput = {
 };
 
 const invalidImage = (message: string) => validationError({ image: message }, message);
-
-const isWebp = (body: ArrayBuffer) => {
-  if (body.byteLength < 16) return false;
-  const bytes = new Uint8Array(body);
-  return (
-    String.fromCharCode(...bytes.slice(0, 4)) === "RIFF" &&
-    String.fromCharCode(...bytes.slice(8, 12)) === "WEBP"
-  );
-};
 
 export class UserAvatarService {
   private readonly users: UserRepository;
@@ -51,21 +43,17 @@ export class UserAvatarService {
   async upload(userId: string, input: ProfileImageUploadInput): Promise<User> {
     if (input.contentType !== "image/webp")
       throw invalidImage("WebP画像を指定してください。");
-    if (
-      !Number.isInteger(input.width) ||
-      input.width < 1 ||
-      input.width > PROFILE_IMAGE_MAX_DIMENSION ||
-      !Number.isInteger(input.height) ||
-      input.height < 1 ||
-      input.height > PROFILE_IMAGE_MAX_DIMENSION
-    )
-      throw invalidImage("画像の幅と高さが不正です。");
-    if (
-      input.body.byteLength < 16 ||
-      input.body.byteLength > PROFILE_IMAGE_MAX_BYTES ||
-      !isWebp(input.body)
-    )
+    if (input.body.byteLength > PROFILE_IMAGE_MAX_BYTES)
       throw invalidImage("WebP画像のサイズまたは形式が不正です。");
+    const dimensions = readWebpDimensions(input.body);
+    if (!dimensions) throw invalidImage("WebP画像のサイズまたは形式が不正です。");
+    if (
+      dimensions.width > PROFILE_IMAGE_MAX_DIMENSION ||
+      dimensions.height > PROFILE_IMAGE_MAX_DIMENSION
+    )
+      throw invalidImage("画像の幅と高さは1280px以下にしてください。");
+    if (input.width !== dimensions.width || input.height !== dimensions.height)
+      throw invalidImage("申告された画像サイズと実際の画像サイズが一致しません。");
     const household = await this.households.requireCurrentHousehold(userId);
     const user = await this.users.findById(userId);
     if (!user)
