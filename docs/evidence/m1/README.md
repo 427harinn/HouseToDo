@@ -1,6 +1,6 @@
 # M1 UI Evidence
 
-All screenshots and the WebM use a 390×844 viewport. The Playwright evidence test uses local API route mocks only; no Production API, Worker, D1, R2, or Cloudflare resource was changed.
+All screenshots and the WebM use a 390×844 viewport. The Playwright evidence capture neutralizes nav hover/focus styling for consistent comparison; Production hover behavior is unchanged. The Playwright evidence test uses local API route mocks only; no Production API, Worker, D1, R2, or Cloudflare resource was changed.
 
 - `home-390x844.png`: Home with the five-slot icon-only navigation.
 - `calendar-390x844.png`: Calendar with Calendar selected.
