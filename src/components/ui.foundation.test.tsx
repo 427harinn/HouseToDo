@@ -101,4 +101,34 @@ describe("shared navigation foundation", () => {
     expect(onClose).toHaveBeenCalledOnce();
     vi.useRealTimers();
   });
+
+  it("reaches the dismissed final state immediately when reduced motion is enabled", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({
+        matches: true,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn()
+      }))
+    );
+    const onClose = vi.fn();
+    render(
+      <BottomSheet open onClose={onClose} title="追加">
+        <button type="button">家事</button>
+      </BottomSheet>
+    );
+    const handle = document.querySelector(".bottom-sheet__handle")!;
+    act(() => pointerEvent(handle, "pointerdown", 100, 3));
+    act(() => pointerEvent(handle, "pointermove", 180, 3));
+    act(() => pointerEvent(handle, "pointerup", 180, 3));
+    expect(document.querySelector(".bottom-sheet")).toHaveClass("is-dismissing");
+    await act(() => {
+      vi.runAllTimers();
+      return Promise.resolve();
+    });
+    expect(onClose).toHaveBeenCalledOnce();
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
 });

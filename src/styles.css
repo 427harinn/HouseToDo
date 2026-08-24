@@ -109,7 +109,7 @@ p {
 .app-shell__viewport {
   min-height: 0;
   overflow-y: auto;
-  padding: max(var(--space-5), calc(env(safe-area-inset-top, 0px) + var(--space-3)))
+  padding: max(var(--space-8), calc(env(safe-area-inset-top, 0px) + var(--space-3)))
     var(--space-4) var(--space-8);
   overscroll-behavior-y: contain;
 }
@@ -1363,11 +1363,6 @@ textarea[aria-invalid="true"] {
 }
 
 .bottom-nav {
-  position: fixed;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  z-index: 5;
   width: 100%;
   margin: 0 auto;
   padding: 0 var(--space-2) env(safe-area-inset-bottom);

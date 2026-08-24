@@ -9,8 +9,8 @@
 - [x] App Shellをscroll viewport / safe-area / bottom navigation構造へ更新
 - [x] Bottom NavigationをHome / Calendar / Add / Shopping / Otherへ更新
 - [x] Add Bottom Sheetと既存Task/Shopping form導線を実装
-- [ ] Unit / E2E / visual evidence / motion evidenceを確認
-- [ ] Draft PRを作成（自動mergeしない）
+- [x] Unit / E2E / visual evidence / motion evidenceを確認
+- [x] Draft PRを作成（自動mergeしない）
 
 - [x] Fix weekly/monthly flexible multiple-completion history and completedCount
 - [x] Re-verify the flexible completion fix on staging with UI, history, period identity, and suppression checks

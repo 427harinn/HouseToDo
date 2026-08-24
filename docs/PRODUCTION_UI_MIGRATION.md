@@ -7,13 +7,13 @@ HouseToDo-Mockupをdesign / interaction / motionのsource of truthとし、Produ
 | Milestone | Scope | Status |
 | --- | --- | --- |
 | M1 | Shared UI Foundation: tokens, global foundation, motion constants, App Shell, Bottom Navigation, Add Bottom Sheet | In progress |
-| M2 | Task UI: task rows, create/detail interaction and completion UI | Planned |
-| M3 | Calendar screen visual migration and calendar interactions | Planned |
-| M4 | Shopping screen visual migration and shopping interactions | Planned |
-| M5 | Other screen and formal `/other` route | Planned |
-| M6 | Auth, register, household entry and onboarding visual migration | Planned |
-| M7 | Cross-screen polish, responsive/accessibility and motion consistency | Planned |
-| M8 | Final visual regression, evidence and production-readiness review | Planned |
+| M2 | Home + Task: new Home, complete/pass/undo, task add/edit/delete, previous completion, and related Motion | Planned |
+| M3 | Calendar screen visual migration and Calendar interactions | Planned |
+| M4 | Shopping screen visual migration and Shopping interactions | Planned |
+| M5 | Other / Settings and formal `/other` route | Planned |
+| M6 | Auth / Household Entry. Guest and onboarding are removed from the new UI direction, not visually migrated. | Planned |
+| M7 | Integration / Legacy UI cleanup: retire user-facing old Task list/detail/respond/templates and Shopping detail/templates routes, then verify 2-user flows, E2E, and PWA behavior | Planned |
+| M8 | Legacy backend cleanup: after the new UI is stable, safely remove unused API/DB/compatibility code in separate PRs | Planned |
 
 現在実装中なのはM1のみ。M2以降のscreen redesign、API、Worker、D1、R2、認証backend変更はこのbranchの対象外とする。
 
