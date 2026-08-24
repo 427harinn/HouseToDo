@@ -94,6 +94,7 @@ import {
   SuccessMessage,
   TextInput
 } from "./components/ui";
+import { BottomSheet } from "./components/BottomSheet";
 import { APP_NAME } from "./constants";
 import {
   assignmentLabels,
@@ -924,11 +925,46 @@ function AppFrame({
   children: ReactNode;
   onNavigate: (route: NavigationPath) => void;
 }) {
+  const [isAddSheetOpen, setIsAddSheetOpen] = useState(false);
+
   return (
-    <main className="app-shell app-shell--with-nav">
-      {children}
-      <BottomNavigation current={current} onNavigate={onNavigate} />
-    </main>
+    <div className="app-shell app-shell--with-nav">
+      <main className="app-shell__viewport">{children}</main>
+      <BottomNavigation
+        addOpen={isAddSheetOpen}
+        current={current}
+        onAdd={() => setIsAddSheetOpen(true)}
+        onNavigate={onNavigate}
+      />
+      <BottomSheet
+        open={isAddSheetOpen}
+        title="追加"
+        onClose={() => setIsAddSheetOpen(false)}
+      >
+        <div className="add-action-sheet__options">
+          <button
+            type="button"
+            className="add-action-sheet__option motion-pressable"
+            onClick={() => {
+              setIsAddSheetOpen(false);
+              onNavigate("/tasks/new");
+            }}
+          >
+            家事
+          </button>
+          <button
+            type="button"
+            className="add-action-sheet__option motion-pressable"
+            onClick={() => {
+              setIsAddSheetOpen(false);
+              onNavigate("/shopping/new");
+            }}
+          >
+            買い物
+          </button>
+        </div>
+      </BottomSheet>
+    </div>
   );
 }
 

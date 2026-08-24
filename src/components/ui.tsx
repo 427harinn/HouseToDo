@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { CalendarDays, Ellipsis, House, Plus, ShoppingCart } from "lucide-react";
 
 type NavigationPath =
   | "/home"
@@ -207,31 +208,66 @@ export function GuestBanner() {
 
 export function BottomNavigation({
   current,
-  onNavigate
+  onNavigate,
+  addOpen,
+  onAdd
 }: {
   current: NavigationPath;
   onNavigate: (path: NavigationPath) => void;
+  addOpen?: boolean;
+  onAdd?: () => void;
 }) {
-  const items: Array<{ path: NavigationPath; label: string }> = [
-    { path: "/home", label: "ホーム" },
-    { path: "/calendar", label: "カレンダー" },
-    { path: "/tasks", label: "タスク" },
-    { path: "/shopping", label: "買い物" },
-    { path: "/settings/members", label: "設定" }
+  const isAddOpen = addOpen ?? false;
+  const items = [
+    { path: "/home" as const, label: "ホーム", Icon: House },
+    { path: "/calendar" as const, label: "カレンダー", Icon: CalendarDays },
+    { path: "/shopping" as const, label: "買い物", Icon: ShoppingCart },
+    { path: "/settings/members" as const, label: "その他", Icon: Ellipsis }
   ];
 
   return (
     <nav className="bottom-nav" aria-label="主要画面">
-      {items.map((item) => (
+      <div className="bottom-nav__items">
+        <NavigationButton item={items[0]} current={current} onNavigate={onNavigate} />
+        <NavigationButton item={items[1]} current={current} onNavigate={onNavigate} />
         <button
-          aria-current={current === item.path ? "page" : undefined}
-          key={item.path}
-          onClick={() => onNavigate(item.path)}
+          aria-expanded={isAddOpen}
+          aria-haspopup="dialog"
+          aria-label="追加"
+          className="bottom-nav__button bottom-nav__add motion-pressable"
+          data-testid="bottom-nav-add"
+          onClick={onAdd}
           type="button"
         >
-          <span>{item.label}</span>
+          <Plus aria-hidden="true" strokeWidth={1.8} />
         </button>
-      ))}
+        <NavigationButton item={items[2]} current={current} onNavigate={onNavigate} />
+        <NavigationButton item={items[3]} current={current} onNavigate={onNavigate} />
+      </div>
     </nav>
+  );
+}
+
+function NavigationButton({
+  item,
+  current,
+  onNavigate
+}: {
+  item: { path: Exclude<NavigationPath, "/tasks">; label: string; Icon: typeof House };
+  current: NavigationPath;
+  onNavigate: (path: NavigationPath) => void;
+}) {
+  const isCurrent = current === item.path;
+  const Icon = item.Icon;
+  return (
+    <button
+      aria-current={isCurrent ? "page" : undefined}
+      aria-label={item.label}
+      className={`bottom-nav__button motion-pressable${isCurrent ? " is-current" : ""}`}
+      onClick={() => onNavigate(item.path)}
+      type="button"
+    >
+      <Icon aria-hidden="true" strokeWidth={1.8} />
+    </button>
   );
 }

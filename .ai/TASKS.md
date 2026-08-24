@@ -1,5 +1,17 @@
 # Current milestone tasks
 
+## Production UI Migration M1
+
+- [x] 最新Production/Mockup mainを確認し、専用branchから開始
+- [x] Shared design tokensとlegacy compatibility aliasesを導入
+- [x] Global UI foundationとreduced-motion対応を導入
+- [x] Shared motion constantsを導入
+- [x] App Shellをscroll viewport / safe-area / bottom navigation構造へ更新
+- [x] Bottom NavigationをHome / Calendar / Add / Shopping / Otherへ更新
+- [x] Add Bottom Sheetと既存Task/Shopping form導線を実装
+- [ ] Unit / E2E / visual evidence / motion evidenceを確認
+- [ ] Draft PRを作成（自動mergeしない）
+
 - [x] Fix weekly/monthly flexible multiple-completion history and completedCount
 - [x] Re-verify the flexible completion fix on staging with UI, history, period identity, and suppression checks
 

@@ -1,4 +1,12 @@
-# Milestone: Task model UI and reminder scheduler
+# Milestone: Production UI Migration M1 — Shared UI Foundation
+
+## Current boundary
+
+- M1のみ実装中。Mockupのtokens、global UI foundation、shared motion constants、App Shell、Bottom Navigation、Add Bottom SheetをProductionのrouter/layoutへ適用する。
+- M2以降のscreen redesign、API、Worker、D1、R2、認証backend、Cloudflare deployは対象外。
+- 詳細なM1〜M8計画は[docs/PRODUCTION_UI_MIGRATION.md](../docs/PRODUCTION_UI_MIGRATION.md)を参照。
+
+# Historical milestone: Task model UI and reminder scheduler
 
 ## Completed boundary
 
