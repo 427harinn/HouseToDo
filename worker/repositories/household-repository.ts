@@ -25,6 +25,7 @@ export type CreateHouseholdRecordInput = {
 
 export type UpdateHouseholdRecordInput = {
   name?: string;
+  timezone?: string;
   weekStartsOn?: number;
   now: string;
 };
@@ -115,13 +116,14 @@ export class HouseholdRepository {
     const current = await this.findById(id);
     if (!current) return null;
     const name = input.name ?? current.name;
+    const timezone = input.timezone ?? current.timezone;
     const weekStartsOn = input.weekStartsOn ?? current.weekStartsOn;
 
     await this.db
-      .prepare("UPDATE households SET name = ?, week_starts_on = ?, updated_at = ? WHERE id = ?")
-      .bind(name, weekStartsOn, input.now, id)
+      .prepare("UPDATE households SET name = ?, timezone = ?, week_starts_on = ?, updated_at = ? WHERE id = ?")
+      .bind(name, timezone, weekStartsOn, input.now, id)
       .run();
 
-    return { ...current, name, weekStartsOn, updatedAt: input.now };
+    return { ...current, name, timezone, weekStartsOn, updatedAt: input.now };
   }
 }

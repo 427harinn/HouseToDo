@@ -879,7 +879,21 @@ export type CreateHouseholdInput = {
 
 export type UpdateHouseholdInput = {
   name?: string;
+  timezone?: string;
   weekStartsOn?: number;
+};
+
+export type UpdateProfileInput = {
+  displayName: string;
+};
+
+const isValidTimezone = (timezone: string): boolean => {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: timezone }).format();
+    return true;
+  } catch {
+    return false;
+  }
 };
 
 export type JoinHouseholdInput = {
@@ -926,14 +940,31 @@ export const validateUpdateHouseholdInput = (value: unknown): UpdateHouseholdInp
     }
   }
 
+  if ("timezone" in input) {
+    if (typeof input.timezone !== "string" || input.timezone.trim().length === 0) {
+      details.timezone = "タイムゾーンを入力してください。";
+    } else if (input.timezone.trim().length > 100 || !isValidTimezone(input.timezone.trim())) {
+      details.timezone = "タイムゾーンが正しくありません。";
+    } else {
+      output.timezone = input.timezone.trim();
+    }
+  }
+
   if (Object.keys(details).length > 0) {
     throw validationError(details);
   }
-  if (!("name" in output) && !("weekStartsOn" in output)) {
+  if (!("name" in output) && !("timezone" in output) && !("weekStartsOn" in output)) {
     throw validationError({ body: "更新する項目を少なくとも1つ指定してください。" });
   }
 
   return output;
+};
+
+export const validateUpdateProfileInput = (value: unknown): UpdateProfileInput => {
+  const input = asObject(value);
+  const displayName = requiredString(input, "displayName", "表示名", 80).trim();
+  if (displayName.length === 0) throw validationError({ displayName: "表示名を入力してください。" });
+  return { displayName };
 };
 
 export const validateJoinHouseholdInput = (value: unknown): JoinHouseholdInput => {

@@ -1,11 +1,11 @@
-# Milestone: Production UI Migration M4 — Shopping
+# Milestone: Production UI Migration M5 — Other / Settings
 
 ## Current boundary
 
 - M1 Shared UI Foundation is complete.
 - M2 Home + Task is complete on the dedicated production branch. Mockup is used only for design, interaction, and motion reference; production API, auth, permissions, persisted data, and Cloudflare architecture remain authoritative.
-- M3 Calendar is complete on `origin/main` after PR #4. M4 Shopping is complete on `feat/production-shopping-m4`; Draft PR review is pending and it is not merged to main.
-- M5 Other / Settings is explicitly out of scope for this milestone.
+- M3 Calendar is complete on `origin/main` after PR #4. M4 Shopping is complete on `origin/main` after PR #5.
+- M5 Other / Settings is the current milestone on `feat/production-other-settings-m5`.
 - 詳細なM1〜M8計画は[docs/PRODUCTION_UI_MIGRATION.md](../docs/PRODUCTION_UI_MIGRATION.md)を参照。
 
 ## M2 delivery
@@ -34,6 +34,20 @@
 - Add/Edit now use the canonical form and unified reuse picker; templates remain available through legacy routes/backend for M7 cleanup, while reuse selection only prefills the form.
 - `POST /api/shopping/items/reorder` is a new household-scoped additive contract that validates the exact pending-item set and persists `sort_order`; no migration was needed because the existing column was sufficient.
 - Local tests, build, targeted browser capture, parity screenshots, four WebM recordings, GIF previews, four boards, and exactly eight reviewer-upload files are complete. No deployment or remote migration was performed.
+
+## M5 delivery record
+
+- `/other` is the primary Other route with canonical landing rows; detail routes keep the centered back header and omit Bottom Navigation. Legacy `/settings/members` remains intact.
+- Members/invite, Push/browser notification settings, stored-byte storage usage, owner-only household name/timezone updates, avatar/R2 actions, persistent display-name update, read-only email, and real logout are implemented against Production contracts.
+- No migration was needed. Local gates passed: lint, typecheck, build, full Vitest (37 files / 228 tests), and M5 Playwright (5 tests). Evidence contains 16 semantic state captures, four WebM recordings, four GIF previews, four boards, and exactly eight reviewer-upload files.
+- No staging/production deploy, remote D1 migration, secrets/Cron change, PR merge, or M6 work was performed.
+
+# M5 start record (2026-08-25)
+
+- Production base SHA: `585e65f3d976710a19ef5bbc8317d4ebef2c3ddb`
+- Mockup reference SHA: `db8941dc3056f07862014242a349ae366da59e9c`
+- Branch: `feat/production-other-settings-m5`
+- M4 is merged to `main`; M6 is not started.
 
 # Historical milestone: Task model UI and reminder scheduler
 

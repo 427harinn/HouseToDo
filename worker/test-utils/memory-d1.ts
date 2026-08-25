@@ -1124,6 +1124,16 @@ export class MemoryD1 {
         updated_at: String(values[7])
       });
     }
+    if (sql.startsWith("UPDATE users SET display_name")) {
+      const user = this.users.get(String(values[2]));
+      if (user) {
+        this.users.set(user.id, {
+          ...user,
+          display_name: String(values[0]),
+          updated_at: String(values[1])
+        });
+      } else changes = 0;
+    }
     if (sql.startsWith("UPDATE users SET avatar_type = 'r2'")) {
       const user = this.users.get(String(values[5]));
       const expectedType = values[6] as string | null;
@@ -1196,13 +1206,14 @@ export class MemoryD1 {
       });
     }
     if (sql.startsWith("UPDATE households")) {
-      const household = this.households.get(String(values[3]));
+      const household = this.households.get(String(values[4]));
       if (household) {
         this.households.set(household.id, {
           ...household,
           name: String(values[0]),
-          week_starts_on: Number(values[1]),
-          updated_at: String(values[2])
+          timezone: String(values[1]),
+          week_starts_on: Number(values[2]),
+          updated_at: String(values[3])
         });
       } else {
         changes = 0;

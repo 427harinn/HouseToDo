@@ -139,7 +139,7 @@ test("M1 shared navigation and Add sheet work at the 390x844 review viewport", a
   await expect(page).toHaveURL(/\/home$/);
 
   await page.getByRole("button", { name: "その他" }).click();
-  await expect(page).toHaveURL(/\/settings\/members$/);
+  await expect(page).toHaveURL(/\/other$/);
   await expect(page.getByRole("button", { name: "その他" })).toHaveAttribute("aria-current", "page");
   await moveToNeutral(page);
   await page.screenshot({ path: path.join(evidenceDir, "members-other-current-390x844.png"), fullPage: true });

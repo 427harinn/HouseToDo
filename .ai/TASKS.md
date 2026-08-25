@@ -1,6 +1,17 @@
 # Current milestone tasks
 
-## Production UI Migration M4 — Shopping (complete on feature branch; Draft PR pending review)
+## Production UI Migration M5 — Other / Settings (current milestone)
+
+- [x] Record Production/M4-merged main and Mockup latest-main SHAs; complete Mockup parity audit/render
+- [x] Formalize `/other` route and Bottom Navigation Other mapping while preserving legacy `/settings/members`
+- [x] Implement canonical Other landing, Members/invite, Notifications, Storage, Household Settings, and Account screens
+- [x] Preserve member/owner permissions, Push/browser capability flow, notification schedule values, stored-byte/cleanup semantics, avatar/R2 limits, logout, and timezone refresh
+- [x] Add additive household timezone and authenticated profile display-name contracts without a migration
+- [x] Add M5 App, Worker/API, accessibility, integration, and Playwright coverage
+- [x] Generate 16 state captures, four canonical WebM files, four GIF previews, four boards, and exactly eight review-upload files
+- [ ] Run lint, typecheck, full Vitest, build, M5 Playwright/regression smoke; commit, push, and create Draft PR without merge/deploy
+
+## Production UI Migration M4 — Shopping (merged to main)
 
 - [x] Complete Mockup latest-main parity audit and record Production/Mockup SHAs
 - [x] Replace Shopping list with canonical header, flat rows, expand/collapse, purchased section, empty/long/quantity/planned states

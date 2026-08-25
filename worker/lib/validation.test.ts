@@ -7,7 +7,8 @@ import {
   validateLoginInput,
   validateRegisterInput,
   validateTaskWriteInput,
-  validateUpdateHouseholdInput
+  validateUpdateHouseholdInput,
+  validateUpdateProfileInput
 } from "./validation";
 
 describe("validation helpers", () => {
@@ -59,12 +60,20 @@ describe("validation helpers", () => {
   });
 
   it("validates household update input", () => {
-    expect(validateUpdateHouseholdInput({ name: " 新しい家 ", weekStartsOn: 6 })).toEqual({
+    expect(validateUpdateHouseholdInput({ name: " 新しい家 ", timezone: "America/Los_Angeles", weekStartsOn: 6 })).toEqual({
       name: "新しい家",
+      timezone: "America/Los_Angeles",
       weekStartsOn: 6
     });
     expect(() => validateUpdateHouseholdInput({})).toThrow(AppError);
     expect(() => validateUpdateHouseholdInput({ weekStartsOn: 7 })).toThrow(AppError);
+    expect(() => validateUpdateHouseholdInput({ timezone: "Not/AZone" })).toThrow(AppError);
+  });
+
+  it("validates the additive profile display-name contract", () => {
+    expect(validateUpdateProfileInput({ displayName: " 新しい名前 " })).toEqual({ displayName: "新しい名前" });
+    expect(() => validateUpdateProfileInput({ displayName: " " })).toThrow(AppError);
+    expect(() => validateUpdateProfileInput({ displayName: "a".repeat(81) })).toThrow(AppError);
   });
 
   it("validates household join input", () => {

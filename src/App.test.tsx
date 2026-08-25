@@ -416,6 +416,24 @@ describe("App members UI", () => {
   }, 15000);
 });
 
+describe("M5 Other / Settings routes", () => {
+  it("uses /other as the selected Bottom Navigation route and hides it on detail screens", async () => {
+    mockFetch();
+    window.history.replaceState({}, "", "/other");
+    render(<App />);
+
+    expect(await screen.findByRole("heading", { name: "その他" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "その他" })).toHaveAttribute("aria-current", "page");
+    fireEvent.click(screen.getByRole("link", { name: "メンバー" }));
+    await waitFor(() => expect(window.location.pathname).toBe("/other/members"));
+    expect(await screen.findByRole("heading", { name: "メンバー" })).toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: "主要画面" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "戻る" }));
+    await waitFor(() => expect(window.location.pathname).toBe("/other"));
+    expect(screen.getByRole("navigation", { name: "主要画面" })).toBeInTheDocument();
+  });
+});
+
 describe("App image usage UI", () => {
   it("shows usage metrics and cleanup information", async () => {
     mockFetch(household, {

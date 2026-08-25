@@ -347,13 +347,32 @@ describe("worker app household API", () => {
     });
 
     const updated = await app.fetch(
-      patchJson("/api/households/current", { name: "新しい家", weekStartsOn: 0 }, cookie),
+      patchJson("/api/households/current", { name: "新しい家", timezone: "America/Los_Angeles", weekStartsOn: 0 }, cookie),
       env
     );
     await expect(updated.json()).resolves.toMatchObject({
       ok: true,
-      data: { household: { name: "新しい家", weekStartsOn: 0, role: "owner" } }
+      data: { household: { name: "新しい家", timezone: "America/Los_Angeles", weekStartsOn: 0, role: "owner" } }
     });
+  });
+
+  it("updates the current user's display name without changing email or requiring a migration", async () => {
+    const app = createApp();
+    const env = createTestEnv();
+    const { cookie } = await registerUser(env, { email: "profile@example.com", password: "very-long-password", displayName: "Before" });
+    const householdResponse = await app.fetch(postJson("/api/households", { name: "Profile House" }, cookie), env);
+    expect(householdResponse.status).toBe(201);
+
+    const update = await app.fetch(patchJson("/api/account/profile", { displayName: "After" }, cookie), env);
+    await expect(update.json()).resolves.toMatchObject({
+      ok: true,
+      data: { user: { email: "profile@example.com", displayName: "After" } }
+    });
+
+    const current = await app.fetch(new Request("https://example.test/api/auth/me", { headers: { cookie } }), env);
+    await expect(current.json()).resolves.toMatchObject({ data: { user: { email: "profile@example.com", displayName: "After" } } });
+    const members = await app.fetch(new Request("https://example.test/api/households/current/members", { headers: { cookie } }), env);
+    await expect(members.json()).resolves.toMatchObject({ data: { members: [{ displayName: "After" }] } });
   });
 
   it("invites another user, lists members, and rejects member-only owner actions", async () => {
