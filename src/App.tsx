@@ -5190,45 +5190,68 @@ function ShoppingItemFormScreen({
             />
           </FormField>
           <div className="shopping-image-field" aria-live="polite">
-            <label htmlFor="shopping-image">写真</label>
+            <div className="shopping-image-heading">
+              <label htmlFor="shopping-image">写真</label>
+              {previewUrl || existingImage ? <span className="shopping-image-state">選択済み</span> : null}
+            </div>
             <ImageUploadUsageHint
               mode={mode}
               usage={imageUsage}
               loading={imageUsageLoading}
             />
-            {previewUrl ? (
-              <img
-                className="shopping-image-preview"
-                src={previewUrl}
-                alt={`${form.name || "商品の"}写真のプレビュー`}
-              />
-            ) : existingImage ? (
-              <img
-                className="shopping-image-preview"
-                src={getShoppingItemImageUrl(itemId!, existingImage.updatedAt)}
-                alt={`${form.name || "商品の"}写真`}
-              />
-            ) : null}
-            {selectedImage ? (
-              <small>
-                縮小後: {(selectedImage.size / 1024).toFixed(0)}KB /{" "}
-                {selectedImage.width}×{selectedImage.height}px
-              </small>
-            ) : null}
-            <div className="shopping-image-options" aria-label="画像の追加方法">
-              <Button
-                disabled={
-                  imageStatus !== "idle" ||
-                  submitting ||
-                  (mode === "create" &&
-                    !!imageUsage &&
-                    imageUsage.activeCount >= imageUsage.activeCountLimit)
-                }
-                onClick={() => libraryInputRef.current?.click()}
-              >
-                写真を選ぶ
-              </Button>
-            </div>
+            {previewUrl || existingImage ? (
+              <div className="shopping-image-preview-row">
+                {previewUrl ? (
+                  <img
+                    className="shopping-image-preview"
+                    src={previewUrl}
+                    alt={`${form.name || "商品の"}写真のプレビュー`}
+                  />
+                ) : existingImage ? (
+                  <img
+                    className="shopping-image-preview"
+                    src={getShoppingItemImageUrl(itemId!, existingImage.updatedAt)}
+                    alt={`${form.name || "商品の"}写真`}
+                  />
+                ) : null}
+                <div className="inline-actions">
+                  {selectedImage ? (
+                    <Button
+                      variant="secondary"
+                      disabled={imageStatus !== "idle"}
+                      onClick={removeSelectedImage}
+                    >
+                      外す
+                    </Button>
+                  ) : null}
+                  {existingImage && !selectedImage ? (
+                    <Button
+                      variant="secondary"
+                      disabled={imageStatus !== "idle" || submitting}
+                      onClick={() => void removeExistingImage()}
+                    >
+                      外す
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+            ) : (
+              <div className="shopping-image-options" aria-label="画像の追加方法">
+                <Button
+                  disabled={
+                    imageStatus !== "idle" ||
+                    submitting ||
+                    (mode === "create" &&
+                      !!imageUsage &&
+                      imageUsage.activeCount >= imageUsage.activeCountLimit)
+                  }
+                  onClick={() => libraryInputRef.current?.click()}
+                >
+                  <ImageIcon aria-hidden="true" />
+                  写真を選ぶ
+                </Button>
+              </div>
+            )}
             <input
               ref={libraryInputRef}
               aria-label="写真ファイルを選択"
@@ -5245,26 +5268,12 @@ function ShoppingItemFormScreen({
               onChange={handleImageChange}
               type="file"
             />
-            <div className="inline-actions">
-              {selectedImage ? (
-                <Button
-                  variant="ghost"
-                  disabled={imageStatus !== "idle"}
-                  onClick={removeSelectedImage}
-                >
-                  選択解除
-                </Button>
-              ) : null}
-              {existingImage && !selectedImage ? (
-                <Button
-                  variant="danger"
-                  disabled={imageStatus !== "idle" || submitting}
-                  onClick={() => void removeExistingImage()}
-                >
-                  写真を削除
-                </Button>
-              ) : null}
-            </div>
+            {selectedImage ? (
+              <small className="shopping-image-processing-detail">
+                縮小後: {(selectedImage.size / 1024).toFixed(0)}KB /{" "}
+                {selectedImage.width}×{selectedImage.height}px
+              </small>
+            ) : null}
             {imageStatus === "processing" ? (
               <p role="status">写真を準備しています…</p>
             ) : null}
