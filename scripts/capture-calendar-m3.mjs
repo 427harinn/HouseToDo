@@ -144,7 +144,7 @@ async function screenshotMockup(browser, name, state, extra = "", interact) {
   await page.waitForTimeout(250);
   await page.locator(".calendar-page").waitFor();
   if (interact) await interact(page);
-  await page.evaluate(() => document.activeElement instanceof HTMLElement && document.activeElement.blur());
+  await page.evaluate("document.activeElement instanceof HTMLElement && document.activeElement.blur()");
   await page.mouse.move(1, 1);
   await page.screenshot({ path: `${evidence}/mockup/${name}.png`, fullPage: true });
   await page.close();
@@ -179,7 +179,7 @@ await screenshotProduction(browser, "07-calendar-completed-open", { completed: t
 await screenshotProduction(browser, "08-calendar-completed-swipe", { completed: true, keepDirect: true, shopping: true }, "/calendar?date=2026-08-20", async (page) => { await page.getByRole("button", { name: /完了済み/ }).click(); const row = page.locator(".calendar-history-row"); const box = await row.boundingBox(); if (!box) throw new Error("completed row missing"); await page.mouse.move(box.x + box.width - 16, box.y + box.height / 2); await page.mouse.down(); await page.mouse.move(box.x + 8, box.y + box.height / 2, { steps: 8 }); await page.mouse.up(); await page.getByRole("button", { name: "戻す" }).waitFor(); if (!(await page.getByRole("heading", { name: "8月20日 木曜日" }).isVisible())) throw new Error("completed swipe changed selected date"); });
 await screenshotProduction(browser, "09-calendar-deleted-completed-restore-only", { completed: true, deleted: true, keepDirect: true, shopping: true }, "/calendar?date=2026-08-20", async (page) => { await page.getByRole("button", { name: /完了済み/ }).click(); const row = page.locator(".calendar-history-row"); const box = await row.boundingBox(); if (!box) throw new Error("deleted completed row missing"); await page.mouse.move(box.x + box.width - 16, box.y + box.height / 2); await page.mouse.down(); await page.mouse.move(box.x + 8, box.y + box.height / 2, { steps: 8 }); await page.mouse.up(); await page.getByRole("button", { name: "戻す" }).waitFor(); if (await page.getByRole("button", { name: "編集" }).count()) throw new Error("deleted completed row exposed edit action"); });
 await screenshotProduction(browser, "10-calendar-after-restore", { completed: false, shopping: true }, "/calendar?date=2026-08-20");
-await screenshotProduction(browser, "11-calendar-next-month", { shopping: true }, "/calendar", async (page) => { await page.getByRole("button", { name: "次の月" }).click(); await page.getByRole("heading", { name: "2026年9月" }).waitFor(); await page.evaluate(() => document.activeElement instanceof HTMLElement && document.activeElement.blur()); await page.mouse.move(1, 1); });
+await screenshotProduction(browser, "11-calendar-next-month", { shopping: true }, "/calendar", async (page) => { await page.getByRole("button", { name: "次の月" }).click(); await page.getByRole("heading", { name: "2026年9月" }).waitFor(); await page.evaluate("document.activeElement instanceof HTMLElement && document.activeElement.blur()"); await page.mouse.move(1, 1); });
 await screenshotProduction(browser, "12-calendar-task-edit-return-context", { shopping: false }, "/calendar?date=2026-08-20");
 await screenshotMockup(browser, "01-calendar-normal", "normal");
 await screenshotMockup(browser, "02-calendar-dense", "dense");
