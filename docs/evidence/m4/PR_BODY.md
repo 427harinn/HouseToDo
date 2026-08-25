@@ -6,6 +6,7 @@ PR #5 updates the M4 Shopping migration on `feat/production-shopping-m4`. The re
 
 - Correct canonical `uilabState` routing for all 20 Mockup screenshots with DOM semantic assertions before capture.
 - Re-captured 20 Production and 20 Mockup states at 390×844, including planned/no-date, quantity-empty, photo, purchased filtering, reuse, and Edit delete confirmation semantics.
+- Aligned Shopping Add/Edit photo controls to the Mockup thumbnail treatment and matched delete-confirmation action styling without changing picker, upload, ownership, or delete behavior.
 - Added pointer capture and a window-level pointerup fallback for long-press drag reorder. Evidence asserts oldest-first initial order, actual pointer drag, visible DOM order change, reorder API response, and reload persistence.
 - Kept swipe as `編集` only, delete in Edit only, and preserved the existing image picker, validation, compression, attachment limits, R2 ownership, and cleanup behavior.
 
@@ -23,37 +24,37 @@ M4 retains the additive `POST /api/shopping/items/reorder` contract with `{ item
 
 ## Visual Evidence
 
-Evidence commit: `cf7de44` (`cf7de4486a859e2005aae7c698282ed47ab10959`)
+Evidence commit: `2ef6fc6` (`2ef6fc6eeb46c28e8913410de8badf5ecbb8271a`)
 
-![Shopping list states](https://raw.githubusercontent.com/427harinn/HouseToDo/cf7de4486a859e2005aae7c698282ed47ab10959/docs/evidence/m4/review-upload/01-shopping-list-states.png)
+![Shopping list states](https://raw.githubusercontent.com/427harinn/HouseToDo/2ef6fc6eeb46c28e8913410de8badf5ecbb8271a/docs/evidence/m4/review-upload/01-shopping-list-states.png)
 
-![Shopping item and purchase states](https://raw.githubusercontent.com/427harinn/HouseToDo/cf7de4486a859e2005aae7c698282ed47ab10959/docs/evidence/m4/review-upload/02-shopping-item-purchase-states.png)
+![Shopping item and purchase states](https://raw.githubusercontent.com/427harinn/HouseToDo/2ef6fc6eeb46c28e8913410de8badf5ecbb8271a/docs/evidence/m4/review-upload/02-shopping-item-purchase-states.png)
 
-![Shopping Add and reuse](https://raw.githubusercontent.com/427harinn/HouseToDo/cf7de4486a859e2005aae7c698282ed47ab10959/docs/evidence/m4/review-upload/03-shopping-add-reuse.png)
+![Shopping Add and reuse](https://raw.githubusercontent.com/427harinn/HouseToDo/2ef6fc6eeb46c28e8913410de8badf5ecbb8271a/docs/evidence/m4/review-upload/03-shopping-add-reuse.png)
 
-![Shopping Edit and integrations](https://raw.githubusercontent.com/427harinn/HouseToDo/cf7de4486a859e2005aae7c698282ed47ab10959/docs/evidence/m4/review-upload/04-shopping-edit-integrations.png)
+![Shopping Edit and integrations](https://raw.githubusercontent.com/427harinn/HouseToDo/2ef6fc6eeb46c28e8913410de8badf5ecbb8271a/docs/evidence/m4/review-upload/04-shopping-edit-integrations.png)
 
-Boards contain the state name, Production render target SHA `c86486a99155dd8ba529bbdec88030bf29b516fb`, Mockup SHA `db8941dc3056f07862014242a349ae366da59e9c`, and Evidence source. The `reuse-selected` comparison intentionally shows Mockup photo versus Production no-photo under the documented deviation below.
+Boards contain the state name, Production render target SHA `b90f93f155121428cd9b49ba98cd12f8b4d35964`, Mockup SHA `db8941dc3056f07862014242a349ae366da59e9c`, and Evidence source. The `reuse-selected` comparison intentionally shows Mockup photo versus Production no-photo under the documented deviation below.
 
 ## Motion Evidence
 
 GIF previews are derived from the canonical WebM recordings without changing playback speed. The WebM files begin from a settled list state.
 
-![Expand/collapse preview](https://raw.githubusercontent.com/427harinn/HouseToDo/cf7de4486a859e2005aae7c698282ed47ab10959/docs/evidence/m4/motion/previews/shopping-expand-collapse.gif)
+![Expand/collapse preview](https://raw.githubusercontent.com/427harinn/HouseToDo/2ef6fc6eeb46c28e8913410de8badf5ecbb8271a/docs/evidence/m4/motion/previews/shopping-expand-collapse.gif)
 
-[Canonical WebM: shopping-expand-collapse.webm](https://github.com/427harinn/HouseToDo/blob/cf7de4486a859e2005aae7c698282ed47ab10959/docs/evidence/m4/motion/shopping-expand-collapse.webm)
+[Canonical WebM: shopping-expand-collapse.webm](https://github.com/427harinn/HouseToDo/blob/2ef6fc6eeb46c28e8913410de8badf5ecbb8271a/docs/evidence/m4/motion/shopping-expand-collapse.webm)
 
-![Purchase/restore preview](https://raw.githubusercontent.com/427harinn/HouseToDo/cf7de4486a859e2005aae7c698282ed47ab10959/docs/evidence/m4/motion/previews/shopping-purchase-restore.gif)
+![Purchase/restore preview](https://raw.githubusercontent.com/427harinn/HouseToDo/2ef6fc6eeb46c28e8913410de8badf5ecbb8271a/docs/evidence/m4/motion/previews/shopping-purchase-restore.gif)
 
-[Canonical WebM: shopping-purchase-restore.webm](https://github.com/427harinn/HouseToDo/blob/cf7de4486a859e2005aae7c698282ed47ab10959/docs/evidence/m4/motion/shopping-purchase-restore.webm)
+[Canonical WebM: shopping-purchase-restore.webm](https://github.com/427harinn/HouseToDo/blob/2ef6fc6eeb46c28e8913410de8badf5ecbb8271a/docs/evidence/m4/motion/shopping-purchase-restore.webm)
 
-![Swipe Edit preview](https://raw.githubusercontent.com/427harinn/HouseToDo/cf7de4486a859e2005aae7c698282ed47ab10959/docs/evidence/m4/motion/previews/shopping-swipe-edit.gif)
+![Swipe Edit preview](https://raw.githubusercontent.com/427harinn/HouseToDo/2ef6fc6eeb46c28e8913410de8badf5ecbb8271a/docs/evidence/m4/motion/previews/shopping-swipe-edit.gif)
 
-[Canonical WebM: shopping-swipe-edit.webm](https://github.com/427harinn/HouseToDo/blob/cf7de4486a859e2005aae7c698282ed47ab10959/docs/evidence/m4/motion/shopping-swipe-edit.webm)
+[Canonical WebM: shopping-swipe-edit.webm](https://github.com/427harinn/HouseToDo/blob/2ef6fc6eeb46c28e8913410de8badf5ecbb8271a/docs/evidence/m4/motion/shopping-swipe-edit.webm)
 
-![Reorder preview](https://raw.githubusercontent.com/427harinn/HouseToDo/cf7de4486a859e2005aae7c698282ed47ab10959/docs/evidence/m4/motion/previews/shopping-reorder.gif)
+![Reorder preview](https://raw.githubusercontent.com/427harinn/HouseToDo/2ef6fc6eeb46c28e8913410de8badf5ecbb8271a/docs/evidence/m4/motion/previews/shopping-reorder.gif)
 
-[Canonical WebM: shopping-reorder.webm](https://github.com/427harinn/HouseToDo/blob/cf7de4486a859e2005aae7c698282ed47ab10959/docs/evidence/m4/motion/shopping-reorder.webm)
+[Canonical WebM: shopping-reorder.webm](https://github.com/427harinn/HouseToDo/blob/2ef6fc6eeb46c28e8913410de8badf5ecbb8271a/docs/evidence/m4/motion/shopping-reorder.webm)
 
 ## Deviations
 
