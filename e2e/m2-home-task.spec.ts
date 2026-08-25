@@ -3,9 +3,8 @@ import { copyFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 
 const evidenceDir = path.resolve(process.env.PLAYWRIGHT_ARTIFACT_DIR ?? "artifacts/playwright/m2-home-task");
-const taskId = "m2-task-1";
 const today = "2026-08-25";
-type HomeState = { completed: boolean; passed: boolean; deleted: boolean; empty?: boolean };
+type HomeState = { completed: boolean; passed: boolean; deleted: boolean; empty?: boolean; completedTaskId?: string; completedTitle?: string; passedTaskId?: string; passedTitle?: string };
 
 test.use({
   viewport: { width: 390, height: 844 },
@@ -27,7 +26,7 @@ const task = (id: string, title: string, scope: "date" | "week" | "month" | "non
   overdue: scope === "overdue"
 });
 
-const historyRecord = (id: string, status: "completed" | "skipped", title: string, taskActive = true) => ({
+const historyRecord = (id: string, taskId: string, status: "completed" | "skipped", title: string, taskActive = true) => ({
   id,
   taskId,
   status,
@@ -44,8 +43,8 @@ const dashboard = (state: HomeState) => ({
   todayTasks: state.empty ? [] : state.completed || state.passed ? [task("m2-date", "朝の片付け", "date"), task("m2-none", "期限なし", "none")] : [task("m2-overdue", "期限超過の家事", "overdue"), task("m2-date", "朝の片付け", "date"), task("m2-week", "週の家事", "week"), task("m2-month", "月の家事", "month"), task("m2-none", "期限なし", "none", "user-2")],
   homeTasks: state.empty ? [] : state.completed || state.passed ? [task("m2-date", "朝の片付け", "date"), task("m2-none", "期限なし", "none")] : [task("m2-overdue", "期限超過の家事", "overdue"), task("m2-date", "朝の片付け", "date"), task("m2-week", "週の家事", "week"), task("m2-month", "月の家事", "month"), task("m2-none", "期限なし", "none", "user-2")],
   weeklyTasks: [],
-  completedRecords: state.completed ? [historyRecord("record-completed", "completed", "ゴミ出し", state.deleted)] : [],
-  passedRecords: state.passed ? [historyRecord("record-passed", "skipped", "窓ふき", false)] : [],
+  completedRecords: state.completed ? [historyRecord("record-completed", state.completedTaskId ?? "m2-task-1", "completed", state.completedTitle ?? "ゴミ出し", state.deleted)] : [],
+  passedRecords: state.passed ? [historyRecord("record-passed", state.passedTaskId ?? "m2-task-1", "skipped", state.passedTitle ?? "窓ふき", false)] : [],
   shopping: { pendingCount: 2, previewItems: [] },
   members: [{ userId: "user-1", displayName: "さや", role: "owner", color: "#d9f2eb", avatarUrl: null }, { userId: "user-2", displayName: "たくや", role: "member", color: "#e4eef8", avatarUrl: null }]
 });
@@ -61,8 +60,15 @@ const installRoutes = async (page: Page, state: HomeState) => {
     if (url.pathname === "/api/households/current/members") return json({ members: dashboard(state).members });
     if (url.pathname === "/api/households/current/image-usage") return json({ activeCount: 0, activeBytes: 0, reservedCount: 0, reservedBytes: 0, pendingCleanupBytes: 0, pendingCleanupUnknownCount: 0, storedBytes: 0, storedBytesKnown: true, activeCountLimit: 50, activeBytesLimit: 52428800, storedBytesLimit: 78643200, dailyUploadLimit: 20 });
     if (url.pathname === "/api/dashboard/today") return json(dashboard(state));
-    if (url.pathname === `/api/tasks/${taskId}/complete` && request.method() === "POST") { state.completed = true; return json({ result: { status: "completed" } }); }
-    if (url.pathname === `/api/tasks/${taskId}/restore` && request.method() === "POST") { state.completed = false; state.deleted = false; return json({ result: { reset: true } }); }
+    const actionMatch = url.pathname.match(/^\/api\/tasks\/([^/]+)\/(complete|skip|restore)$/);
+    if (actionMatch && request.method() === "POST") {
+      const [, actionTaskId, action] = actionMatch;
+      const titles: Record<string, string> = { "m2-overdue": "期限超過の家事", "m2-date": "朝の片付け", "m2-week": "週の家事", "m2-month": "月の家事", "m2-none": "期限なし" };
+      if (action === "complete") { state.completed = true; state.completedTaskId = actionTaskId; state.completedTitle = titles[actionTaskId] ?? "ゴミ出し"; }
+      if (action === "skip") { state.passed = true; state.passedTaskId = actionTaskId; state.passedTitle = titles[actionTaskId] ?? "窓ふき"; }
+      if (action === "restore") { state.completed = false; state.passed = false; state.deleted = false; }
+      return json({ result: action === "restore" ? { reset: true } : { status: action === "skip" ? "skipped" : "completed" } });
+    }
     if (url.pathname === "/api/tasks/recent") return json({ tasks: [{ id: "recent-1", title: "床そうじ", recurrenceType: "daily", modelRecurrenceType: "daily", assignmentType: "anyone", assignedUserId: null, description: "", startDate: "2026-08-01", targetDate: null, deadlineTime: null, notificationOffsetMinutes: null, weekdays: [], weeklyTargetCount: null, weeklyDeadlineWeekday: null, monthlyDayOfMonth: null, monthlyDeadlineType: null, active: true }] });
     if (url.pathname.startsWith("/api/tasks/task-edit") && !url.pathname.endsWith("/history") && request.method() === "GET") return json({ task: { id: "task-edit", title: "編集する家事", description: "メモ", recurrenceType: "daily", modelRecurrenceType: "daily", assignmentType: "anyone", assignedUserId: null, startDate: today, targetDate: null, deadlineTime: "09:00", notificationOffsetMinutes: 30, weekdays: [], weeklyTargetCount: null, active: true } });
     if (url.pathname === "/api/tasks/task-edit/history") return json({ records: [{ status: "completed", completedAt: "2026-08-20T01:00:00.000Z" }] });
@@ -109,6 +115,7 @@ test("M2 Home visual states and swipe actions at 390x844", async ({ page }) => {
   await screenshot(page, "03-home-completed-collapsed-390x844.png");
   await completedToggle.click();
   await expect(page.getByText("ゴミ出し")).toBeVisible();
+  await page.waitForTimeout(240);
   await neutralize(page);
   await screenshot(page, "04-home-completed-open-390x844.png");
 
@@ -116,6 +123,7 @@ test("M2 Home visual states and swipe actions at 390x844", async ({ page }) => {
   await page.reload();
   await page.getByRole("button", { name: /パス済み 1/ }).click();
   await expect(page.getByText("窓ふき")).toBeVisible();
+  await page.waitForTimeout(240);
   await screenshot(page, "05-home-passed-open-390x844.png");
 
   await page.reload();
@@ -139,6 +147,7 @@ test("M2 Task add/reuse/edit/delete evidence", async ({ page }) => {
   await screenshot(page, "08-task-add-390x844.png");
   await page.getByRole("button", { name: "以前の項目から選ぶ" }).click();
   await expect(page.getByRole("dialog", { name: "以前の項目から選ぶ" })).toBeVisible();
+  await page.waitForTimeout(300);
   await screenshot(page, "09-task-reuse-picker-390x844.png");
   await page.getByRole("button", { name: /床そうじ/ }).click();
   await page.goto("/tasks/task-edit/edit");
@@ -148,6 +157,7 @@ test("M2 Task add/reuse/edit/delete evidence", async ({ page }) => {
   await screenshot(page, "10-task-edit-last-completion-390x844.png");
   await page.getByRole("button", { name: "この家事を削除" }).click();
   await expect(page.getByRole("dialog", { name: "この家事を削除しますか？" })).toBeVisible();
+  await page.waitForTimeout(300);
   await screenshot(page, "11-task-delete-confirmation-390x844.png");
 });
 

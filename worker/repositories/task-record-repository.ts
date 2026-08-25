@@ -165,6 +165,28 @@ export class TaskRecordRepository {
     return (result.results ?? []).map((row) => toRecord(row)!);
   }
 
+  async listActionRecordsBetween(householdId: string, from: string, to: string): Promise<TaskRecord[]> {
+    const result = await this.db
+      .prepare(
+        `SELECT ${selectRecord}
+         FROM task_records tr
+         LEFT JOIN users u ON u.id = tr.acted_by
+         WHERE tr.household_id = ?
+           AND (
+             (tr.completed_at >= ? AND tr.completed_at < ?)
+             OR (tr.skipped_at >= ? AND tr.skipped_at < ?)
+             OR (
+               tr.completed_at IS NULL AND tr.skipped_at IS NULL
+               AND tr.updated_at >= ? AND tr.updated_at < ?
+             )
+           )
+         ORDER BY tr.updated_at DESC`
+      )
+      .bind(householdId, from, to, from, to, from, to)
+      .all<TaskRecordRow>();
+    return (result.results ?? []).map((row) => toRecord(row)!);
+  }
+
   async listWeeklyRecords(householdId: string, targetWeekStart: string): Promise<TaskRecord[]> {
     const result = await this.db
       .prepare(

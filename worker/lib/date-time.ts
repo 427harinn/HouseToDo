@@ -112,3 +112,8 @@ export const zonedDateTimeToDate = (dateKey: string, time: string, timezone: str
   }
   return new Date(instant);
 };
+
+export const zonedDateRangeToUtc = (dateKey: string, timezone: string): { from: string; to: string } => ({
+  from: zonedDateTimeToDate(dateKey, "00:00", timezone).toISOString(),
+  to: zonedDateTimeToDate(addDateKey(dateKey, 1), "00:00", timezone).toISOString()
+});

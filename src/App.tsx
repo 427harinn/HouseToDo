@@ -1332,8 +1332,9 @@ function HomeScreen({
   const prefersReducedMotion = usePrefersReducedMotion();
   const [completedOpen, setCompletedOpen] = useState(false);
   const [passedOpen, setPassedOpen] = useState(false);
-  const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
+  const [completingIds, setCompletingIds] = useState<Set<string>>(new Set());
   const [passingIds, setPassingIds] = useState<Set<string>>(new Set());
+  const [restoringIds, setRestoringIds] = useState<Set<string>>(new Set());
   const [statusMessage, setStatusMessage] = useState("");
   const today = data?.date ?? todayInTimezone(household.timezone);
   const activeTasks = (data?.homeTasks ?? data?.todayTasks ?? []).filter(
@@ -1342,14 +1343,15 @@ function HomeScreen({
   const completed = data?.completedRecords ?? [];
   const passed = data?.passedRecords ?? [];
   const wait = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, prefersReducedMotion ? 0 : ms));
-  const setBusy = (id: string, busy: boolean) => setBusyIds((current) => {
+  const setActionId = (setter: React.Dispatch<React.SetStateAction<Set<string>>>, id: string, busy: boolean) => setter((current) => {
     const next = new Set(current);
     if (busy) next.add(id); else next.delete(id);
     return next;
   });
+  const isBusy = (id: string) => completingIds.has(id) || passingIds.has(id) || restoringIds.has(id);
   const complete = async (task: TodayTask) => {
-    if (busyIds.has(task.id)) return;
-    setBusy(task.id, true);
+    if (isBusy(task.id)) return;
+    setActionId(setCompletingIds, task.id, true);
     setStatusMessage("");
     const request = changeTaskState(task.id, "complete", homeTaskActionScope(task, household));
     try {
@@ -1359,13 +1361,12 @@ function HomeScreen({
       setStatusMessage(apiErrorMessage(error));
       await refresh();
     } finally {
-      setBusy(task.id, false);
+      setActionId(setCompletingIds, task.id, false);
     }
   };
   const pass = async (task: TodayTask) => {
-    if (busyIds.has(task.id)) return;
-    setBusy(task.id, true);
-    setPassingIds((current) => new Set(current).add(task.id));
+    if (isBusy(task.id)) return;
+    setActionId(setPassingIds, task.id, true);
     setStatusMessage(`「${task.title}」をパスしました`);
     try {
       await Promise.all([
@@ -1382,12 +1383,12 @@ function HomeScreen({
         next.delete(task.id);
         return next;
       });
-      setBusy(task.id, false);
+      setActionId(setPassingIds, task.id, false);
     }
   };
   const restore = async (record: DashboardToday["completedRecords"][number]) => {
-    if (busyIds.has(record.taskId)) return;
-    setBusy(record.taskId, true);
+    if (isBusy(record.taskId)) return;
+    setActionId(setRestoringIds, record.taskId, true);
     try {
       await Promise.all([restoreTaskRecord(record.taskId, record.id), wait(MOTION_MS.restore)]);
       setStatusMessage(`「${record.title}」を戻しました`);
@@ -1396,7 +1397,7 @@ function HomeScreen({
       setStatusMessage(apiErrorMessage(error));
       await refresh();
     } finally {
-      setBusy(record.taskId, false);
+      setActionId(setRestoringIds, record.taskId, false);
     }
   };
   const editRecord = (record: DashboardToday["completedRecords"][number]) => onNavigate(`/tasks/${record.taskId}/edit`);
@@ -1414,15 +1415,15 @@ function HomeScreen({
               <HomeSwipeRow
                 key={task.id}
                 actionsOpenInitially={false}
-                busy={busyIds.has(task.id)}
+                busy={isBusy(task.id)}
                 onEdit={() => onNavigate(`/tasks/${task.id}/edit`)}
                 onSecondary={() => void pass(task)}
                 secondaryLabel="パス"
-                rowClassName={busyIds.has(task.id) ? passingIds.has(task.id) ? "is-passing-row" : "is-completing-row" : ""}
+                rowClassName={completingIds.has(task.id) ? "is-completing-row" : passingIds.has(task.id) ? "is-passing-row" : ""}
               >
-                <button className="m2-home__row-main" type="button" disabled={busyIds.has(task.id)} onClick={() => void complete(task)} aria-label={`${task.title}を完了`}>
-                  <span className={`m2-home__check m2-home__check--${homeTaskScope(task)}${busyIds.has(task.id) ? " is-completing" : ""}`} aria-hidden="true">
-                    {busyIds.has(task.id) ? <Check /> : null}
+                <button className="m2-home__row-main" type="button" disabled={isBusy(task.id)} onClick={() => void complete(task)} aria-label={`${task.title}を完了`}>
+                  <span className={`m2-home__check m2-home__check--${homeTaskScope(task)}${completingIds.has(task.id) ? " is-completing" : ""}`} aria-hidden="true">
+                    {completingIds.has(task.id) ? <Check /> : null}
                   </span>
                   <span className="m2-home__row-details">
                     <span className="m2-home__task-title">{task.title}</span>
@@ -1444,7 +1445,7 @@ function HomeScreen({
             <button className="m2-home__history-toggle" type="button" aria-expanded={completedOpen} onClick={() => setCompletedOpen((open) => !open)}>
               <span>完了済み {completed.length}</span><ChevronRight aria-hidden="true" className={completedOpen ? "is-open" : ""} />
             </button>
-            {completedOpen ? <div className="m2-home__history-list">{completed.map((record) => <HomeHistoryRow key={record.id} record={record} busy={busyIds.has(record.taskId)} onEdit={() => editRecord(record)} onRestore={() => void restore(record)} />)}</div> : null}
+            {completedOpen ? <div className="m2-home__history-list">{completed.map((record) => <HomeHistoryRow key={record.id} record={record} busy={restoringIds.has(record.taskId)} onEdit={() => editRecord(record)} onRestore={() => void restore(record)} />)}</div> : null}
           </section>
         ) : null}
         {passed.length > 0 ? (
@@ -1452,7 +1453,7 @@ function HomeScreen({
             <button className="m2-home__history-toggle" type="button" aria-expanded={passedOpen} onClick={() => setPassedOpen((open) => !open)}>
               <span>パス済み {passed.length}</span><ChevronRight aria-hidden="true" className={passedOpen ? "is-open" : ""} />
             </button>
-            {passedOpen ? <div className="m2-home__history-list">{passed.map((record) => <HomeHistoryRow key={record.id} record={record} busy={busyIds.has(record.taskId)} onEdit={() => editRecord(record)} onRestore={() => void restore(record)} passed />)}</div> : null}
+            {passedOpen ? <div className="m2-home__history-list">{passed.map((record) => <HomeHistoryRow key={record.id} record={record} busy={restoringIds.has(record.taskId)} onEdit={() => editRecord(record)} onRestore={() => void restore(record)} passed />)}</div> : null}
           </section>
         ) : null}
         <button className="m2-home__shopping" type="button" onClick={() => onNavigate("/shopping")}>
@@ -2189,10 +2190,10 @@ function M2TaskFormScreen({ household, mode, taskId, onNavigate }: { household: 
         <form className="m2-task-form" aria-busy={submitting || deleting} onSubmit={(event) => void submit(event)}>
           <ErrorMessage message={message} />
           <FormField id="m2-task-title" label="家事名" error={errors.title}><TextInput id="m2-task-title" value={form.title} error={errors.title} onChange={(value) => setField("title", value)} placeholder="家事名を入力" /></FormField>
-          <div className="m2-task-form__row"><span>繰り返し</span><strong>{m2RepeatLabel(form)}</strong><button type="button" aria-label={`繰り返し: ${m2RepeatLabel(form)}`} onClick={() => setSheet("repeat")}><ChevronRight aria-hidden="true" /></button></div>
+          <button className="m2-task-form__row m2-task-form__row--button" type="button" aria-label={`繰り返し: ${m2RepeatLabel(form)}`} onClick={() => setSheet("repeat")}><span>繰り返し</span><strong>{m2RepeatLabel(form)}</strong><span className="m2-task-form__row-chevron" aria-hidden="true"><ChevronRight /></span></button>
           {form.recurrence === "legacy_weekly" ? <div className="legacy-task-notice" role="note"><strong>週に{form.weeklyTargetCount}回（旧形式）</strong><span>回数の意味を変えずに編集します。新しい繰り返しへ自動変換しません。</span></div> : null}
           <FormField id="m2-task-start-date" label="開始日" error={errors.startDate}><input id="m2-task-start-date" type="date" value={form.startDate || today} onChange={(event) => setField("startDate", event.target.value)} aria-invalid={errors.startDate ? "true" : "false"} /></FormField>
-          <label className="m2-task-form__toggle"><span>終日</span><input type="checkbox" checked={!form.deadlineTime} onChange={(event) => setField("deadlineTime", event.target.checked ? "" : "09:00")} /><span>{form.deadlineTime ? "オフ" : "オン"}</span></label>
+          <label className="m2-task-form__toggle"><span>終日</span><span className={`m2-task-form__switch${!form.deadlineTime ? " is-on" : ""}`}><input className="m2-task-form__switch-input" type="checkbox" checked={!form.deadlineTime} aria-label="終日" onChange={(event) => setField("deadlineTime", event.target.checked ? "" : "09:00")} /><span className="m2-task-form__switch-track" aria-hidden="true"><span /></span></span><span>{form.deadlineTime ? "オフ" : "オン"}</span></label>
           <div className="m2-task-form__date-grid">
             <FormField id="m2-task-date" label={form.recurrence === "once" ? "日付" : "日付（開始日）"} error={errors.targetDate}><input id="m2-task-date" type="date" value={dateValue || today} onChange={(event) => updateDate(event.target.value)} aria-invalid={errors.targetDate ? "true" : "false"} /></FormField>
             {form.deadlineTime ? <FormField id="m2-task-time" label="時刻" error={errors.deadlineTime}><input id="m2-task-time" type="time" value={form.deadlineTime} onChange={(event) => setField("deadlineTime", event.target.value)} /></FormField> : null}

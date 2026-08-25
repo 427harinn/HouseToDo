@@ -1631,11 +1631,19 @@ textarea[aria-invalid="true"] {
 .m2-task-form .form-field label { font-size: .875rem; font-weight: 500; }
 .m2-task-form input, .m2-task-form select, .m2-task-form textarea { background: var(--color-surface); }
 .m2-task-form__row { position: relative; display: flex; width: 100%; min-height: 52px; align-items: center; gap: 12px; padding: 8px 0; border: 0; border-bottom: 1px solid var(--color-border); background: transparent; color: var(--color-text); text-align: left; }
+.m2-task-form__row--button { cursor: pointer; font: inherit; }
 .m2-task-form__row > span { color: var(--color-text-secondary); font-size: .875rem; }
 .m2-task-form__row > strong { flex: 1; min-width: 0; font-weight: 400; text-align: right; }
-.m2-task-form__row > svg { width: 18px; color: var(--color-text-secondary); }
+.m2-task-form__row-chevron { display: inline-flex; width: 44px; min-width: 44px; min-height: 44px; align-items: center; justify-content: center; color: var(--color-text-secondary); }
+.m2-task-form__row-chevron svg { width: 18px; }
 .m2-task-form__toggle { display: flex; min-height: 52px; align-items: center; gap: 10px; border-bottom: 1px solid var(--color-border); color: var(--color-text-secondary); font-size: .875rem; }
-.m2-task-form__toggle input { width: 44px; min-height: 24px; margin-left: auto; accent-color: var(--color-primary-strong); }
+.m2-task-form__switch { position: relative; width: 44px; height: 26px; margin-left: auto; flex: 0 0 44px; }
+.m2-task-form__switch-input { position: absolute; inset: 0; z-index: 1; width: 44px; height: 26px; margin: 0; opacity: 0; cursor: pointer; }
+.m2-task-form__switch-track { position: absolute; inset: 0; border-radius: 999px; background: var(--color-border); transition: background-color 160ms ease; }
+.m2-task-form__switch-track > span { position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgb(44 62 49 / 18%); transition: transform 160ms ease; }
+.m2-task-form__switch.is-on .m2-task-form__switch-track { background: var(--color-primary-strong); }
+.m2-task-form__switch.is-on .m2-task-form__switch-track > span { transform: translateX(18px); }
+.m2-task-form__switch-input:focus-visible + .m2-task-form__switch-track { outline: 2px solid var(--color-primary-strong); outline-offset: 3px; }
 .m2-task-form__date-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
 .m2-task-form__assignee { display: inline-flex; align-items: center; justify-content: flex-end; gap: 8px; }
 .m2-task-form__assignee img, .m2-task-form__assignee > span { display: inline-flex; width: 26px; height: 26px; align-items: center; justify-content: center; overflow: hidden; border-radius: 50%; object-fit: cover; }

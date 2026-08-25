@@ -20,6 +20,7 @@ M2まで完了。M3以降のscreen redesignはこのbranchの対象外とする�
 ## M2 backend contract decision
 
 - `GET /api/dashboard/today` retains the legacy `todayTasks`, `summary`, and `weeklyTasks` fields and adds `homeTasks`, `completedRecords`, `passedRecords`, household timezone, member avatar URLs, and the pending Shopping count. Home reads the single active `homeTasks` projection plus the two today-only record collections, so reload reconstructs the same state without fixture data.
+- Home projection queries are scope-bounded: active-task projection reads only the relevant household-local day, week, and period records, while today history uses a UTC range derived from the household timezone. It does not load the household's complete `task_records` history on every Home request.
 - `task_records` uses additive nullable action-time snapshots for title and assigned member identity/display/color/avatar URL. Existing NULL snapshots fall back to the current task/member projection.
 - `POST /api/tasks/:taskId/restore` removes only the requested today record and reactivates an inactive task. It does not delete any other history.
 - Migration `0016_task_record_snapshots.sql` is local-only in M2; no remote D1 or Cloudflare operation was performed.

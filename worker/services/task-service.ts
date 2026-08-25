@@ -1,4 +1,4 @@
-import { getLocalDate, getLocalTime, getWeekEndDate, getWeekStartDate } from "../lib/date-time";
+import { getLocalDate, getLocalTime, getWeekEndDate, getWeekStartDate, zonedDateRangeToUtc } from "../lib/date-time";
 import { projectTaskOnDate } from "../lib/task-model";
 import {
   AppError,
@@ -204,9 +204,18 @@ export class TaskService {
     const targetDate = date ?? getLocalDate(new Date(), household.timezone);
     const allTasks = await this.tasks.listByHouseholdId(household.id, { includeInactive: true });
     const activeTasks = allTasks.filter((task) => task.active);
-    const allRecords = await this.records.listByHouseholdId(household.id);
-    const recordsByTask = byTaskId(allRecords);
     const weekStart = getWeekStartDate(targetDate, household.weekStartsOn);
+    const periodKeys = activeTasks
+      .map((task) => task.modelRecurrenceType ? projectTaskOnDate(task, targetDate).periodKey : null)
+      .filter((key): key is string => Boolean(key));
+    const actionRange = zonedDateRangeToUtc(targetDate, household.timezone);
+    const [dailyRecords, periodRecords, weeklyRecords, actionRecords] = await Promise.all([
+      this.records.listDailyRecords(household.id, targetDate),
+      this.records.listByPeriodKeys(household.id, periodKeys),
+      this.records.listWeeklyRecords(household.id, weekStart),
+      this.records.listActionRecordsBetween(household.id, actionRange.from, actionRange.to)
+    ]);
+    const recordsByTask = byTaskId([...dailyRecords, ...periodRecords, ...weeklyRecords]);
     const projected: TaskWithStatus[] = [];
 
     for (const task of activeTasks) {
@@ -261,7 +270,7 @@ export class TaskService {
       }
     }
 
-    const history = allRecords
+    const history = actionRecords
       .filter((record) => record.status === "completed" || record.status === "skipped")
       .filter((record) => getLocalDate(record.completedAt ?? record.skippedAt ?? record.updatedAt, household.timezone) === targetDate)
       .map((record) => ({ record, task: allTasks.find((task) => task.id === record.taskId) ?? null, taskActive: Boolean(allTasks.find((task) => task.id === record.taskId)?.active) }));
