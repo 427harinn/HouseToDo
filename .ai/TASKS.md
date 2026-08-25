@@ -9,7 +9,7 @@
 - [x] Add additive household timezone and authenticated profile display-name contracts without a migration
 - [x] Add M5 App, Worker/API, accessibility, integration, and Playwright coverage
 - [x] Generate 16 state captures, four canonical WebM files, four GIF previews, four boards, and exactly eight review-upload files
-- [ ] Run lint, typecheck, full Vitest, build, M5 Playwright/regression smoke; commit, push, and create Draft PR without merge/deploy
+- [x] Run lint, typecheck, full Vitest, build, M5 Playwright/regression smoke; commit, push, and create Draft PR without merge/deploy (Docker authenticated E2E unavailable; Calendar/Shopping baseline comparison recorded)
 
 ## Production UI Migration M4 — Shopping (merged to main)
 

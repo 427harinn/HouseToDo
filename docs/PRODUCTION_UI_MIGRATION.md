@@ -101,10 +101,12 @@ For visible UI migrations, generate a clean reviewer upload package after the fi
 
 ## M5 completion record (2026-08-25)
 
-- Production render target SHA: `585e65f3d976710a19ef5bbc8317d4ebef2c3ddb`
+- Production render target SHA: `fb449e33b66c4a4e98d68d43b0c5501a5ef2b0f0`
 - Mockup reference SHA: `db8941dc3056f07862014242a349ae366da59e9c`
 - Evidence: 16 semantic captures (including the Production-only stored-byte unknown safety state), four canonical WebM files from pointer/click/input interactions, four GIF previews, four labeled Production/Mockup boards, and exactly eight files in `docs/evidence/m5/review-upload/`.
 - Backend additions are additive: household PATCH now accepts validated timezone, and authenticated `PATCH /api/account/profile` persists the current user's validated display name with no migration. Existing push, image usage, avatar, R2, auth, permission, and logout contracts remain in use.
 - Production-only deviations are browser notification unsupported/denied/home-screen safety messaging, owner/member read-only enforcement, and storage unknown/pending-cleanup messaging. These do not alter canonical primary layout.
-- Local gates passed: lint, typecheck, build, full Vitest (37 files / 228 tests), M5 Playwright (5 tests), and semantic Evidence capture. One broader local regression command was stopped after an existing Calendar smoke fixture timed out; the M5-targeted suite and full Vitest passed.
+- Review corrections include the flat row button border reset, green timezone selection check, read-only-but-not-disabled email styling, clipboard success/fallback coverage, and single-flight display-name commits (Enter and blur each issue exactly one PATCH).
+- Local gates passed: lint, typecheck, build, full Vitest (37 files / 228 tests), M5 Playwright (6 tests), and semantic Evidence capture. Clipboard success asserts `コードをコピーしました`; rejected clipboard asserts the safe selection fallback. Docker authenticated E2E was unavailable and was not treated as passed.
+- Calendar/Shopping baseline comparison used the same command and allowed-origin Worker environment at base `585e65f3d976710a19ef5bbc8317d4ebef2c3ddb` and the M5 branch. Base failed at the pre-existing legacy heading/selector assumptions: Calendar `カレンダー` heading, Shopping `買い物` strict locator, and Home `ホーム` heading. The branch reached later local fixture failures: `.calendar-cell--today` count 0, Shopping reorder remained `牛乳` before `パン`, and the M1 smoke still expected legacy `買い物リスト`. These are recorded as pre-existing regression-suite/fixture incompatibilities; no M5 behavior regression was identified.
 - Deployment status: staging/production not performed; remote D1 migration, secrets, Cron, and PR merge not performed; M6 not started.
