@@ -1,6 +1,8 @@
 import react from "@vitejs/plugin-react";
 import { configDefaults, defineConfig } from "vitest/config";
 
+const apiProxyTarget = (globalThis as typeof globalThis & { process?: { env?: Record<string, string | undefined> } }).process?.env?.VITE_API_PROXY_TARGET;
+
 export default defineConfig({
   plugins: [react()],
   build: {
@@ -14,7 +16,7 @@ export default defineConfig({
     allowedHosts: ["app", "web", "localhost", "127.0.0.1"],
     proxy: {
       "/api": {
-        target: "http://worker:8787",
+        target: apiProxyTarget ?? "http://worker:8787",
         changeOrigin: true
       }
     }

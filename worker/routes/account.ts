@@ -5,6 +5,8 @@ import type { Handler } from "../middleware/error-handler";
 import { avatarUrlFor } from "../services/auth-service";
 import { UserAvatarService } from "../services/user-avatar-service";
 import { UserRepository } from "../repositories/user-repository";
+import { nowIso } from "../lib/date";
+import { parseJsonBody, validateUpdateProfileInput } from "../lib/validation";
 
 const parseUpload = async (request: Request) => {
   const contentType = request.headers.get("content-type")?.toLowerCase() ?? "";
@@ -66,4 +68,22 @@ export const profileImageMetadataRoute: Handler = requireAuth(async (context) =>
     { avatarUrl: user ? avatarUrlFor(user.id, user) : null },
     context.requestId
   );
+});
+
+export const updateProfileRoute: Handler = requireAuth(async (context) => {
+  const input = validateUpdateProfileInput(await parseJsonBody(context.request));
+  const user = await new UserRepository(context.env.DB).updateDisplayName(
+    context.user!.id,
+    input.displayName,
+    nowIso()
+  );
+  if (!user) throw validationError({ displayName: "ユーザーが見つかりません。" });
+  return okJson({
+    user: {
+      id: user.id,
+      email: user.email,
+      displayName: user.displayName,
+      avatarUrl: avatarUrlFor(user.id, user)
+    }
+  }, context.requestId);
 });

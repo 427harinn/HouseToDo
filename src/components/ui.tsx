@@ -6,6 +6,7 @@ type NavigationPath =
   | "/calendar"
   | "/tasks"
   | "/shopping"
+  | "/other"
   | "/settings/members";
 
 type ButtonProps = {
@@ -222,7 +223,7 @@ export function BottomNavigation({
     { path: "/home" as const, label: "ホーム", Icon: House },
     { path: "/calendar" as const, label: "カレンダー", Icon: CalendarDays },
     { path: "/shopping" as const, label: "買い物", Icon: ShoppingCart },
-    { path: "/settings/members" as const, label: "その他", Icon: Ellipsis }
+    { path: "/other" as const, label: "その他", Icon: Ellipsis }
   ];
 
   return (

@@ -34,7 +34,7 @@ const issueInvite = async (page: Page) => {
 };
 const openAdd = async (page: Page) => {
   await page.getByRole("button", { name: "追加" }).click();
-  await page.getByRole("button", { name: "買い物" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "買い物" }).click();
   await expect(page).toHaveURL(/\/shopping\/new/);
 };
 const createItem = async (page: Page, name: string, quantity = "", note = "") => {
@@ -88,7 +88,7 @@ test.describe("shopping UI M4", () => {
     const purchasedRow = pageA.locator("[data-shopping-m4-id]").filter({ hasText: `牛乳 ${id}` });
     await purchasedRow.getByRole("button", { name: /牛乳/ }).click();
     await expect(purchasedRow.getByRole("button", { name: "戻す" })).toBeVisible();
-    await expect(purchasedRow.getByLabelText(`購入者: ${userA.name}`)).toBeVisible();
+    await expect(purchasedRow.locator(`[aria-label="購入者: ${userA.name}"]`)).toBeVisible();
     await purchasedRow.getByRole("button", { name: "戻す" }).click();
     await expect(pageA.getByRole("button", { name: /購入済み 0件/ })).toBeVisible();
 

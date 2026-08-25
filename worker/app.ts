@@ -75,6 +75,7 @@ import {
   deleteProfileImageRoute,
   getProfileImageRoute,
   profileImageMetadataRoute,
+  updateProfileRoute,
   uploadProfileImageRoute
 } from "./routes/account";
 
@@ -189,6 +190,8 @@ const routeApi = withErrorHandling(
         return meRoute(context);
       case "GET /api/account/avatar":
         return profileImageMetadataRoute(context);
+      case "PATCH /api/account/profile":
+        return updateProfileRoute(context);
       case "PUT /api/account/avatar":
         return uploadProfileImageRoute(context);
       case "DELETE /api/account/avatar":

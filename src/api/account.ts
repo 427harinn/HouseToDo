@@ -1,5 +1,6 @@
 import { apiRequest } from "./client";
 import type { ProcessedImage } from "../lib/image-processing";
+import type { AuthUser } from "../types";
 
 export const uploadProfileImage = (image: ProcessedImage) => {
   const body = new FormData();
@@ -16,4 +17,10 @@ export const deleteProfileImage = () =>
   apiRequest<{ deleted: true; avatarUrl: null }>("/api/account/avatar", {
     method: "DELETE",
     body: JSON.stringify({})
+  });
+
+export const updateProfile = (displayName: string) =>
+  apiRequest<{ user: AuthUser }>("/api/account/profile", {
+    method: "PATCH",
+    body: JSON.stringify({ displayName })
   });

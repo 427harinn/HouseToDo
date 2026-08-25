@@ -70,7 +70,7 @@ test("calendar supports month navigation, selected-date sections, markers, and t
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/calendar");
-  await expect(page.getByRole("heading", { name: "カレンダー" })).toBeVisible();
+  await expect(page.getByRole("grid", { name: /カレンダー/ })).toBeVisible();
   await expect(page.locator(".calendar-cell--today")).toHaveCount(1);
   await expect(page.getByRole("heading", { name: "今日のタスク" }).first()).toBeVisible();
   await expect(page.getByText(`Calendar weekly flexible ${id}`)).toBeVisible();
@@ -96,7 +96,7 @@ test("calendar supports month navigation, selected-date sections, markers, and t
   await expectNoHorizontalScroll(page);
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto("/calendar");
-  await expect(page.getByRole("heading", { name: "カレンダー" })).toBeVisible();
+  await expect(page.getByRole("grid", { name: /カレンダー/ })).toBeVisible();
   await shot(page, "calendar-desktop.png");
 
   await page.getByRole("button", { name: new RegExp(`Calendar daily ${id}`) }).click();

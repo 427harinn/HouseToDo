@@ -138,6 +138,7 @@ import type {
 import { formatBytes } from "./lib/format";
 import { getBrowserCapabilities, type BrowserCapabilities } from "./lib/capabilities";
 import { urlBase64ToUint8Array } from "./lib/vapid";
+import { OtherLandingPage, OtherSettingsPage, type OtherSettingsPageKind } from "./pages/OtherSettingsPage";
 
 type StaticRoute =
   | "/"
@@ -149,6 +150,12 @@ type StaticRoute =
   | "/household/join"
   | "/home"
   | "/calendar"
+  | "/other"
+  | "/other/members"
+  | "/other/notifications"
+  | "/other/storage"
+  | "/other/household"
+  | "/other/account"
   | "/settings/members"
   | "/tasks"
   | "/tasks/new"
@@ -183,6 +190,12 @@ const staticRoutes = new Set<StaticRoute>([
   "/household/join",
   "/home",
   "/calendar",
+  "/other",
+  "/other/members",
+  "/other/notifications",
+  "/other/storage",
+  "/other/household",
+  "/other/account",
   "/settings/members",
   "/tasks",
   "/tasks/new",
@@ -246,6 +259,12 @@ const isOnboardingRoute = (route: Route) =>
 const isAppRoute = (route: Route) =>
   route.name === "/home" ||
   route.name === "/calendar" ||
+  route.name === "/other" ||
+  route.name === "/other/members" ||
+  route.name === "/other/notifications" ||
+  route.name === "/other/storage" ||
+  route.name === "/other/household" ||
+  route.name === "/other/account" ||
   route.name === "/settings/members" ||
   route.name === "/tasks" ||
   route.name === "/tasks/new" ||
@@ -544,6 +563,38 @@ export function App() {
     onLogout: () => void signOut(),
     user: auth.user
   };
+  if (route.name === "/other") {
+    return (
+      <AppFrame current="/other" onNavigate={navigate}>
+        <OtherLandingPage onNavigate={navigate} />
+      </AppFrame>
+    );
+  }
+  const otherKinds: Partial<Record<Exclude<StaticRoute, "/other">, OtherSettingsPageKind>> = {
+    "/other/members": "members",
+    "/other/notifications": "notifications",
+    "/other/storage": "storage",
+    "/other/household": "household",
+    "/other/account": "account"
+  };
+  const otherKind = otherKinds[route.name as keyof typeof otherKinds];
+  if (otherKind) {
+    return (
+      <AppFrame current="/other" onNavigate={navigate} showBottomNavigation={false}>
+        <OtherSettingsPage
+          kind={otherKind}
+          household={household.household}
+          user={auth.user}
+          onNavigate={navigate}
+          onHouseholdUpdated={(nextHousehold) => {
+            setHousehold({ status: "ready", household: nextHousehold });
+          }}
+          onUserUpdated={(nextUser) => setAuth({ status: "authenticated", user: nextUser })}
+          onLogout={signOut}
+        />
+      </AppFrame>
+    );
+  }
   if (route.name === "/settings/members") return <MembersScreen {...shellProps} />;
   if (route.name === "/calendar") return <CalendarScreen {...shellProps} />;
   if (route.name === "/tasks") return <TaskListScreen {...shellProps} />;
@@ -915,7 +966,7 @@ function AppFrame({
   onNavigate,
   showBottomNavigation = true
 }: {
-  current: "/home" | "/calendar" | "/tasks" | "/shopping" | "/settings/members";
+  current: "/home" | "/calendar" | "/tasks" | "/shopping" | "/other" | "/settings/members";
   children: ReactNode;
   onNavigate: (route: NavigationPath) => void;
   showBottomNavigation?: boolean;
@@ -5671,7 +5722,7 @@ function GuestScreen({
         current="/home"
         onNavigate={
           onNavigate as (
-            path: "/home" | "/calendar" | "/tasks" | "/shopping" | "/settings/members"
+            path: "/home" | "/calendar" | "/tasks" | "/shopping" | "/other" | "/settings/members"
           ) => void
         }
       />

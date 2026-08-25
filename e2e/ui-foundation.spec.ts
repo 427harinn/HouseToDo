@@ -101,14 +101,14 @@ test("M1 shared navigation and Add sheet work at the 390x844 review viewport", a
     content:
       ".bottom-nav__button:hover, .bottom-nav__button:focus-visible { background: transparent !important; outline: none !important; }"
   });
-  await expect(page.getByRole("heading", { name: "ホーム" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "やること" })).toBeVisible();
   await expect(page.getByRole("button", { name: "ホーム" })).toHaveAttribute("aria-current", "page");
   await moveToNeutral(page, false);
   await page.screenshot({ path: path.join(evidenceDir, "home-390x844.png"), fullPage: true });
 
   await page.getByRole("button", { name: "カレンダー" }).click();
   await expect(page).toHaveURL(/\/calendar$/);
-  await expect(page.getByRole("heading", { name: "カレンダー" })).toBeVisible();
+  await expect(page.getByRole("grid", { name: /カレンダー/ })).toBeVisible();
   await moveToNeutral(page);
   await page.screenshot({ path: path.join(evidenceDir, "calendar-390x844.png"), fullPage: true });
 
@@ -139,7 +139,7 @@ test("M1 shared navigation and Add sheet work at the 390x844 review viewport", a
   await expect(page).toHaveURL(/\/home$/);
 
   await page.getByRole("button", { name: "その他" }).click();
-  await expect(page).toHaveURL(/\/settings\/members$/);
+  await expect(page).toHaveURL(/\/other$/);
   await expect(page.getByRole("button", { name: "その他" })).toHaveAttribute("aria-current", "page");
   await moveToNeutral(page);
   await page.screenshot({ path: path.join(evidenceDir, "members-other-current-390x844.png"), fullPage: true });

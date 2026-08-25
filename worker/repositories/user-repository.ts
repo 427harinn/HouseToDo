@@ -97,6 +97,15 @@ export class UserRepository {
     };
   }
 
+  async updateDisplayName(userId: string, displayName: string, now: string): Promise<User | null> {
+    const result = await this.db
+      .prepare("UPDATE users SET display_name = ?, updated_at = ? WHERE id = ?")
+      .bind(displayName, now, userId)
+      .run();
+    if ((result.meta.changes ?? 0) === 0) return null;
+    return this.findById(userId);
+  }
+
   async updateAvatar(
     userId: string,
     oldKey: string | null,

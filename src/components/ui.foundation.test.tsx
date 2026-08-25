@@ -16,7 +16,7 @@ describe("shared navigation foundation", () => {
     const onAdd = vi.fn();
     const { container } = render(
       <BottomNavigation
-        current="/settings/members"
+        current="/other"
         onAdd={onAdd}
         onNavigate={onNavigate}
       />

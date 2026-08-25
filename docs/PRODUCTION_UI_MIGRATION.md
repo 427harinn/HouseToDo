@@ -9,13 +9,22 @@ HouseToDo-Mockup latest mainをdesign / interaction / motionのcanonical source 
 | M1 | Shared UI Foundation: tokens, global foundation, motion constants, App Shell, Bottom Navigation, Add Bottom Sheet | Done |
 | M2 | Home + Task: new Home, complete/pass/undo, task add/edit/delete, previous completion, and related Motion | Done |
 | M3 | Calendar screen visual migration and Calendar interactions | Done |
-| M4 | Shopping screen visual migration and Shopping interactions | Done on `feat/production-shopping-m4`; Draft PR pending review |
-| M5 | Other / Settings and formal `/other` route | Planned |
+| M4 | Shopping screen visual migration and Shopping interactions | Done on `main` after PR #5 |
+| M5 | Other / Settings and formal `/other` route | In progress on `feat/production-other-settings-m5` |
 | M6 | Auth / Household Entry. Guest and onboarding are removed from the new UI direction, not visually migrated. | Planned |
 | M7 | Integration / Legacy UI cleanup: retire user-facing old Task list/detail/respond/templates and Shopping detail/templates routes, then verify 2-user flows, E2E, and PWA behavior | Planned |
 | M8 | Legacy backend cleanup: after the new UI is stable, safely remove unused API/DB/compatibility code in separate PRs | Planned |
 
-M3まで`origin/main`で完了。M4 Shoppingは`feat/production-shopping-m4`で実装・検証・Evidence生成まで完了。まだmainへmergeしていない。M5には進まない。
+M1〜M4は`origin/main`で完了。M5 Other / Settingsを`feat/production-other-settings-m5`で実装する。M6には進まない。
+
+## M5 start record (2026-08-25)
+
+- Production base SHA: `585e65f3d976710a19ef5bbc8317d4ebef2c3ddb` (`origin/main`, PR #5 / M4 Shopping merge)
+- Mockup reference SHA: `db8941dc3056f07862014242a349ae366da59e9c` (`HouseToDo-Mockup` local `origin/main` reference; fetch was attempted but the environment denied `.git/FETCH_HEAD` writes)
+- Branch: `feat/production-other-settings-m5`
+- Mockup parity audit scope: `DESIGN.md`, `.uilab/screens.json`, `.uilab/states.json`, `.uilab/components.json`, `OtherPage.tsx/css/test`, Other fixtures, BottomSheet, Bottom Navigation, and rendered `/other` routes.
+- Production contract scope: authenticated household members/invite permissions, Push Subscription and browser capability flow, notification schedule persistence, stored image usage/R2 limits, owner-only household updates, profile avatar processing/R2 ownership, profile display-name persistence, logout/session invalidation, and legacy `/settings/members` compatibility.
+- Fetch note: `git fetch origin` was attempted for both repositories. The local Git credential helper is unavailable for the remote fetch and the repository `.git/FETCH_HEAD` is read-only in this environment; the verified `origin/main` refs are recorded above.
 
 ## M4 start record
 
@@ -70,14 +79,34 @@ For visible UI migrations, generate a clean reviewer upload package after the fi
 
 ## Reference commits
 
-- Production base: `f12b5eb5c948a7c3676b651909cc9edc2e9fc326`（作業開始時に確認した`origin/main`）
+- Production base: `585e65f3d976710a19ef5bbc8317d4ebef2c3ddb`（M4 / PR #5 merge後に確認した`origin/main`）
 - HouseToDo-Mockup reference: `db8941dc3056f07862014242a349ae366da59e9c`（PR #18 merge後の`origin/main`）
 
 ## M4 review correction record (2026-08-25)
 
-- PR #5 remains a Draft PR on `feat/production-shopping-m4`; M4 is not merged and M5 has not started.
+- PR #5 M4 Shopping is merged to `main`; M5 is the current milestone on `feat/production-other-settings-m5`.
 - `scripts/capture-m4-evidence.mjs` now routes Mockup captures with the canonical `uilabState` query only and asserts each requested Mockup state in the rendered DOM before taking a screenshot.
 - Production fixture assertions cover the 20-state semantic matrix. The Production Edit normal review fixture is equivalent in layout/photo semantics to Mockup Edit normal (an existing item with no attachment), while labels and values remain Production data.
 - Long-press reorder uses pointer capture and a window-level pointerup fallback; the Evidence capture fails unless an actual pointer drag changes DOM order and persists through reload. The additive backend contract remains household-scoped `POST /api/shopping/items/reorder` with exact pending-item-set validation and existing `sort_order` persistence; no new migration was required.
 - Latest Evidence consists of 20 Production and 20 Mockup screenshots, four settled-state canonical WebM files, four GIF previews, four review boards, and exactly eight files in `docs/evidence/m4/review-upload/`.
 - Production reuse Recent data still intentionally excludes source item identity and image. This prevents copying or exposing an existing R2 object outside the established attachment ownership/upload contract, so Production `reuse-selected` remains no-photo; this is the documented Production-only deviation from the Mockup photo fixture.
+
+## M5 parity audit decisions
+
+- `/other` is the primary Other landing route. `/settings/members` remains available as the legacy member-management route until M7; it is not removed or used as the primary Bottom Navigation destination.
+- Other landing keeps the five canonical rows and Bottom Navigation. Members, Notifications, Storage, Household Settings, and Account detail routes use the canonical centered title/back header and omit Bottom Navigation.
+- Production members, invite codes, push subscription state, notification settings, image usage, household data, user profile, and permissions remain API-backed. Review fixtures, `uilabState`, hash routing, and Mockup fixture data are Evidence-only.
+- Device notification OFF unsubscribes the current browser subscription but preserves morning/evening schedule values. Unsupported, denied, iPhone home-screen requirements, unknown stored-byte state, pending cleanup, and member read-only behavior are small Production-only safety/status deviations recorded in the Draft PR.
+- Existing avatar processing/compression/R2 ownership and storage limits are reused. No migration is required for household timezone or profile display-name persistence.
+
+## M5 completion record (2026-08-25)
+
+- Production render target SHA: `fb449e33b66c4a4e98d68d43b0c5501a5ef2b0f0`
+- Mockup reference SHA: `db8941dc3056f07862014242a349ae366da59e9c`
+- Evidence: 16 semantic captures (including the Production-only stored-byte unknown safety state), four canonical WebM files from pointer/click/input interactions, four GIF previews, four labeled Production/Mockup boards, and exactly eight files in `docs/evidence/m5/review-upload/`.
+- Backend additions are additive: household PATCH now accepts validated timezone, and authenticated `PATCH /api/account/profile` persists the current user's validated display name with no migration. Existing push, image usage, avatar, R2, auth, permission, and logout contracts remain in use.
+- Production-only deviations are browser notification unsupported/denied/home-screen safety messaging, owner/member read-only enforcement, and storage unknown/pending-cleanup messaging. These do not alter canonical primary layout.
+- Review corrections include the flat row button border reset, green timezone selection check, read-only-but-not-disabled email styling, clipboard success/fallback coverage, and single-flight display-name commits (Enter and blur each issue exactly one PATCH).
+- Local gates passed: lint, typecheck, build, full Vitest (37 files / 228 tests), M5 Playwright (6 tests), and semantic Evidence capture. Clipboard success asserts `コードをコピーしました`; rejected clipboard asserts the safe selection fallback. Docker authenticated E2E was unavailable and was not treated as passed.
+- Calendar/Shopping baseline comparison used the same command and allowed-origin Worker environment at base `585e65f3d976710a19ef5bbc8317d4ebef2c3ddb` and the M5 branch. Base failed at the pre-existing legacy heading/selector assumptions: Calendar `カレンダー` heading, Shopping `買い物` strict locator, and Home `ホーム` heading. The branch reached later local fixture failures: `.calendar-cell--today` count 0, Shopping reorder remained `牛乳` before `パン`, and the M1 smoke still expected legacy `買い物リスト`. These are recorded as pre-existing regression-suite/fixture incompatibilities; no M5 behavior regression was identified.
+- Deployment status: staging/production not performed; remote D1 migration, secrets, Cron, and PR merge not performed; M6 not started.

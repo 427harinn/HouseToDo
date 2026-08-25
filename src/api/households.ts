@@ -29,3 +29,19 @@ export const createInvite = (signal?: AbortSignal) =>
     body: JSON.stringify({}),
     signal
   });
+
+export type UpdateCurrentHouseholdInput = {
+  name?: string;
+  timezone?: string;
+  weekStartsOn?: number;
+};
+
+export const updateCurrentHousehold = (
+  input: UpdateCurrentHouseholdInput,
+  signal?: AbortSignal
+) =>
+  apiRequest<{ household: Household }>("/api/households/current", {
+    method: "PATCH",
+    body: JSON.stringify(input),
+    signal
+  });

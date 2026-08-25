@@ -1,0 +1,7 @@
+{
+  "productionSha": "d4eec4907d088b453f6ee3ad0655a933879e8434",
+  "mockupSha": "db8941dc3056f07862014242a349ae366da59e9c",
+  "viewport": "390x844",
+  "states": 16,
+  "source": "scripts/capture-m5-evidence.mjs"
+}
