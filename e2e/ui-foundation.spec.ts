@@ -101,7 +101,7 @@ test("M1 shared navigation and Add sheet work at the 390x844 review viewport", a
     content:
       ".bottom-nav__button:hover, .bottom-nav__button:focus-visible { background: transparent !important; outline: none !important; }"
   });
-  await expect(page.getByRole("heading", { name: "ホーム" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "やること" })).toBeVisible();
   await expect(page.getByRole("button", { name: "ホーム" })).toHaveAttribute("aria-current", "page");
   await moveToNeutral(page, false);
   await page.screenshot({ path: path.join(evidenceDir, "home-390x844.png"), fullPage: true });

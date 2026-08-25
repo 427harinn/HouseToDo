@@ -34,7 +34,7 @@ const issueInvite = async (page: Page) => {
 };
 const openAdd = async (page: Page) => {
   await page.getByRole("button", { name: "追加" }).click();
-  await page.getByRole("button", { name: "買い物" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "買い物" }).click();
   await expect(page).toHaveURL(/\/shopping\/new/);
 };
 const createItem = async (page: Page, name: string, quantity = "", note = "") => {
