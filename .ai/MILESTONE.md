@@ -4,7 +4,7 @@
 
 - M1 Shared UI Foundation is complete.
 - M2 Home + Task is complete on the dedicated production branch. Mockup is used only for design, interaction, and motion reference; production API, auth, permissions, persisted data, and Cloudflare architecture remain authoritative.
-- M3 Calendar is complete on `origin/main` after PR #4. M4 Shopping is in progress on `feat/production-shopping-m4`.
+- M3 Calendar is complete on `origin/main` after PR #4. M4 Shopping is complete on `feat/production-shopping-m4`; Draft PR review is pending and it is not merged to main.
 - M5 Other / Settings is explicitly out of scope for this milestone.
 - 詳細なM1〜M8計画は[docs/PRODUCTION_UI_MIGRATION.md](../docs/PRODUCTION_UI_MIGRATION.md)を参照。
 
@@ -27,6 +27,13 @@
 - Branch: `feat/production-shopping-m4`
 - The Mockup is canonical for Shopping layout, copy, visible states, interaction, gesture, and motion. Production remains canonical for API, auth, permissions, D1, R2, and data semantics.
 - Initial scope includes Shopping list/add/edit, reuse picker, expand/purchase/restore, seven-day purchased visibility, swipe edit, shared reorder persistence, Calendar deep-link, and Home/Calendar regression.
+
+## M4 delivery
+
+- Shopping list now follows Mockup latest-main flat-row density and interaction model, with one expanded item, seven-day purchased filtering without deletion, purchase/restore, purchaser metadata, photo/memo detail, and pointer gesture separation.
+- Add/Edit now use the canonical form and unified reuse picker; templates remain available through legacy routes/backend for M7 cleanup, while reuse selection only prefills the form.
+- `POST /api/shopping/items/reorder` is a new household-scoped additive contract that validates the exact pending-item set and persists `sort_order`; no migration was needed because the existing column was sufficient.
+- Local tests, build, targeted browser capture, parity screenshots, four WebM recordings, GIF previews, four boards, and exactly eight reviewer-upload files are complete. No deployment or remote migration was performed.
 
 # Historical milestone: Task model UI and reminder scheduler
 

@@ -9,13 +9,13 @@ HouseToDo-Mockup latest mainをdesign / interaction / motionのcanonical source 
 | M1 | Shared UI Foundation: tokens, global foundation, motion constants, App Shell, Bottom Navigation, Add Bottom Sheet | Done |
 | M2 | Home + Task: new Home, complete/pass/undo, task add/edit/delete, previous completion, and related Motion | Done |
 | M3 | Calendar screen visual migration and Calendar interactions | Done |
-| M4 | Shopping screen visual migration and Shopping interactions | In progress |
+| M4 | Shopping screen visual migration and Shopping interactions | Done on `feat/production-shopping-m4`; Draft PR pending review |
 | M5 | Other / Settings and formal `/other` route | Planned |
 | M6 | Auth / Household Entry. Guest and onboarding are removed from the new UI direction, not visually migrated. | Planned |
 | M7 | Integration / Legacy UI cleanup: retire user-facing old Task list/detail/respond/templates and Shopping detail/templates routes, then verify 2-user flows, E2E, and PWA behavior | Planned |
 | M8 | Legacy backend cleanup: after the new UI is stable, safely remove unused API/DB/compatibility code in separate PRs | Planned |
 
-M3まで完了。M4 Shoppingをこの専用branchで実施中。M5には進まない。
+M3まで`origin/main`で完了。M4 Shoppingは`feat/production-shopping-m4`で実装・検証・Evidence生成まで完了。まだmainへmergeしていない。M5には進まない。
 
 ## M4 start record
 
@@ -25,6 +25,16 @@ M3まで完了。M4 Shoppingをこの専用branchで実施中。M5には進ま�
 - Mockup parity audit scope: `DESIGN.md`, `.uilab/screens.json`, `.uilab/states.json`, `.uilab/components.json`, Shopping list/add/edit implementation, fixtures, and motion.
 - Production contract scope: Shopping API/auth/household authorization, D1 persistence, shared `sort_order`, Calendar planned-date projection/deep-link, Home pending count, and existing R2 image validation/compression/upload/cleanup.
 - Initial migration differences: Production legacy card/detail/template UI and manual purchased cleanup are replaced by the Mockup interaction model; templates remain available through legacy routes/backend but are not exposed in the new primary reuse flow. Shared reorder requires an additive household-scoped reorder contract because the existing `sort_order` field had no write endpoint.
+
+## M4 completion record
+
+- Production render target SHA: `651363dd5700adfb18ce1a8608c7ee60ea999f91`
+- Mockup reference SHA: `db8941dc3056f07862014242a349ae366da59e9c`
+- Implemented list flat rows, one-row expand/collapse, seven-day purchased visibility, purchaser/time display, purchase/restore, pointer swipe Edit, and persisted household reorder with oldest-first fallback.
+- Implemented Add/Edit canonical form, unified Recent/Template-backed reuse search, OS image picker preservation, R2/image validation flow preservation, and Edit-only delete confirmation.
+- Verified Home pending count, Calendar planned markers/Date Sheet/deep-link contract, planned-date preservation, household isolation, and no-delete swipe behavior.
+- Evidence: `docs/evidence/m4/production/`, `mockup/`, `motion/`, `motion/previews/`, and clean eight-file `review-upload/`.
+- Remaining review/deployment work: human review and merge; staging/production deploy and remote migration were intentionally not performed.
 
 ## M2 backend contract decision
 
