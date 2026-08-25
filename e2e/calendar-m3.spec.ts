@@ -59,6 +59,12 @@ test.describe("Calendar M3", () => {
   test("opens Date Sheet and completes the selected task", async ({ page }) => {
     await page.goto("/calendar?date=2026-08-20");
     await expect(page.getByRole("dialog")).toBeVisible();
+    await expect(page.locator(".bottom-nav")).toBeVisible();
+    await page.waitForTimeout(300);
+    const dialogBox = await page.getByRole("dialog").boundingBox();
+    const navBox = await page.locator(".bottom-nav").boundingBox();
+    if (!dialogBox || !navBox) throw new Error("Calendar Date Sheet or Bottom Navigation is not measurable.");
+    expect(dialogBox.y + dialogBox.height).toBeLessThanOrEqual(navBox.y + 1);
     await expect(page.getByRole("heading", { name: "8月20日 木曜日" })).toBeVisible();
     await expect(page.getByText("この日")).toBeVisible();
     await page.locator(".calendar-detail-task__main").click();

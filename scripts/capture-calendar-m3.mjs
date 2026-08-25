@@ -89,7 +89,10 @@ function calendarPayload(selectedDate, state, from = "2026-07-26", to = "2026-09
     calendarActionDate: "2026-08-20", targetDate: "2026-08-20", targetWeekStart: null,
     occurrenceKey: "occurrence:task-1:2026-08-20", periodKey: null, status: "completed"
   }] : [];
-  const direct = state.completed && !state.keepDirect ? [] : [task("task-aircon", "エアコンのフィルターを掃除", { targetDate: "2026-08-20", deadlineTime: "" })];
+  const direct = state.completed && !state.keepDirect ? [] : [
+    ...(state.restored ? [task("task-1", "朝食の片付け", { targetDate: "2026-08-20", deadlineTime: "" })] : []),
+    task("task-aircon", "エアコンのフィルターを掃除", { targetDate: "2026-08-20", deadlineTime: "" })
+  ];
   return {
     from: "2026-07-26", to: "2026-09-05", today: "2026-08-20", timezone: "Asia/Tokyo", selectedDate,
     dates,
@@ -104,6 +107,7 @@ function calendarPayload(selectedDate, state, from = "2026-07-26", to = "2026-09
 
 async function mockProduction(page, state) {
   let completed = state.completed;
+  let restored = false;
   await page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url());
     if (!url.pathname.startsWith("/api/")) return route.continue();
@@ -114,9 +118,9 @@ async function mockProduction(page, state) {
     if (url.pathname === "/api/tasks/task-1/history") return route.fulfill(json({ records: [] }));
     if (url.pathname === "/api/tasks/recent") return route.fulfill(json({ tasks: [] }));
     if (url.pathname === "/api/task-templates") return route.fulfill(json({ templates: [] }));
-    if (url.pathname === "/api/tasks/calendar") return route.fulfill(json(calendarPayload(url.searchParams.get("selectedDate") ?? "2026-08-20", { ...state, completed }, url.searchParams.get("from") ?? undefined, url.searchParams.get("to") ?? undefined)));
+    if (url.pathname === "/api/tasks/calendar") return route.fulfill(json(calendarPayload(url.searchParams.get("selectedDate") ?? "2026-08-20", { ...state, completed, restored }, url.searchParams.get("from") ?? undefined, url.searchParams.get("to") ?? undefined)));
     if (url.pathname.endsWith("/complete")) { completed = true; return route.fulfill(json({ result: {} })); }
-    if (url.pathname.endsWith("/calendar-restore")) { completed = false; return route.fulfill(json({ result: { reset: true } })); }
+    if (url.pathname.endsWith("/calendar-restore")) { completed = false; restored = true; return route.fulfill(json({ result: { reset: true } })); }
     return route.fulfill(json({}));
   });
 }
@@ -178,7 +182,7 @@ await screenshotProduction(browser, "06-calendar-completed-collapsed", { complet
 await screenshotProduction(browser, "07-calendar-completed-open", { completed: true, keepDirect: true, shopping: true }, "/calendar?date=2026-08-20", async (page) => page.getByRole("button", { name: /完了済み/ }).click());
 await screenshotProduction(browser, "08-calendar-completed-swipe", { completed: true, keepDirect: true, shopping: true }, "/calendar?date=2026-08-20", async (page) => { await page.getByRole("button", { name: /完了済み/ }).click(); const row = page.locator(".calendar-history-row"); const box = await row.boundingBox(); if (!box) throw new Error("completed row missing"); await page.mouse.move(box.x + box.width - 16, box.y + box.height / 2); await page.mouse.down(); await page.mouse.move(box.x + 8, box.y + box.height / 2, { steps: 8 }); await page.mouse.up(); await page.getByRole("button", { name: "戻す" }).waitFor(); if (!(await page.getByRole("heading", { name: "8月20日 木曜日" }).isVisible())) throw new Error("completed swipe changed selected date"); });
 await screenshotProduction(browser, "09-calendar-deleted-completed-restore-only", { completed: true, deleted: true, keepDirect: true, shopping: true }, "/calendar?date=2026-08-20", async (page) => { await page.getByRole("button", { name: /完了済み/ }).click(); const row = page.locator(".calendar-history-row"); const box = await row.boundingBox(); if (!box) throw new Error("deleted completed row missing"); await page.mouse.move(box.x + box.width - 16, box.y + box.height / 2); await page.mouse.down(); await page.mouse.move(box.x + 8, box.y + box.height / 2, { steps: 8 }); await page.mouse.up(); await page.getByRole("button", { name: "戻す" }).waitFor(); if (await page.getByRole("button", { name: "編集" }).count()) throw new Error("deleted completed row exposed edit action"); });
-await screenshotProduction(browser, "10-calendar-after-restore", { completed: false, shopping: true }, "/calendar?date=2026-08-20");
+await screenshotProduction(browser, "10-calendar-after-restore", { completed: true, keepDirect: true, shopping: true }, "/calendar?date=2026-08-20", async (page) => { await page.getByRole("button", { name: /完了済み/ }).click(); const row = page.locator(".calendar-history-row"); const box = await row.boundingBox(); if (!box) throw new Error("completed row missing"); await page.mouse.move(box.x + box.width - 16, box.y + box.height / 2); await page.mouse.down(); await page.mouse.move(box.x + 8, box.y + box.height / 2, { steps: 8 }); await page.mouse.up(); await page.getByRole("button", { name: "戻す" }).click(); await page.locator(".calendar-detail-task__main").filter({ hasText: "朝食の片付け" }).waitFor(); await page.getByRole("button", { name: /完了済み/ }).waitFor({ state: "detached" }); if (!(await page.getByRole("heading", { name: "8月20日 木曜日" }).isVisible())) throw new Error("restore changed selected date"); });
 await screenshotProduction(browser, "11-calendar-next-month", { shopping: true }, "/calendar", async (page) => { await page.getByRole("button", { name: "次の月" }).click(); await page.getByRole("heading", { name: "2026年9月" }).waitFor(); await page.evaluate("document.activeElement instanceof HTMLElement && document.activeElement.blur()"); await page.mouse.move(1, 1); });
 await screenshotProduction(browser, "12-calendar-task-edit-return-context", { shopping: false }, "/calendar?date=2026-08-20");
 await screenshotMockup(browser, "01-calendar-normal", "normal");
@@ -196,7 +200,7 @@ await recordMotion(browser, "calendar-task-complete", { shopping: false }, "/cal
 await recordMotion(browser, "calendar-month-swipe", { shopping: false }, "/calendar", async (page) => { const grid = page.locator(".calendar-month-grid"); const box = await grid.boundingBox(); if (!box) throw new Error("month grid missing"); await page.mouse.move(box.x + 180, box.y + 260); await page.mouse.down(); await page.mouse.move(box.x + 90, box.y + 260, { steps: 8 }); await page.mouse.up(); await page.waitForTimeout(250); await page.mouse.move(box.x + 90, box.y + 260); await page.mouse.down(); await page.mouse.move(box.x + 180, box.y + 260, { steps: 8 }); await page.mouse.up(); });
 await recordMotion(browser, "calendar-day-swipe", { shopping: false }, "/calendar?date=2026-08-20", async (page) => { const sheet = page.locator(".calendar-date-sheet"); const box = await sheet.boundingBox(); if (!box) throw new Error("date sheet missing"); await page.mouse.move(box.x + 180, box.y + 400); await page.mouse.down(); await page.mouse.move(box.x + 90, box.y + 400, { steps: 8 }); await page.mouse.up(); });
 }
-if (!process.env.M3_ONLY_EDIT) await recordMotion(browser, "calendar-completed-undo", { completed: true, keepDirect: true, shopping: true }, "/calendar?date=2026-08-20", async (page) => { await page.getByRole("button", { name: /完了済み/ }).click(); const row = page.locator(".calendar-history-row"); const box = await row.boundingBox(); if (!box) throw new Error("completed row missing"); await page.mouse.move(box.x + box.width - 16, box.y + box.height / 2); await page.mouse.down(); await page.mouse.move(box.x + 8, box.y + box.height / 2, { steps: 8 }); await page.mouse.up(); await page.getByRole("button", { name: "戻す" }).click(); await page.locator(".calendar-detail-task").first().waitFor(); });
+if (!process.env.M3_ONLY_EDIT) await recordMotion(browser, "calendar-completed-undo", { completed: true, keepDirect: true, shopping: true }, "/calendar?date=2026-08-20", async (page) => { await page.getByRole("button", { name: /完了済み/ }).click(); const row = page.locator(".calendar-history-row"); const box = await row.boundingBox(); if (!box) throw new Error("completed row missing"); await page.mouse.move(box.x + box.width - 16, box.y + box.height / 2); await page.mouse.down(); await page.mouse.move(box.x + 8, box.y + box.height / 2, { steps: 8 }); await page.mouse.up(); await page.getByRole("button", { name: "戻す" }).click(); await page.locator(".calendar-detail-task__main").filter({ hasText: "朝食の片付け" }).waitFor(); await page.getByRole("button", { name: /完了済み/ }).waitFor({ state: "detached" }); if (!(await page.getByRole("heading", { name: "8月20日 木曜日" }).isVisible())) throw new Error("restore changed selected date"); });
 if (process.env.M3_ONLY_EDIT) {
   await screenshotProduction(browser, "12-calendar-task-edit-return-context", { shopping: false }, "/calendar?date=2026-08-20", async (page) => {
     await page.goto(`${production}/tasks/task-1/edit?origin=calendar&calendarDate=2026-08-20`, { waitUntil: "networkidle" });
