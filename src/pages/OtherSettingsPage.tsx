@@ -371,18 +371,21 @@ function AccountPage({ user, onUserUpdated, onLogout }: { user: AuthUser; onUser
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const nameCommitInFlight = useRef(false);
 
   const commitName = async () => {
+    if (nameCommitInFlight.current) return;
     const next = displayName.trim();
     if (!next || next === savedName.current) { setDisplayName(savedName.current); return; }
+    nameCommitInFlight.current = true;
     setBusy(true); setError("");
     try {
       const result = await updateProfile(next);
       savedName.current = result.user.displayName; setDisplayName(result.user.displayName); onUserUpdated(result.user); setStatus("保存しました");
     } catch (nextError) { setDisplayName(savedName.current); setError(errorMessage(nextError)); }
-    finally { setBusy(false); }
+    finally { nameCommitInFlight.current = false; setBusy(false); }
   };
-  const onNameKeyDown = (event: KeyboardEvent<HTMLInputElement>) => { if (event.key === "Enter") { event.preventDefault(); event.currentTarget.blur(); void commitName(); } };
+  const onNameKeyDown = (event: KeyboardEvent<HTMLInputElement>) => { if (event.key === "Enter") { event.preventDefault(); event.currentTarget.blur(); } };
   const chooseAvatar = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]; event.currentTarget.value = ""; if (!file) return;
     setBusy(true); setError(""); setStatus("");
@@ -405,7 +408,7 @@ function AccountPage({ user, onUserUpdated, onLogout }: { user: AuthUser; onUser
         </button>
         <input ref={inputRef} className="m5-account-file" type="file" accept="image/jpeg,image/png,image/webp" aria-label="プロフィール画像を選択" onChange={(event) => void chooseAvatar(event)} />
         <label className="m5-field-row"><span>表示名</span><input aria-label="表示名" value={displayName} disabled={busy} onChange={(event) => setDisplayName(event.target.value)} onBlur={() => void commitName()} onKeyDown={onNameKeyDown} /></label>
-        <label className="m5-field-row m5-disabled"><span>メール</span><input aria-label="メール" value={user.email} readOnly /></label>
+        <label className="m5-field-row"><span>メール</span><input aria-label="メール" value={user.email} readOnly /></label>
       </div>
       <div className="m5-account-logout"><button type="button" className="m5-danger-action" onClick={() => setSheet("logout")}>ログアウト</button></div>
       {error ? <p className="m5-error" role="alert">{error}</p> : null}

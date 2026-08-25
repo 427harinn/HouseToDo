@@ -1,4 +1,4 @@
-/* global window, navigator, location, document, HTMLElement */
+/* global window, navigator, location, document, HTMLElement, getComputedStyle */
 import { chromium } from "@playwright/test";
 import fs from "node:fs/promises";
 import { execFile } from "node:child_process";
@@ -85,6 +85,7 @@ async function mockProduction(page) {
 
 const settle = async (page) => { await page.waitForTimeout(350); await page.evaluate(() => document.activeElement instanceof HTMLElement && document.activeElement.blur()); await page.mouse.move(1, 1); };
 const assert = (condition, message) => { if (!condition) throw new Error(`M5 evidence assertion failed: ${message}`); };
+const grantClipboard = async (page) => page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin: new URL(production).origin });
 
 async function productionShot(browser, name, route, fixture, interact) {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
@@ -111,6 +112,9 @@ async function productionShot(browser, name, route, fixture, interact) {
   if (fixture === "photo-selected") assert(await page.getByRole("img", { name: /アバター/ }).count() === 1, "account avatar state");
   if (fixture === "logout-confirm") assert(await page.getByRole("dialog", { name: "ログアウトしますか？" }).count() === 1, "logout confirmation state");
   await settle(page);
+  const rowButtons = page.locator(".m5-row-button");
+  if (await rowButtons.count()) assert(await rowButtons.evaluateAll((elements) => elements.every((element) => { const style = getComputedStyle(element); return style.borderTopStyle === "none" && style.borderLeftStyle === "none" && style.borderRightStyle === "none" && style.borderBottomStyle !== "none"; })), `${route} flat row border parity`);
+  if (fixture === "timezone-open") assert(await page.locator(".m5-selection-list button svg").first().evaluate((element) => getComputedStyle(element).color !== "rgb(0, 0, 0)"), "timezone selected icon color");
   await page.screenshot({ path: `${evidence}/production/${name}.png`, fullPage: true });
   await page.close();
 }
@@ -134,6 +138,7 @@ async function mockupShot(browser, name, route, state, interact) {
 async function recordMotion(browser, name, route, setup) {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, recordVideo: { dir: `${evidence}/motion`, size: { width: 390, height: 844 } } });
   const page = await context.newPage();
+  await grantClipboard(page);
   await mockProduction(page);
   await page.goto(`${production}${route}?fixture=normal`, { waitUntil: "networkidle" });
   await page.getByRole("heading").first().waitFor();
@@ -182,7 +187,7 @@ await mockupShot(browser, "13-account-normal", "/other/account", "normal");
 await mockupShot(browser, "14-account-photo-selected", "/other/account", "photo-selected");
 await mockupShot(browser, "15-account-logout-confirm", "/other/account", "logout-confirm");
 
-await recordMotion(browser, "members-invite", "/other/members", async (page) => { await page.getByRole("button", { name: "招待する" }).click(); await page.getByRole("button", { name: "コードをコピー" }).click(); await page.getByRole("button", { name: "閉じる", exact: true }).click(); });
+await recordMotion(browser, "members-invite", "/other/members", async (page) => { await page.getByRole("button", { name: "招待する" }).click(); await page.getByRole("button", { name: "コードをコピー" }).click(); await page.getByRole("status").getByText("コードをコピーしました", { exact: true }).waitFor(); await page.getByRole("button", { name: "閉じる", exact: true }).click(); });
 await recordMotion(browser, "notifications-settings", "/other/notifications", async (page) => {
   const morning = page.getByRole("checkbox", { name: "朝のまとめ通知" });
   if (await morning.isChecked()) await morning.uncheck();

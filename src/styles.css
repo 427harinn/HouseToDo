@@ -136,7 +136,7 @@
 .m5-settings-header h1 { grid-column: 2; white-space: nowrap; }
 .m5-settings-back { display: inline-flex; min-height: 44px; align-items: center; justify-self: start; gap: 2px; padding: 8px 4px 8px 0; border: 0; background: transparent; color: var(--color-text-secondary); }
 .m5-settings-back svg { width: 18px; height: 18px; }
-.m5-row-button { width: 100%; font: inherit; text-align: left; background: transparent; cursor: pointer; }
+.m5-row-button { width: 100%; font: inherit; text-align: left; background: transparent; border: 0; border-bottom: 1px solid var(--color-border); cursor: pointer; }
 .m5-row-button:disabled, .m5-field-row input:disabled { cursor: not-allowed; }
 .m5-member-row { justify-content: flex-start; }
 .m5-member-row > span:last-child { min-width: 0; overflow-wrap: anywhere; }
@@ -185,6 +185,7 @@
 .m5-account-logout { padding-top: clamp(48px, 12vh, 112px); margin-top: 16px; border-top: 1px solid var(--color-border); }
 .m5-selection-list { display: grid; }
 .m5-selection-list button { display: flex; min-height: 52px; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border: 0; border-bottom: 1px solid var(--color-border); background: transparent; color: var(--color-text); text-align: left; }
+.m5-selection-list button svg { flex: 0 0 18px; width: 18px; height: 18px; color: var(--color-primary-strong); }
 @media (max-width: 340px) { .m5-page { padding-inline: 12px; } .m5-settings-header h1 { font-size: 1rem; } .m5-settings-back { font-size: .8125rem; } .m5-field-row, .m5-account-profile .m5-field-row { grid-template-columns: minmax(0, 1fr); align-items: stretch; gap: 4px; } .m5-time-row { grid-template-columns: minmax(0, 1fr) minmax(0, 9rem); align-items: center; } .m5-row-value { max-width: 60%; font-size: .8125rem; } }
 @media (prefers-reduced-motion: reduce) { .m5-toggle-visual, .m5-toggle-visual::after, .m5-storage-bar span { transition: none; } }
 

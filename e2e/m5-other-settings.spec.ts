@@ -29,6 +29,7 @@ async function mockM5Api(page: import("@playwright/test").Page) {
 
 test.describe("M5 Other / Settings", () => {
   test.beforeEach(async ({ page }) => {
+    await page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin: "http://127.0.0.1:5174" });
     await page.addInitScript(() => {
       Object.defineProperty(window, "Notification", { configurable: true, value: { permission: "granted", requestPermission: async () => "granted" } });
       window.PushManager = function PushManager() {};
@@ -55,7 +56,17 @@ test.describe("M5 Other / Settings", () => {
     await page.getByRole("button", { name: "招待する" }).click();
     await expect(page.getByRole("dialog", { name: "メンバーを招待" })).toContainText("HOUSE-M5-TEST");
     await page.getByRole("button", { name: "コードをコピー" }).click();
-    await expect(page.getByRole("status")).toContainText(/コードをコピー|コピーできません/);
+    await expect(page.getByRole("status")).toContainText("コードをコピーしました");
+  });
+
+  test("shows a safe fallback when clipboard write is rejected", async ({ page }) => {
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async () => { throw new Error("clipboard rejected"); } } });
+    });
+    await page.goto("/other/members");
+    await page.getByRole("button", { name: "招待する" }).click();
+    await page.getByRole("dialog", { name: "メンバーを招待" }).getByRole("button", { name: "コードをコピー" }).click();
+    await expect(page.getByRole("status")).toContainText("コードをコピーできませんでした。コードを選択してコピーしてください。");
   });
 
   test("persists schedule and household changes without a visible schedule save button", async ({ page }) => {
@@ -74,9 +85,16 @@ test.describe("M5 Other / Settings", () => {
     await page.goto("/other/account");
     await expect(page.getByRole("textbox", { name: "メール" })).toHaveAttribute("readonly", "");
     const name = page.getByRole("textbox", { name: "表示名" });
+    const profilePatches: string[] = [];
+    page.on("request", (request) => { if (request.method() === "PATCH" && new URL(request.url()).pathname === "/api/account/profile") profilePatches.push(request.postData() ?? ""); });
     await name.fill("新しい名前");
     await name.press("Enter");
     await expect(page.getByRole("status")).toContainText("保存しました");
+    await expect.poll(() => profilePatches.length).toBe(1);
+    await name.fill("blurで保存");
+    await name.blur();
+    await expect(page.getByRole("status")).toContainText("保存しました");
+    await expect.poll(() => profilePatches.length).toBe(2);
   });
 
   test("confirms logout, keeps cancel safe, and returns to login after success", async ({ page }) => {
