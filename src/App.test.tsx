@@ -668,9 +668,11 @@ describe("M2 Home", () => {
   it("formats today, week, month, and dated time deadlines without merging date and time", async () => {
     const tasks = [
       { ...task, id: "today-time", title: "今日の時刻", deadlineDate: "2026-08-25", deadlineTime: "09:00", modelRecurrenceType: "daily", overdue: false },
+      { ...task, id: "today-all-day", title: "今日中の家事", deadlineDate: "2026-08-25", deadlineTime: null, modelRecurrenceType: "daily", overdue: false },
       { ...task, id: "week-deadline", title: "週の期限", deadlineDate: "2026-08-30", deadlineTime: null, modelRecurrenceType: "weekly_flexible", overdue: false },
       { ...task, id: "month-deadline", title: "月の期限", deadlineDate: "2026-08-31", deadlineTime: null, modelRecurrenceType: "monthly_flexible", overdue: false },
-      { ...task, id: "dated-time", title: "別日の時刻", deadlineDate: "2026-08-24", deadlineTime: "09:00", modelRecurrenceType: "once", targetDate: "2026-08-24", overdue: false }
+      { ...task, id: "dated-time", title: "別日の時刻", deadlineDate: "2026-08-24", deadlineTime: "09:00", modelRecurrenceType: "once", targetDate: "2026-08-24", overdue: false },
+      { ...task, id: "no-deadline", title: "締切なしの家事", deadlineDate: null, deadlineTime: null, modelRecurrenceType: "daily", overdue: false }
     ];
     const dashboard = { ...baseDashboard, todayTasks: tasks, homeTasks: tasks, summary: { ...baseDashboard.summary, total: tasks.length, pending: tasks.length } };
     vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
@@ -685,8 +687,10 @@ describe("M2 Home", () => {
     render(<App />);
     expect(await screen.findByText("今日の時刻")).toBeInTheDocument();
     expect(screen.getByText("09:00まで")).toBeInTheDocument();
+    expect(screen.getByText("今日中")).toBeInTheDocument();
     expect(screen.getByText("日曜まで")).toBeInTheDocument();
     expect(screen.getByText("8/31まで")).toBeInTheDocument();
     expect(screen.getByText("8/24 09:00まで")).toBeInTheDocument();
+    expect(screen.getByText("締切なし")).toBeInTheDocument();
   });
 });

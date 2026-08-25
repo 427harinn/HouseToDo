@@ -1492,9 +1492,10 @@ function formatHomeDate(dateKey: string) {
 function formatHomeDeadline(task: TodayTask, today: string) {
   const date = task.deadlineDate ?? (task.modelRecurrenceType === "once" ? task.targetDate : null);
   const time = task.deadlineTime ?? task.scheduledTime;
-  if (!date && !time) return "期限なし";
+  if (!date && !time) return "締切なし";
   if (!date) return `${time}まで`;
-  const dateLabel = date === today ? (time ? "" : "今日") : `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`;
+  if (date === today && !time) return "今日中";
+  const dateLabel = date === today ? "" : `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`;
   if (date !== today && homeTaskScope(task) === "week") {
     return `${new Intl.DateTimeFormat("ja-JP", { weekday: "short", timeZone: "UTC" }).format(new Date(`${date}T00:00:00Z`))}曜${time ? ` ${time}` : ""}まで`;
   }
