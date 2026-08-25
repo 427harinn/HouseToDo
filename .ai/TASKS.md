@@ -12,6 +12,7 @@
 - [x] Add M4 unit/API/Playwright regression coverage for Shopping, Home, Calendar, and integrations
 - [x] Generate fresh 390x844 parity screenshots, four canonical WebM motion files, GIF previews, four review boards, and exactly eight review-upload files
 - [x] Run lint, typecheck, full Vitest, build, targeted browser capture, commit, push, and create Draft PR without merge/deploy
+- [x] Address PR #5 Evidence state routing and reorder review findings; re-capture all 20 states and rebuild the eight-file review package
 
 ## Production UI Migration M3 — Calendar
 

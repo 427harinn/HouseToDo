@@ -72,3 +72,12 @@ For visible UI migrations, generate a clean reviewer upload package after the fi
 
 - Production base: `f12b5eb5c948a7c3676b651909cc9edc2e9fc326`（作業開始時に確認した`origin/main`）
 - HouseToDo-Mockup reference: `db8941dc3056f07862014242a349ae366da59e9c`（PR #18 merge後の`origin/main`）
+
+## M4 review correction record (2026-08-25)
+
+- PR #5 remains a Draft PR on `feat/production-shopping-m4`; M4 is not merged and M5 has not started.
+- `scripts/capture-m4-evidence.mjs` now routes Mockup captures with the canonical `uilabState` query only and asserts each requested Mockup state in the rendered DOM before taking a screenshot.
+- Production fixture assertions cover the 20-state semantic matrix. The Production Edit normal review fixture is equivalent in layout/photo semantics to Mockup Edit normal (an existing item with no attachment), while labels and values remain Production data.
+- Long-press reorder uses pointer capture and a window-level pointerup fallback; the Evidence capture fails unless an actual pointer drag changes DOM order and persists through reload. The additive backend contract remains household-scoped `POST /api/shopping/items/reorder` with exact pending-item-set validation and existing `sort_order` persistence; no new migration was required.
+- Latest Evidence consists of 20 Production and 20 Mockup screenshots, four settled-state canonical WebM files, four GIF previews, four review boards, and exactly eight files in `docs/evidence/m4/review-upload/`.
+- Production reuse Recent data still intentionally excludes source item identity and image. This prevents copying or exposing an existing R2 object outside the established attachment ownership/upload contract, so Production `reuse-selected` remains no-photo; this is the documented Production-only deviation from the Mockup photo fixture.

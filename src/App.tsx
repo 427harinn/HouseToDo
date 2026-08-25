@@ -4104,8 +4104,12 @@ function ShoppingM4ListScreen({
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [status, setStatus] = useState("");
   const visiblePurchased = visiblePurchasedShoppingItems(purchased);
+  const orderedPendingRef = useRef<ShoppingItem[]>([]);
 
-  useEffect(() => setOrderedPending(pending), [pending]);
+  useEffect(() => {
+    orderedPendingRef.current = pending;
+    setOrderedPending(pending);
+  }, [pending]);
 
   useEffect(() => {
     if (!targetItemId || loading) return;
@@ -4153,13 +4157,14 @@ function ShoppingM4ListScreen({
       const [moved] = next.splice(from, 1);
       const destination = from < over ? over : over;
       next.splice(destination, 0, moved);
+      orderedPendingRef.current = next;
       setDragOverId(overId);
       return next;
     });
   };
 
   const finishReorder = async () => {
-    const ids = orderedPending.map((item) => item.id);
+    const ids = orderedPendingRef.current.map((item) => item.id);
     setDraggingId(null);
     setDragOverId(null);
     if (ids.join(",") === pending.map((item) => item.id).join(",")) return;
@@ -4288,6 +4293,9 @@ function ShoppingM4Row({
   const gesture = useRef<"swipe" | "vertical" | "reorder" | null>(null);
   const suppressClick = useRef(false);
   const dragStarted = useRef(false);
+  const capturedPointerId = useRef<number | null>(null);
+  const capturedRow = useRef<HTMLElement | null>(null);
+  const globalDragCleanup = useRef<(() => void) | null>(null);
   const [swipeOffset, setSwipeOffset] = useState(0);
   const [swiping, setSwiping] = useState(false);
 
@@ -4300,12 +4308,41 @@ function ShoppingM4Row({
     dragStarted.current = false;
     setSwiping(false);
     clearLongPress();
-    if (!purchased) longPress.current = window.setTimeout(() => {
+    if (!purchased) {
+      const row = event.currentTarget;
+      const pointerId = event.pointerId;
+      longPress.current = window.setTimeout(() => {
       if (!start.current || gesture.current) return;
       gesture.current = "reorder";
       dragStarted.current = true;
+      if (row.setPointerCapture) {
+        try {
+          row.setPointerCapture(pointerId);
+          capturedPointerId.current = pointerId;
+          capturedRow.current = row;
+        } catch {
+          // The pointer may have been cancelled between the press and timer.
+        }
+      }
+      const onWindowPointerUp = (upEvent: PointerEvent) => {
+        if (upEvent.pointerId !== pointerId || !dragStarted.current) return;
+        clearLongPress();
+        dragStarted.current = false;
+        suppressClick.current = true;
+        globalDragCleanup.current?.();
+        globalDragCleanup.current = null;
+        if (capturedPointerId.current !== null && capturedRow.current?.hasPointerCapture?.(capturedPointerId.current)) capturedRow.current.releasePointerCapture(capturedPointerId.current);
+        capturedPointerId.current = null;
+        capturedRow.current = null;
+        start.current = null;
+        setSwiping(false);
+        onDragEnd();
+      };
+      window.addEventListener("pointerup", onWindowPointerUp, true);
+      globalDragCleanup.current = () => window.removeEventListener("pointerup", onWindowPointerUp, true);
       onDragStart();
-    }, 360);
+      }, 360);
+    }
   };
   const handlePointerMove = (event: ReactPointerEvent<HTMLElement>) => {
     if (dragStarted.current) {
@@ -4327,6 +4364,13 @@ function ShoppingM4Row({
   };
   const handlePointerUp = (event: ReactPointerEvent<HTMLElement>) => {
     clearLongPress();
+    globalDragCleanup.current?.();
+    globalDragCleanup.current = null;
+    if (capturedPointerId.current !== null && event.currentTarget.hasPointerCapture?.(capturedPointerId.current)) {
+      event.currentTarget.releasePointerCapture(capturedPointerId.current);
+    }
+    capturedPointerId.current = null;
+    capturedRow.current = null;
     const origin = start.current;
     start.current = null;
     setSwiping(false);
@@ -4346,7 +4390,7 @@ function ShoppingM4Row({
   const purchaserName = item.purchasedBy?.displayName ?? memberName(members, item.purchasedBy?.userId) ?? "メンバー";
   const imageSrc = item.image ? getShoppingItemImageUrl(item.id, item.image.updatedAt) : null;
   return (
-    <article className={`shopping-m4__row${expanded ? " is-expanded" : ""}${actionsOpen ? " is-actions-open" : ""}${dragging ? " is-dragging" : ""}${dragOver ? " is-drag-over" : ""}${swiping ? " is-swiping" : ""}`} data-shopping-m4-id={item.id} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={() => { clearLongPress(); start.current = null; if (dragStarted.current) onDragEnd(); dragStarted.current = false; setSwiping(false); }} onClickCapture={handleClickCapture}>
+    <article className={`shopping-m4__row${expanded ? " is-expanded" : ""}${actionsOpen ? " is-actions-open" : ""}${dragging ? " is-dragging" : ""}${dragOver ? " is-drag-over" : ""}${swiping ? " is-swiping" : ""}`} data-shopping-m4-id={item.id} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={(event) => { clearLongPress(); globalDragCleanup.current?.(); globalDragCleanup.current = null; if (capturedPointerId.current !== null && event.currentTarget.hasPointerCapture?.(capturedPointerId.current)) event.currentTarget.releasePointerCapture(capturedPointerId.current); capturedPointerId.current = null; capturedRow.current = null; start.current = null; if (dragStarted.current) onDragEnd(); dragStarted.current = false; setSwiping(false); }} onClickCapture={handleClickCapture}>
       <div className="shopping-m4__row-content" style={{ "--shopping-m4-swipe": `${swipeOffset}px` } as CSSProperties}>
         <button type="button" className="shopping-m4__row-main" aria-expanded={expanded} onClick={onToggle}>
           <span className="shopping-m4__row-details">

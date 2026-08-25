@@ -135,3 +135,11 @@ Cron configuration and production resources remain untouched. Staging migration,
 - Shopping items with `plannedPurchaseDate = null` are returned by a separate household-scoped Calendar selected-date query and appear on every selected date; planned items remain first, followed by `予定日未定` items.
 - Unplanned items do not contribute to Calendar grid Shopping markers or cell `aria-label` counts. Pending and purchased unplanned rows are both included because purchased-item cleanup physically deletes them and no durable history is retained.
 - Existing ISO `purchased_at` / `purchasedAt` values now render as date plus time using the household timezone in Shopping list, detail, and Calendar selected-date cards. No migration or remote mutation was made.
+
+## M4 Shopping review correction (2026-08-25)
+
+- PR #5 remains open on `feat/production-shopping-m4`; no merge, deploy, remote migration, or M5 work was performed.
+- Corrected Mockup Evidence routing to pass each canonical state through `uilabState`, and added DOM semantic assertions for all 20 Mockup captures.
+- Re-captured Production/Mockup state fixtures with aligned item-count, expansion, planned-date, photo, quantity, purchased-section, deleted, and delete-confirmation semantics. Production Edit normal intentionally uses an equivalent no-photo item state.
+- Fixed long-press reorder completion with pointer capture plus a window-level pointerup fallback. Evidence now asserts oldest-first initial order, actual pointer drag, DOM order change, reorder API response, and reload persistence.
+- Rebuilt 390x844 screenshots, four canonical WebM files from settled state, GIF previews, four boards, and the exact eight-file reviewer package. The existing Recent API intentionally omits source item identity/image; reuse-selected therefore remains no-photo in Production to preserve R2 ownership and the existing safe reuse contract, while the Mockup canonical state is captured with its photo.
