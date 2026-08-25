@@ -11,7 +11,7 @@ test.use({
   video: { mode: "on", size: { width: 390, height: 844 } }
 });
 
-const task = (id: string, title: string, scope: "date" | "week" | "month" | "none" | "overdue", assignedUserId: string | null = null) => ({
+const task = (id: string, title: string, scope: "date" | "date-all-day" | "week" | "month" | "none" | "overdue", assignedUserId: string | null = null) => ({
   id,
   title,
   recurrenceType: scope === "week" ? "weekly" : "daily",
@@ -39,7 +39,7 @@ const historyRecord = (id: string, taskId: string, status: "completed" | "skippe
 const dashboard = (state: HomeState) => ({
   date: today,
   household: { id: "household-1", name: "わが家", timezone: "Asia/Tokyo" },
-  summary: { total: 3, pending: state.completed || state.passed ? 2 : 3, inProgress: 0, completed: state.completed ? 1 : 0, skipped: state.passed ? 1 : 0 },
+  summary: { total: (state.empty ? 0 : homeTasks(state).length) + (state.completed ? 1 : 0) + (state.passed ? 1 : 0), pending: state.empty ? 0 : homeTasks(state).length, inProgress: 0, completed: state.completed ? 1 : 0, skipped: state.passed ? 1 : 0 },
   todayTasks: state.empty ? [] : homeTasks(state),
   homeTasks: state.empty ? [] : homeTasks(state),
   weeklyTasks: [],
@@ -53,6 +53,7 @@ const homeTasks = (state: HomeState) => {
   const allTasks = [
     ...(state.overdue ? [task("m2-overdue", "期限超過の家事", "overdue")] : []),
     task("m2-date", "朝の片付け", "date"),
+    task("m2-date-all-day", "今日中の家事", "date-all-day"),
     task("m2-week", "週の家事", "week"),
     task("m2-month", "月の家事", "month"),
     task("m2-none", "期限なし", "none", "user-2")
@@ -77,7 +78,7 @@ const installRoutes = async (page: Page, state: HomeState) => {
     const actionMatch = url.pathname.match(/^\/api\/tasks\/([^/]+)\/(complete|skip|restore)$/);
     if (actionMatch && request.method() === "POST") {
       const [, actionTaskId, action] = actionMatch;
-      const titles: Record<string, string> = { "m2-overdue": "期限超過の家事", "m2-date": "朝の片付け", "m2-week": "週の家事", "m2-month": "月の家事", "m2-none": "期限なし" };
+      const titles: Record<string, string> = { "m2-overdue": "期限超過の家事", "m2-date": "朝の片付け", "m2-date-all-day": "今日中の家事", "m2-week": "週の家事", "m2-month": "月の家事", "m2-none": "期限なし" };
       if (!titles[actionTaskId] && actionTaskId !== "m2-task-1") throw new Error(`Unexpected M2 action task: ${actionTaskId}`);
       if (action === "complete") { state.completed = true; state.completedTaskId = actionTaskId; state.completedTitle = titles[actionTaskId] ?? "ゴミ出し"; }
       if (action === "skip") { state.passed = true; state.passedTaskId = actionTaskId; state.passedTitle = titles[actionTaskId] ?? "窓ふき"; }
@@ -117,12 +118,14 @@ test("M2 Home visual states and swipe actions at 390x844", async ({ page }) => {
   await page.goto("/home");
   await expect(page.getByRole("heading", { name: "やること" })).toBeVisible();
   await expect(page.locator(".m2-home__task-title", { hasText: "期限超過の家事" })).toHaveCount(0);
+  await expect(page.getByText("今日中の家事")).toBeVisible();
   await expect(page.getByText("買い物 2件")).toBeVisible();
   await neutralize(page);
   await screenshot(page, "01-home-normal-390x844.png");
   state.overdue = true;
   await page.reload();
   await expect(page.getByText("期限超過の家事")).toBeVisible();
+  await expect(page.getByText("今日中の家事")).toBeVisible();
   await neutralize(page);
   await screenshot(page, "02-home-overdue-390x844.png");
   await expect(page.getByRole("button", { name: /完了済み/ })).toHaveCount(0);

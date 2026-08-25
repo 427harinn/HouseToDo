@@ -934,7 +934,7 @@ function AppFrame({
   const [isAddSheetOpen, setIsAddSheetOpen] = useState(false);
 
   return (
-    <div className={`app-shell${showBottomNavigation ? " app-shell--with-nav" : ""}`}>
+    <div className="app-shell app-shell--with-nav">
       <main className="app-shell__viewport">{children}</main>
       {showBottomNavigation ? <>
         <BottomNavigation
