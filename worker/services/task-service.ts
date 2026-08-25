@@ -333,7 +333,11 @@ export class TaskService {
     const isSelectedDirect = (task: Task) => task.modelRecurrenceType
       ? !isFlexible(task)
       : task.recurrenceType === "daily" || task.recurrenceType === "scheduled";
-    const periodKeys = activeTasks
+    // Completed Calendar history must remain visible after a flexible task is
+    // deactivated. Legacy period records may have only period_key populated,
+    // so include scopes from inactive flexible tasks for history lookup while
+    // keeping inactive tasks out of active month/detail projections.
+    const periodKeys = allTasks
       .filter(isFlexible)
       .flatMap((task) => [projectTaskOnDate(task, targetDate), ...dateKeys.map((date) => projectTaskOnDate(task, date))])
       .filter((scope) => scope.matchesDate && scope.periodKey)

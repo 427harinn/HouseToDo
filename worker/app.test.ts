@@ -786,6 +786,52 @@ describe("redesigned task model API", () => {
     expect(oversized.status).toBe(400);
   });
 
+  it("keeps inactive legacy flexible Calendar records visible and restoreable", async () => {
+    const app = createApp();
+    const env = createTestEnv();
+    const db = env.DB as unknown as MemoryD1;
+    const owner = await registerUser(env, { email: "calendar-legacy@example.com", password: "very-long-password", displayName: "Calendar Legacy" });
+    await app.fetch(postJson("/api/households", { name: "Calendar Legacy House" }, owner.cookie), env);
+    const created = await app.fetch(postJson("/api/tasks", {
+      title: "旧週次家事",
+      modelRecurrenceType: "weekly_flexible",
+      weeklyDeadlineWeekday: 4,
+      startDate: "2026-08-01",
+      assignmentType: "anyone",
+      notificationSlot: "none"
+    }, owner.cookie), env);
+    const createdBody: { data: { task: { id: string } } } = await created.json();
+    const taskId = createdBody.data.task.id;
+    await app.fetch(postJson(`/api/tasks/${taskId}/complete`, { targetDate: "2026-08-20", calendarDate: "2026-08-20" }, owner.cookie), env);
+    const record = Array.from(db.taskRecords.values()).find((item) => item.task_id === taskId);
+    if (!record) throw new Error("legacy flexible completion did not create a record");
+    db.taskRecords.set(record.id, {
+      ...record,
+      target_date: null,
+      calendar_action_date: null,
+      completed_at: "2026-08-20T12:00:00.000Z",
+      updated_at: "2026-08-20T12:00:00.000Z"
+    });
+    const deactivated = await app.fetch(new Request(`https://example.test/api/tasks/${taskId}`, {
+      method: "DELETE",
+      headers: { cookie: owner.cookie, origin: "https://example.test", "content-type": "application/json" },
+      body: "{}"
+    }), env);
+    expect(deactivated.status).toBe(200);
+
+    const calendar = await app.fetch(new Request("https://example.test/api/tasks/calendar?from=2026-08-01&to=2026-08-31&selectedDate=2026-08-20", { headers: { cookie: owner.cookie } }), env);
+    expect(calendar.status).toBe(200);
+    const body: { data: { selected: { completed: Array<{ id: string; periodKey: string | null; title: string; taskActive: boolean }> } } } = await calendar.json();
+    expect(body.data.selected.completed).toEqual([expect.objectContaining({ id: record.id, periodKey: record.period_key, title: "旧週次家事", taskActive: false })]);
+
+    const restored = await app.fetch(postJson(`/api/tasks/${taskId}/calendar-restore`, { recordId: record.id, calendarDate: "2026-08-20" }, owner.cookie), env);
+    expect(restored.status).toBe(200);
+    const afterRestore = await app.fetch(new Request("https://example.test/api/tasks/calendar?from=2026-08-01&to=2026-08-31&selectedDate=2026-08-20", { headers: { cookie: owner.cookie } }), env);
+    const afterBody: { data: { selected: { weeklyFlexible: Array<{ title: string }>; completed: Array<{ title: string }> } } } = await afterRestore.json();
+    expect(afterBody.data.selected.weeklyFlexible).toEqual(expect.arrayContaining([expect.objectContaining({ title: "旧週次家事" })]));
+    expect(afterBody.data.selected.completed).toHaveLength(0);
+  });
+
   it.each([
     ["weekly_flexible", { weeklyDeadlineWeekday: 5 }],
     ["monthly_flexible", { monthlyDeadlineType: "month_end" }]

@@ -41,3 +41,7 @@ Review GIF previews:
 - `motion/previews/calendar-completed-undo.gif`
 
 GIFs are generated from the existing WebM playback at 10 fps and preserve the WebM speed. WebM remains the source of truth.
+
+## Reviewer upload package
+
+Run `node scripts/build-calendar-review-upload.mjs` after final capture. It clears and recreates `review-upload/` with only four side-by-side board PNGs and the four canonical WebM files. Each board includes the state name, Production HEAD SHA, Mockup SHA, and Evidence source.

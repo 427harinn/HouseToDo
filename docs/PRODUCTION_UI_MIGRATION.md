@@ -41,6 +41,8 @@ Before creating the Draft PR, Codex rendered the latest Mockup main and Producti
 
 Production UI migration PRs must include a Mockup comparison gallery and Motion preview in the PR body itself. Pinned GitHub image URLs are used for the main screenshots; animated GIFs are review previews and the original WebM files remain the canonical Motion evidence.
 
+For visible UI migrations, generate a clean reviewer upload package after the final capture. The package contains only a small set of labeled Production/Mockup comparison boards and the canonical WebM files; it must include the Production HEAD SHA, Mockup SHA, and Evidence source so stale captures are not confused with the final state.
+
 ## M1 transitional mapping
 
 最終Bottom Navigationは`Home / Calendar / Add / Shopping / Other`の5枠とする。M1では正式なOther screenをまだ作らないため、Otherは既存の`/settings/members`へ遷移し、`/settings/members`表示時はOtherをcurrent扱いにする。この暫定mappingはM5で正式な`/other`へ置き換える。

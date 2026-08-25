@@ -30,3 +30,11 @@
 - Screenshotはsettled stateで撮影し、hover/focusをneutralizeする。
 - Motionを人工的に遅くしない。GIF変換でも元の再生速度を維持する。
 - PR本文から画像・GIF・WebM linkが実際に確認できることをCodex自身が確認する。
+
+## Review upload package
+
+- 最終Evidence生成時は、reviewer添付用の専用ディレクトリをいったん空にしてから再生成する。古いEvidenceを残さない。
+- review-uploadにはChatGPTへ添付するboard PNGとcanonical WebMだけを置き、個別の全PNG・GIF・中間フレームは置かない。
+- Mockup parityではProduction / Mockupを同一stateのside-by-side boardへまとめ、board内にstate名、Production HEAD SHA、Mockup SHA、Evidence sourceを明記する。
+- review-upload生成後、ファイル数・内容・SHAを確認し、最終報告に「ChatGPTへ送るファイル（これだけ）」として絶対パスと合計数を列挙する。
+- PR本文のVisual / Motion Evidence埋め込みとSHA固定は従来どおり維持する。review-uploadは手動添付用の補助パッケージである。
