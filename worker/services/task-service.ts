@@ -33,10 +33,16 @@ export type TaskWithStatus = Task & {
   periodKey?: string | null;
   periodStart?: string;
   periodEnd?: string;
-  deadlineDate?: string;
+  deadlineDate?: string | null;
   deadlineTime?: string | null;
   completedCount?: number;
   overdue?: boolean;
+};
+
+export type HomeHistoryRecord = {
+  record: TaskRecord;
+  task: Task | null;
+  taskActive: boolean;
 };
 
 export type WeeklyTaskSummary = Task & {
@@ -188,6 +194,86 @@ export class TaskService {
     };
   }
 
+  async listHome(userId: string, date?: string | null): Promise<{
+    date: string;
+    tasks: TaskWithStatus[];
+    completed: HomeHistoryRecord[];
+    passed: HomeHistoryRecord[];
+  }> {
+    const household = await this.households.requireCurrentHousehold(userId);
+    const targetDate = date ?? getLocalDate(new Date(), household.timezone);
+    const allTasks = await this.tasks.listByHouseholdId(household.id, { includeInactive: true });
+    const activeTasks = allTasks.filter((task) => task.active);
+    const allRecords = await this.records.listByHouseholdId(household.id);
+    const recordsByTask = byTaskId(allRecords);
+    const weekStart = getWeekStartDate(targetDate, household.weekStartsOn);
+    const projected: TaskWithStatus[] = [];
+
+    for (const task of activeTasks) {
+      if (task.modelRecurrenceType) {
+        const scope = projectTaskOnDate(task, targetDate);
+        if (!scope.matchesDate) continue;
+        const scopedRecords = scope.scopeType === "period"
+          ? (recordsByTask.get(task.id) ?? []).filter((record) => record.periodKey === scope.periodKey)
+          : (recordsByTask.get(task.id) ?? []).filter((record) =>
+              record.occurrenceKey === scope.occurrenceKey ||
+              (!record.occurrenceKey && record.targetDate === scope.targetDate)
+            );
+        const current = this.mergeProjectedStatus(task, scope, scopedRecords, household.timezone);
+        if (current.status === "pending" || current.status === "in_progress") projected.push(current);
+        continue;
+      }
+
+      if (task.recurrenceType === "daily" || task.recurrenceType === "scheduled") {
+        const scope = projectTaskOnDate(task, targetDate);
+        if (!scope.matchesDate) continue;
+        const current = this.mergeProjectedStatus(
+          task,
+          scope,
+          (recordsByTask.get(task.id) ?? []).filter((record) => record.targetDate === targetDate),
+          household.timezone
+        );
+        if (current.status === "pending" || current.status === "in_progress") projected.push(current);
+        continue;
+      }
+
+      // Legacy weekly tasks have no canonical deadline projection, but must stay
+      // visible as pending household work until their existing weekly target is met.
+      if (task.recurrenceType === "weekly") {
+        const weekly = this.mergeWeeklyStatus(
+          task,
+          (recordsByTask.get(task.id) ?? []).filter((record) => record.targetWeekStart === weekStart)
+        );
+        if (weekly.status === "pending" || weekly.status === "in_progress") {
+          const weeklyBase = this.mergeDailyStatus(task, weekly.latestAction);
+          projected.push({
+            ...weeklyBase,
+            status: weekly.status,
+            completedCount: weekly.completedCount,
+            scopeKind: "period",
+            periodStart: weekStart,
+            periodEnd: getWeekEndDate(weekStart, household.weekStartsOn),
+            deadlineDate: null,
+            deadlineTime: null,
+            overdue: false
+          });
+        }
+      }
+    }
+
+    const history = allRecords
+      .filter((record) => record.status === "completed" || record.status === "skipped")
+      .filter((record) => getLocalDate(record.completedAt ?? record.skippedAt ?? record.updatedAt, household.timezone) === targetDate)
+      .map((record) => ({ record, task: allTasks.find((task) => task.id === record.taskId) ?? null, taskActive: Boolean(allTasks.find((task) => task.id === record.taskId)?.active) }));
+
+    return {
+      date: targetDate,
+      tasks: projected.sort(compareTodayTasks),
+      completed: history.filter(({ record }) => record.status === "completed"),
+      passed: history.filter(({ record }) => record.status === "skipped")
+    };
+  }
+
   async listWeek(
     userId: string,
     weekStart?: string | null
@@ -301,6 +387,23 @@ export class TaskService {
     return this.records.listHistory(household.id, taskId, limit);
   }
 
+  async restoreRecord(userId: string, taskId: string, recordId: string): Promise<{ reset: true }> {
+    const household = await this.households.requireCurrentHousehold(userId);
+    const task = await this.requireTask(household.id, taskId);
+    const record = await this.records.findById(household.id, recordId);
+    if (!record || record.taskId !== task.id) throw taskNotFoundError();
+    const actionDate = getLocalDate(record.completedAt ?? record.skippedAt ?? record.updatedAt, household.timezone);
+    const today = getLocalDate(new Date(), household.timezone);
+    if (actionDate !== today) throw validationError({ recordId: "Only today's task record can be restored." });
+    const removed = await this.records.deleteById(household.id, taskId, recordId);
+    if (!removed) throw taskNotFoundError();
+    if (!task.active) {
+      const reactivated = await this.tasks.reactivate(household.id, taskId, nowIso());
+      if (!reactivated) throw taskNotFoundError();
+    }
+    return { reset: true };
+  }
+
   private async changeDailyState(
     household: HouseholdWithRole,
     userId: string,
@@ -318,7 +421,7 @@ export class TaskService {
       await this.records.deleteByScope(household.id, task.id, { targetDate, occurrenceKey: scope.occurrenceKey ?? undefined });
       return { reset: true };
     }
-    const record = await this.applyState(userId, household.id, task.id, targetDate, null, action, existing, input.note);
+    const record = await this.applyState(userId, household.id, task, targetDate, null, action, existing, input.note);
     return this.mergeDailyStatus(task, record);
   }
 
@@ -344,7 +447,7 @@ export class TaskService {
     const record = await this.applyState(
       userId,
       household.id,
-      task.id,
+      task,
       scope.scopeType === "occurrence" ? targetDate : null,
       null,
       action,
@@ -384,7 +487,7 @@ export class TaskService {
     const record = await this.applyState(
       userId,
       household.id,
-      task.id,
+      task,
       null,
       targetWeekStart,
       action,
@@ -397,7 +500,7 @@ export class TaskService {
   private async applyState(
     userId: string,
     householdId: string,
-    taskId: string,
+    task: Task,
     targetDate: string | null,
     targetWeekStart: string | null,
     action: "start" | "complete" | "skip",
@@ -417,10 +520,13 @@ export class TaskService {
 
     const status: TaskRecordStatus =
       action === "start" ? "in_progress" : action === "skip" ? "skipped" : "completed";
+    const assignee = task.assignedUserId
+      ? await this.members.findProfile(householdId, task.assignedUserId)
+      : null;
     const recordInput: RecordStateInput = {
       id: existing?.id ?? crypto.randomUUID(),
       householdId,
-      taskId,
+      taskId: task.id,
       targetDate,
       targetWeekStart,
       occurrenceKey,
@@ -431,6 +537,13 @@ export class TaskService {
       completedAt: action === "complete" ? now : null,
       skippedAt: action === "skip" ? now : null,
       note: action === "skip" ? note ?? null : null,
+      taskTitleSnapshot: task.title,
+      assignedUserIdSnapshot: task.assignedUserId,
+      assignedUserDisplayNameSnapshot: assignee?.displayName ?? null,
+      assignedUserColorSnapshot: assignee?.color ?? null,
+      assignedUserAvatarUrlSnapshot: assignee?.avatar
+        ? `/api/users/${encodeURIComponent(assignee.userId)}/avatar?v=${encodeURIComponent(assignee.avatarUpdatedAt ?? "")}`
+        : null,
       now
     };
     // Flexible canonical tasks are period-scoped even though the action carries
@@ -515,11 +628,17 @@ export class TaskService {
 }
 
 const compareTodayTasks = (a: TaskWithStatus, b: TaskWithStatus): number => {
-  if (a.scheduledTime && b.scheduledTime && a.scheduledTime !== b.scheduledTime) {
-    return a.scheduledTime.localeCompare(b.scheduledTime);
-  }
-  if (a.scheduledTime && !b.scheduledTime) return -1;
-  if (!a.scheduledTime && b.scheduledTime) return 1;
+  if (Boolean(a.overdue) !== Boolean(b.overdue)) return a.overdue ? -1 : 1;
+  const aDate = a.deadlineDate ?? null;
+  const bDate = b.deadlineDate ?? null;
+  if (aDate && bDate && aDate !== bDate) return aDate.localeCompare(bDate);
+  if (aDate && !bDate) return -1;
+  if (!aDate && bDate) return 1;
+  const aTime = a.deadlineTime ?? a.scheduledTime ?? null;
+  const bTime = b.deadlineTime ?? b.scheduledTime ?? null;
+  if (aTime && bTime && aTime !== bTime) return aTime.localeCompare(bTime);
+  if (aTime && !bTime) return -1;
+  if (!aTime && bTime) return 1;
   return a.sortOrder - b.sortOrder;
 };
 

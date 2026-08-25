@@ -93,6 +93,18 @@ export class HouseholdMemberRepository {
     return (result.results ?? []).map(toMemberProfile);
   }
 
+  async findProfile(householdId: string, userId: string): Promise<HouseholdMemberProfile | null> {
+    const result = await this.db
+      .prepare(`SELECT hm.household_id, hm.user_id, hm.role, hm.color, hm.joined_at, u.display_name,
+                u.avatar_type, u.avatar_value, u.avatar_size_bytes, u.avatar_width, u.avatar_height,
+                u.updated_at AS avatar_updated_at
+         FROM household_members hm INNER JOIN users u ON u.id = hm.user_id
+         WHERE hm.household_id = ? AND hm.user_id = ?`)
+      .bind(householdId, userId)
+      .first<HouseholdMemberProfileRow>();
+    return result ? toMemberProfile(result) : null;
+  }
+
   prepareAdd(input: AddHouseholdMemberInput): D1PreparedStatement {
     return this.db
       .prepare(

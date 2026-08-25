@@ -120,6 +120,11 @@ export type TaskRecordDbRecord = {
   completed_at: string | null;
   skipped_at: string | null;
   note: string | null;
+  task_title_snapshot?: string | null;
+  assigned_user_id_snapshot?: string | null;
+  assigned_user_display_name_snapshot?: string | null;
+  assigned_user_color_snapshot?: string | null;
+  assigned_user_avatar_url_snapshot?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -435,6 +440,26 @@ export class MemoryD1 {
     if (sql.includes("FROM households WHERE id")) {
       return this.households.get(String(values[0])) ?? null;
     }
+    if (sql.includes("FROM household_members hm") && sql.includes("hm.user_id = ?")) {
+      const member = this.members.get(`${toText(values[0])}:${toText(values[1])}`);
+      const user = member ? this.users.get(member.user_id) : null;
+      return member && user
+        ? ({
+            household_id: member.household_id,
+            user_id: member.user_id,
+            role: member.role,
+            color: member.color,
+            joined_at: member.joined_at,
+            display_name: user.display_name,
+            avatar_type: user.avatar_type,
+            avatar_value: user.avatar_value,
+            avatar_size_bytes: user.avatar_size_bytes,
+            avatar_width: user.avatar_width,
+            avatar_height: user.avatar_height,
+            avatar_updated_at: user.updated_at
+          } as unknown as HouseholdMemberRecord)
+        : null;
+    }
     if (sql.includes("FROM household_members WHERE household_id")) {
       return this.members.get(`${toText(values[0])}:${toText(values[1])}`) ?? null;
     }
@@ -697,6 +722,15 @@ export class MemoryD1 {
           ...member,
           display_name: this.users.get(member.user_id)?.display_name ?? ""
         }));
+    }
+    if (
+      sql.includes("FROM task_records tr") &&
+      sql.includes("WHERE tr.household_id = ? ORDER BY tr.updated_at DESC")
+    ) {
+      return Array.from(this.taskRecords.values())
+        .filter((item) => item.household_id === values[0])
+        .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
+        .map((item) => this.withActedByName(item));
     }
     if (sql.includes("FROM tasks") && sql.includes("WHERE household_id = ?")) {
       let rows = Array.from(this.tasks.values())
@@ -1243,6 +1277,14 @@ export class MemoryD1 {
         changes = 0;
       }
     }
+    if (sql.startsWith("UPDATE tasks") && sql.includes("active = 1")) {
+      const task = this.tasks.get(toText(values[2]));
+      if (task && task.household_id === values[1]) {
+        this.tasks.set(task.id, { ...task, active: 1, updated_at: toText(values[0]) });
+      } else {
+        changes = 0;
+      }
+    }
     if (sql.startsWith("INSERT INTO task_weekdays")) {
       this.taskWeekdays.set(`${toText(values[0])}:${toText(values[1])}`, {
         task_id: toText(values[0]),
@@ -1269,19 +1311,24 @@ export class MemoryD1 {
         completed_at: toNullableText(values[10]),
         skipped_at: toNullableText(values[11]),
         note: toNullableText(values[12]),
-        created_at: toText(values[13]),
-        updated_at: toText(values[14])
+        task_title_snapshot: toNullableText(values[13]),
+        assigned_user_id_snapshot: toNullableText(values[14]),
+        assigned_user_display_name_snapshot: toNullableText(values[15]),
+        assigned_user_color_snapshot: toNullableText(values[16]),
+        assigned_user_avatar_url_snapshot: toNullableText(values[17]),
+        created_at: toText(values[18]),
+        updated_at: toText(values[19])
       });
     }
     if (sql.startsWith("UPDATE task_records")) {
       const id = sql.includes("WHERE household_id = ? AND id = ?")
-        ? toText(values[8])
-        : toText(values[7]);
+        ? toText(values[13])
+        : toText(values[12]);
       const record = this.taskRecords.get(id);
       if (
         record &&
-        (!sql.includes("WHERE household_id = ? AND id = ?") ||
-          record.household_id === values[7])
+          (!sql.includes("WHERE household_id = ? AND id = ?") ||
+          record.household_id === values[12])
       ) {
         this.taskRecords.set(id, {
           ...record,
@@ -1291,13 +1338,25 @@ export class MemoryD1 {
           completed_at: toNullableText(values[3]),
           skipped_at: toNullableText(values[4]),
           note: toNullableText(values[5]),
-          updated_at: toText(values[6])
+          task_title_snapshot: sql.includes("task_title_snapshot") ? toNullableText(values[6]) : record.task_title_snapshot,
+          assigned_user_id_snapshot: sql.includes("assigned_user_id_snapshot") ? toNullableText(values[7]) : record.assigned_user_id_snapshot,
+          assigned_user_display_name_snapshot: sql.includes("assigned_user_display_name_snapshot") ? toNullableText(values[8]) : record.assigned_user_display_name_snapshot,
+          assigned_user_color_snapshot: sql.includes("assigned_user_color_snapshot") ? toNullableText(values[9]) : record.assigned_user_color_snapshot,
+          assigned_user_avatar_url_snapshot: sql.includes("assigned_user_avatar_url_snapshot") ? toNullableText(values[10]) : record.assigned_user_avatar_url_snapshot,
+          updated_at: toText(values[sql.includes("task_title_snapshot") ? 11 : 6])
         });
       } else {
         changes = 0;
       }
     }
     if (sql.startsWith("DELETE FROM task_records")) {
+      if (sql.includes("AND id = ?")) {
+        const record = this.taskRecords.get(toText(values[2]));
+        if (record && record.household_id === values[0] && record.task_id === values[1]) this.taskRecords.delete(record.id);
+        else changes = 0;
+        this.lastChanges = changes;
+        return { success: true, meta: { changes } } as D1Result;
+      }
       const before = this.taskRecords.size;
       for (const [id, record] of this.taskRecords) {
         const dateMatches =

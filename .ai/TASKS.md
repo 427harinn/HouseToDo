@@ -1,5 +1,17 @@
 # Current milestone tasks
 
+## Production UI Migration M2 — Home + Task
+
+- [x] Replace production Home with the Mockup-derived single active list and household-local header
+- [x] Add canonical deadline urgency sorting, scope check colors, overdue override, and member avatar fallback
+- [x] Add complete-on-tap, 350ms completion motion, 200ms pass motion, swipe actions, vertical gesture discrimination, and click suppression
+- [x] Add collapsed completed/passed today records, snapshots, actual completer/assignee avatars, inactive restore-only actions, and 180ms restore motion
+- [x] Add additive task-record snapshots, local migration `0016`, Home dashboard contract, shopping pending count, and reactivate/restore API
+- [x] Replace production task add/edit UI with the six-option canonical form, local date/time, notification, assignee, memo, reuse, previous completion, and delete confirmation
+- [x] Preserve legacy weekly target compatibility and NULL snapshot fallback
+- [x] Add M2 frontend and Worker regression coverage; run lint, typecheck, tests, build, and local migration
+- [x] Prepare 390px visual/motion evidence and Draft PR without merge
+
 ## Production UI Migration M1
 
 - [x] 最新Production/Mockup mainを確認し、専用branchから開始

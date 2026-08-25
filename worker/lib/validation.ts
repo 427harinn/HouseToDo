@@ -139,6 +139,7 @@ export type TaskTemplatePatchInput = Partial<TaskTemplateWriteInput>;
 export type TaskStateInput = {
   targetDate?: string;
   targetWeekStart?: string;
+  recordId?: string;
   note?: string | null;
 };
 
@@ -616,6 +617,7 @@ export const validateTaskStateInput = (value: unknown): TaskStateInput => {
   const output: TaskStateInput = {};
   if (typeof input.targetDate === "string") output.targetDate = input.targetDate;
   if (typeof input.targetWeekStart === "string") output.targetWeekStart = input.targetWeekStart;
+  if (typeof input.recordId === "string" && input.recordId.trim().length > 0) output.recordId = input.recordId.trim();
   if (output.targetDate && !isValidDateKey(output.targetDate)) {
     throw validationError({ targetDate: "targetDate must be YYYY-MM-DD." });
   }

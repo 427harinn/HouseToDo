@@ -1351,3 +1351,106 @@ describe("task reuse and template API", () => {
     expect(invalidAssignee.status).toBe(400);
   });
 });
+
+describe("M2 Home contract", () => {
+  it("keeps action snapshots and restores an inactive task without deleting other history", async () => {
+    const app = createApp();
+    const db = new MemoryD1();
+    const env = createTestEnv(db);
+    const owner = await registerUser(env, {
+      email: "m2-home-owner@example.com",
+      password: "very-long-password",
+      displayName: "M2 Owner"
+    });
+    await app.fetch(postJson("/api/households", { name: "M2 Home" }, owner.cookie), env);
+    const today = "2026-08-25";
+    const created = await app.fetch(
+      postJson(
+        "/api/tasks",
+        {
+          title: "ゴミ出し",
+          modelRecurrenceType: "daily",
+          assignmentType: "anyone",
+          startDate: today,
+          deadlineTime: "09:00",
+          notificationOffsetMinutes: null,
+          notificationSlot: "none"
+        },
+        owner.cookie
+      ),
+      env
+    );
+    const createdBody: { data: { task: { id: string } } } = await created.json();
+    const taskId = createdBody.data.task.id;
+    const complete = await app.fetch(
+      postJson(`/api/tasks/${taskId}/complete`, { targetDate: today }, owner.cookie),
+      env
+    );
+    expect(complete.status).toBe(200);
+    const record = Array.from(db.taskRecords.values()).find((item) => item.task_id === taskId);
+    if (!record) throw new Error("complete did not create a task record");
+    expect(record).toMatchObject({ task_title_snapshot: "ゴミ出し", assigned_user_id_snapshot: null });
+    const ownerId = Array.from(db.users.values()).find((item) => item.email === "m2-home-owner@example.com")?.id;
+    if (!ownerId) throw new Error("owner was not created");
+    const passedTaskResponse = await app.fetch(
+      postJson(
+        "/api/tasks",
+        { title: "窓ふき", modelRecurrenceType: "daily", assignmentType: "specific", assignedUserId: ownerId, startDate: today, notificationSlot: "none" },
+        owner.cookie
+      ),
+      env
+    );
+    const passedTaskBody: { data: { task: { id: string } } } = await passedTaskResponse.json();
+    const passedTaskId = passedTaskBody.data.task.id;
+    await app.fetch(postJson(`/api/tasks/${passedTaskId}/skip`, { targetDate: today }, owner.cookie), env);
+    const passedRecord = Array.from(db.taskRecords.values()).find((item) => item.task_id === passedTaskId);
+    if (!passedRecord) throw new Error("skip did not create a task record");
+    expect(passedRecord).toMatchObject({ task_title_snapshot: "窓ふき", assigned_user_id_snapshot: ownerId, assigned_user_display_name_snapshot: "M2 Owner" });
+
+    const edited = await app.fetch(
+      patchJson(`/api/tasks/${taskId}`, { title: "燃えるゴミ出し" }, owner.cookie),
+      env
+    );
+    expect(edited.status).toBe(200);
+    const dashboardAfterEdit = await app.fetch(
+      new Request(`https://example.test/api/dashboard/today?date=${today}`, { headers: { cookie: owner.cookie } }),
+      env
+    );
+    await expect(dashboardAfterEdit.json()).resolves.toMatchObject({
+      ok: true,
+      data: { completedRecords: [{ title: "ゴミ出し", taskActive: true }] }
+    });
+
+    const deactivate = await app.fetch(
+      new Request(`https://example.test/api/tasks/${taskId}`, {
+        method: "DELETE",
+        headers: { cookie: owner.cookie, origin: "https://example.test", "content-type": "application/json" },
+        body: "{}"
+      }),
+      env
+    );
+    expect(deactivate.status).toBe(200);
+    const dashboardInactive = await app.fetch(
+      new Request(`https://example.test/api/dashboard/today?date=${today}`, { headers: { cookie: owner.cookie } }),
+      env
+    );
+    await expect(dashboardInactive.json()).resolves.toMatchObject({
+      ok: true,
+      data: { completedRecords: [{ title: "ゴミ出し", taskActive: false }], homeTasks: [] }
+    });
+
+    const restored = await app.fetch(
+      postJson(`/api/tasks/${taskId}/restore`, { recordId: record.id }, owner.cookie),
+      env
+    );
+    expect(restored.status).toBe(200);
+    const dashboardRestored = await app.fetch(
+      new Request(`https://example.test/api/dashboard/today?date=${today}`, { headers: { cookie: owner.cookie } }),
+      env
+    );
+    await expect(dashboardRestored.json()).resolves.toMatchObject({
+      ok: true,
+      data: { completedRecords: [], passedRecords: [{ title: "窓ふき" }], homeTasks: [{ id: taskId, title: "燃えるゴミ出し" }] }
+    });
+  });
+});

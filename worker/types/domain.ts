@@ -152,6 +152,11 @@ export type TaskRecord = {
   completedAt: string | null;
   skippedAt: string | null;
   note: string | null;
+  taskTitleSnapshot: string | null;
+  assignedUserIdSnapshot: string | null;
+  assignedUserDisplayNameSnapshot: string | null;
+  assignedUserColorSnapshot: string | null;
+  assignedUserAvatarUrlSnapshot: string | null;
   createdAt: string;
   updatedAt: string;
 };

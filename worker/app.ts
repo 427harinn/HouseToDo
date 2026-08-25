@@ -44,6 +44,7 @@ import {
   deleteTaskRoute,
   getTaskRoute,
   recentTasksRoute,
+  restoreTaskRecordRoute,
   listTasksRoute,
   taskHistoryRoute,
   todayTasksRoute,
@@ -114,6 +115,9 @@ const routeApi = withErrorHandling(
         return deleteTaskRoute(taskId)(context);
       if (action === "history" && context.request.method === "GET") {
         return taskHistoryRoute(taskId)(context);
+      }
+      if (action === "restore" && context.request.method === "POST") {
+        return restoreTaskRecordRoute(taskId)(context);
       }
       if (
         context.request.method === "POST" &&

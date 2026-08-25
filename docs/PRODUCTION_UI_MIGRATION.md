@@ -6,8 +6,8 @@ HouseToDo-Mockupをdesign / interaction / motionのsource of truthとし、Produ
 
 | Milestone | Scope | Status |
 | --- | --- | --- |
-| M1 | Shared UI Foundation: tokens, global foundation, motion constants, App Shell, Bottom Navigation, Add Bottom Sheet | In progress |
-| M2 | Home + Task: new Home, complete/pass/undo, task add/edit/delete, previous completion, and related Motion | Planned |
+| M1 | Shared UI Foundation: tokens, global foundation, motion constants, App Shell, Bottom Navigation, Add Bottom Sheet | Done |
+| M2 | Home + Task: new Home, complete/pass/undo, task add/edit/delete, previous completion, and related Motion | Done |
 | M3 | Calendar screen visual migration and Calendar interactions | Planned |
 | M4 | Shopping screen visual migration and Shopping interactions | Planned |
 | M5 | Other / Settings and formal `/other` route | Planned |
@@ -15,7 +15,14 @@ HouseToDo-Mockupをdesign / interaction / motionのsource of truthとし、Produ
 | M7 | Integration / Legacy UI cleanup: retire user-facing old Task list/detail/respond/templates and Shopping detail/templates routes, then verify 2-user flows, E2E, and PWA behavior | Planned |
 | M8 | Legacy backend cleanup: after the new UI is stable, safely remove unused API/DB/compatibility code in separate PRs | Planned |
 
-現在実装中なのはM1のみ。M2以降のscreen redesign、API、Worker、D1、R2、認証backend変更はこのbranchの対象外とする。
+M2まで完了。M3以降のscreen redesignはこのbranchの対象外とする。
+
+## M2 backend contract decision
+
+- `GET /api/dashboard/today` retains the legacy `todayTasks`, `summary`, and `weeklyTasks` fields and adds `homeTasks`, `completedRecords`, `passedRecords`, household timezone, member avatar URLs, and the pending Shopping count. Home reads the single active `homeTasks` projection plus the two today-only record collections, so reload reconstructs the same state without fixture data.
+- `task_records` uses additive nullable action-time snapshots for title and assigned member identity/display/color/avatar URL. Existing NULL snapshots fall back to the current task/member projection.
+- `POST /api/tasks/:taskId/restore` removes only the requested today record and reactivates an inactive task. It does not delete any other history.
+- Migration `0016_task_record_snapshots.sql` is local-only in M2; no remote D1 or Cloudflare operation was performed.
 
 ## M1 transitional mapping
 
@@ -25,5 +32,5 @@ HouseToDo-Mockupをdesign / interaction / motionのsource of truthとし、Produ
 
 ## Reference commits
 
-- Production base: `11a6c2848ccf726ca865510f68eca3ae1af7c9d1`（作業開始時に確認した`origin/main`）
+- Production base: `2a7ab29ef7d353b32044daa285972e800270867d`（作業開始時に確認した`origin/main`）
 - HouseToDo-Mockup reference: `db8941dc3056f07862014242a349ae366da59e9c`（PR #18 merge後の`origin/main`）

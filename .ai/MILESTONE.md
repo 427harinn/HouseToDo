@@ -1,10 +1,17 @@
-# Milestone: Production UI Migration M1 — Shared UI Foundation
+# Milestone: Production UI Migration M2 — Home + Task
 
 ## Current boundary
 
-- M1のみ実装中。Mockupのtokens、global UI foundation、shared motion constants、App Shell、Bottom Navigation、Add Bottom SheetをProductionのrouter/layoutへ適用する。
-- M2以降のscreen redesign、API、Worker、D1、R2、認証backend、Cloudflare deployは対象外。
+- M1 Shared UI Foundation is complete.
+- M2 Home + Task is complete on the dedicated production branch. Mockup is used only for design, interaction, and motion reference; production API, auth, permissions, persisted data, and Cloudflare architecture remain authoritative.
+- M3 Calendar and later screen migrations are intentionally out of scope.
 - 詳細なM1〜M8計画は[docs/PRODUCTION_UI_MIGRATION.md](../docs/PRODUCTION_UI_MIGRATION.md)を参照。
+
+## M2 delivery
+
+- Home uses one canonical urgency-sorted active list with complete-on-tap, pass swipe actions, collapsed completed/passed today records, restore-only inactive records, member avatar resolution, empty state, and pending Shopping summary.
+- Task add/edit uses the six existing canonical recurrence values, household-local dates, all-day/time semantics, notification presets, assignee/reuse/delete sheets, last completion, and legacy weekly preservation.
+- Backend adds additive task-record snapshots and a household-scoped restore endpoint. Migration `0016_task_record_snapshots.sql` is local-only.
 
 # Historical milestone: Task model UI and reminder scheduler
 
