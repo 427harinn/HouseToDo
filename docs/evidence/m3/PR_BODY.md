@@ -123,7 +123,7 @@ All shared states above were rendered side-by-side at 390×844. Production-only 
 ## Tests / verification
 
 - Evidence files exist at the pinned SHA and are referenced with GitHub raw/blob URLs.
-- PNGs are settled 390×844 captures; GIFs are 10 fps previews derived from the existing WebM files.
+- PNGs are settled 390×844 captures; GIFs are 10 fps previews derived from the updated WebM recordings.
 - WebM originals were re-recorded after the review fixes; GIFs were regenerated from those recordings.
 
 ## Artifact details
