@@ -12,7 +12,9 @@ Production Calendar M3 migrated to Mockup latest-main parity. This follow-up upd
 
 `db8941dc3056f07862014242a349ae366da59e9c`
 
-## Mockup Parity Gallery
+## Visual Evidence
+
+### Mockup Parity Gallery
 
 Images are pinned to evidence commit `0f137cee29e1789ca6ac08ab1de401de30cf0a5d`. Click either image to open the original 390×844 PNG.
 
