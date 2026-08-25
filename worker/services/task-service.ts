@@ -404,6 +404,9 @@ export class TaskService {
     const actionDate = getLocalDate(record.completedAt ?? record.skippedAt ?? record.updatedAt, household.timezone);
     const today = getLocalDate(new Date(), household.timezone);
     if (actionDate !== today) throw validationError({ recordId: "Only today's task record can be restored." });
+    if (record.status !== "completed" && record.status !== "skipped") {
+      throw validationError({ recordId: "Only completed or skipped task records can be restored." });
+    }
     const removed = await this.records.deleteById(household.id, taskId, recordId);
     if (!removed) throw taskNotFoundError();
     if (!task.active) {

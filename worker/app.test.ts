@@ -1452,5 +1452,25 @@ describe("M2 Home contract", () => {
       ok: true,
       data: { completedRecords: [], passedRecords: [{ title: "窓ふき" }], homeTasks: [{ id: taskId, title: "燃えるゴミ出し" }] }
     });
+    const inProgressResponse = await app.fetch(
+      postJson(
+        "/api/tasks",
+        { title: "進行中の家事", modelRecurrenceType: "daily", assignmentType: "anyone", startDate: today, notificationSlot: "none" },
+        owner.cookie
+      ),
+      env
+    );
+    const inProgressBody: { data: { task: { id: string } } } = await inProgressResponse.json();
+    const inProgressTaskId = inProgressBody.data.task.id;
+    const started = await app.fetch(postJson(`/api/tasks/${inProgressTaskId}/start`, { targetDate: today }, owner.cookie), env);
+    expect(started.status).toBe(200);
+    const inProgressRecord = Array.from(db.taskRecords.values()).find((item) => item.task_id === inProgressTaskId);
+    if (!inProgressRecord) throw new Error("start did not create a task record");
+    const invalidRestore = await app.fetch(
+      postJson(`/api/tasks/${inProgressTaskId}/restore`, { recordId: inProgressRecord.id }, owner.cookie),
+      env
+    );
+    expect(invalidRestore.status).toBe(400);
+    expect(db.taskRecords.get(inProgressRecord.id)?.status).toBe("in_progress");
   });
 });

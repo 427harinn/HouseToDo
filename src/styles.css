@@ -1582,7 +1582,7 @@ textarea[aria-invalid="true"] {
 .m2-home__row-details { display: grid; flex: 1; min-width: 0; gap: 2px; }
 .m2-home__task-title { min-width: 0; overflow-wrap: anywhere; font-size: 1rem; font-weight: 500; line-height: 1.45; }
 .m2-home__deadline { color: var(--color-text-secondary); font-size: .8125rem; line-height: 1.4; }
-.m2-home__avatar { display: inline-flex; flex: 0 0 26px; width: 26px; height: 26px; align-items: center; justify-content: center; overflow: hidden; color: var(--color-primary-strong); font-size: .75rem; font-weight: 600; border-radius: 50%; }
+.m2-home__avatar { display: inline-flex; flex: 0 0 26px; width: 26px; height: 26px; align-items: center; justify-content: center; overflow: hidden; background: var(--color-primary-soft); color: var(--color-primary-strong); font-size: .75rem; font-weight: 600; border-radius: 50%; }
 .m2-home__avatar img { width: 100%; height: 100%; object-fit: cover; }
 .m2-home__more { display: inline-flex; flex: 0 0 0; width: 0; min-height: 44px; align-items: center; justify-content: center; overflow: hidden; padding: 0; border: 0; background: transparent; color: var(--color-text-secondary); opacity: 0; pointer-events: none; transition: width 180ms ease-out, flex-basis 180ms ease-out, opacity 180ms ease-out; }
 .m2-home__more svg { width: 18px; height: 18px; }
@@ -1633,9 +1633,9 @@ textarea[aria-invalid="true"] {
 .m2-task-form__row { position: relative; display: flex; width: 100%; min-height: 48px; align-items: center; gap: 12px; padding: 4px 0; border: 0; border-bottom: 1px solid var(--color-border); background: transparent; color: var(--color-text); text-align: left; }
 .m2-task-form__row--button { cursor: pointer; font: inherit; }
 .m2-task-form__row > span:first-child { color: var(--color-text); font-size: .9375rem; }
-.m2-task-form__row > strong { flex: 1; min-width: 0; font-weight: 400; text-align: right; }
-.m2-task-form__row-chevron { display: inline-flex; width: 44px; min-width: 44px; min-height: 44px; align-items: center; justify-content: center; color: var(--color-text-secondary); }
-.m2-task-form__row-chevron svg { width: 18px; }
+.m2-task-form__row-current { display: inline-flex; min-width: 0; flex: 1 1 auto; align-items: center; justify-content: flex-end; gap: 8px; color: var(--color-text-secondary); pointer-events: none; }
+.m2-task-form__row-current > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.m2-task-form__row-current > svg { width: 18px; height: 18px; flex: 0 0 18px; }
 .m2-task-form__toggle { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; position: relative; min-height: 48px; align-items: center; padding: 4px 0; border-bottom: 1px solid var(--color-border); color: var(--color-text); }
 .m2-task-form__toggle > span:first-child { font-size: .9375rem; }
 .m2-task-form__toggle-current { min-height: 28px; padding: 0 8px; color: var(--color-text-secondary); font-size: .8125rem; }
@@ -1652,8 +1652,10 @@ textarea[aria-invalid="true"] {
 .m2-task-form__compact-field select { min-width: 0; width: 100%; }
 .m2-task-form__compact-field .field-error { grid-column: 1 / -1; }
 .m2-task-form__assignee { display: inline-flex; align-items: center; justify-content: flex-end; gap: 8px; }
-.m2-task-form__assignee img, .m2-task-form__assignee > span { display: inline-flex; width: 26px; height: 26px; align-items: center; justify-content: center; overflow: hidden; border-radius: 50%; object-fit: cover; }
-.m2-task-form__actions { display: grid; gap: 12px; margin-top: 8px; }
+.m2-task-form__assignee img, .m2-task-form__assignee > span { display: inline-flex; width: 28px; height: 28px; align-items: center; justify-content: center; overflow: hidden; border-radius: 50%; object-fit: cover; }
+.m2-task-form__assignee > span { border: 1px solid var(--color-primary); background: var(--color-primary-soft); color: var(--color-primary-strong); font-size: .75rem; font-weight: 600; }
+.m2-task-form__actions { display: grid; gap: 12px; padding: 16px 0 calc(12px + env(safe-area-inset-bottom)); margin-top: 8px; border-top: 1px solid var(--color-border); background: var(--color-bg); }
+.m2-task-form__actions--edit { gap: 24px; padding-top: 24px; }
 .m2-task-form__save { min-height: 48px; border: 0; border-radius: 10px; background: var(--color-primary-strong); color: #fff; font-weight: 600; }
 .m2-task-form__delete { min-height: 44px; border: 0; background: transparent; color: var(--color-danger); }
 .m2-task-sheet__list { display: grid; gap: 0; }
