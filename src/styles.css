@@ -1565,7 +1565,7 @@ textarea[aria-invalid="true"] {
 .m2-home__header h1 { margin: 0; font-size: 1.125rem; font-weight: 600; }
 .m2-home__task-list { border-top: 1px solid var(--color-border); }
 .m2-home__row { position: relative; overflow: hidden; border-bottom: 1px solid var(--color-border); isolation: isolate; touch-action: pan-y; }
-.m2-home__row-content { position: relative; z-index: 1; display: flex; min-height: 70px; align-items: stretch; background: var(--color-bg); transform: translateX(var(--m2-swipe-offset, 0px)); transition: transform 180ms cubic-bezier(.22,1,.36,1); }
+.m2-home__row-content { position: relative; z-index: 1; display: flex; min-height: 70px; align-items: stretch; background: var(--color-bg); transform: translateX(var(--m2-swipe-offset, 0px)); transition: transform 180ms ease-out; }
 .m2-home__row.is-dragging .m2-home__row-content { transition: none; }
 .m2-home__row-main { display: flex; flex: 1; min-width: 0; min-height: 70px; align-items: center; gap: var(--space-3); padding: var(--space-3) 0; border: 0; background: transparent; color: var(--color-text); text-align: left; cursor: pointer; }
 .m2-home__row-main:disabled { cursor: default; }
@@ -1578,6 +1578,7 @@ textarea[aria-invalid="true"] {
 .m2-home__check svg { width: 15px; height: 15px; color: white; stroke-width: 3; animation: m2-check-enter 160ms ease-out both; }
 .m2-home__row.is-completing-row { animation: m2-complete-exit 90ms ease-out 260ms both; }
 .m2-home__row.is-passing-row { animation: m2-pass-exit 200ms ease-out both; }
+.m2-home__row.is-dragging, .m2-home__row.is-dragging * { user-select: none; -webkit-user-select: none; }
 .m2-home__row.is-restoring-row { animation: m2-restore-enter 180ms ease-out both; }
 .m2-home__row-details { display: grid; flex: 1; min-width: 0; gap: 2px; }
 .m2-home__task-title { min-width: 0; overflow-wrap: anywhere; font-size: 1rem; font-weight: 500; line-height: 1.45; }
@@ -1608,7 +1609,7 @@ textarea[aria-invalid="true"] {
 .m2-home__status { min-height: 20px; margin: 8px 0 0; color: var(--color-text-secondary); font-size: .75rem; }
 @keyframes m2-check-enter { from { opacity: 0; transform: scale(.7); } to { opacity: 1; transform: scale(1); } }
 @keyframes m2-complete-exit { from { opacity: 1; max-height: 96px; transform: scale(1); } to { opacity: 0; max-height: 0; transform: scale(.985); } }
-@keyframes m2-pass-exit { from { opacity: 1; max-height: 96px; transform: translateX(0) scale(1); } to { opacity: 0; max-height: 0; transform: translateX(-10px) scale(.98); } }
+@keyframes m2-pass-exit { from { opacity: 1; max-height: 72px; transform: translateX(0); } to { opacity: 0; max-height: 0; transform: translateX(-12px); } }
 @keyframes m2-restore-enter { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes m2-history-enter { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
 @media (hover: hover) and (pointer: fine) {
@@ -1657,7 +1658,7 @@ textarea[aria-invalid="true"] {
 .m2-task-form__actions { display: grid; gap: 12px; padding: 16px 0 calc(12px + env(safe-area-inset-bottom)); margin-top: 8px; border-top: 1px solid var(--color-border); background: var(--color-bg); }
 .m2-task-form__actions--edit { gap: 24px; padding-top: 24px; }
 .m2-task-form__save { min-height: 48px; border: 0; border-radius: 10px; background: var(--color-primary-strong); color: #fff; font-weight: 600; }
-.m2-task-form__delete { min-height: 44px; border: 0; background: transparent; color: var(--color-danger); }
+.m2-task-form__delete { display: inline-flex; min-height: 48px; align-items: center; justify-content: center; padding: 8px 12px; border: 1px solid color-mix(in srgb, var(--color-task-overdue) 60%, var(--color-border)); border-radius: var(--radius-action, 10px); background: transparent; color: var(--color-task-overdue); }
 .m2-task-sheet__list { display: grid; gap: 0; }
 .m2-task-sheet__list > button { display: flex; width: 100%; min-height: 52px; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border: 0; border-bottom: 1px solid var(--color-border); background: transparent; color: var(--color-text); text-align: left; }
 .bottom-sheet .m2-task-sheet__list > button { min-height: 44px; }

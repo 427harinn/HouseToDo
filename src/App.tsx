@@ -923,51 +923,55 @@ function JoinHouseholdScreen({
 function AppFrame({
   current,
   children,
-  onNavigate
+  onNavigate,
+  showBottomNavigation = true
 }: {
   current: "/home" | "/calendar" | "/tasks" | "/shopping" | "/settings/members";
   children: ReactNode;
   onNavigate: (route: NavigationPath) => void;
+  showBottomNavigation?: boolean;
 }) {
   const [isAddSheetOpen, setIsAddSheetOpen] = useState(false);
 
   return (
-    <div className="app-shell app-shell--with-nav">
+    <div className={`app-shell${showBottomNavigation ? " app-shell--with-nav" : ""}`}>
       <main className="app-shell__viewport">{children}</main>
-      <BottomNavigation
-        addOpen={isAddSheetOpen}
-        current={current}
-        onAdd={() => setIsAddSheetOpen(true)}
-        onNavigate={onNavigate}
-      />
-      <BottomSheet
-        open={isAddSheetOpen}
-        title="追加"
-        onClose={() => setIsAddSheetOpen(false)}
-      >
-        <div className="add-action-sheet__options">
-          <button
-            type="button"
-            className="add-action-sheet__option motion-pressable"
-            onClick={() => {
-              setIsAddSheetOpen(false);
-              onNavigate("/tasks/new");
-            }}
-          >
-            家事
-          </button>
-          <button
-            type="button"
-            className="add-action-sheet__option motion-pressable"
-            onClick={() => {
-              setIsAddSheetOpen(false);
-              onNavigate("/shopping/new");
-            }}
-          >
-            買い物
-          </button>
-        </div>
-      </BottomSheet>
+      {showBottomNavigation ? <>
+        <BottomNavigation
+          addOpen={isAddSheetOpen}
+          current={current}
+          onAdd={() => setIsAddSheetOpen(true)}
+          onNavigate={onNavigate}
+        />
+        <BottomSheet
+          open={isAddSheetOpen}
+          title="追加"
+          onClose={() => setIsAddSheetOpen(false)}
+        >
+          <div className="add-action-sheet__options">
+            <button
+              type="button"
+              className="add-action-sheet__option motion-pressable"
+              onClick={() => {
+                setIsAddSheetOpen(false);
+                onNavigate("/tasks/new");
+              }}
+            >
+              家事
+            </button>
+            <button
+              type="button"
+              className="add-action-sheet__option motion-pressable"
+              onClick={() => {
+                setIsAddSheetOpen(false);
+                onNavigate("/shopping/new");
+              }}
+            >
+              買い物
+            </button>
+          </div>
+        </BottomSheet>
+      </> : null}
     </div>
   );
 }
@@ -1494,7 +1498,7 @@ function formatHomeDeadline(task: TodayTask, today: string) {
   if (date !== today && homeTaskScope(task) === "week") {
     return `${new Intl.DateTimeFormat("ja-JP", { weekday: "short", timeZone: "UTC" }).format(new Date(`${date}T00:00:00Z`))}曜${time ? ` ${time}` : ""}まで`;
   }
-  return `${dateLabel}${time ? time : ""}まで`;
+  return `${dateLabel}${time ? (dateLabel ? ` ${time}` : time) : ""}まで`;
 }
 
 function homeMemberForTask(task: TodayTask, members: DashboardToday["members"]) {
@@ -2175,7 +2179,7 @@ function M2TaskFormScreen({ household, mode, taskId, onNavigate }: { household: 
   const selectedMember = form.assignedUserId ? members.find((member) => member.userId === form.assignedUserId) ?? null : null;
   if (loading) return <LoadingScreen message="家事を読み込んでいます" />;
   return (
-    <AppFrame current="/home" onNavigate={onNavigate}>
+    <AppFrame current="/home" onNavigate={onNavigate} showBottomNavigation={false}>
       <main className="m2-task-form-page">
         <header className="m2-task-form__header">
           <button type="button" className="m2-task-form__back" aria-label="戻る" onClick={() => onNavigate("/home")}><ChevronLeft aria-hidden="true" /><span>戻る</span></button>

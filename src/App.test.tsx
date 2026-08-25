@@ -664,4 +664,29 @@ describe("M2 Home", () => {
     expect(screen.getByRole("button", { name: "戻す" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "編集" })).not.toBeInTheDocument();
   });
+
+  it("formats today, week, month, and dated time deadlines without merging date and time", async () => {
+    const tasks = [
+      { ...task, id: "today-time", title: "今日の時刻", deadlineDate: "2026-08-25", deadlineTime: "09:00", modelRecurrenceType: "daily", overdue: false },
+      { ...task, id: "week-deadline", title: "週の期限", deadlineDate: "2026-08-30", deadlineTime: null, modelRecurrenceType: "weekly_flexible", overdue: false },
+      { ...task, id: "month-deadline", title: "月の期限", deadlineDate: "2026-08-31", deadlineTime: null, modelRecurrenceType: "monthly_flexible", overdue: false },
+      { ...task, id: "dated-time", title: "別日の時刻", deadlineDate: "2026-08-24", deadlineTime: "09:00", modelRecurrenceType: "once", targetDate: "2026-08-24", overdue: false }
+    ];
+    const dashboard = { ...baseDashboard, todayTasks: tasks, homeTasks: tasks, summary: { ...baseDashboard.summary, total: tasks.length, pending: tasks.length } };
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.endsWith("/api/auth/me")) return Promise.resolve(ok({ user }));
+      if (url.endsWith("/api/households/current")) return Promise.resolve(ok({ household }));
+      if (url.endsWith("/api/households/current/image-usage")) return Promise.resolve(ok(imageUsage));
+      if (url.endsWith("/api/dashboard/today")) return Promise.resolve(ok(dashboard));
+      return Promise.resolve(failure("NOT_FOUND", 404));
+    });
+    window.history.replaceState({}, "", "/home");
+    render(<App />);
+    expect(await screen.findByText("今日の時刻")).toBeInTheDocument();
+    expect(screen.getByText("09:00まで")).toBeInTheDocument();
+    expect(screen.getByText("日曜まで")).toBeInTheDocument();
+    expect(screen.getByText("8/31まで")).toBeInTheDocument();
+    expect(screen.getByText("8/24 09:00まで")).toBeInTheDocument();
+  });
 });

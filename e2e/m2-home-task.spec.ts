@@ -163,6 +163,7 @@ test("M2 Task add/reuse/edit/delete evidence", async ({ page }) => {
   await installRoutes(page, state);
   await page.goto("/tasks/new");
   await expect(page.getByRole("heading", { name: "家事を追加" })).toBeVisible();
+  await expect(page.locator(".bottom-nav")).toHaveCount(0);
   await screenshot(page, "08-task-add-390x844.png");
   await page.locator(".m2-task-form__actions").scrollIntoViewIfNeeded();
   await page.waitForTimeout(240);
@@ -175,6 +176,7 @@ test("M2 Task add/reuse/edit/delete evidence", async ({ page }) => {
   await page.getByRole("button", { name: /床そうじ/ }).click();
   await page.goto("/tasks/task-edit/edit");
   await expect(page.getByRole("heading", { name: "家事を編集" })).toBeVisible();
+  await expect(page.locator(".bottom-nav")).toHaveCount(0);
   await expect(page.locator("#m2-task-title")).toHaveValue("編集する家事");
   await expect(page.getByText("前回：8/20")).toBeVisible();
   await page.getByRole("button", { name: /繰り返し:/ }).click();
