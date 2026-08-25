@@ -100,6 +100,13 @@ export const unpurchaseShoppingItem = (itemId: string, signal?: AbortSignal) =>
     signal
   });
 
+export const reorderShoppingItems = (itemIds: string[], signal?: AbortSignal) =>
+  apiRequest<{ items: ShoppingItem[] }>("/api/shopping/items/reorder", {
+    method: "POST",
+    body: JSON.stringify({ itemIds }),
+    signal
+  });
+
 export const deleteShoppingItem = (itemId: string, signal?: AbortSignal) =>
   apiRequest<{ deleted: true }>(`/api/shopping/items/${itemId}`, {
     method: "DELETE",

@@ -191,6 +191,18 @@ export class ShoppingItemRepository {
     return Number(row?.max_sort_order ?? 0) + 1;
   }
 
+  async reorderPending(householdId: string, itemIds: string[], now: string): Promise<ShoppingItem[]> {
+    const pending = (await this.listByHouseholdId(householdId)).filter((item) => item.status === "pending");
+    const pendingIds = pending.map((item) => item.id);
+    if (pendingIds.length !== itemIds.length || pendingIds.some((id) => !itemIds.includes(id))) return [];
+    await this.db.batch(itemIds.map((itemId, index) =>
+      this.db.prepare(
+        "UPDATE shopping_items SET sort_order = ?, updated_at = ? WHERE household_id = ? AND id = ? AND status = 'pending'"
+      ).bind(index + 1, now, householdId, itemId)
+    ));
+    return this.listByHouseholdId(householdId);
+  }
+
   async create(input: CreateShoppingItemInput): Promise<ShoppingItem> {
     await this.db
       .prepare(

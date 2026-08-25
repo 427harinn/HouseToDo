@@ -1,10 +1,11 @@
-# Milestone: Production UI Migration M3 — Calendar
+# Milestone: Production UI Migration M4 — Shopping
 
 ## Current boundary
 
 - M1 Shared UI Foundation is complete.
 - M2 Home + Task is complete on the dedicated production branch. Mockup is used only for design, interaction, and motion reference; production API, auth, permissions, persisted data, and Cloudflare architecture remain authoritative.
-- M3 Calendar is complete on the dedicated production branch. M4 Shopping full visual migration remains out of scope.
+- M3 Calendar is complete on `origin/main` after PR #4. M4 Shopping is in progress on `feat/production-shopping-m4`.
+- M5 Other / Settings is explicitly out of scope for this milestone.
 - 詳細なM1〜M8計画は[docs/PRODUCTION_UI_MIGRATION.md](../docs/PRODUCTION_UI_MIGRATION.md)を参照。
 
 ## M2 delivery
@@ -18,6 +19,14 @@
 - Calendar uses the Mockup latest-main compact month header, fixed 42-cell Sunday-first grid, task summaries, deadline-only flexible projection, Date Sheet sections, month/day swipe transforms, completion/pass/restore motion, and selected-date task-edit return context.
 - Calendar API returns task summaries and snapshot-aware completed records in one bounded request. Calendar Shopping is pending planned-date-only and deep-links to the existing Shopping list.
 - Calendar historical restore is isolated to `POST /api/tasks/:taskId/calendar-restore`; period actions persist additive nullable `calendar_action_date` in migration `0017_calendar_action_date.sql`. Home's today-only restore is unchanged.
+
+## M4 start record
+
+- Production base SHA: `485dbfefd93d16d1ae1abd60f849918703d4657c`
+- Mockup reference SHA: `db8941dc3056f07862014242a349ae366da59e9c`
+- Branch: `feat/production-shopping-m4`
+- The Mockup is canonical for Shopping layout, copy, visible states, interaction, gesture, and motion. Production remains canonical for API, auth, permissions, D1, R2, and data semantics.
+- Initial scope includes Shopping list/add/edit, reuse picker, expand/purchase/restore, seven-day purchased visibility, swipe edit, shared reorder persistence, Calendar deep-link, and Home/Calendar regression.
 
 # Historical milestone: Task model UI and reminder scheduler
 

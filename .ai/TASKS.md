@@ -1,5 +1,18 @@
 # Current milestone tasks
 
+## Production UI Migration M4 — Shopping (in progress)
+
+- [ ] Complete Mockup latest-main parity audit and record Production/Mockup SHAs
+- [ ] Replace Shopping list with canonical header, flat rows, expand/collapse, purchased section, empty/long/quantity/planned states
+- [ ] Add purchase/restore transitions, purchaser metadata, seven-day visibility filter, and planned-date preservation
+- [ ] Implement real pointer swipe edit with vertical-scroll/tap/long-press discrimination; keep delete in Edit only
+- [ ] Implement household-scoped persisted long-press reorder with oldest-first fallback and isolation validation
+- [ ] Replace Shopping Add/Edit UI with shared canonical form foundation, unified reuse picker, OS image picker, and delete confirmation
+- [ ] Preserve Shopping API/auth/permission/D1/R2/Calendar/Home semantics and Calendar deep-link behavior
+- [ ] Add M4 unit/API/Playwright regression coverage for Shopping, Home, Calendar, and integrations
+- [ ] Generate fresh 390x844 parity screenshots, four canonical WebM motion files, GIF previews, four review boards, and exactly eight review-upload files
+- [ ] Run lint, typecheck, full Vitest, build, targeted Playwright, commit, push, and create Draft PR without merge/deploy
+
 ## Production UI Migration M3 — Calendar
 
 - [x] Replace legacy Calendar header/card/count UI with Mockup latest-main compact month view and 42-cell grid

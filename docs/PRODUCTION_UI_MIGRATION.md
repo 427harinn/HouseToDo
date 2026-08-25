@@ -9,13 +9,22 @@ HouseToDo-Mockup latest mainをdesign / interaction / motionのcanonical source 
 | M1 | Shared UI Foundation: tokens, global foundation, motion constants, App Shell, Bottom Navigation, Add Bottom Sheet | Done |
 | M2 | Home + Task: new Home, complete/pass/undo, task add/edit/delete, previous completion, and related Motion | Done |
 | M3 | Calendar screen visual migration and Calendar interactions | Done |
-| M4 | Shopping screen visual migration and Shopping interactions | Planned |
+| M4 | Shopping screen visual migration and Shopping interactions | In progress |
 | M5 | Other / Settings and formal `/other` route | Planned |
 | M6 | Auth / Household Entry. Guest and onboarding are removed from the new UI direction, not visually migrated. | Planned |
 | M7 | Integration / Legacy UI cleanup: retire user-facing old Task list/detail/respond/templates and Shopping detail/templates routes, then verify 2-user flows, E2E, and PWA behavior | Planned |
 | M8 | Legacy backend cleanup: after the new UI is stable, safely remove unused API/DB/compatibility code in separate PRs | Planned |
 
-M3まで完了。M4 Shopping本体の全面移植は次 milestone の対象とし、このbranchでは実施しない。
+M3まで完了。M4 Shoppingをこの専用branchで実施中。M5には進まない。
+
+## M4 start record
+
+- Production base SHA: `485dbfefd93d16d1ae1abd60f849918703d4657c` (`origin/main`, PR #4 / M3 Calendar merge)
+- Mockup reference SHA: `db8941dc3056f07862014242a349ae366da59e9c` (`HouseToDo-Mockup` `origin/main`)
+- Branch: `feat/production-shopping-m4`
+- Mockup parity audit scope: `DESIGN.md`, `.uilab/screens.json`, `.uilab/states.json`, `.uilab/components.json`, Shopping list/add/edit implementation, fixtures, and motion.
+- Production contract scope: Shopping API/auth/household authorization, D1 persistence, shared `sort_order`, Calendar planned-date projection/deep-link, Home pending count, and existing R2 image validation/compression/upload/cleanup.
+- Initial migration differences: Production legacy card/detail/template UI and manual purchased cleanup are replaced by the Mockup interaction model; templates remain available through legacy routes/backend but are not exposed in the new primary reuse flow. Shared reorder requires an additive household-scoped reorder contract because the existing `sort_order` field had no write endpoint.
 
 ## M2 backend contract decision
 

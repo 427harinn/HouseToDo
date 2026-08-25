@@ -1,7 +1,7 @@
 import { FormEvent, useCallback, useEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
 import type { ChangeEvent } from "react";
 import type { ReactNode } from "react";
-import { Check, ChevronLeft, ChevronRight, Ellipsis, House, ShoppingCart, X } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Ellipsis, House, Image as ImageIcon, MessageCircle, ShoppingCart, Undo2, X } from "lucide-react";
 import { login, logout, me, register } from "./api/auth";
 import { deleteProfileImage, uploadProfileImage } from "./api/account";
 import { ApiError, apiMessage } from "./api/client";
@@ -31,6 +31,7 @@ import {
   listRecentShoppingItems,
   listShoppingTemplates,
   purchaseShoppingItem,
+  reorderShoppingItems,
   unpurchaseShoppingItem,
   updateShoppingItem,
   updateShoppingTemplate,
@@ -46,6 +47,7 @@ import {
 } from "./api/shopping";
 import { processShoppingImage, type ProcessedImage } from "./lib/image-processing";
 import { formatDateTime as formatDateTimeInTimezone } from "./lib/format";
+import { visiblePurchasedShoppingItems as filterVisiblePurchasedShoppingItems } from "./lib/shopping-visibility";
 import {
   createHousehold,
   createInvite,
@@ -295,7 +297,7 @@ const formatDate = (dateKey: string) =>
 
 const formatShoppingPlannedDate = (dateKey: string) =>
   new Intl.DateTimeFormat("ja-JP", {
-    month: "long",
+    month: "numeric",
     day: "numeric",
     timeZone: "UTC"
   }).format(new Date(`${dateKey}T00:00:00Z`));
@@ -563,7 +565,7 @@ export function App() {
     return <TaskDetailScreen {...shellProps} taskId={route.taskId} compact={false} />;
   if (route.name === "/tasks/:taskId/respond")
     return <TaskDetailScreen {...shellProps} taskId={route.taskId} compact />;
-  if (route.name === "/shopping") return <ShoppingListScreen {...shellProps} targetItemId={new URLSearchParams(window.location.search).get("item")} />;
+  if (route.name === "/shopping") return <ShoppingM4ListScreen {...shellProps} targetItemId={new URLSearchParams(window.location.search).get("item")} />;
   if (route.name === "/shopping/new")
     return <ShoppingItemFormScreen {...shellProps} mode="create" />;
   if (route.name === "/shopping/items/:itemId")
@@ -4078,6 +4080,299 @@ function useShoppingData() {
   };
 }
 
+const visiblePurchasedShoppingItems = (items: ShoppingItem[], now = Date.now()) =>
+  filterVisiblePurchasedShoppingItems(items, now);
+
+function ShoppingM4ListScreen({
+  household,
+  onNavigate,
+  targetItemId
+}: {
+  household: Household;
+  user: AuthUser;
+  onNavigate: (route: NavigationPath) => void;
+  onLogout: () => void;
+  targetItemId?: string | null;
+}) {
+  const { pending, purchased, members, loading, message, setMessage, refresh } = useShoppingData();
+  const [orderedPending, setOrderedPending] = useState<ShoppingItem[]>([]);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [purchasedOpen, setPurchasedOpen] = useState(false);
+  const [actionsOpenId, setActionsOpenId] = useState<string | null>(null);
+  const [busyItem, setBusyItem] = useState<string | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [status, setStatus] = useState("");
+  const visiblePurchased = visiblePurchasedShoppingItems(purchased);
+
+  useEffect(() => setOrderedPending(pending), [pending]);
+
+  useEffect(() => {
+    if (!targetItemId || loading) return;
+    const target = document.querySelector<HTMLElement>(`[data-shopping-m4-id="${CSS.escape(targetItemId)}"]`);
+    if (!target) return;
+    const isPurchased = visiblePurchasedShoppingItems(purchased).some((item) => item.id === targetItemId);
+    if (isPurchased) setPurchasedOpen(true);
+    setExpandedId(targetItemId);
+    window.requestAnimationFrame(() => target.scrollIntoView({ block: "center", behavior: "smooth" }));
+  }, [loading, targetItemId, pending, purchased]);
+
+  const toggleExpanded = (itemId: string) => {
+    setExpandedId((current) => (current === itemId ? null : itemId));
+    setActionsOpenId(null);
+  };
+
+  const runPurchase = async (item: ShoppingItem, action: "purchase" | "unpurchase") => {
+    setBusyItem(item.id);
+    setMessage("");
+    setStatus("");
+    try {
+      if (action === "purchase") await purchaseShoppingItem(item.id);
+      else await unpurchaseShoppingItem(item.id);
+      setExpandedId(null);
+      setPurchasedOpen(action === "unpurchase" ? false : false);
+      await refresh();
+      setStatus(action === "purchase" ? `「${item.name}」を購入済みに移しました` : `「${item.name}」を未購入に戻しました`);
+    } catch (error) {
+      setMessage(shoppingErrorMessage(error));
+      await refresh();
+    } finally {
+      setBusyItem(null);
+    }
+  };
+
+  const reorderAround = (dragId: string, overId: string, clientY: number, rowTop: number, rowHeight: number) => {
+    if (dragId === overId) return;
+    setOrderedPending((current) => {
+      const from = current.findIndex((item) => item.id === dragId);
+      const over = current.findIndex((item) => item.id === overId);
+      if (from < 0 || over < 0) return current;
+      const after = clientY >= rowTop + rowHeight / 2;
+      if ((from < over && !after) || (from > over && after)) return current;
+      const next = [...current];
+      const [moved] = next.splice(from, 1);
+      const destination = from < over ? over : over;
+      next.splice(destination, 0, moved);
+      setDragOverId(overId);
+      return next;
+    });
+  };
+
+  const finishReorder = async () => {
+    const ids = orderedPending.map((item) => item.id);
+    setDraggingId(null);
+    setDragOverId(null);
+    if (ids.join(",") === pending.map((item) => item.id).join(",")) return;
+    try {
+      await reorderShoppingItems(ids);
+      await refresh();
+      setStatus("並び順を更新しました");
+    } catch (error) {
+      setMessage(shoppingErrorMessage(error));
+      await refresh();
+    }
+  };
+
+  return (
+    <AppFrame current="/shopping" onNavigate={onNavigate}>
+      <main className="shopping-m4" aria-busy={loading}>
+        <header className="shopping-m4__header"><h1>買い物</h1></header>
+        <ErrorMessage message={message} />
+        {orderedPending.length > 0 ? (
+          <section className="shopping-m4__list" aria-label="未購入の買い物一覧">
+            {orderedPending.map((item) => (
+              <ShoppingM4Row
+                key={item.id}
+                item={item}
+                members={members}
+                timezone={household.timezone}
+                expanded={expandedId === item.id}
+                actionsOpen={actionsOpenId === item.id}
+                dragging={draggingId === item.id}
+                dragOver={dragOverId === item.id}
+                busy={busyItem === item.id}
+                onToggle={() => toggleExpanded(item.id)}
+                onPurchase={() => void runPurchase(item, "purchase")}
+                onRestore={() => void runPurchase(item, "unpurchase")}
+                onEdit={() => onNavigate(`/shopping/items/${item.id}/edit`)}
+                onActionsOpen={() => { setActionsOpenId(item.id); setExpandedId(null); }}
+                onActionsClose={() => setActionsOpenId(null)}
+                onDragStart={() => { setDraggingId(item.id); setActionsOpenId(null); setExpandedId(null); }}
+                onDragOver={(overId, clientY, rowTop, rowHeight) => reorderAround(item.id, overId, clientY, rowTop, rowHeight)}
+                onDragEnd={() => void finishReorder()}
+              />
+            ))}
+          </section>
+        ) : loading ? (
+          <p className="shopping-m4__loading" role="status">買い物リストを読み込んでいます。</p>
+        ) : (
+          <section className="shopping-m4__empty" aria-label="買うものなし">
+            <ShoppingCart aria-hidden="true" /><p>買うものはありません</p>
+          </section>
+        )}
+        <section className="shopping-m4__purchased" aria-label="購入済み">
+          <button type="button" className="shopping-m4__purchased-toggle" aria-expanded={purchasedOpen} onClick={() => setPurchasedOpen((open) => !open)}>
+            <span>購入済み {visiblePurchased.length}件</span><ChevronRight aria-hidden="true" className={purchasedOpen ? "is-open" : ""} />
+          </button>
+          {purchasedOpen ? visiblePurchased.map((item) => (
+            <ShoppingM4Row
+              key={item.id}
+              item={item}
+              members={members}
+              timezone={household.timezone}
+              purchased
+              expanded={expandedId === item.id}
+              actionsOpen={false}
+              dragging={false}
+              dragOver={false}
+              busy={busyItem === item.id}
+              onToggle={() => toggleExpanded(item.id)}
+              onPurchase={() => void runPurchase(item, "purchase")}
+              onRestore={() => void runPurchase(item, "unpurchase")}
+              onEdit={() => undefined}
+              onActionsOpen={() => undefined}
+              onActionsClose={() => undefined}
+              onDragStart={() => undefined}
+              onDragOver={() => undefined}
+              onDragEnd={() => undefined}
+            />
+          )) : null}
+        </section>
+        <p className="shopping-m4__status" role="status" aria-live="polite">{status}</p>
+      </main>
+    </AppFrame>
+  );
+}
+
+function ShoppingM4Row({
+  item,
+  members,
+  timezone,
+  purchased = false,
+  expanded,
+  actionsOpen,
+  dragging,
+  dragOver,
+  busy,
+  onToggle,
+  onPurchase,
+  onRestore,
+  onEdit,
+  onActionsOpen,
+  onActionsClose,
+  onDragStart,
+  onDragOver,
+  onDragEnd
+}: {
+  item: ShoppingItem;
+  members: HouseholdMember[];
+  timezone: string;
+  purchased?: boolean;
+  expanded: boolean;
+  actionsOpen: boolean;
+  dragging: boolean;
+  dragOver: boolean;
+  busy: boolean;
+  onToggle: () => void;
+  onPurchase: () => void;
+  onRestore: () => void;
+  onEdit: () => void;
+  onActionsOpen: () => void;
+  onActionsClose: () => void;
+  onDragStart: () => void;
+  onDragOver: (overId: string, clientY: number, rowTop: number, rowHeight: number) => void;
+  onDragEnd: () => void;
+}) {
+  const start = useRef<{ x: number; y: number } | null>(null);
+  const longPress = useRef<number | null>(null);
+  const gesture = useRef<"swipe" | "vertical" | "reorder" | null>(null);
+  const suppressClick = useRef(false);
+  const dragStarted = useRef(false);
+  const [swipeOffset, setSwipeOffset] = useState(0);
+  const [swiping, setSwiping] = useState(false);
+
+  useEffect(() => setSwipeOffset(actionsOpen ? -80 : 0), [actionsOpen]);
+  const clearLongPress = () => { if (longPress.current !== null) window.clearTimeout(longPress.current); longPress.current = null; };
+  const handlePointerDown = (event: ReactPointerEvent<HTMLElement>) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    start.current = { x: event.clientX, y: event.clientY };
+    gesture.current = null;
+    dragStarted.current = false;
+    setSwiping(false);
+    clearLongPress();
+    if (!purchased) longPress.current = window.setTimeout(() => {
+      if (!start.current || gesture.current) return;
+      gesture.current = "reorder";
+      dragStarted.current = true;
+      onDragStart();
+    }, 360);
+  };
+  const handlePointerMove = (event: ReactPointerEvent<HTMLElement>) => {
+    if (dragStarted.current) {
+      const target = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>("[data-shopping-m4-id]");
+      if (target) {
+        const bounds = target.getBoundingClientRect();
+        onDragOver(target.dataset.shoppingM4Id ?? item.id, event.clientY, bounds.top, bounds.height);
+      }
+      return;
+    }
+    const origin = start.current;
+    if (!origin) return;
+    const dx = event.clientX - origin.x;
+    const dy = event.clientY - origin.y;
+    if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy)) { gesture.current = "swipe"; clearLongPress(); }
+    if (Math.abs(dy) > 8 && Math.abs(dy) > Math.abs(dx)) { gesture.current = "vertical"; clearLongPress(); setSwiping(false); setSwipeOffset(actionsOpen ? -80 : 0); return; }
+    if (!purchased && gesture.current === "swipe") { setSwiping(true); setSwipeOffset(Math.max(-80, Math.min(0, dx))); }
+    if (Math.abs(dx) > 12 || Math.abs(dy) > 12) clearLongPress();
+  };
+  const handlePointerUp = (event: ReactPointerEvent<HTMLElement>) => {
+    clearLongPress();
+    const origin = start.current;
+    start.current = null;
+    setSwiping(false);
+    if (dragStarted.current) { dragStarted.current = false; suppressClick.current = true; onDragEnd(); return; }
+    const currentGesture = gesture.current;
+    gesture.current = null;
+    if (!origin || currentGesture === "vertical") { setSwipeOffset(actionsOpen ? -80 : 0); return; }
+    if (!purchased && origin.x - event.clientX > 48) { suppressClick.current = true; setSwipeOffset(-80); onActionsOpen(); }
+    else if (!purchased && event.clientX - origin.x > 24 && actionsOpen) { suppressClick.current = true; setSwipeOffset(0); onActionsClose(); }
+    else setSwipeOffset(actionsOpen ? -80 : 0);
+  };
+  const handleClickCapture = (event: ReactMouseEvent<HTMLElement>) => {
+    if (!suppressClick.current) return;
+    if (event.target instanceof Element && event.target.closest(".shopping-m4__actions")) { suppressClick.current = false; return; }
+    event.preventDefault(); event.stopPropagation(); suppressClick.current = false;
+  };
+  const purchaserName = item.purchasedBy?.displayName ?? memberName(members, item.purchasedBy?.userId) ?? "メンバー";
+  const imageSrc = item.image ? getShoppingItemImageUrl(item.id, item.image.updatedAt) : null;
+  return (
+    <article className={`shopping-m4__row${expanded ? " is-expanded" : ""}${actionsOpen ? " is-actions-open" : ""}${dragging ? " is-dragging" : ""}${dragOver ? " is-drag-over" : ""}${swiping ? " is-swiping" : ""}`} data-shopping-m4-id={item.id} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={() => { clearLongPress(); start.current = null; if (dragStarted.current) onDragEnd(); dragStarted.current = false; setSwiping(false); }} onClickCapture={handleClickCapture}>
+      <div className="shopping-m4__row-content" style={{ "--shopping-m4-swipe": `${swipeOffset}px` } as CSSProperties}>
+        <button type="button" className="shopping-m4__row-main" aria-expanded={expanded} onClick={onToggle}>
+          <span className="shopping-m4__row-details">
+            <span className="shopping-m4__name">{item.name}</span>
+            {purchased ? <span className="shopping-m4__purchase-meta">{item.purchasedAt ? shoppingPurchaseDateTime(item.purchasedAt, timezone) : "購入済み"}</span> : item.plannedPurchaseDate ? <span className="shopping-m4__planned">{formatShoppingPlannedDate(item.plannedPurchaseDate)}予定</span> : null}
+          </span>
+          {!purchased && item.note ? <span className="shopping-m4__indicator" role="img" aria-label="メモあり"><MessageCircle aria-hidden="true" /></span> : null}
+          {!purchased && item.image ? <span className="shopping-m4__indicator" role="img" aria-label="写真あり"><ImageIcon aria-hidden="true" /></span> : null}
+          {item.quantity ? <span className="shopping-m4__quantity">{item.quantity}</span> : null}
+          {purchased ? <span className="shopping-m4__avatar" role="img" aria-label={`購入者: ${purchaserName}`}>{purchaserName.charAt(0) || "?"}</span> : null}
+        </button>
+      </div>
+      {!purchased && actionsOpen ? <div className="shopping-m4__actions" aria-label={`${item.name}の操作メニュー`}><button type="button" onPointerDown={(event) => event.stopPropagation()} onClick={onEdit}>編集</button></div> : null}
+      {expanded ? <div className="shopping-m4__expanded">
+        <button type="button" className="shopping-m4__primary" disabled={busy} onClick={purchased ? onRestore : onPurchase}>{purchased ? <Undo2 aria-hidden="true" /> : null}{purchased ? "戻す" : busy ? "購入中…" : "購入"}</button>
+        {item.note ? <div className="shopping-m4__detail"><span>メモ</span><p>{item.note}</p></div> : null}
+        {imageSrc ? <div className="shopping-m4__detail"><span>写真</span><img src={imageSrc} alt={`${item.name}の写真`} onError={(event) => { event.currentTarget.hidden = true; }} /></div> : null}
+        {!purchased && item.plannedPurchaseDate ? <div className="shopping-m4__planned-detail">購入予定日 {formatShoppingPlannedDate(item.plannedPurchaseDate)}</div> : null}
+      </div> : null}
+      {!purchased && actionsOpen ? <button type="button" className="shopping-m4__actions-dismiss" onClick={onActionsClose} aria-label="操作を閉じる">閉じる</button> : null}
+    </article>
+  );
+}
+
+// Retained below for the legacy direct implementation during the M7 route cleanup.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function ShoppingListScreen({
   household,
   onNavigate,
@@ -4577,6 +4872,7 @@ function ShoppingItemFormScreen({
   onNavigate: (route: NavigationPath) => void;
   onLogout: () => void;
 }) {
+  void household;
   const [form, setForm] = useState<CreateShoppingItemInput>(emptyShoppingForm);
   const [recentItems, setRecentItems] = useState<ShoppingRecentItem[]>([]);
   const [templates, setTemplates] = useState<ShoppingTemplate[]>([]);
@@ -4593,6 +4889,7 @@ function ShoppingItemFormScreen({
   const [imageMessage, setImageMessage] = useState("");
   const [imageUsage, setImageUsage] = useState<ImageUsage | null>(null);
   const [imageUsageLoading, setImageUsageLoading] = useState(true);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const libraryInputRef = useRef<HTMLInputElement>(null);
   const refreshImageUsage = useCallback(async (signal?: AbortSignal) => {
     setImageUsageLoading(true);
@@ -4747,7 +5044,7 @@ function ShoppingItemFormScreen({
         }
         setImageStatus("idle");
       }
-      onNavigate(`/shopping/items/${result.item.id}`);
+      onNavigate(`/shopping?item=${encodeURIComponent(result.item.id)}`);
     } catch (error) {
       setMessage(shoppingErrorMessage(error));
       if (error instanceof ApiError && error.details) setErrors(error.details);
@@ -4757,11 +5054,11 @@ function ShoppingItemFormScreen({
   };
   if (loading) return <LoadingScreen message="商品を読み込んでいます。" />;
   return (
-    <AppFrame current="/shopping" onNavigate={onNavigate}>
-      <PageHeader
-        title={mode === "create" ? "商品を追加" : "商品を編集"}
-        description={household.name}
-      />
+    <AppFrame current="/shopping" onNavigate={onNavigate} showBottomNavigation={false}>
+      <header className="shopping-m4-form-header">
+        <button type="button" className="shopping-m4-form-back" aria-label="戻る" onClick={() => onNavigate("/shopping")}><ChevronLeft aria-hidden="true" /><span>戻る</span></button>
+        <h1>{mode === "create" ? "買い物を追加" : "買い物を編集"}</h1>
+      </header>
       {mode === "create" ? (
         <ShoppingReusePanel
           recentItems={recentItems}
@@ -4794,14 +5091,13 @@ function ShoppingItemFormScreen({
           }}
         />
       ) : null}
-      <Card>
-        <form
-          className="stack"
+      <form
+          className="shopping-m4-form"
           aria-busy={submitting}
           onSubmit={(event) => void submit(event)}
         >
           <ErrorMessage message={message} />
-          <FormField id="shopping-name" label="商品名（必須）" error={errors.name}>
+          <FormField id="shopping-name" label="商品名" error={errors.name}>
             <TextInput
               id="shopping-name"
               error={errors.name}
@@ -4813,20 +5109,9 @@ function ShoppingItemFormScreen({
             <TextInput
               id="shopping-quantity"
               error={errors.quantity}
-              placeholder="1本 / 2袋 / 500ml / 適量"
+              placeholder="例：1本"
               value={form.quantity ?? ""}
               onChange={(value) => setField("quantity", value)}
-            />
-          </FormField>
-          <FormField id="shopping-note" label="メモ" error={errors.note}>
-            <textarea
-              id="shopping-note"
-              aria-describedby={errors.note ? "shopping-note-error" : undefined}
-              aria-invalid={errors.note ? "true" : "false"}
-              maxLength={500}
-              placeholder="いつものメーカー / セールなら2つ"
-              value={form.note ?? ""}
-              onChange={(event) => setField("note", event.target.value)}
             />
           </FormField>
           <FormField
@@ -4848,12 +5133,20 @@ function ShoppingItemFormScreen({
                 setField("plannedPurchaseDate", event.target.value || null)
               }
             />
-            <small className="field-hint" id="shopping-planned-purchase-date-hint">
-              決まっていなければ空欄でOK
-            </small>
+          </FormField>
+          <FormField id="shopping-note" label="メモ" error={errors.note}>
+            <textarea
+              id="shopping-note"
+              aria-describedby={errors.note ? "shopping-note-error" : undefined}
+              aria-invalid={errors.note ? "true" : "false"}
+              maxLength={500}
+              placeholder="メモを入力"
+              value={form.note ?? ""}
+              onChange={(event) => setField("note", event.target.value)}
+            />
           </FormField>
           <div className="shopping-image-field" aria-live="polite">
-            <label htmlFor="shopping-image">商品の写真（任意）</label>
+            <label htmlFor="shopping-image">写真</label>
             <ImageUploadUsageHint
               mode={mode}
               usage={imageUsage}
@@ -4944,11 +5237,15 @@ function ShoppingItemFormScreen({
           <Button disabled={submitting} type="submit">
             {submitting ? <InlineLoading /> : "保存"}
           </Button>
-          <Button variant="ghost" onClick={() => onNavigate("/shopping")}>
-            一覧へ戻る
-          </Button>
+          {mode === "edit" ? <Button variant="danger" disabled={submitting} onClick={() => setDeleteOpen(true)}>削除</Button> : null}
         </form>
-      </Card>
+      <BottomSheet open={deleteOpen} title="買い物を削除しますか？" onClose={() => setDeleteOpen(false)}>
+        <div className="shopping-m4-delete-confirm">
+          <p>この商品を削除します。</p>
+          <Button variant="danger" onClick={() => { if (!itemId) return; setSubmitting(true); void deleteShoppingItem(itemId).then(() => onNavigate("/shopping")).catch((error) => setMessage(shoppingErrorMessage(error))).finally(() => setSubmitting(false)); }}>削除する</Button>
+          <Button variant="secondary" onClick={() => setDeleteOpen(false)}>キャンセル</Button>
+        </div>
+      </BottomSheet>
     </AppFrame>
   );
 }
@@ -4964,61 +5261,23 @@ function ShoppingReusePanel({
   onRecentSelect: (item: ShoppingRecentItem) => void;
   onTemplateSelect: (template: ShoppingTemplate) => void;
 }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const candidates = [
+    ...recentItems.map((item) => ({ key: `recent-${item.createdAt}-${item.name}`, name: item.name, quantity: item.quantity, note: item.note, select: () => onRecentSelect(item) })),
+    ...templates.slice(0, 8).map((item) => ({ key: `template-${item.id}`, name: item.name, quantity: item.quantity, note: item.note, select: () => onTemplateSelect(item) }))
+  ];
+  const filtered = candidates.filter((item) => `${item.name}${item.quantity ?? ""}`.toLocaleLowerCase().includes(query.toLocaleLowerCase()));
   return (
-    <div className="shopping-reuse-grid">
-      <Card className="shopping-reuse-card">
-        <div className="section-heading">
-          <h2>最近使ったもの</h2>
-          <span>{recentItems.length}件</span>
+    <>
+      <button type="button" className="shopping-m4-reuse-trigger" onClick={() => setOpen(true)}><span>以前の項目から選ぶ</span><ChevronRight aria-hidden="true" /></button>
+      <BottomSheet open={open} title="以前の項目から選ぶ" onClose={() => setOpen(false)}>
+        <div className="shopping-m4-reuse-sheet">
+          <input aria-label="以前の買い物を検索" placeholder="検索" value={query} onChange={(event) => setQuery(event.target.value)} />
+          <div className="shopping-m4-reuse-list">{filtered.map((item) => <button key={item.key} type="button" onClick={() => { item.select(); setOpen(false); }}><span>{item.name}</span>{item.quantity ? <small>{item.quantity}</small> : null}</button>)}{filtered.length === 0 ? <p>見つかりませんでした</p> : null}</div>
         </div>
-        {recentItems.length === 0 ? (
-          <p className="field-hint">過去に追加した商品がここに表示されます。</p>
-        ) : (
-          <div className="shopping-reuse-list">
-            {recentItems.map((item) => (
-              <button
-                className="shopping-reuse-item"
-                key={`${item.name}-${item.createdAt}`}
-                type="button"
-                onClick={() => onRecentSelect(item)}
-              >
-                <strong>{item.name}</strong>
-                <small>
-                  {[item.quantity, item.note].filter(Boolean).join(" / ") ||
-                    "数量・メモなし"}
-                </small>
-              </button>
-            ))}
-          </div>
-        )}
-      </Card>
-      <Card className="shopping-reuse-card">
-        <div className="section-heading">
-          <h2>テンプレートから</h2>
-          <span>{templates.length}件</span>
-        </div>
-        {templates.length === 0 ? (
-          <p className="field-hint">よく買う商品をテンプレートに登録できます。</p>
-        ) : (
-          <div className="shopping-reuse-list">
-            {templates.slice(0, 8).map((template) => (
-              <button
-                className="shopping-reuse-item"
-                key={template.id}
-                type="button"
-                onClick={() => onTemplateSelect(template)}
-              >
-                <strong>{template.name}</strong>
-                <small>
-                  {[template.quantity, template.note].filter(Boolean).join(" / ") ||
-                    "数量・メモなし"}
-                </small>
-              </button>
-            ))}
-          </div>
-        )}
-      </Card>
-    </div>
+      </BottomSheet>
+    </>
   );
 }
 

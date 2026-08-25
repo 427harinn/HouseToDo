@@ -1067,6 +1067,33 @@ describe("worker app shopping API", () => {
     expect(dashboardJson.data.shopping.previewItems.map((item) => item.name)).toContain("卵");
   });
 
+  it("persists household-scoped pending reorder and rejects stale or cross-household sets", async () => {
+    const app = createApp();
+    const env = createTestEnv();
+    const owner = await registerUser(env, { email: "reorder-owner@example.com", password: "very-long-password", displayName: "Reorder Owner" });
+    const other = await registerUser(env, { email: "reorder-other@example.com", password: "very-long-password", displayName: "Reorder Other" });
+    await app.fetch(postJson("/api/households", { name: "Reorder Home" }, owner.cookie), env);
+    await app.fetch(postJson("/api/households", { name: "Other Reorder Home" }, other.cookie), env);
+    const create = async (name: string, cookie = owner.cookie) => {
+      const response = await app.fetch(postJson("/api/shopping/items", { name }, cookie), env);
+      const body: { data: { item: { id: string } } } = await response.json();
+      return body.data.item.id;
+    };
+    const first = await create("first");
+    const second = await create("second");
+    const third = await create("third");
+    const reordered = await app.fetch(postJson("/api/shopping/items/reorder", { itemIds: [third, first, second] }, owner.cookie), env);
+    expect(reordered.status).toBe(200);
+    await expect(
+      app.fetch(new Request("https://example.test/api/shopping/items", { headers: { cookie: owner.cookie } }), env).then((response) => response.json())
+    ).resolves.toMatchObject({ data: { pending: [{ id: third }, { id: first }, { id: second }] } });
+    const stale = await app.fetch(postJson("/api/shopping/items/reorder", { itemIds: [third, first] }, owner.cookie), env);
+    expect(stale.status).toBe(409);
+    const otherItem = await create("other item", other.cookie);
+    const crossHousehold = await app.fetch(postJson("/api/shopping/items/reorder", { itemIds: [third, first, second, otherItem] }, owner.cookie), env);
+    expect(crossHousehold.status).toBe(409);
+  });
+
   it("rejects validation errors and hides another household shopping data", async () => {
     const app = createApp();
     const env = createTestEnv();
