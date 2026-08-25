@@ -133,6 +133,7 @@ export class ShoppingItemRepository {
          FROM shopping_items si
          LEFT JOIN users u ON u.id = si.purchased_by
          WHERE si.household_id = ?
+           AND si.status = 'pending'
            AND si.planned_purchase_date >= ?
            AND si.planned_purchase_date <= ?
          ORDER BY si.planned_purchase_date ASC, si.sort_order ASC, si.created_at ASC`

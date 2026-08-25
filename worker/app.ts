@@ -45,6 +45,7 @@ import {
   getTaskRoute,
   recentTasksRoute,
   restoreTaskRecordRoute,
+  restoreCalendarTaskRecordRoute,
   listTasksRoute,
   taskHistoryRoute,
   todayTasksRoute,
@@ -118,6 +119,9 @@ const routeApi = withErrorHandling(
       }
       if (action === "restore" && context.request.method === "POST") {
         return restoreTaskRecordRoute(taskId)(context);
+      }
+      if (action === "calendar-restore" && context.request.method === "POST") {
+        return restoreCalendarTaskRecordRoute(taskId)(context);
       }
       if (
         context.request.method === "POST" &&

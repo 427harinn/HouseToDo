@@ -145,9 +145,11 @@ export type TaskRecord = {
   targetWeekStart: string | null;
   occurrenceKey?: string | null;
   periodKey?: string | null;
+  calendarActionDate?: string | null;
   status: TaskRecordStatus;
   actedBy: string;
   actedByDisplayName: string | null;
+  actedByAvatarUrl: string | null;
   startedAt: string | null;
   completedAt: string | null;
   skippedAt: string | null;

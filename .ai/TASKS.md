@@ -1,5 +1,14 @@
 # Current milestone tasks
 
+## Production UI Migration M3 — Calendar
+
+- [x] Replace legacy Calendar header/card/count UI with Mockup latest-main compact month view and 42-cell grid
+- [x] Add date-specific/fixed/flexible-deadline month summaries, Date Sheet sections, Shopping marker, and selected-date deep links
+- [x] Add Calendar completion/pass motion, completed collapse, snapshot-aware completer avatars, historical restore, and period action-date persistence
+- [x] Keep Home today-only restore unchanged and preserve task-edit Calendar return context
+- [x] Add additive migration `0017_calendar_action_date.sql` and update Calendar/Shopping API contract
+- [x] Complete 390px Mockup parity audit, screenshots, WebM motion evidence, quality gates, and Draft PR without merge
+
 ## Production UI Migration M2 — Home + Task
 
 - [x] Replace production Home with the Mockup-derived single active list and household-local header

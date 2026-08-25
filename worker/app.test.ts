@@ -736,22 +736,23 @@ describe("redesigned task model API", () => {
       };
     } = await calendar.json();
     expect(body.data.dates["2026-08-14"]?.fixedCount).toBe(3);
-    expect(body.data.dates["2026-08-15"]?.fixedCount).toBe(1);
+    expect(body.data.dates["2026-08-15"]?.fixedCount).toBe(0);
     expect(body.data.selected.fixed.map((task) => task.title)).toEqual(expect.arrayContaining(["once", "daily", "weekly fixed"]));
     expect(body.data.selected.weeklyFlexible.map((task) => task.title)).toEqual(["weekly flexible"]);
     expect(body.data.selected.monthlyFlexible.map((task) => task.title)).toEqual(["monthly flexible"]);
 
-    await app.fetch(postJson(`/api/tasks/${dailyId}/complete`, { targetDate: "2026-08-14" }, owner.cookie), env);
+    await app.fetch(postJson(`/api/tasks/${dailyId}/complete`, { targetDate: "2026-08-14", calendarDate: "2026-08-14" }, owner.cookie), env);
     const completed = await app.fetch(new Request("https://example.test/api/tasks/calendar?from=2026-08-01&to=2026-08-31&selectedDate=2026-08-14", { headers: { cookie: owner.cookie } }), env);
-    const completedBody: { data: { selected: { fixed: Array<{ title: string; status: string }> } } } = await completed.json();
-    expect(completedBody.data.selected.fixed.find((task) => task.title === "daily")?.status).toBe("completed");
+    const completedBody: { data: { selected: { fixed: Array<{ title: string; status: string }>; completed: Array<{ title: string }> } } } = await completed.json();
+    expect(completedBody.data.selected.fixed.find((task) => task.title === "daily")).toBeUndefined();
+    expect(completedBody.data.selected.completed.find((task) => task.title === "daily")).toBeTruthy();
     expect((env.DB as unknown as MemoryD1).taskRecords.size).toBe(1);
 
-    await app.fetch(postJson(`/api/tasks/${weeklyFlexibleId}/complete`, { targetDate: "2026-08-14" }, owner.cookie), env);
+    await app.fetch(postJson(`/api/tasks/${weeklyFlexibleId}/complete`, { targetDate: "2026-08-14", calendarDate: "2026-08-14" }, owner.cookie), env);
     const weeklyFlexible = await app.fetch(new Request("https://example.test/api/tasks/calendar?from=2026-08-01&to=2026-08-31&selectedDate=2026-08-14", { headers: { cookie: owner.cookie } }), env);
-    const weeklyFlexibleBody: { data: { selected: { weeklyFlexible: Array<{ title: string; status: string; completedCount?: number }> } } } = await weeklyFlexible.json();
-    expect(weeklyFlexibleBody.data.selected.weeklyFlexible[0]?.status).toBe("completed");
-    expect(weeklyFlexibleBody.data.selected.weeklyFlexible[0]?.completedCount).toBe(1);
+    const weeklyFlexibleBody: { data: { selected: { weeklyFlexible: Array<{ title: string; status: string; completedCount?: number }>; completed: Array<{ title: string }> } } } = await weeklyFlexible.json();
+    expect(weeklyFlexibleBody.data.selected.weeklyFlexible).toHaveLength(0);
+    expect(weeklyFlexibleBody.data.selected.completed.find((task) => task.title === "weekly flexible")).toBeTruthy();
     const nextWeek = await app.fetch(new Request("https://example.test/api/tasks/calendar?from=2026-08-01&to=2026-08-31&selectedDate=2026-08-21", { headers: { cookie: owner.cookie } }), env);
     const nextWeekBody: { data: { selected: { weeklyFlexible: Array<{ title: string; status: string; completedCount?: number }> } } } = await nextWeek.json();
     expect(nextWeekBody.data.selected.weeklyFlexible[0]?.status).toBe("pending");
@@ -1121,7 +1122,7 @@ describe("worker app shopping API", () => {
 
     const milk = await create("牛乳", "2026-08-20");
     expect(milk.plannedPurchaseDate).toBe("2026-08-20");
-    const unscheduled = await create("予定日未定", null);
+    await create("予定日未定", null);
     const purchasedUnscheduled = await create("購入済み予定日未定", null);
     await app.fetch(postJson(`/api/shopping/items/${purchasedUnscheduled.id}/purchase`, {}, owner.cookie), env);
     await create("範囲外", "2026-09-01");
@@ -1146,15 +1147,9 @@ describe("worker app shopping API", () => {
       };
     } = await calendarAtFirstDate.json();
     expect(firstBody.data.dates["2026-08-20"]).toMatchObject({ shoppingCount: 1, purchasedShoppingCount: 0 });
-    expect(firstBody.data.selected.shopping.map((item) => item.id)).toEqual([
-      milk.id,
-      unscheduled.id,
-      purchasedUnscheduled.id
-    ]);
+    expect(firstBody.data.selected.shopping.map((item) => item.id)).toEqual([milk.id]);
     expect(firstBody.data.selected.shopping).toEqual([
-      expect.objectContaining({ id: milk.id, name: "牛乳", status: "pending", plannedPurchaseDate: "2026-08-20" }),
-      expect.objectContaining({ id: unscheduled.id, name: "予定日未定", status: "pending", plannedPurchaseDate: null }),
-      expect.objectContaining({ id: purchasedUnscheduled.id, name: "購入済み予定日未定", status: "purchased", plannedPurchaseDate: null })
+      expect.objectContaining({ id: milk.id, name: "牛乳", status: "pending", plannedPurchaseDate: "2026-08-20" })
     ]);
 
     const otherSelectedDate = await app.fetch(
@@ -1166,10 +1161,7 @@ describe("worker app shopping API", () => {
     await expect(otherSelectedDate.json()).resolves.toMatchObject({
       data: {
         dates: { "2026-08-21": { shoppingCount: 0, purchasedShoppingCount: 0 } },
-        selected: { shopping: [
-          { id: unscheduled.id, plannedPurchaseDate: null },
-          { id: purchasedUnscheduled.id, plannedPurchaseDate: null }
-        ] }
+        selected: { shopping: [] }
       }
     });
 
@@ -1182,11 +1174,7 @@ describe("worker app shopping API", () => {
     await expect(septemberSelectedDate.json()).resolves.toMatchObject({
       data: {
         dates: { "2026-09-01": { shoppingCount: 1, purchasedShoppingCount: 0 } },
-        selected: { shopping: [
-          { name: "範囲外", plannedPurchaseDate: "2026-09-01" },
-          { id: unscheduled.id, plannedPurchaseDate: null },
-          { id: purchasedUnscheduled.id, plannedPurchaseDate: null }
-        ] }
+        selected: { shopping: [{ name: "範囲外", plannedPurchaseDate: "2026-09-01" }] }
       }
     });
 
@@ -1205,12 +1193,8 @@ describe("worker app shopping API", () => {
     );
     await expect(purchasedCalendar.json()).resolves.toMatchObject({
       data: {
-        dates: { "2026-08-20": { shoppingCount: 1, purchasedShoppingCount: 1 } },
-        selected: { shopping: [
-          { id: milk.id, status: "purchased", plannedPurchaseDate: "2026-08-20" },
-          { id: unscheduled.id, status: "pending", plannedPurchaseDate: null },
-          { id: purchasedUnscheduled.id, status: "purchased", plannedPurchaseDate: null }
-        ] }
+        dates: { "2026-08-20": { shoppingCount: 0, purchasedShoppingCount: 0 } },
+        selected: { shopping: [] }
       }
     });
 
@@ -1241,11 +1225,7 @@ describe("worker app shopping API", () => {
           "2026-08-20": { shoppingCount: 0 },
           "2026-08-22": { shoppingCount: 1 }
         },
-        selected: { shopping: [
-          { id: milk.id, plannedPurchaseDate: "2026-08-22" },
-          { id: unscheduled.id, plannedPurchaseDate: null },
-          { id: purchasedUnscheduled.id, plannedPurchaseDate: null }
-        ] }
+        selected: { shopping: [{ id: milk.id, plannedPurchaseDate: "2026-08-22" }] }
       }
     });
 
@@ -1265,11 +1245,7 @@ describe("worker app shopping API", () => {
     await expect(clearedCalendar.json()).resolves.toMatchObject({
       data: {
         dates: { "2026-08-22": { shoppingCount: 0 } },
-        selected: { shopping: [
-          { id: milk.id, plannedPurchaseDate: null },
-          { id: unscheduled.id, plannedPurchaseDate: null },
-          { id: purchasedUnscheduled.id, plannedPurchaseDate: null }
-        ] }
+        selected: { shopping: [] }
       }
     });
   });

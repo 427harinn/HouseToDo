@@ -1,10 +1,10 @@
-# Milestone: Production UI Migration M2 — Home + Task
+# Milestone: Production UI Migration M3 — Calendar
 
 ## Current boundary
 
 - M1 Shared UI Foundation is complete.
 - M2 Home + Task is complete on the dedicated production branch. Mockup is used only for design, interaction, and motion reference; production API, auth, permissions, persisted data, and Cloudflare architecture remain authoritative.
-- M3 Calendar and later screen migrations are intentionally out of scope.
+- M3 Calendar is complete on the dedicated production branch. M4 Shopping full visual migration remains out of scope.
 - 詳細なM1〜M8計画は[docs/PRODUCTION_UI_MIGRATION.md](../docs/PRODUCTION_UI_MIGRATION.md)を参照。
 
 ## M2 delivery
@@ -12,6 +12,12 @@
 - Home uses one canonical urgency-sorted active list with complete-on-tap, pass swipe actions, collapsed completed/passed today records, restore-only inactive records, member avatar resolution, empty state, and pending Shopping summary.
 - Task add/edit uses the six existing canonical recurrence values, household-local dates, all-day/time semantics, notification presets, assignee/reuse/delete sheets, last completion, and legacy weekly preservation.
 - Backend adds additive task-record snapshots and a household-scoped restore endpoint. Migration `0016_task_record_snapshots.sql` is local-only.
+
+## M3 delivery
+
+- Calendar uses the Mockup latest-main compact month header, fixed 42-cell Sunday-first grid, task summaries, deadline-only flexible projection, Date Sheet sections, month/day swipe transforms, completion/pass/restore motion, and selected-date task-edit return context.
+- Calendar API returns task summaries and snapshot-aware completed records in one bounded request. Calendar Shopping is pending planned-date-only and deep-links to the existing Shopping list.
+- Calendar historical restore is isolated to `POST /api/tasks/:taskId/calendar-restore`; period actions persist additive nullable `calendar_action_date` in migration `0017_calendar_action_date.sql`. Home's today-only restore is unchanged.
 
 # Historical milestone: Task model UI and reminder scheduler
 

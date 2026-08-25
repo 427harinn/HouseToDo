@@ -1,7 +1,7 @@
 import { FormEvent, useCallback, useEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
 import type { ChangeEvent } from "react";
 import type { ReactNode } from "react";
-import { Check, ChevronLeft, ChevronRight, Ellipsis, House } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Ellipsis, House, ShoppingCart, X } from "lucide-react";
 import { login, logout, me, register } from "./api/auth";
 import { deleteProfileImage, uploadProfileImage } from "./api/account";
 import { ApiError, apiMessage } from "./api/client";
@@ -69,10 +69,12 @@ import {
   listTodayTasks,
   listWeekTasks,
   restoreTaskRecord,
+  restoreCalendarTaskRecord,
   updateTask,
   updateTaskTemplate,
   type Task,
   type CalendarShoppingItem,
+  type CalendarCompletedRecord,
   type TaskTemplate,
   type TaskDisplayStatus,
   type TaskRecord,
@@ -165,23 +167,7 @@ type Route =
   | { name: "/shopping/templates/:templateId/edit"; templateId: string };
 
 type NavigationPath =
-  | "/home"
-  | "/calendar"
-  | "/tasks"
-  | "/tasks/new"
-  | "/tasks/templates"
-  | "/shopping"
-  | "/shopping/new"
-  | "/shopping/templates"
-  | "/shopping/templates/new"
-  | "/settings/members"
-  | `/tasks/${string}`
-  | `/tasks/${string}/edit`
-  | `/tasks/${string}/respond`
-  | `/tasks/templates/${string}/edit`
-  | `/shopping/items/${string}`
-  | `/shopping/items/${string}/edit`
-  | `/shopping/templates/${string}/edit`;
+  string;
 
 type FormErrors = Record<string, string>;
 
@@ -391,13 +377,14 @@ export function App() {
   const [guestMode, setGuestMode] = useState(false);
 
   const navigate = useCallback(
-    (nextRoute: NavigationPath | StaticRoute, replace = false) => {
-      if (window.location.pathname !== nextRoute) {
+    (nextRoute: string, replace = false) => {
+      if (`${window.location.pathname}${window.location.search}` !== nextRoute) {
         const state = { route: nextRoute };
         if (replace) window.history.replaceState(state, "", nextRoute);
         else window.history.pushState(state, "", nextRoute);
       }
-      setRoute(parseRoute(nextRoute));
+      const nextUrl = new URL(nextRoute, window.location.origin);
+      setRoute(parseRoute(nextUrl.pathname));
     },
     []
   );
@@ -576,7 +563,7 @@ export function App() {
     return <TaskDetailScreen {...shellProps} taskId={route.taskId} compact={false} />;
   if (route.name === "/tasks/:taskId/respond")
     return <TaskDetailScreen {...shellProps} taskId={route.taskId} compact />;
-  if (route.name === "/shopping") return <ShoppingListScreen {...shellProps} />;
+  if (route.name === "/shopping") return <ShoppingListScreen {...shellProps} targetItemId={new URLSearchParams(window.location.search).get("item")} />;
   if (route.name === "/shopping/new")
     return <ShoppingItemFormScreen {...shellProps} mode="create" />;
   if (route.name === "/shopping/items/:itemId")
@@ -976,7 +963,74 @@ function AppFrame({
   );
 }
 
-function CalendarScreen({
+function CalendarScreen({ household, onNavigate }: { household: Household; user: AuthUser; onNavigate: (route: NavigationPath) => void; onLogout: () => void }) {
+  const queryDate = new URLSearchParams(window.location.search).get("date");
+  const initialDate = queryDate && /^\d{4}-\d{2}-\d{2}$/.test(queryDate) ? queryDate : null;
+  const today = todayInTimezone(household.timezone);
+  const [visibleMonth, setVisibleMonth] = useState(`${(initialDate ?? today).slice(0, 7)}-01`);
+  const [selectedDate, setSelectedDate] = useState<string | null>(initialDate);
+  const [data, setData] = useState<Awaited<ReturnType<typeof listCalendarTasks>> | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
+  const [monthOffset, setMonthOffset] = useState(0);
+  const [monthDragging, setMonthDragging] = useState(false);
+  const monthStart = useRef<{ x: number; y: number } | null>(null);
+  const suppressMonthClick = useRef(false);
+  const [monthDirection, setMonthDirection] = useState<"next" | "previous" | null>(null);
+  const reducedMotion = usePrefersReducedMotion();
+  const gridStart = addDays(visibleMonth, -new Date(`${visibleMonth}T00:00:00Z`).getUTCDay());
+  const gridEnd = addDays(gridStart, 41);
+  const gridDates = Array.from({ length: 42 }, (_, index) => addDays(gridStart, index));
+  const requestedDate = selectedDate ?? today;
+  const refresh = useCallback(async (signal?: AbortSignal) => {
+    setLoading(true);
+    setMessage("");
+    try { setData(await listCalendarTasks(gridStart, gridEnd, requestedDate, signal)); }
+    catch (error) { if (!(error instanceof DOMException && error.name === "AbortError")) setMessage(apiErrorMessage(error)); }
+    finally { if (!signal?.aborted) setLoading(false); }
+  }, [gridStart, gridEnd, requestedDate]);
+  useEffect(() => { const controller = new AbortController(); void refresh(controller.signal); return () => controller.abort(); }, [refresh]);
+  const moveMonth = (amount: number) => {
+    const next = new Date(`${visibleMonth}T00:00:00Z`);
+    next.setUTCMonth(next.getUTCMonth() + amount, 1);
+    setMonthDirection(amount > 0 ? "next" : "previous");
+    window.setTimeout(() => setMonthDirection(null), reducedMotion ? 0 : MOTION_MS.large);
+    setVisibleMonth(`${next.toISOString().slice(0, 7)}-01`);
+  };
+  const openDate = (date: string) => { setSelectedDate(date); onNavigate(`/calendar?date=${encodeURIComponent(date)}`); };
+  const goToday = () => setVisibleMonth(`${(data?.today ?? today).slice(0, 7)}-01`);
+  const pointerDown = (event: ReactPointerEvent<HTMLElement>) => { monthStart.current = { x: event.clientX, y: event.clientY }; suppressMonthClick.current = false; setMonthDragging(true); };
+  const pointerMove = (event: ReactPointerEvent<HTMLElement>) => { if (!monthStart.current) return; const dx = event.clientX - monthStart.current.x; const dy = event.clientY - monthStart.current.y; if (Math.abs(dx) > Math.abs(dy)) setMonthOffset(Math.max(-96, Math.min(96, dx))); };
+  const pointerUp = (event: ReactPointerEvent<HTMLElement>) => { if (!monthStart.current) return; const dx = event.clientX - monthStart.current.x; const dy = event.clientY - monthStart.current.y; monthStart.current = null; setMonthDragging(false); setMonthOffset(0); if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy)) { suppressMonthClick.current = true; moveMonth(dx < 0 ? 1 : -1); } };
+  const marker = (date: string) => data?.dates[date] ?? { fixedCount: 0, fixedCompletedCount: 0, fixedSkippedCount: 0, shoppingCount: 0, purchasedShoppingCount: 0, tasks: [] };
+  return <AppFrame current="/calendar" onNavigate={onNavigate}><ErrorMessage message={message ? `Calendarを取得できませんでした。${message}` : ""} /><main className="calendar-page" aria-busy={loading}><header className="calendar-header"><div className="calendar-header__title-row"><button type="button" className="calendar-icon-button" aria-label="前の月" onClick={() => moveMonth(-1)}><ChevronLeft /></button><h1>{formatCalendarMonth(visibleMonth)}</h1><button type="button" className="calendar-icon-button" aria-label="次の月" onClick={() => moveMonth(1)}><ChevronRight /></button></div><div className="calendar-header__today-row"><button type="button" className="calendar-today-button" onClick={goToday}>今日</button></div></header><section className={`calendar-month-grid${monthDirection ? ` is-month-transitioning-${monthDirection}` : ""}`} role="grid" aria-label={`${formatCalendarMonth(visibleMonth)}のカレンダー`} data-swipe-dragging={monthDragging ? "true" : "false"} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={() => { monthStart.current = null; setMonthDragging(false); setMonthOffset(0); }} onClickCapture={(event) => { if (!suppressMonthClick.current) return; event.preventDefault(); event.stopPropagation(); suppressMonthClick.current = false; }} style={{ "--month-swipe-offset": `${monthOffset}px` } as CSSProperties}><div className="calendar-weekday-row" aria-hidden="true">{["日", "月", "火", "水", "木", "金", "土"].map((label, index) => <span key={label} className={index === 0 ? "is-sunday" : index === 6 ? "is-saturday" : ""}>{label}</span>)}</div><div className="calendar-grid-body">{gridDates.map((date) => { const item = marker(date); const inMonth = date.slice(0, 7) === visibleMonth.slice(0, 7); const day = new Date(`${date}T00:00:00Z`).getUTCDay(); const names = item.tasks.slice(0, 2); const more = Math.max(0, item.tasks.length - names.length); return <div key={date} className={`calendar-day-cell${inMonth ? "" : " is-outside-month"}${item.shoppingCount ? " has-shopping" : ""}`} role="gridcell" tabIndex={0} aria-label={`${formatCalendarDateLong(date)}${item.tasks.length ? `、タスク${item.tasks.length}件` : ""}${item.shoppingCount ? `、買い物${item.shoppingCount}件` : ""}`} onClick={() => openDate(date)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openDate(date); } }}><span className={`calendar-day-number calendar-day-number--${day}${date === (data?.today ?? today) ? " is-today" : ""}`}>{Number(date.slice(8, 10))}</span><div className="calendar-day-tasks">{names.map((task) => <button type="button" key={task.id} className={`calendar-day-task${task.deadline ? " is-deadline" : ""}`} title={task.title} onClick={(event) => { event.stopPropagation(); openDate(date); }}>{task.title}</button>)}{more ? <button type="button" className="calendar-day-more" onClick={(event) => { event.stopPropagation(); openDate(date); }}>+{more}</button> : null}</div>{item.shoppingCount ? <span className="calendar-day-shopping" aria-hidden="true"><ShoppingCart /><span>{item.shoppingCount}</span></span> : null}</div>; })}</div></section><p className="calendar-status" role="status" aria-live="polite">{loading && !data ? "カレンダーを読み込んでいます。" : ""}</p></main>{selectedDate ? <CalendarDateSheet household={household} date={selectedDate} data={data} loading={loading} onClose={() => { setSelectedDate(null); onNavigate("/calendar"); }} onNavigateDate={(next) => { setSelectedDate(next); onNavigate(`/calendar?date=${encodeURIComponent(next)}`); }} onRefresh={() => void refresh()} onNavigate={onNavigate} /> : null}</AppFrame>;
+}
+
+function formatCalendarDateLong(dateKey: string) { return new Intl.DateTimeFormat("ja-JP", { month: "numeric", day: "numeric", weekday: "long", timeZone: "UTC" }).format(new Date(`${dateKey}T00:00:00Z`)); }
+function calendarTaskActionScope(task: TodayTask, date: string) { return task.modelRecurrenceType === "once" ? { targetDate: task.targetDate ?? date, calendarDate: date } : { targetDate: date, calendarDate: date }; }
+
+/* eslint-disable @typescript-eslint/no-misused-promises */
+function CalendarDateSheet({ household, date, data, loading, onClose, onNavigateDate, onRefresh, onNavigate }: { household: Household; date: string; data: Awaited<ReturnType<typeof listCalendarTasks>> | null; loading: boolean; onClose: () => void; onNavigateDate: (date: string) => void; onRefresh: () => void; onNavigate: (route: NavigationPath) => void }) {
+  void household;
+  const reducedMotion = usePrefersReducedMotion();
+  const [offset, setOffset] = useState(0); const [dragging, setDragging] = useState(false); const [completedOpen, setCompletedOpen] = useState(false); const [busyIds, setBusyIds] = useState<Set<string>>(new Set()); const [direction, setDirection] = useState<"next" | "previous" | null>(null); const [statusMessage, setStatusMessage] = useState(""); const start = useRef<{ x: number; y: number } | null>(null); const suppressClick = useRef(false);
+  useEffect(() => { setCompletedOpen(false); }, [date]);
+  const wait = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, reducedMotion ? 0 : ms));
+  const moveDate = (amount: number) => { setDirection(amount > 0 ? "next" : "previous"); window.setTimeout(() => setDirection(null), reducedMotion ? 0 : MOTION_MS.large); onNavigateDate(addDays(date, amount)); };
+  const complete = async (task: TodayTask) => { if (busyIds.has(task.id)) return; setBusyIds((ids) => new Set(ids).add(task.id)); try { await Promise.all([changeTaskState(task.id, "complete", calendarTaskActionScope(task, date)), wait(MOTION_MS.completion)]); onRefresh(); } catch (error) { setStatusMessage(apiErrorMessage(error)); onRefresh(); } finally { setBusyIds((ids) => { const next = new Set(ids); next.delete(task.id); return next; }); } };
+  const pass = async (task: TodayTask) => { if (busyIds.has(task.id)) return; setBusyIds((ids) => new Set(ids).add(task.id)); try { await Promise.all([changeTaskState(task.id, "skip", calendarTaskActionScope(task, date)), wait(MOTION_MS.pass)]); onRefresh(); } catch (error) { setStatusMessage(apiErrorMessage(error)); onRefresh(); } finally { setBusyIds((ids) => { const next = new Set(ids); next.delete(task.id); return next; }); } };
+  const restore = async (record: CalendarCompletedRecord) => { if (busyIds.has(record.taskId)) return; setBusyIds((ids) => new Set(ids).add(record.taskId)); try { await Promise.all([restoreCalendarTaskRecord(record.taskId, record.id, date), wait(MOTION_MS.restore)]); onRefresh(); } catch (error) { setStatusMessage(apiErrorMessage(error)); onRefresh(); } finally { setBusyIds((ids) => { const next = new Set(ids); next.delete(record.taskId); return next; }); } };
+  const direct = data?.selected.fixed ?? []; const period = [...(data?.selected.weeklyFlexible ?? []), ...(data?.selected.monthlyFlexible ?? [])].sort((a, b) => (a.deadlineDate ?? "").localeCompare(b.deadlineDate ?? "")); const completed = data?.selected.completed ?? [];
+  return <div className="calendar-date-layer"><button type="button" className="calendar-date-backdrop" aria-label="背景を閉じる" onClick={onClose} /><section role="dialog" aria-modal="true" aria-labelledby="calendar-date-sheet-title" className={`calendar-date-sheet${dragging ? " is-swipe-dragging" : ""}${direction ? ` is-date-transitioning-${direction}` : ""}`} onPointerDown={(event) => { event.stopPropagation(); start.current = { x: event.clientX, y: event.clientY }; setDragging(true); }} onPointerMove={(event) => { if (!start.current) return; const dx = event.clientX - start.current.x; const dy = event.clientY - start.current.y; if (Math.abs(dx) > Math.abs(dy)) setOffset(Math.max(-88, Math.min(88, dx))); }} onPointerUp={(event) => { if (!start.current) return; const dx = event.clientX - start.current.x; const dy = event.clientY - start.current.y; start.current = null; setDragging(false); setOffset(0); if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy)) { suppressClick.current = true; moveDate(dx < 0 ? 1 : -1); } }} onPointerCancel={() => { start.current = null; setDragging(false); setOffset(0); }} onClickCapture={(event) => { if (!suppressClick.current) return; event.preventDefault(); event.stopPropagation(); suppressClick.current = false; }}><div className="calendar-date-sheet__handle" aria-hidden="true" /><header className="calendar-date-sheet__header"><button type="button" className="calendar-date-sheet__close" onClick={onClose}><X /><span>閉じる</span></button><div className="calendar-date-sheet__nav" aria-label="日付を移動"><button type="button" aria-label="前の日" onClick={() => moveDate(-1)}><ChevronLeft /></button><button type="button" aria-label="次の日" onClick={() => moveDate(1)}><ChevronRight /></button></div></header><div className="calendar-date-sheet__content" style={{ "--date-swipe-offset": `${offset}px` } as CSSProperties}><h2 id="calendar-date-sheet-title">{formatCalendarDateLong(date)}</h2><CalendarDateSection title="この日" tasks={direct} busyIds={busyIds} onComplete={complete} onEdit={(task) => onNavigate(`/tasks/${task.id}/edit?origin=calendar&calendarDate=${date}`)} onPass={pass} /><CalendarDateSection title="期間中" tasks={period} busyIds={busyIds} onComplete={complete} onEdit={(task) => onNavigate(`/tasks/${task.id}/edit?origin=calendar&calendarDate=${date}`)} onPass={pass} />{completed.length ? <section className="home-completed calendar-completed-section"><button className="home-completed__history-toggle" type="button" aria-expanded={completedOpen} onClick={() => setCompletedOpen((open) => !open)}><span>完了済み {completed.length}</span><ChevronRight className={completedOpen ? "is-open" : ""} /></button>{completedOpen ? <div className="home-history__list home-completed__list">{completed.map((record) => <CalendarHistoryRow key={record.id} record={record} busy={busyIds.has(record.taskId)} onEdit={() => onNavigate(`/tasks/${record.taskId}/edit?origin=calendar&calendarDate=${date}`)} onRestore={() => void restore(record)} />)}</div> : null}</section> : null}{data?.selected.shopping.length ? <section className="calendar-shopping-section"><h3>買うもの</h3><div className="calendar-shopping-list">{data.selected.shopping.map((item) => <button key={item.id} type="button" className="calendar-shopping-row" aria-label={`${item.name}${item.quantity ? ` ${item.quantity}` : ""}`} onClick={() => onNavigate(`/shopping?item=${item.id}`)}><span>{item.name}</span>{item.quantity ? <span>{item.quantity}</span> : null}</button>)}</div></section> : null}<p className="calendar-status" role="status" aria-live="polite">{statusMessage}{loading && data ? "読み込み中" : ""}</p></div></section></div>;
+}
+
+/* eslint-enable @typescript-eslint/no-misused-promises */
+function CalendarDateSection({ title, tasks, busyIds, onComplete, onEdit, onPass }: { title: string; tasks: TodayTask[]; busyIds: Set<string>; onComplete: (task: TodayTask) => void; onEdit: (task: TodayTask) => void; onPass: (task: TodayTask) => void }) { return <section className="calendar-date-section"><h3>{title}</h3>{tasks.length ? <div className="calendar-detail-task-list">{tasks.map((task) => <CalendarDetailTask key={task.id} task={task} busy={busyIds.has(task.id)} onComplete={() => onComplete(task)} onEdit={() => onEdit(task)} onPass={() => onPass(task)} />)}</div> : <p className="calendar-date-section__empty">なし</p>}</section>; }
+function CalendarDetailTask({ task, busy, onComplete, onEdit, onPass }: { task: TodayTask; busy: boolean; onComplete: () => void; onEdit: () => void; onPass: () => void }) { const [actionsOpen, setActionsOpen] = useState(false); const start = useRef<{ x: number; y: number } | null>(null); const suppress = useRef(false); return <div className={`calendar-detail-task${actionsOpen ? " is-actions-open" : ""}${busy ? " is-completing" : ""}`} onPointerDown={(event) => { event.stopPropagation(); start.current = { x: event.clientX, y: event.clientY }; }} onPointerUp={(event) => { event.stopPropagation(); if (!start.current) return; const dx = event.clientX - start.current.x; const dy = event.clientY - start.current.y; start.current = null; if (dx < -48 && Math.abs(dx) > Math.abs(dy)) { suppress.current = true; setActionsOpen(true); } }} onPointerCancel={(event) => { event.stopPropagation(); start.current = null; }} onClickCapture={(event) => { if (!suppress.current) return; if ((event.target as Element).closest(".calendar-detail-task__actions")) { suppress.current = false; return; } event.preventDefault(); event.stopPropagation(); suppress.current = false; }}><button type="button" className="calendar-detail-task__main" disabled={busy} onClick={onComplete}><span className="calendar-detail-task__check" aria-hidden="true">{busy ? <Check /> : null}</span><span>{task.title}</span></button><button type="button" className="calendar-detail-task__more" aria-label={`${task.title}の操作`} aria-expanded={actionsOpen} hidden={actionsOpen} onClick={() => setActionsOpen((open) => !open)}><Ellipsis /></button>{actionsOpen ? <div className="calendar-detail-task__actions"><button type="button" onClick={onEdit}>編集</button><button type="button" className="is-pass" onClick={onPass}>パス</button></div> : null}</div>; }
+function CalendarHistoryRow({ record, busy, onEdit, onRestore }: { record: CalendarCompletedRecord; busy: boolean; onEdit: () => void; onRestore: () => void }) { const avatar = record.actualCompleter; return <HomeSwipeRow actionsOpenInitially={false} busy={busy} onEdit={record.taskActive ? onEdit : undefined} onSecondary={onRestore} secondaryLabel="戻す" restoreOnly={!record.taskActive} rowClassName="calendar-history-row"><div className="m2-home__row-main m2-home__history-main"><span className="m2-home__row-details"><span className="m2-home__task-title">{record.title}</span></span>{avatar.displayName ? <HomeAvatar member={avatar} label="完了者" /> : null}</div></HomeSwipeRow>; }
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function LegacyCalendarScreen({
   household,
   onNavigate,
   onLogout
@@ -2093,6 +2147,9 @@ function M2TaskFormScreen({ household, mode, taskId, onNavigate }: { household: 
   const [submitting, setSubmitting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const today = todayInTimezone(household.timezone);
+  const returnSearch = new URLSearchParams(window.location.search);
+  const calendarReturnDate = returnSearch.get("origin") === "calendar" && /^\d{4}-\d{2}-\d{2}$/.test(returnSearch.get("calendarDate") ?? "") ? returnSearch.get("calendarDate") : null;
+  const returnRoute = calendarReturnDate ? `/calendar?date=${encodeURIComponent(calendarReturnDate)}` : "/home";
 
   useEffect(() => {
     const controller = new AbortController();
@@ -2156,7 +2213,7 @@ function M2TaskFormScreen({ household, mode, taskId, onNavigate }: { household: 
       const patch = originalPayload ? Object.fromEntries(Object.entries(payload).filter(([key, value]) => JSON.stringify(value) !== JSON.stringify(originalPayload[key as keyof typeof originalPayload]))) : payload;
       if (mode === "edit" && taskId) await updateTask(taskId, patch);
       else await createTask(payload);
-      onNavigate("/home");
+      onNavigate(returnRoute);
     } catch (error) {
       setMessage(apiErrorMessage(error));
       if (error instanceof ApiError && error.details) setErrors(error.details);
@@ -2170,7 +2227,7 @@ function M2TaskFormScreen({ household, mode, taskId, onNavigate }: { household: 
     setMessage("");
     try {
       await deactivateTask(taskId);
-      onNavigate("/home");
+      onNavigate(returnRoute);
     } catch (error) {
       setMessage(apiErrorMessage(error));
       setDeleting(false);
@@ -2183,7 +2240,7 @@ function M2TaskFormScreen({ household, mode, taskId, onNavigate }: { household: 
     <AppFrame current="/home" onNavigate={onNavigate} showBottomNavigation={false}>
       <main className="m2-task-form-page">
         <header className="m2-task-form__header">
-          <button type="button" className="m2-task-form__back" aria-label="戻る" onClick={() => onNavigate("/home")}><ChevronLeft aria-hidden="true" /><span>戻る</span></button>
+          <button type="button" className="m2-task-form__back" aria-label="戻る" onClick={() => onNavigate(returnRoute)}><ChevronLeft aria-hidden="true" /><span>戻る</span></button>
           <h1>{mode === "create" ? "家事を追加" : "家事を編集"}</h1>
           <span aria-hidden="true" />
         </header>
@@ -4022,12 +4079,14 @@ function useShoppingData() {
 
 function ShoppingListScreen({
   household,
-  onNavigate
+  onNavigate,
+  targetItemId
 }: {
   household: Household;
   user: AuthUser;
   onNavigate: (route: NavigationPath) => void;
   onLogout: () => void;
+  targetItemId?: string | null;
 }) {
   const {
     pending,
@@ -4044,6 +4103,11 @@ function ShoppingListScreen({
   const [busyTemplate, setBusyTemplate] = useState<string | null>(null);
   const [clearing, setClearing] = useState(false);
   const [showPurchased, setShowPurchased] = useState(true);
+
+  useEffect(() => {
+    if (!targetItemId || loading) return;
+    document.querySelector(`[data-shopping-item-id="${CSS.escape(targetItemId)}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [loading, pending, purchased, targetItemId]);
 
   const runItemAction = async (
     itemId: string,
@@ -4180,17 +4244,18 @@ function ShoppingListScreen({
         ) : (
           <div className="shopping-item-list">
             {pending.map((item) => (
-              <ShoppingItemCard
-                busy={busyItem === item.id}
-                item={item}
-                key={item.id}
-                members={members}
-                timezone={household.timezone}
-                onDelete={() => void runItemAction(item.id, "delete")}
-                onEdit={() => onNavigate(`/shopping/items/${item.id}/edit`)}
-                onOpen={() => onNavigate(`/shopping/items/${item.id}`)}
-                onPrimary={() => void runItemAction(item.id, "purchase")}
-              />
+              <div className={item.id === targetItemId ? "shopping-item-target" : undefined} data-shopping-item-id={item.id} key={item.id}>
+                <ShoppingItemCard
+                  busy={busyItem === item.id}
+                  item={item}
+                  members={members}
+                  timezone={household.timezone}
+                  onDelete={() => void runItemAction(item.id, "delete")}
+                  onEdit={() => onNavigate(`/shopping/items/${item.id}/edit`)}
+                  onOpen={() => onNavigate(`/shopping/items/${item.id}`)}
+                  onPrimary={() => void runItemAction(item.id, "purchase")}
+                />
+              </div>
             ))}
           </div>
         )}
@@ -4216,17 +4281,18 @@ function ShoppingListScreen({
             <>
               <div className="shopping-item-list shopping-item-list--purchased">
                 {purchased.map((item) => (
-                  <ShoppingItemCard
-                    busy={busyItem === item.id}
-                    item={item}
-                    key={item.id}
-                    members={members}
-                    timezone={household.timezone}
-                    onDelete={() => void runItemAction(item.id, "delete")}
-                    onEdit={() => onNavigate(`/shopping/items/${item.id}/edit`)}
-                    onOpen={() => onNavigate(`/shopping/items/${item.id}`)}
-                    onPrimary={() => void runItemAction(item.id, "unpurchase")}
-                  />
+                  <div className={item.id === targetItemId ? "shopping-item-target" : undefined} data-shopping-item-id={item.id} key={item.id}>
+                    <ShoppingItemCard
+                      busy={busyItem === item.id}
+                      item={item}
+                      members={members}
+                      timezone={household.timezone}
+                      onDelete={() => void runItemAction(item.id, "delete")}
+                      onEdit={() => onNavigate(`/shopping/items/${item.id}/edit`)}
+                      onOpen={() => onNavigate(`/shopping/items/${item.id}`)}
+                      onPrimary={() => void runItemAction(item.id, "unpurchase")}
+                    />
+                  </div>
                 ))}
               </div>
               <Button
@@ -5241,7 +5307,7 @@ function GuestScreen({
   onNavigate,
   onExit
 }: {
-  onNavigate: (route: NavigationPath | StaticRoute) => void;
+  onNavigate: (route: string) => void;
   onExit: () => void;
 }) {
   return (

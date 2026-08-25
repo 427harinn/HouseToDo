@@ -114,6 +114,7 @@ export type TaskRecordDbRecord = {
   target_week_start: string | null;
   occurrence_key?: string | null;
   period_key?: string | null;
+  calendar_action_date?: string | null;
   status: TaskRecordStatus;
   acted_by: string;
   started_at: string | null;
@@ -782,7 +783,7 @@ export class MemoryD1 {
       sql.includes("tr.household_id = ?") &&
       sql.includes("tr.target_date >= ? AND tr.target_date <= ?")
     ) {
-      const periodKeys = values.slice(3).map(String);
+      const periodKeys = values.slice(7).map(String);
       return Array.from(this.taskRecords.values())
         .filter((item) => item.household_id === values[0])
         .filter(
@@ -790,6 +791,11 @@ export class MemoryD1 {
             (item.target_date !== null &&
               item.target_date >= String(values[1]) &&
               item.target_date <= String(values[2])) ||
+            item.target_date === String(values[3]) ||
+            (item.calendar_action_date != null &&
+              item.calendar_action_date >= String(values[4]) &&
+              item.calendar_action_date <= String(values[5])) ||
+            (item.calendar_action_date != null && item.calendar_action_date === String(values[6])) ||
             (item.period_key !== null && periodKeys.includes(item.period_key ?? ""))
         )
         .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
@@ -1325,30 +1331,31 @@ export class MemoryD1 {
         target_week_start: toNullableText(values[4]),
         occurrence_key: toNullableText(values[5]),
         period_key: toNullableText(values[6]),
-        status: values[7] as TaskRecordStatus,
-        acted_by: toText(values[8]),
-        started_at: toNullableText(values[9]),
-        completed_at: toNullableText(values[10]),
-        skipped_at: toNullableText(values[11]),
-        note: toNullableText(values[12]),
-        task_title_snapshot: toNullableText(values[13]),
-        assigned_user_id_snapshot: toNullableText(values[14]),
-        assigned_user_display_name_snapshot: toNullableText(values[15]),
-        assigned_user_color_snapshot: toNullableText(values[16]),
-        assigned_user_avatar_url_snapshot: toNullableText(values[17]),
-        created_at: toText(values[18]),
-        updated_at: toText(values[19])
+        calendar_action_date: toNullableText(values[7]),
+        status: values[8] as TaskRecordStatus,
+        acted_by: toText(values[9]),
+        started_at: toNullableText(values[10]),
+        completed_at: toNullableText(values[11]),
+        skipped_at: toNullableText(values[12]),
+        note: toNullableText(values[13]),
+        task_title_snapshot: toNullableText(values[14]),
+        assigned_user_id_snapshot: toNullableText(values[15]),
+        assigned_user_display_name_snapshot: toNullableText(values[16]),
+        assigned_user_color_snapshot: toNullableText(values[17]),
+        assigned_user_avatar_url_snapshot: toNullableText(values[18]),
+        created_at: toText(values[19]),
+        updated_at: toText(values[20])
       });
     }
     if (sql.startsWith("UPDATE task_records")) {
       const id = sql.includes("WHERE household_id = ? AND id = ?")
-        ? toText(values[13])
-        : toText(values[12]);
+        ? toText(values[14])
+        : toText(values[13]);
       const record = this.taskRecords.get(id);
       if (
         record &&
           (!sql.includes("WHERE household_id = ? AND id = ?") ||
-          record.household_id === values[12])
+          record.household_id === values[13])
       ) {
         this.taskRecords.set(id, {
           ...record,
@@ -1363,7 +1370,8 @@ export class MemoryD1 {
           assigned_user_display_name_snapshot: sql.includes("assigned_user_display_name_snapshot") ? toNullableText(values[8]) : record.assigned_user_display_name_snapshot,
           assigned_user_color_snapshot: sql.includes("assigned_user_color_snapshot") ? toNullableText(values[9]) : record.assigned_user_color_snapshot,
           assigned_user_avatar_url_snapshot: sql.includes("assigned_user_avatar_url_snapshot") ? toNullableText(values[10]) : record.assigned_user_avatar_url_snapshot,
-          updated_at: toText(values[sql.includes("task_title_snapshot") ? 11 : 6])
+          calendar_action_date: sql.includes("calendar_action_date") ? toNullableText(values[11]) : record.calendar_action_date,
+          updated_at: toText(values[sql.includes("task_title_snapshot") ? 12 : 6])
         });
       } else {
         changes = 0;
@@ -1970,7 +1978,8 @@ export class MemoryD1 {
   private withActedByName(record: TaskRecordDbRecord) {
     return {
       ...record,
-      acted_by_display_name: this.users.get(record.acted_by)?.display_name ?? null
+      acted_by_display_name: this.users.get(record.acted_by)?.display_name ?? null,
+      acted_by_avatar_url: this.users.get(record.acted_by)?.avatar_size_bytes ? `/api/users/${record.acted_by}/avatar` : null
     };
   }
 

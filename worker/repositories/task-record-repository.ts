@@ -8,9 +8,11 @@ type TaskRecordRow = {
   target_week_start: string | null;
   occurrence_key: string | null;
   period_key: string | null;
+  calendar_action_date: string | null;
   status: TaskRecordStatus;
   acted_by: string;
   acted_by_display_name: string | null;
+  acted_by_avatar_url: string | null;
   started_at: string | null;
   completed_at: string | null;
   skipped_at: string | null;
@@ -32,6 +34,7 @@ export type RecordStateInput = {
   targetWeekStart: string | null;
   occurrenceKey?: string | null;
   periodKey?: string | null;
+  calendarActionDate?: string | null;
   status: TaskRecordStatus;
   actedBy: string;
   startedAt: string | null;
@@ -47,7 +50,9 @@ export type RecordStateInput = {
 };
 
 const selectRecord = `tr.id, tr.household_id, tr.task_id, tr.target_date, tr.target_week_start,
-  tr.occurrence_key, tr.period_key, tr.status, tr.acted_by, u.display_name AS acted_by_display_name, tr.started_at, tr.completed_at,
+  tr.occurrence_key, tr.period_key, tr.calendar_action_date, tr.status, tr.acted_by, u.display_name AS acted_by_display_name,
+  CASE WHEN u.avatar_size_bytes IS NOT NULL THEN '/api/users/' || u.id || '/avatar' ELSE NULL END AS acted_by_avatar_url,
+  tr.started_at, tr.completed_at,
   tr.skipped_at, tr.note, tr.task_title_snapshot, tr.assigned_user_id_snapshot,
   tr.assigned_user_display_name_snapshot, tr.assigned_user_color_snapshot,
   tr.assigned_user_avatar_url_snapshot, tr.created_at, tr.updated_at`;
@@ -62,9 +67,11 @@ const toRecord = (row: TaskRecordRow | null): TaskRecord | null =>
         targetWeekStart: row.target_week_start,
         occurrenceKey: row.occurrence_key ?? null,
         periodKey: row.period_key ?? null,
+        calendarActionDate: row.calendar_action_date ?? null,
         status: row.status,
         actedBy: row.acted_by,
         actedByDisplayName: row.acted_by_display_name,
+        actedByAvatarUrl: row.acted_by_avatar_url,
         startedAt: row.started_at,
         completedAt: row.completed_at,
         skippedAt: row.skipped_at,
@@ -113,7 +120,7 @@ export class TaskRecordRepository {
     return (result.results ?? []).map((row) => toRecord(row)!);
   }
 
-  async listCalendarRecords(householdId: string, from: string, to: string, periodKeys: string[]): Promise<TaskRecord[]> {
+  async listCalendarRecords(householdId: string, from: string, to: string, selectedDate: string, periodKeys: string[]): Promise<TaskRecord[]> {
     const periodClause = periodKeys.length > 0
       ? ` OR tr.period_key IN (${periodKeys.map(() => "?").join(", ")})`
       : "";
@@ -122,9 +129,12 @@ export class TaskRecordRepository {
        FROM task_records tr
        LEFT JOIN users u ON u.id = tr.acted_by
        WHERE tr.household_id = ?
-         AND (tr.target_date >= ? AND tr.target_date <= ?${periodClause})
+         AND ((tr.target_date >= ? AND tr.target_date <= ?)
+           OR tr.target_date = ?
+           OR (tr.calendar_action_date >= ? AND tr.calendar_action_date <= ?)
+           OR tr.calendar_action_date = ?${periodClause})
        ORDER BY tr.updated_at DESC`
-    ).bind(householdId, from, to, ...periodKeys).all<TaskRecordRow>();
+    ).bind(householdId, from, to, selectedDate, from, to, selectedDate, ...periodKeys).all<TaskRecordRow>();
     return (result.results ?? []).map((row) => toRecord(row)!);
   }
 
@@ -213,6 +223,7 @@ export class TaskRecordRepository {
                assigned_user_display_name_snapshot = ?,
                assigned_user_color_snapshot = ?,
                assigned_user_avatar_url_snapshot = ?,
+               calendar_action_date = ?,
                updated_at = ?
            WHERE id = ?`
         )
@@ -228,6 +239,7 @@ export class TaskRecordRepository {
           input.assignedUserDisplayNameSnapshot ?? null,
           input.assignedUserColorSnapshot ?? null,
           input.assignedUserAvatarUrlSnapshot ?? null,
+          input.calendarActionDate ?? null,
           input.now,
           existing.id
         )
@@ -254,6 +266,7 @@ export class TaskRecordRepository {
              assigned_user_display_name_snapshot = ?,
              assigned_user_color_snapshot = ?,
              assigned_user_avatar_url_snapshot = ?,
+             calendar_action_date = ?,
              updated_at = ?
          WHERE household_id = ? AND id = ?`
       )
@@ -269,6 +282,7 @@ export class TaskRecordRepository {
         input.assignedUserDisplayNameSnapshot ?? null,
         input.assignedUserColorSnapshot ?? null,
         input.assignedUserAvatarUrlSnapshot ?? null,
+        input.calendarActionDate ?? null,
         input.now,
         householdId,
         id
@@ -282,11 +296,11 @@ export class TaskRecordRepository {
     await this.db
       .prepare(
         `INSERT INTO task_records (
-          id, household_id, task_id, target_date, target_week_start, occurrence_key, period_key,
+          id, household_id, task_id, target_date, target_week_start, occurrence_key, period_key, calendar_action_date,
           status, acted_by, started_at, completed_at, skipped_at, note,
           task_title_snapshot, assigned_user_id_snapshot, assigned_user_display_name_snapshot,
           assigned_user_color_snapshot, assigned_user_avatar_url_snapshot, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .bind(
         input.id,
@@ -296,6 +310,7 @@ export class TaskRecordRepository {
         input.targetWeekStart,
         input.occurrenceKey ?? null,
         input.periodKey ?? null,
+        input.calendarActionDate ?? null,
         input.status,
         input.actedBy,
         input.startedAt,
