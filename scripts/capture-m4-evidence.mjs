@@ -252,6 +252,6 @@ await recordMotion(browser, "shopping-reorder", "many", async (page) => {
   if (reloaded.join(",") !== after.join(",")) throw new Error(`reorder did not persist after reload: ${reloaded.join(",")}`);
 });
 await browser.close();
-const productionSha = (await execFileAsync("git", ["-c", `safe.directory=${root}`, "rev-parse", "HEAD"], { cwd: root })).stdout.trim();
+const productionSha = (await execFileAsync("git", ["-c", `safe.directory=${root.replaceAll("\\", "/")}`, "rev-parse", "HEAD"], { cwd: root })).stdout.trim();
 await fs.writeFile(`${evidence}/capture-metadata.json`, JSON.stringify({ productionSha, mockupSha, viewport: "390x844", source: "scripts/capture-m4-evidence.mjs" }, null, 2));
 console.log(`M4 evidence captured at ${evidence} for Production ${productionSha} and Mockup ${mockupSha}`);
