@@ -59,7 +59,7 @@ const purchasedItem = {
   name: "卵",
   status: "purchased",
   purchasedBy: { userId: "user-2", displayName: "たくや" },
-  purchasedAt: "2026-08-01T01:32:00Z"
+  purchasedAt: "2026-08-24T01:32:00Z"
 };
 
 const template = {
@@ -506,22 +506,22 @@ describe("App shopping UI", () => {
     await waitFor(() => expect(window.location.pathname).toBe("/onboarding"));
   }, 15000);
 
-  it("renders shopping items, templates, count, purchaser, and collapse", async () => {
+  it("renders the canonical shopping list with a collapsed purchased section", async () => {
     mockFetch();
     window.history.replaceState({}, "", "/shopping");
 
     render(<App />);
 
-    expect(await screen.findByRole("heading", { name: "買い物リスト" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "買い物" })).toBeInTheDocument();
     expect(await screen.findByText("牛乳")).toBeInTheDocument();
-    expect(screen.getByText(/あと1つ/)).toBeInTheDocument();
-    expect(screen.getAllByText("1本 / 低脂肪ではないもの").length).toBeGreaterThan(0);
-    expect(screen.getByRole("button", { name: "キッチンペーパーを買い物リストへ追加" })).toBeInTheDocument();
-    expect(screen.getByText(/たくやさんが購入/)).toBeInTheDocument();
-    expect(screen.getByText(/2026\/8\/1 10:32/)).toBeInTheDocument();
+    expect(screen.getByText("1本")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /購入済み 1件/ })).toBeInTheDocument();
+    expect(screen.queryByText("卵")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /購入済み 1件/ }));
-    expect(screen.queryByText(/たくやさんが購入/)).not.toBeInTheDocument();
+    expect(screen.getByText("卵")).toBeInTheDocument();
+    expect(screen.getByText("2026/8/24 10:32")).toBeInTheDocument();
+    expect(screen.getByLabelText("購入者: たくや")).toBeInTheDocument();
   }, 15000);
 
   it("shows the purchase date and time in shopping detail", async () => {
@@ -532,7 +532,7 @@ describe("App shopping UI", () => {
 
     expect(await screen.findByRole("heading", { name: purchasedItem.name })).toBeInTheDocument();
     expect(screen.getByText("購入日時")).toBeInTheDocument();
-    expect(screen.getByText("2026/8/1 10:32")).toBeInTheDocument();
+    expect(screen.getByText("2026/8/24 10:32")).toBeInTheDocument();
   }, 15000);
 
   it("prefills shopping forms from recent items and templates without reusing image inputs", async () => {
@@ -541,13 +541,15 @@ describe("App shopping UI", () => {
 
     const { container } = render(<App />);
 
-    expect(await screen.findByRole("heading", { name: "最近使ったもの" })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: "以前の項目から選ぶ" }));
+    expect(await screen.findByRole("heading", { name: "以前の項目から選ぶ" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /牛乳/ }));
     expect(container.querySelector<HTMLInputElement>("#shopping-name")).toHaveValue("牛乳");
     expect(container.querySelector<HTMLInputElement>("#shopping-quantity")).toHaveValue("2本");
     expect(container.querySelector<HTMLTextAreaElement>("#shopping-note")).toHaveValue("低脂肪ではないもの");
 
-    fireEvent.click(screen.getByRole("button", { name: /キッチンペーパー/ }));
+    fireEvent.click(screen.getByRole("button", { name: "以前の項目から選ぶ" }));
+    fireEvent.click(await screen.findByRole("button", { name: /キッチンペーパー/ }));
     expect(container.querySelector<HTMLInputElement>("#shopping-name")).toHaveValue("キッチンペーパー");
     expect(container.querySelector<HTMLInputElement>("#shopping-quantity")).toHaveValue("1個");
     expect(screen.queryByRole("button", { name: "写真を撮る" })).not.toBeInTheDocument();

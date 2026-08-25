@@ -27,6 +27,7 @@ import {
   listRecentShoppingItemsRoute,
   listShoppingTemplatesRoute,
   purchaseShoppingItemRoute,
+  reorderShoppingItemsRoute,
   unpurchaseShoppingItemRoute,
   updateShoppingItemRoute,
   updateShoppingTemplateRoute
@@ -134,7 +135,7 @@ const routeApi = withErrorHandling(
       }
     }
 
-    if (shoppingItemPath && shoppingItemPath[1] !== "purchased") {
+    if (shoppingItemPath && shoppingItemPath[1] !== "purchased" && shoppingItemPath[1] !== "reorder") {
       const itemId = decodeURIComponent(shoppingItemPath[1]);
       const action = shoppingItemPath[2];
       if (!action && context.request.method === "GET")
@@ -155,6 +156,10 @@ const routeApi = withErrorHandling(
         return getShoppingItemImageRoute(itemId)(context);
       if (action === "image" && context.request.method === "DELETE")
         return deleteShoppingItemImageRoute(itemId)(context);
+    }
+
+    if (url.pathname === "/api/shopping/items/reorder" && context.request.method === "POST") {
+      return reorderShoppingItemsRoute(context);
     }
 
     if (shoppingTemplatePath) {

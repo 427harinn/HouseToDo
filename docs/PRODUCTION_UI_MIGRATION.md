@@ -9,13 +9,32 @@ HouseToDo-Mockup latest mainをdesign / interaction / motionのcanonical source 
 | M1 | Shared UI Foundation: tokens, global foundation, motion constants, App Shell, Bottom Navigation, Add Bottom Sheet | Done |
 | M2 | Home + Task: new Home, complete/pass/undo, task add/edit/delete, previous completion, and related Motion | Done |
 | M3 | Calendar screen visual migration and Calendar interactions | Done |
-| M4 | Shopping screen visual migration and Shopping interactions | Planned |
+| M4 | Shopping screen visual migration and Shopping interactions | Done on `feat/production-shopping-m4`; Draft PR pending review |
 | M5 | Other / Settings and formal `/other` route | Planned |
 | M6 | Auth / Household Entry. Guest and onboarding are removed from the new UI direction, not visually migrated. | Planned |
 | M7 | Integration / Legacy UI cleanup: retire user-facing old Task list/detail/respond/templates and Shopping detail/templates routes, then verify 2-user flows, E2E, and PWA behavior | Planned |
 | M8 | Legacy backend cleanup: after the new UI is stable, safely remove unused API/DB/compatibility code in separate PRs | Planned |
 
-M3まで完了。M4 Shopping本体の全面移植は次 milestone の対象とし、このbranchでは実施しない。
+M3まで`origin/main`で完了。M4 Shoppingは`feat/production-shopping-m4`で実装・検証・Evidence生成まで完了。まだmainへmergeしていない。M5には進まない。
+
+## M4 start record
+
+- Production base SHA: `485dbfefd93d16d1ae1abd60f849918703d4657c` (`origin/main`, PR #4 / M3 Calendar merge)
+- Mockup reference SHA: `db8941dc3056f07862014242a349ae366da59e9c` (`HouseToDo-Mockup` `origin/main`)
+- Branch: `feat/production-shopping-m4`
+- Mockup parity audit scope: `DESIGN.md`, `.uilab/screens.json`, `.uilab/states.json`, `.uilab/components.json`, Shopping list/add/edit implementation, fixtures, and motion.
+- Production contract scope: Shopping API/auth/household authorization, D1 persistence, shared `sort_order`, Calendar planned-date projection/deep-link, Home pending count, and existing R2 image validation/compression/upload/cleanup.
+- Initial migration differences: Production legacy card/detail/template UI and manual purchased cleanup are replaced by the Mockup interaction model; templates remain available through legacy routes/backend but are not exposed in the new primary reuse flow. Shared reorder requires an additive household-scoped reorder contract because the existing `sort_order` field had no write endpoint.
+
+## M4 completion record
+
+- Production render target SHA: `c86486a99155dd8ba529bbdec88030bf29b516fb`
+- Mockup reference SHA: `db8941dc3056f07862014242a349ae366da59e9c`
+- Implemented list flat rows, one-row expand/collapse, seven-day purchased visibility, purchaser/time display, purchase/restore, pointer swipe Edit, and persisted household reorder with oldest-first fallback.
+- Implemented Add/Edit canonical form, unified Recent/Template-backed reuse search, OS image picker preservation, R2/image validation flow preservation, and Edit-only delete confirmation.
+- Verified Home pending count, Calendar planned markers/Date Sheet/deep-link contract, planned-date preservation, household isolation, and no-delete swipe behavior.
+- Evidence: `docs/evidence/m4/production/`, `mockup/`, `motion/`, `motion/previews/`, and clean eight-file `review-upload/`.
+- Remaining review/deployment work: human review and merge; staging/production deploy and remote migration were intentionally not performed.
 
 ## M2 backend contract decision
 
@@ -53,3 +72,12 @@ For visible UI migrations, generate a clean reviewer upload package after the fi
 
 - Production base: `f12b5eb5c948a7c3676b651909cc9edc2e9fc326`（作業開始時に確認した`origin/main`）
 - HouseToDo-Mockup reference: `db8941dc3056f07862014242a349ae366da59e9c`（PR #18 merge後の`origin/main`）
+
+## M4 review correction record (2026-08-25)
+
+- PR #5 remains a Draft PR on `feat/production-shopping-m4`; M4 is not merged and M5 has not started.
+- `scripts/capture-m4-evidence.mjs` now routes Mockup captures with the canonical `uilabState` query only and asserts each requested Mockup state in the rendered DOM before taking a screenshot.
+- Production fixture assertions cover the 20-state semantic matrix. The Production Edit normal review fixture is equivalent in layout/photo semantics to Mockup Edit normal (an existing item with no attachment), while labels and values remain Production data.
+- Long-press reorder uses pointer capture and a window-level pointerup fallback; the Evidence capture fails unless an actual pointer drag changes DOM order and persists through reload. The additive backend contract remains household-scoped `POST /api/shopping/items/reorder` with exact pending-item-set validation and existing `sort_order` persistence; no new migration was required.
+- Latest Evidence consists of 20 Production and 20 Mockup screenshots, four settled-state canonical WebM files, four GIF previews, four review boards, and exactly eight files in `docs/evidence/m4/review-upload/`.
+- Production reuse Recent data still intentionally excludes source item identity and image. This prevents copying or exposing an existing R2 object outside the established attachment ownership/upload contract, so Production `reuse-selected` remains no-photo; this is the documented Production-only deviation from the Mockup photo fixture.

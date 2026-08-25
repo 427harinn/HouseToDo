@@ -158,6 +158,8 @@ export type ShoppingUpdateInput = {
   plannedPurchaseDate?: string | null;
 };
 
+export type ShoppingReorderInput = { itemIds: string[] };
+
 export type ShoppingTemplateWriteInput = Omit<ShoppingWriteInput, "plannedPurchaseDate">;
 export type ShoppingTemplateUpdateInput = Omit<ShoppingUpdateInput, "plannedPurchaseDate">;
 
@@ -759,6 +761,20 @@ export const validateShoppingUpdateInput = (value: unknown, label = "買い物�
     throw validationError({ body: "更新する項目を少なくとも1つ指定してください。" });
   }
   return output;
+};
+
+export const validateShoppingReorderInput = (value: unknown): ShoppingReorderInput => {
+  const input = asObject(value);
+  if (!Array.isArray(input.itemIds)) throw validationError({ itemIds: "itemIdsは配列で指定してください。" });
+  if (input.itemIds.length > 200) throw validationError({ itemIds: "itemIdsが多すぎます。" });
+  const itemIds = input.itemIds.map((itemId) => {
+    if (typeof itemId !== "string" || itemId.trim().length === 0) {
+      throw validationError({ itemIds: "itemIdsには空でない文字列を指定してください。" });
+    }
+    return itemId.trim();
+  });
+  if (new Set(itemIds).size !== itemIds.length) throw validationError({ itemIds: "itemIdsに重複があります。" });
+  return { itemIds };
 };
 
 export const validateShoppingTemplateWriteInput = (

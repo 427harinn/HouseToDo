@@ -1437,6 +1437,18 @@ export class MemoryD1 {
         changes = 0;
       }
     }
+    if (sql.startsWith("UPDATE shopping_items") && sql.includes("SET sort_order")) {
+      const item = this.shoppingItems.get(toText(values[3]));
+      if (item && item.household_id === values[2] && item.status === "pending") {
+        this.shoppingItems.set(item.id, {
+          ...item,
+          sort_order: Number(values[0]),
+          updated_at: toText(values[1])
+        });
+      } else {
+        changes = 0;
+      }
+    }
     if (
       sql.startsWith("UPDATE shopping_items") &&
       sql.includes("status = 'purchased'")

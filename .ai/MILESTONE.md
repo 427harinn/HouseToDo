@@ -1,10 +1,11 @@
-# Milestone: Production UI Migration M3 — Calendar
+# Milestone: Production UI Migration M4 — Shopping
 
 ## Current boundary
 
 - M1 Shared UI Foundation is complete.
 - M2 Home + Task is complete on the dedicated production branch. Mockup is used only for design, interaction, and motion reference; production API, auth, permissions, persisted data, and Cloudflare architecture remain authoritative.
-- M3 Calendar is complete on the dedicated production branch. M4 Shopping full visual migration remains out of scope.
+- M3 Calendar is complete on `origin/main` after PR #4. M4 Shopping is complete on `feat/production-shopping-m4`; Draft PR review is pending and it is not merged to main.
+- M5 Other / Settings is explicitly out of scope for this milestone.
 - 詳細なM1〜M8計画は[docs/PRODUCTION_UI_MIGRATION.md](../docs/PRODUCTION_UI_MIGRATION.md)を参照。
 
 ## M2 delivery
@@ -18,6 +19,21 @@
 - Calendar uses the Mockup latest-main compact month header, fixed 42-cell Sunday-first grid, task summaries, deadline-only flexible projection, Date Sheet sections, month/day swipe transforms, completion/pass/restore motion, and selected-date task-edit return context.
 - Calendar API returns task summaries and snapshot-aware completed records in one bounded request. Calendar Shopping is pending planned-date-only and deep-links to the existing Shopping list.
 - Calendar historical restore is isolated to `POST /api/tasks/:taskId/calendar-restore`; period actions persist additive nullable `calendar_action_date` in migration `0017_calendar_action_date.sql`. Home's today-only restore is unchanged.
+
+## M4 start record
+
+- Production base SHA: `485dbfefd93d16d1ae1abd60f849918703d4657c`
+- Mockup reference SHA: `db8941dc3056f07862014242a349ae366da59e9c`
+- Branch: `feat/production-shopping-m4`
+- The Mockup is canonical for Shopping layout, copy, visible states, interaction, gesture, and motion. Production remains canonical for API, auth, permissions, D1, R2, and data semantics.
+- Initial scope includes Shopping list/add/edit, reuse picker, expand/purchase/restore, seven-day purchased visibility, swipe edit, shared reorder persistence, Calendar deep-link, and Home/Calendar regression.
+
+## M4 delivery
+
+- Shopping list now follows Mockup latest-main flat-row density and interaction model, with one expanded item, seven-day purchased filtering without deletion, purchase/restore, purchaser metadata, photo/memo detail, and pointer gesture separation.
+- Add/Edit now use the canonical form and unified reuse picker; templates remain available through legacy routes/backend for M7 cleanup, while reuse selection only prefills the form.
+- `POST /api/shopping/items/reorder` is a new household-scoped additive contract that validates the exact pending-item set and persists `sort_order`; no migration was needed because the existing column was sufficient.
+- Local tests, build, targeted browser capture, parity screenshots, four WebM recordings, GIF previews, four boards, and exactly eight reviewer-upload files are complete. No deployment or remote migration was performed.
 
 # Historical milestone: Task model UI and reminder scheduler
 
@@ -119,3 +135,11 @@ Cron configuration and production resources remain untouched. Staging migration,
 - Shopping items with `plannedPurchaseDate = null` are returned by a separate household-scoped Calendar selected-date query and appear on every selected date; planned items remain first, followed by `予定日未定` items.
 - Unplanned items do not contribute to Calendar grid Shopping markers or cell `aria-label` counts. Pending and purchased unplanned rows are both included because purchased-item cleanup physically deletes them and no durable history is retained.
 - Existing ISO `purchased_at` / `purchasedAt` values now render as date plus time using the household timezone in Shopping list, detail, and Calendar selected-date cards. No migration or remote mutation was made.
+
+## M4 Shopping review correction (2026-08-25)
+
+- PR #5 remains open on `feat/production-shopping-m4`; no merge, deploy, remote migration, or M5 work was performed.
+- Corrected Mockup Evidence routing to pass each canonical state through `uilabState`, and added DOM semantic assertions for all 20 Mockup captures.
+- Re-captured Production/Mockup state fixtures with aligned item-count, expansion, planned-date, photo, quantity, purchased-section, deleted, and delete-confirmation semantics. Production Edit normal intentionally uses an equivalent no-photo item state.
+- Fixed long-press reorder completion with pointer capture plus a window-level pointerup fallback. Evidence now asserts oldest-first initial order, actual pointer drag, DOM order change, reorder API response, and reload persistence.
+- Rebuilt 390x844 screenshots, four canonical WebM files from settled state, GIF previews, four boards, and the exact eight-file reviewer package. The existing Recent API intentionally omits source item identity/image; reuse-selected therefore remains no-photo in Production to preserve R2 ownership and the existing safe reuse contract, while the Mockup canonical state is captured with its photo.

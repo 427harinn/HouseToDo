@@ -1,9 +1,10 @@
 import {
+  conflictError,
   inactiveShoppingTemplateError,
   shoppingItemNotFoundError,
   shoppingTemplateNotFoundError
 } from "../lib/errors";
-import type { ShoppingUpdateInput, ShoppingWriteInput } from "../lib/validation";
+import type { ShoppingReorderInput, ShoppingUpdateInput, ShoppingWriteInput } from "../lib/validation";
 import { ShoppingItemRepository } from "../repositories/shopping-item-repository";
 import { ShoppingItemImageRepository } from "../repositories/shopping-item-image-repository";
 import { ShoppingTemplateRepository } from "../repositories/shopping-template-repository";
@@ -126,6 +127,13 @@ export class ShoppingService {
     const image = await this.imageRepository.findByItemForHousehold(household.id, itemId);
     updated.image = image ? { available: true, width: image.width, height: image.height, size: image.sizeBytes, updatedAt: image.updatedAt } : null;
     return updated;
+  }
+
+  async reorderItems(userId: string, input: ShoppingReorderInput): Promise<ShoppingItem[]> {
+    const household = await this.households.requireCurrentHousehold(userId);
+    const items = await this.items.reorderPending(household.id, input.itemIds, nowIso());
+    if (items.length === 0 && input.itemIds.length > 0) throw conflictError("買い物リストが更新されています。再読み込みしてから並べ替えてください。");
+    return items;
   }
 
   async clearPurchased(userId: string): Promise<number> {

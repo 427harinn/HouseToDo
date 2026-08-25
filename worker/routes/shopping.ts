@@ -5,7 +5,8 @@ import {
   validateShoppingUpdateInput,
   validateShoppingWriteInput,
   validateShoppingTemplateUpdateInput,
-  validateShoppingTemplateWriteInput
+  validateShoppingTemplateWriteInput,
+  validateShoppingReorderInput
 } from "../lib/validation";
 import { requireAuth } from "../middleware/auth";
 import type { Handler } from "../middleware/error-handler";
@@ -121,6 +122,13 @@ export const unpurchaseShoppingItemRoute = (itemId: string): Handler =>
     const item = await new ShoppingService(context.env.DB, context.env.ATTACHMENTS).markPending(user.id, itemId);
     return okJson({ item: itemResponse(item) }, context.requestId);
   });
+
+export const reorderShoppingItemsRoute: Handler = requireAuth(async (context) => {
+  const user = requireUser(context.user);
+  const input = validateShoppingReorderInput(await parseJsonBody(context.request));
+  const items = await new ShoppingService(context.env.DB, context.env.ATTACHMENTS).reorderItems(user.id, input);
+  return okJson({ items: items.filter((item) => item.status === "pending").map(itemResponse) }, context.requestId);
+});
 
 export const clearPurchasedShoppingItemsRoute: Handler = requireAuth(async (context) => {
   const user = requireUser(context.user);
