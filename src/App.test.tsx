@@ -165,7 +165,7 @@ describe("App task form payload", () => {
       </StrictMode>
     );
 
-    await waitFor(() => expect(container.querySelector("#task-deadline-time")).toHaveValue("09:00"));
+    await waitFor(() => expect(container.querySelector("#m2-task-time")).toHaveValue("09:00"));
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   }, 15000);
 
@@ -209,9 +209,11 @@ describe("App task form payload", () => {
     window.history.replaceState({}, "", "/tasks/new");
 
     const { container } = render(<App />);
-    await waitFor(() => expect(container.querySelector("#task-deadline-time")).toBeInTheDocument());
-    fireEvent.change(container.querySelector("#task-title")!, { target: { value: "Daily task" } });
-    fireEvent.change(container.querySelector("#task-deadline-time")!, { target: { value: "09:00" } });
+    await waitFor(() => expect(screen.getByRole("checkbox")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("checkbox"));
+    await waitFor(() => expect(container.querySelector("#m2-task-time")).toBeInTheDocument());
+    fireEvent.change(container.querySelector("#m2-task-title")!, { target: { value: "Daily task" } });
+    fireEvent.change(container.querySelector("#m2-task-time")!, { target: { value: "09:00" } });
     fireEvent.submit(container.querySelector("form")!);
 
     await waitFor(() => expect(capturedPayload).not.toBeNull());
@@ -263,8 +265,8 @@ describe("App task form payload", () => {
     window.history.replaceState({}, "", "/tasks/task-1/edit");
 
     const { container } = render(<App />);
-    await waitFor(() => expect(container.querySelector("#task-deadline-time")).toHaveValue("09:00"));
-    fireEvent.change(container.querySelector("#task-deadline-time")!, { target: { value: "10:30" } });
+    await waitFor(() => expect(container.querySelector("#m2-task-time")).toHaveValue("09:00"));
+    fireEvent.change(container.querySelector("#m2-task-time")!, { target: { value: "10:30" } });
     fireEvent.submit(container.querySelector("form")!);
     await waitFor(() => expect(patchPayloads).toHaveLength(1));
     expect(patchPayloads[0].deadlineTime).toBe("10:30");
@@ -273,8 +275,8 @@ describe("App task form payload", () => {
       window.history.pushState({}, "", "/tasks/task-1/edit");
       window.dispatchEvent(new PopStateEvent("popstate"));
     });
-    await waitFor(() => expect(container.querySelector("#task-deadline-time")).toHaveValue("09:00"));
-    fireEvent.change(container.querySelector("#task-deadline-time")!, { target: { value: "" } });
+    await waitFor(() => expect(container.querySelector("#m2-task-time")).toHaveValue("09:00"));
+    fireEvent.change(container.querySelector("#m2-task-time")!, { target: { value: "" } });
     fireEvent.submit(container.querySelector("form")!);
     await waitFor(() => expect(patchPayloads).toHaveLength(2));
     expect(patchPayloads[1]).toMatchObject({ deadlineTime: null, notificationOffsetMinutes: null });
@@ -325,10 +327,12 @@ describe("App task form payload", () => {
 
     window.history.replaceState({}, "", "/tasks/new");
     const { container } = render(<App />);
-    await waitFor(() => expect(container.querySelector("#task-deadline-time")).toBeInTheDocument());
-    fireEvent.change(container.querySelector("#task-title")!, { target: { value: "Daily task" } });
-    fireEvent.change(container.querySelector("#task-deadline-time")!, { target: { value: "07:30" } });
-    fireEvent.change(container.querySelector("#task-notification-offset")!, { target: { value: "30" } });
+    await waitFor(() => expect(screen.getByRole("checkbox")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("checkbox"));
+    await waitFor(() => expect(container.querySelector("#m2-task-time")).toBeInTheDocument());
+    fireEvent.change(container.querySelector("#m2-task-title")!, { target: { value: "Daily task" } });
+    fireEvent.change(container.querySelector("#m2-task-time")!, { target: { value: "07:30" } });
+    fireEvent.change(container.querySelector("#m2-task-notification")!, { target: { value: "30" } });
     fireEvent.submit(container.querySelector("form")!);
     await waitFor(() => expect(capturedCreate).not.toBeNull());
     expect(capturedCreate).toMatchObject({ deadlineTime: "07:30", notificationOffsetMinutes: 30, notificationTime: null });
@@ -337,8 +341,8 @@ describe("App task form payload", () => {
       window.history.pushState({}, "", "/tasks/task-1/edit");
       window.dispatchEvent(new PopStateEvent("popstate"));
     });
-    await waitFor(() => expect(container.querySelector("#task-deadline-time")).toHaveValue("07:30"));
-    fireEvent.change(container.querySelector("#task-deadline-time")!, { target: { value: "" } });
+    await waitFor(() => expect(container.querySelector("#m2-task-time")).toHaveValue("07:30"));
+    fireEvent.change(container.querySelector("#m2-task-time")!, { target: { value: "" } });
     fireEvent.submit(container.querySelector("form")!);
     await waitFor(() => expect(patchPayloads).toHaveLength(1));
     expect(patchPayloads[0]).toMatchObject({ deadlineTime: null, notificationOffsetMinutes: null });
@@ -552,4 +556,141 @@ describe("App shopping UI", () => {
     expect(container.querySelector<HTMLInputElement>("#shopping-image")).not.toHaveAttribute("capture");
     expect(container.querySelector<HTMLInputElement>("#shopping-image")).toHaveAttribute("accept", "image/*");
   }, 15000);
+});
+
+describe("M2 Home", () => {
+  const task = {
+    id: "home-task-1",
+    title: "ゴミ出し",
+    recurrenceType: "daily",
+    modelRecurrenceType: "daily",
+    assignmentType: "specific",
+    assignedUserId: "user-2",
+    deadlineDate: "2026-08-25",
+    deadlineTime: "09:00",
+    scheduledTime: null,
+    status: "pending",
+    overdue: true,
+    targetDate: "2026-08-25"
+  };
+  const baseDashboard = {
+    date: "2026-08-25",
+    household: { id: household.id, name: household.name, timezone: household.timezone },
+    summary: { total: 1, pending: 1, inProgress: 0, completed: 0, skipped: 0 },
+    todayTasks: [task],
+    homeTasks: [task],
+    weeklyTasks: [],
+    completedRecords: [],
+    passedRecords: [],
+    shopping: { pendingCount: 2, previewItems: [] },
+    members: [{ ...members[1], avatarUrl: null }]
+  };
+
+  it("renders the single urgency list, scope color, assignee avatar fallback, and shopping count", async () => {
+    const dashboard = structuredClone(baseDashboard);
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.endsWith("/api/auth/me")) return Promise.resolve(ok({ user }));
+      if (url.endsWith("/api/households/current")) return Promise.resolve(ok({ household }));
+      if (url.endsWith("/api/households/current/image-usage")) return Promise.resolve(ok(imageUsage));
+      if (url.endsWith("/api/dashboard/today")) return Promise.resolve(ok(dashboard));
+      return Promise.resolve(failure("NOT_FOUND", 404));
+    });
+    window.history.replaceState({}, "", "/home");
+    render(<App />);
+
+    expect(await screen.findByRole("heading", { name: "やること" })).toBeInTheDocument();
+    expect(await screen.findByText("ゴミ出し")).toBeInTheDocument();
+    expect(screen.getByText("09:00まで")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "担当: たくや" })).toHaveTextContent("た");
+    expect(screen.getByText("買い物 2件")).toBeInTheDocument();
+    expect(screen.getByText("ゴミ出し").closest("button")).toBeInTheDocument();
+  });
+
+  it("completes by tapping the row and keeps history collapsed by default", async () => {
+    let completeCalls = 0;
+    let completed = false;
+    vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.endsWith("/api/auth/me")) return Promise.resolve(ok({ user }));
+      if (url.endsWith("/api/households/current")) return Promise.resolve(ok({ household }));
+      if (url.endsWith("/api/households/current/image-usage")) return Promise.resolve(ok(imageUsage));
+      if (url.endsWith("/api/dashboard/today")) {
+        return Promise.resolve(ok(completed ? {
+          ...baseDashboard,
+          todayTasks: [],
+          homeTasks: [],
+          summary: { total: 1, pending: 0, inProgress: 0, completed: 1, skipped: 0 },
+          completedRecords: [{ id: "record-1", taskId: task.id, status: "completed", title: "ゴミ出し", taskActive: true, actualCompleter: { userId: user.id, displayName: user.displayName, avatarUrl: null }, assignedUser: null }]
+        } : baseDashboard));
+      }
+      if (url.endsWith(`/api/tasks/${task.id}/complete`) && init?.method === "POST") {
+        completeCalls += 1;
+        completed = true;
+        return Promise.resolve(ok({ task: { ...task, status: "completed" } }));
+      }
+      return Promise.resolve(failure("NOT_FOUND", 404));
+    });
+    window.history.replaceState({}, "", "/home");
+    render(<App />);
+    const row = await screen.findByRole("button", { name: "ゴミ出しを完了" });
+    fireEvent.click(row);
+    await waitFor(() => expect(completeCalls).toBe(1), { timeout: 1000 });
+    await waitFor(() => expect(screen.getByText("完了済み 1")).toBeInTheDocument(), { timeout: 2000 });
+    expect(screen.queryByRole("button", { name: "ゴミ出しを完了" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /完了済み 1/ })).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(screen.getByRole("button", { name: /完了済み 1/ }));
+    expect(screen.getByText("ゴミ出し")).toBeInTheDocument();
+  }, 10000);
+
+  it("shows restore-only actions for inactive records", async () => {
+    const dashboard = {
+      ...baseDashboard,
+      todayTasks: [],
+      homeTasks: [],
+      completedRecords: [{ id: "record-deleted", taskId: task.id, status: "completed", title: "ゴミ出し", taskActive: false, actualCompleter: { userId: user.id, displayName: user.displayName, avatarUrl: null }, assignedUser: null }]
+    };
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.endsWith("/api/auth/me")) return Promise.resolve(ok({ user }));
+      if (url.endsWith("/api/households/current")) return Promise.resolve(ok({ household }));
+      if (url.endsWith("/api/households/current/image-usage")) return Promise.resolve(ok(imageUsage));
+      if (url.endsWith("/api/dashboard/today")) return Promise.resolve(ok(dashboard));
+      return Promise.resolve(failure("NOT_FOUND", 404));
+    });
+    window.history.replaceState({}, "", "/home");
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: /完了済み 1/ }));
+    expect(screen.getByRole("button", { name: "戻す" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "編集" })).not.toBeInTheDocument();
+  });
+
+  it("formats today, week, month, and dated time deadlines without merging date and time", async () => {
+    const tasks = [
+      { ...task, id: "today-time", title: "今日の時刻", deadlineDate: "2026-08-25", deadlineTime: "09:00", modelRecurrenceType: "daily", overdue: false },
+      { ...task, id: "today-all-day", title: "今日中の家事", deadlineDate: "2026-08-25", deadlineTime: null, modelRecurrenceType: "daily", overdue: false },
+      { ...task, id: "week-deadline", title: "週の期限", deadlineDate: "2026-08-30", deadlineTime: null, modelRecurrenceType: "weekly_flexible", overdue: false },
+      { ...task, id: "month-deadline", title: "月の期限", deadlineDate: "2026-08-31", deadlineTime: null, modelRecurrenceType: "monthly_flexible", overdue: false },
+      { ...task, id: "dated-time", title: "別日の時刻", deadlineDate: "2026-08-24", deadlineTime: "09:00", modelRecurrenceType: "once", targetDate: "2026-08-24", overdue: false },
+      { ...task, id: "no-deadline", title: "締切なしの家事", deadlineDate: null, deadlineTime: null, modelRecurrenceType: "daily", overdue: false }
+    ];
+    const dashboard = { ...baseDashboard, todayTasks: tasks, homeTasks: tasks, summary: { ...baseDashboard.summary, total: tasks.length, pending: tasks.length } };
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.endsWith("/api/auth/me")) return Promise.resolve(ok({ user }));
+      if (url.endsWith("/api/households/current")) return Promise.resolve(ok({ household }));
+      if (url.endsWith("/api/households/current/image-usage")) return Promise.resolve(ok(imageUsage));
+      if (url.endsWith("/api/dashboard/today")) return Promise.resolve(ok(dashboard));
+      return Promise.resolve(failure("NOT_FOUND", 404));
+    });
+    window.history.replaceState({}, "", "/home");
+    render(<App />);
+    expect(await screen.findByText("今日の時刻")).toBeInTheDocument();
+    expect(screen.getByText("09:00まで")).toBeInTheDocument();
+    expect(screen.getByText("今日中")).toBeInTheDocument();
+    expect(screen.getByText("日曜まで")).toBeInTheDocument();
+    expect(screen.getByText("8/31まで")).toBeInTheDocument();
+    expect(screen.getByText("8/24 09:00まで")).toBeInTheDocument();
+    expect(screen.getByText("締切なし")).toBeInTheDocument();
+  });
 });

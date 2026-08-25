@@ -1,6 +1,7 @@
-import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
 import type { ChangeEvent } from "react";
 import type { ReactNode } from "react";
+import { Check, ChevronLeft, ChevronRight, Ellipsis, House } from "lucide-react";
 import { login, logout, me, register } from "./api/auth";
 import { deleteProfileImage, uploadProfileImage } from "./api/account";
 import { ApiError, apiMessage } from "./api/client";
@@ -67,6 +68,7 @@ import {
   listCalendarTasks,
   listTodayTasks,
   listWeekTasks,
+  restoreTaskRecord,
   updateTask,
   updateTaskTemplate,
   type Task,
@@ -119,6 +121,8 @@ import {
   type TaskFormRecurrence,
   type TaskFormState
 } from "./task-model-ui";
+import { MOTION_MS } from "./motion/constants";
+import { usePrefersReducedMotion } from "./hooks/usePrefersReducedMotion";
 import type {
   AuthState,
   AuthUser,
@@ -919,51 +923,55 @@ function JoinHouseholdScreen({
 function AppFrame({
   current,
   children,
-  onNavigate
+  onNavigate,
+  showBottomNavigation = true
 }: {
   current: "/home" | "/calendar" | "/tasks" | "/shopping" | "/settings/members";
   children: ReactNode;
   onNavigate: (route: NavigationPath) => void;
+  showBottomNavigation?: boolean;
 }) {
   const [isAddSheetOpen, setIsAddSheetOpen] = useState(false);
 
   return (
     <div className="app-shell app-shell--with-nav">
       <main className="app-shell__viewport">{children}</main>
-      <BottomNavigation
-        addOpen={isAddSheetOpen}
-        current={current}
-        onAdd={() => setIsAddSheetOpen(true)}
-        onNavigate={onNavigate}
-      />
-      <BottomSheet
-        open={isAddSheetOpen}
-        title="追加"
-        onClose={() => setIsAddSheetOpen(false)}
-      >
-        <div className="add-action-sheet__options">
-          <button
-            type="button"
-            className="add-action-sheet__option motion-pressable"
-            onClick={() => {
-              setIsAddSheetOpen(false);
-              onNavigate("/tasks/new");
-            }}
-          >
-            家事
-          </button>
-          <button
-            type="button"
-            className="add-action-sheet__option motion-pressable"
-            onClick={() => {
-              setIsAddSheetOpen(false);
-              onNavigate("/shopping/new");
-            }}
-          >
-            買い物
-          </button>
-        </div>
-      </BottomSheet>
+      {showBottomNavigation ? <>
+        <BottomNavigation
+          addOpen={isAddSheetOpen}
+          current={current}
+          onAdd={() => setIsAddSheetOpen(true)}
+          onNavigate={onNavigate}
+        />
+        <BottomSheet
+          open={isAddSheetOpen}
+          title="追加"
+          onClose={() => setIsAddSheetOpen(false)}
+        >
+          <div className="add-action-sheet__options">
+            <button
+              type="button"
+              className="add-action-sheet__option motion-pressable"
+              onClick={() => {
+                setIsAddSheetOpen(false);
+                onNavigate("/tasks/new");
+              }}
+            >
+              家事
+            </button>
+            <button
+              type="button"
+              className="add-action-sheet__option motion-pressable"
+              onClick={() => {
+                setIsAddSheetOpen(false);
+                onNavigate("/shopping/new");
+              }}
+            >
+              買い物
+            </button>
+          </div>
+        </BottomSheet>
+      </> : null}
     </div>
   );
 }
@@ -1316,6 +1324,258 @@ function useDashboardData() {
 }
 
 function HomeScreen({
+  household,
+  onNavigate
+}: {
+  household: Household;
+  user: AuthUser;
+  onNavigate: (route: NavigationPath) => void;
+  onLogout: () => void;
+}) {
+  const { data, loading, message, refresh } = useDashboardData();
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const [completedOpen, setCompletedOpen] = useState(false);
+  const [passedOpen, setPassedOpen] = useState(false);
+  const [completingIds, setCompletingIds] = useState<Set<string>>(new Set());
+  const [passingIds, setPassingIds] = useState<Set<string>>(new Set());
+  const [restoringIds, setRestoringIds] = useState<Set<string>>(new Set());
+  const [statusMessage, setStatusMessage] = useState("");
+  const today = data?.date ?? todayInTimezone(household.timezone);
+  const activeTasks = (data?.homeTasks ?? data?.todayTasks ?? []).filter(
+    (task) => task.status === "pending" || task.status === "in_progress"
+  );
+  const completed = data?.completedRecords ?? [];
+  const passed = data?.passedRecords ?? [];
+  const wait = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, prefersReducedMotion ? 0 : ms));
+  const setActionId = (setter: React.Dispatch<React.SetStateAction<Set<string>>>, id: string, busy: boolean) => setter((current) => {
+    const next = new Set(current);
+    if (busy) next.add(id); else next.delete(id);
+    return next;
+  });
+  const isBusy = (id: string) => completingIds.has(id) || passingIds.has(id) || restoringIds.has(id);
+  const complete = async (task: TodayTask) => {
+    if (isBusy(task.id)) return;
+    setActionId(setCompletingIds, task.id, true);
+    setStatusMessage("");
+    const request = changeTaskState(task.id, "complete", homeTaskActionScope(task, household));
+    try {
+      await Promise.all([request, wait(MOTION_MS.completion)]);
+      await refresh();
+    } catch (error) {
+      setStatusMessage(apiErrorMessage(error));
+      await refresh();
+    } finally {
+      setActionId(setCompletingIds, task.id, false);
+    }
+  };
+  const pass = async (task: TodayTask) => {
+    if (isBusy(task.id)) return;
+    setActionId(setPassingIds, task.id, true);
+    setStatusMessage(`「${task.title}」をパスしました`);
+    try {
+      await Promise.all([
+        changeTaskState(task.id, "skip", homeTaskActionScope(task, household)),
+        wait(MOTION_MS.pass)
+      ]);
+      await refresh();
+    } catch (error) {
+      setStatusMessage(apiErrorMessage(error));
+      await refresh();
+    } finally {
+      setActionId(setPassingIds, task.id, false);
+    }
+  };
+  const restore = async (record: DashboardToday["completedRecords"][number]) => {
+    if (isBusy(record.taskId)) return;
+    setActionId(setRestoringIds, record.taskId, true);
+    try {
+      await Promise.all([restoreTaskRecord(record.taskId, record.id), wait(MOTION_MS.restore)]);
+      setStatusMessage(`「${record.title}」を戻しました`);
+      await refresh();
+    } catch (error) {
+      setStatusMessage(apiErrorMessage(error));
+      await refresh();
+    } finally {
+      setActionId(setRestoringIds, record.taskId, false);
+    }
+  };
+  const editRecord = (record: DashboardToday["completedRecords"][number]) => onNavigate(`/tasks/${record.taskId}/edit`);
+  return (
+    <AppFrame current="/home" onNavigate={onNavigate}>
+      <main className="m2-home" aria-busy={loading}>
+        <header className="m2-home__header">
+          <p>{formatHomeDate(today)}</p>
+          <h1>やること</h1>
+        </header>
+        <ErrorMessage message={message} />
+        {activeTasks.length > 0 ? (
+          <section className="m2-home__task-list" aria-label="やること一覧">
+            {activeTasks.map((task) => (
+              <HomeSwipeRow
+                key={task.id}
+                actionsOpenInitially={false}
+                busy={isBusy(task.id)}
+                onEdit={() => onNavigate(`/tasks/${task.id}/edit`)}
+                onSecondary={() => void pass(task)}
+                secondaryLabel="パス"
+                rowClassName={restoringIds.has(task.id) ? "is-restoring-row" : completingIds.has(task.id) ? "is-completing-row" : passingIds.has(task.id) ? "is-passing-row" : ""}
+              >
+                <button className="m2-home__row-main" type="button" disabled={isBusy(task.id)} onClick={() => void complete(task)} aria-label={`${task.title}を完了`}>
+                  <span className={`m2-home__check m2-home__check--${homeTaskScope(task)}${completingIds.has(task.id) ? " is-completing" : ""}`} aria-hidden="true">
+                    {completingIds.has(task.id) ? <Check /> : null}
+                  </span>
+                  <span className="m2-home__row-details">
+                    <span className="m2-home__task-title">{task.title}</span>
+                    <span className="m2-home__deadline">{formatHomeDeadline(task, today)}</span>
+                  </span>
+                  {homeMemberForTask(task, data?.members ?? []) ? <HomeAvatar member={homeMemberForTask(task, data?.members ?? [])!} label="担当" /> : null}
+                </button>
+              </HomeSwipeRow>
+            ))}
+          </section>
+        ) : (
+          <section className="m2-home__empty" aria-label="やることなし">
+            <span className="m2-home__empty-illustration" aria-hidden="true"><House /><Check /></span>
+            <p>やることはありません</p>
+          </section>
+        )}
+        {completed.length > 0 ? (
+          <section className="m2-home__history m2-home__history--completed">
+            <button className="m2-home__history-toggle" type="button" aria-expanded={completedOpen} onClick={() => setCompletedOpen((open) => !open)}>
+              <span>完了済み {completed.length}</span><ChevronRight aria-hidden="true" className={completedOpen ? "is-open" : ""} />
+            </button>
+            {completedOpen ? <div className="m2-home__history-list">{completed.map((record) => <HomeHistoryRow key={record.id} record={record} busy={restoringIds.has(record.taskId)} onEdit={() => editRecord(record)} onRestore={() => void restore(record)} />)}</div> : null}
+          </section>
+        ) : null}
+        {passed.length > 0 ? (
+          <section className="m2-home__history m2-home__history--passed">
+            <button className="m2-home__history-toggle" type="button" aria-expanded={passedOpen} onClick={() => setPassedOpen((open) => !open)}>
+              <span>パス済み {passed.length}</span><ChevronRight aria-hidden="true" className={passedOpen ? "is-open" : ""} />
+            </button>
+            {passedOpen ? <div className="m2-home__history-list">{passed.map((record) => <HomeHistoryRow key={record.id} record={record} busy={restoringIds.has(record.taskId)} onEdit={() => editRecord(record)} onRestore={() => void restore(record)} passed />)}</div> : null}
+          </section>
+        ) : null}
+        <button className="m2-home__shopping" type="button" onClick={() => onNavigate("/shopping")}>
+          <span>買い物 {data?.shopping.pendingCount ?? 0}件</span><ChevronRight aria-hidden="true" />
+        </button>
+        <p className="m2-home__status" role="status" aria-live="polite">{statusMessage}</p>
+      </main>
+    </AppFrame>
+  );
+}
+
+function homeTaskActionScope(task: TodayTask, household: Household) {
+  const today = todayInTimezone(household.timezone);
+  if (task.modelRecurrenceType === "once") return { targetDate: task.targetDate ?? today };
+  if (!task.modelRecurrenceType && task.recurrenceType === "weekly") return { targetWeekStart: weekStartFor(today, household.weekStartsOn) };
+  return { targetDate: today };
+}
+
+function homeTaskScope(task: TodayTask): "date" | "week" | "month" | "none" | "overdue" {
+  if (task.overdue) return "overdue";
+  const hasDeadline = Boolean(task.deadlineDate ?? (task.modelRecurrenceType === "once" ? task.targetDate : null) ?? task.deadlineTime ?? task.scheduledTime);
+  if (!hasDeadline) return "none";
+  if (task.modelRecurrenceType === "weekly_flexible") return "week";
+  if (task.modelRecurrenceType === "monthly_flexible") return "month";
+  if (task.modelRecurrenceType || task.recurrenceType === "daily" || task.recurrenceType === "scheduled") return "date";
+  return "none";
+}
+
+function formatHomeDate(dateKey: string) {
+  const parts = new Intl.DateTimeFormat("ja-JP", { month: "numeric", day: "numeric", weekday: "long", timeZone: "UTC" }).formatToParts(new Date(`${dateKey}T00:00:00Z`));
+  const month = parts.find((part) => part.type === "month")?.value ?? "";
+  const day = parts.find((part) => part.type === "day")?.value ?? "";
+  const weekday = parts.find((part) => part.type === "weekday")?.value ?? "";
+  return `${month}月${day}日 ${weekday}`;
+}
+
+function formatHomeDeadline(task: TodayTask, today: string) {
+  const date = task.deadlineDate ?? (task.modelRecurrenceType === "once" ? task.targetDate : null);
+  const time = task.deadlineTime ?? task.scheduledTime;
+  if (!date && !time) return "締切なし";
+  if (!date) return `${time}まで`;
+  if (date === today && !time) return "今日中";
+  const dateLabel = date === today ? "" : `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`;
+  if (date !== today && homeTaskScope(task) === "week") {
+    return `${new Intl.DateTimeFormat("ja-JP", { weekday: "short", timeZone: "UTC" }).format(new Date(`${date}T00:00:00Z`))}曜${time ? ` ${time}` : ""}まで`;
+  }
+  return `${dateLabel}${time ? (dateLabel ? ` ${time}` : time) : ""}まで`;
+}
+
+function homeMemberForTask(task: TodayTask, members: DashboardToday["members"]) {
+  return task.assignedUserId ? members.find((member) => member.userId === task.assignedUserId) ?? null : null;
+}
+
+function HomeAvatar({ member, label }: { member: { displayName: string | null; color?: string | null; avatarUrl?: string | null }; label: string }) {
+  const name = member.displayName ?? "メンバー";
+  return <span className="m2-home__avatar" role="img" aria-label={`${label}: ${name}`}>{member.avatarUrl ? <img src={member.avatarUrl} alt="" /> : name.slice(0, 1)}</span>;
+}
+
+function HomeSwipeRow({ children, actionsOpenInitially, busy, onEdit, onSecondary, secondaryLabel, rowClassName = "", restoreOnly = false }: { children: ReactNode; actionsOpenInitially: boolean; busy: boolean; onEdit?: () => void; onSecondary: () => void; secondaryLabel: string; rowClassName?: string; restoreOnly?: boolean }) {
+  const actionWidth = restoreOnly ? 72 : 136;
+  const [actionsOpen, setActionsOpen] = useState(actionsOpenInitially);
+  const [offset, setOffset] = useState(actionsOpenInitially ? -actionWidth : 0);
+  const [dragging, setDragging] = useState(false);
+  const start = useRef<{ x: number; y: number } | null>(null);
+  const vertical = useRef(false);
+  const horizontal = useRef(false);
+  const suppressClick = useRef(false);
+  const move = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!start.current || vertical.current) return;
+    const dx = event.clientX - start.current.x;
+    const dy = event.clientY - start.current.y;
+    if (!horizontal.current && Math.abs(dy) > 8 && Math.abs(dy) > Math.abs(dx)) {
+      vertical.current = true;
+      setDragging(false);
+      setOffset(actionsOpen ? -actionWidth : 0);
+      return;
+    }
+    if (Math.abs(dx) > 8) horizontal.current = true;
+    if (horizontal.current) {
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+      setDragging(true);
+      setOffset(Math.max(-actionWidth, Math.min(0, (actionsOpen ? -actionWidth : 0) + dx)));
+    }
+  };
+  const end = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!start.current) return;
+    const dx = event.clientX - start.current.x;
+    const dy = event.clientY - start.current.y;
+    const wasVertical = vertical.current || Math.abs(dy) > Math.abs(dx);
+    start.current = null;
+    vertical.current = false;
+    horizontal.current = false;
+    setDragging(false);
+    if (wasVertical) { setOffset(actionsOpen ? -actionWidth : 0); return; }
+    if (-dx > 48) { suppressClick.current = true; setActionsOpen(true); setOffset(-actionWidth); }
+    else if (dx > 24 && actionsOpen) { suppressClick.current = true; setActionsOpen(false); setOffset(0); }
+    else setOffset(actionsOpen ? -actionWidth : 0);
+  };
+  const clickCapture = (event: ReactMouseEvent<HTMLDivElement>) => {
+    if (!suppressClick.current) return;
+    if (event.target instanceof Element && event.target.closest(".m2-home__actions")) { suppressClick.current = false; return; }
+    event.preventDefault(); event.stopPropagation(); suppressClick.current = false;
+  };
+  return <div className={`m2-home__row ${actionsOpen ? "is-actions-open" : ""} ${dragging ? "is-dragging" : ""} ${rowClassName}`} onPointerDown={(event) => { start.current = { x: event.clientX, y: event.clientY }; setDragging(false); }} onPointerMove={move} onPointerUp={end} onPointerCancel={() => { start.current = null; vertical.current = false; horizontal.current = false; setDragging(false); setOffset(actionsOpen ? -actionWidth : 0); }} onClickCapture={clickCapture}>
+    <div className="m2-home__row-content" style={{ "--m2-swipe-offset": `${offset}px` } as CSSProperties}>
+      {children}
+      <button type="button" className="m2-home__more" aria-label="操作" aria-expanded={actionsOpen} onClick={() => { const next = !actionsOpen; setActionsOpen(next); setOffset(next ? -actionWidth : 0); }}><Ellipsis aria-hidden="true" /></button>
+    </div>
+    <div className={`m2-home__actions ${restoreOnly ? "is-restore-only" : ""}`} aria-label="操作メニュー"><span aria-hidden="true" />{!restoreOnly && onEdit ? <button type="button" onClick={onEdit}>編集</button> : null}<button type="button" className="is-secondary" disabled={busy} onClick={onSecondary}>{secondaryLabel}</button></div>
+  </div>;
+}
+
+function HomeHistoryRow({ record, busy, onEdit, onRestore, passed = false }: { record: DashboardToday["completedRecords"][number]; busy: boolean; onEdit: () => void; onRestore: () => void; passed?: boolean }) {
+  const deleted = !record.taskActive;
+  const member = passed ? record.assignedUser : record.actualCompleter;
+  return <HomeSwipeRow actionsOpenInitially={false} busy={busy} onEdit={deleted ? undefined : onEdit} onSecondary={onRestore} secondaryLabel="戻す" restoreOnly={deleted} rowClassName={busy ? "is-restoring-row" : ""}>
+    <div className="m2-home__row-main m2-home__history-main"><span className="m2-home__row-details"><span className="m2-home__task-title">{record.title}</span></span>{member?.displayName ? <HomeAvatar member={member} label={passed ? "担当" : "完了者"} /> : null}</div>
+  </HomeSwipeRow>;
+}
+
+// Kept for the legacy direct route surface until the planned route cleanup milestone.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function LegacyHomeScreen({
   household,
   user,
   onNavigate,
@@ -1787,7 +2047,178 @@ function TaskManagementCard({
   );
 }
 
-function TaskFormScreen({
+function TaskFormScreen(props: {
+  household: Household;
+  user: AuthUser;
+  mode: "create" | "edit" | "template-edit";
+  taskId?: string;
+  templateId?: string;
+  onNavigate: (route: NavigationPath) => void;
+  onLogout: () => void;
+}) {
+  if (props.mode === "template-edit") return <LegacyTaskFormScreen {...props} />;
+  return <M2TaskFormScreen household={props.household} user={props.user} mode={props.mode} taskId={props.taskId} onNavigate={props.onNavigate} onLogout={props.onLogout} />;
+}
+
+type M2TaskSheet = "repeat" | "assignee" | "reuse" | "delete" | null;
+
+const m2RepeatOptions: Array<{ value: TaskFormRecurrence; label: string }> = [
+  { value: "once", label: "今回だけ" },
+  { value: "daily", label: "毎日" },
+  { value: "weekly_fixed", label: "曜日を決める" },
+  { value: "monthly_fixed", label: "毎月○日" },
+  { value: "weekly_flexible", label: "今週のどこか" },
+  { value: "monthly_flexible", label: "今月のどこか" }
+];
+
+function m2RepeatLabel(form: TaskFormState) {
+  if (form.recurrence === "legacy_weekly") return `週に${form.weeklyTargetCount}回（旧形式）`;
+  const option = m2RepeatOptions.find((item) => item.value === form.recurrence)?.label ?? "毎日";
+  if (form.recurrence === "weekly_fixed" && form.weekdays.length > 0) return form.weekdays.map((day) => weekdayLabels[day]).join("・");
+  if (form.recurrence === "monthly_fixed") return `毎月${form.monthlyDayOfMonth ?? 1}日`;
+  return option;
+}
+
+function M2TaskFormScreen({ household, mode, taskId, onNavigate }: { household: Household; user: AuthUser; mode: "create" | "edit"; taskId?: string; onNavigate: (route: NavigationPath) => void; onLogout: () => void }) {
+  const [members, setMembers] = useState<HouseholdMember[]>([]);
+  const [recentTasks, setRecentTasks] = useState<Task[]>([]);
+  const [form, setForm] = useState<TaskFormState>(() => ({ ...defaultTaskForm(), startDate: todayInTimezone(household.timezone), targetDate: todayInTimezone(household.timezone) }));
+  const [originalForm, setOriginalForm] = useState<TaskFormState | null>(null);
+  const [sheet, setSheet] = useState<M2TaskSheet>(null);
+  const [reuseQuery, setReuseQuery] = useState("");
+  const [lastCompleted, setLastCompleted] = useState<string | null>(null);
+  const [errors, setErrors] = useState<TaskFormErrors>({});
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const today = todayInTimezone(household.timezone);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    Promise.all([
+      listMembers(controller.signal),
+      mode === "create" ? listRecentTaskDefinitions(8, controller.signal) : Promise.resolve({ tasks: [] as Task[] }),
+      mode === "edit" && taskId ? getTask(taskId, controller.signal) : Promise.resolve(null),
+      mode === "edit" && taskId
+        ? listTaskHistory(taskId, 100, controller.signal).catch((error) => {
+            if (error instanceof DOMException && error.name === "AbortError") throw error;
+            return { records: [] as TaskRecord[] };
+          })
+        : Promise.resolve({ records: [] as TaskRecord[] })
+    ]).then(([memberResult, recentResult, taskResult, historyResult]) => {
+      setMembers(memberResult.members);
+      setRecentTasks(recentResult.tasks);
+      if (taskResult && "task" in taskResult) {
+        const next = taskToFormState(taskResult.task);
+        setForm(next);
+        setOriginalForm(next);
+      }
+      const latest = historyResult.records.filter((record) => record.status === "completed" && record.completedAt).sort((a, b) => String(b.completedAt).localeCompare(String(a.completedAt)))[0];
+      setLastCompleted(latest?.completedAt ?? null);
+    }).catch((error) => {
+      if (!(error instanceof DOMException && error.name === "AbortError")) setMessage(apiErrorMessage(error));
+    }).finally(() => setLoading(false));
+    return () => controller.abort();
+  }, [mode, taskId]);
+
+  const setField = <K extends keyof TaskFormState>(key: K, value: TaskFormState[K]) => {
+    setForm((current) => normalizeTaskForm({ ...current, [key]: value }));
+    setErrors((current) => ({ ...current, [key]: undefined }));
+  };
+  const dateValue = form.recurrence === "once" ? form.targetDate : form.startDate;
+  const updateDate = (value: string) => {
+    if (form.recurrence === "once") setForm((current) => ({ ...current, startDate: value, targetDate: value }));
+    else setField("startDate", value);
+  };
+  const chooseRepeat = (value: TaskFormRecurrence) => {
+    setForm((current) => changeTaskFormRecurrence(current, value));
+    if (value !== "weekly_fixed" && value !== "monthly_fixed") setSheet(null);
+  };
+  const selectReuse = (task: Task) => {
+    const next = taskToFormState(task);
+    setForm({ ...next, startDate: today, targetDate: next.recurrence === "once" ? today : "" });
+    setErrors({});
+    setMessage("以前の項目を反映しました");
+    setSheet(null);
+  };
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (submitting) return;
+    const nextErrors = validateTaskFormState(form);
+    setErrors(nextErrors);
+    setMessage("");
+    if (Object.keys(nextErrors).length > 0) return;
+    setSubmitting(true);
+    try {
+      const payload = taskFormToPayload(form);
+      const originalPayload = originalForm ? taskFormToPayload(originalForm) : null;
+      const patch = originalPayload ? Object.fromEntries(Object.entries(payload).filter(([key, value]) => JSON.stringify(value) !== JSON.stringify(originalPayload[key as keyof typeof originalPayload]))) : payload;
+      if (mode === "edit" && taskId) await updateTask(taskId, patch);
+      else await createTask(payload);
+      onNavigate("/home");
+    } catch (error) {
+      setMessage(apiErrorMessage(error));
+      if (error instanceof ApiError && error.details) setErrors(error.details);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+  const confirmDelete = async () => {
+    if (!taskId || deleting) return;
+    setDeleting(true);
+    setMessage("");
+    try {
+      await deactivateTask(taskId);
+      onNavigate("/home");
+    } catch (error) {
+      setMessage(apiErrorMessage(error));
+      setDeleting(false);
+    }
+  };
+  const filteredRecent = recentTasks.filter((task) => `${task.title}${recurrenceDescription(task)}`.toLocaleLowerCase().includes(reuseQuery.trim().toLocaleLowerCase()));
+  const selectedMember = form.assignedUserId ? members.find((member) => member.userId === form.assignedUserId) ?? null : null;
+  if (loading) return <LoadingScreen message="家事を読み込んでいます" />;
+  return (
+    <AppFrame current="/home" onNavigate={onNavigate} showBottomNavigation={false}>
+      <main className="m2-task-form-page">
+        <header className="m2-task-form__header">
+          <button type="button" className="m2-task-form__back" aria-label="戻る" onClick={() => onNavigate("/home")}><ChevronLeft aria-hidden="true" /><span>戻る</span></button>
+          <h1>{mode === "create" ? "家事を追加" : "家事を編集"}</h1>
+          <span aria-hidden="true" />
+        </header>
+        {lastCompleted ? <p className="m2-task-form__last">前回：{formatLastCompletion(lastCompleted, household.timezone)}</p> : null}
+        {mode === "create" ? <button type="button" className="m2-task-form__reuse-trigger" onClick={() => setSheet("reuse")}><span>以前の項目から選ぶ</span><ChevronRight aria-hidden="true" /></button> : null}
+        <form className="m2-task-form" aria-busy={submitting || deleting} onSubmit={(event) => void submit(event)}>
+          <ErrorMessage message={message} />
+          <FormField id="m2-task-title" label="家事名" error={errors.title}><TextInput id="m2-task-title" value={form.title} error={errors.title} onChange={(value) => setField("title", value)} placeholder="家事名を入力" /></FormField>
+          <button className="m2-task-form__row m2-task-form__row--button" type="button" aria-label={`繰り返し: ${m2RepeatLabel(form)}`} onClick={() => setSheet("repeat")}><span>繰り返し</span><span className="m2-task-form__row-current"><span>{m2RepeatLabel(form)}</span><ChevronRight aria-hidden="true" /></span></button>
+          {form.recurrence === "legacy_weekly" ? <div className="legacy-task-notice" role="note"><strong>週に{form.weeklyTargetCount}回（旧形式）</strong><span>回数の意味を変えずに編集します。新しい繰り返しへ自動変換しません。</span></div> : null}
+          <FormField id="m2-task-start-date" label="開始日" error={errors.startDate}><input id="m2-task-start-date" type="date" value={form.startDate || today} onChange={(event) => setField("startDate", event.target.value)} aria-invalid={errors.startDate ? "true" : "false"} /></FormField>
+          <label className="m2-task-form__toggle"><span>終日</span><span className="m2-task-form__toggle-current">{form.deadlineTime ? "オフ" : "オン"}</span><span className={`m2-task-form__switch${!form.deadlineTime ? " is-on" : ""}`}><input className="m2-task-form__switch-input" type="checkbox" checked={!form.deadlineTime} aria-label="終日" onChange={(event) => setField("deadlineTime", event.target.checked ? "" : "09:00")} /><span className="m2-task-form__switch-track" aria-hidden="true"><span /></span></span></label>
+          <div className={`m2-task-form__date-grid${!form.deadlineTime ? " m2-task-form__date-grid--all-day" : ""}`}>
+            <FormField id="m2-task-date" label="日付" error={errors.targetDate}><input id="m2-task-date" type="date" value={dateValue || today} onChange={(event) => updateDate(event.target.value)} aria-invalid={errors.targetDate ? "true" : "false"} /></FormField>
+            {form.deadlineTime ? <FormField id="m2-task-time" label="時刻" error={errors.deadlineTime}><input id="m2-task-time" type="time" value={form.deadlineTime} onChange={(event) => setField("deadlineTime", event.target.value)} /></FormField> : null}
+          </div>
+          {form.deadlineTime ? <div className="m2-task-form__compact-field"><label htmlFor="m2-task-notification">通知</label><select id="m2-task-notification" value={form.notificationOffsetMinutes === null ? "none" : String(form.notificationOffsetMinutes)} aria-invalid={errors.notificationOffsetMinutes ? "true" : "false"} aria-describedby={errors.notificationOffsetMinutes ? "m2-task-notification-error" : undefined} onChange={(event) => setField("notificationOffsetMinutes", event.target.value === "none" ? null : Number(event.target.value))}><option value="none">通知なし</option><option value="0">時刻ちょうど</option><option value="5">5分前</option><option value="10">10分前</option><option value="30">30分前</option><option value="60">1時間前</option><option value="120">2時間前</option></select>{errors.notificationOffsetMinutes ? <p className="field-error" id="m2-task-notification-error">{errors.notificationOffsetMinutes}</p> : null}</div> : null}
+          <button type="button" className="m2-task-form__row" aria-label={`担当: ${selectedMember?.displayName ?? "誰でも"}`} onClick={() => setSheet("assignee")}><span>担当</span><span className="m2-task-form__row-current"><strong className="m2-task-form__assignee">{selectedMember ? <>{selectedMember.avatarUrl ? <img src={selectedMember.avatarUrl} alt="" /> : <span>{selectedMember.displayName.slice(0, 1)}</span>}{selectedMember.displayName}</> : "誰でも"}</strong><ChevronRight aria-hidden="true" /></span></button>
+          <FormField id="m2-task-description" label="メモ" error={errors.description}><textarea id="m2-task-description" rows={2} value={form.description} onChange={(event) => setField("description", event.target.value)} placeholder="メモを入力" /></FormField>
+          <div className={`m2-task-form__actions${mode === "edit" ? " m2-task-form__actions--edit" : ""}`}><button type="submit" className="m2-task-form__save" disabled={submitting}>{submitting ? "保存中…" : "保存"}</button>{mode === "edit" ? <button type="button" className="m2-task-form__delete" onClick={() => setSheet("delete")}>この家事を削除</button> : null}</div>
+        </form>
+        <BottomSheet open={sheet === "repeat"} title="繰り返し" onClose={() => setSheet(null)}><div className="m2-task-sheet__list">{m2RepeatOptions.map((option) => <button key={option.value} type="button" onClick={() => chooseRepeat(option.value)}><span>{option.label}</span>{form.recurrence === option.value ? <Check aria-hidden="true" /> : null}</button>)}{form.recurrence === "weekly_fixed" ? <div className="m2-task-sheet__detail"><span>曜日を選択</span><div className="m2-task-sheet__weekdays">{weekdayLabels.map((label, day) => <button key={label} type="button" aria-pressed={form.weekdays.includes(day)} onClick={() => setField("weekdays", form.weekdays.includes(day) ? form.weekdays.filter((item) => item !== day) : [...form.weekdays, day])}>{label}</button>)}</div><button type="button" className="m2-task-sheet__confirm" disabled={form.weekdays.length === 0} onClick={() => setSheet(null)}>決定</button></div> : null}{form.recurrence === "monthly_fixed" ? <div className="m2-task-sheet__detail"><FormField id="m2-month-day" label="毎月の日" error={errors.monthlyDayOfMonth}><input id="m2-month-day" type="number" min="1" max="31" value={form.monthlyDayOfMonth ?? 1} onChange={(event) => setField("monthlyDayOfMonth", Number(event.target.value))} /></FormField><button type="button" className="m2-task-sheet__confirm" onClick={() => setSheet(null)}>決定</button></div> : null}</div></BottomSheet>
+        <BottomSheet open={sheet === "assignee"} title="担当" onClose={() => setSheet(null)}><div className="m2-task-sheet__list"><button type="button" onClick={() => { setForm((current) => ({ ...current, assignmentType: "anyone", assignedUserId: null })); setSheet(null); }}><span>誰でも</span>{form.assignmentType === "anyone" ? <Check aria-hidden="true" /> : null}</button>{members.map((member) => <button key={member.userId} type="button" onClick={() => { setForm((current) => ({ ...current, assignmentType: "specific", assignedUserId: member.userId })); setSheet(null); }}><span className="m2-task-form__assignee">{member.avatarUrl ? <img src={member.avatarUrl} alt="" /> : <span>{member.displayName.slice(0, 1)}</span>}{member.displayName}</span>{form.assignedUserId === member.userId ? <Check aria-hidden="true" /> : null}</button>)}</div></BottomSheet>
+        <BottomSheet open={sheet === "reuse"} title="以前の項目から選ぶ" onClose={() => setSheet(null)}><div className="m2-task-sheet__reuse"><input aria-label="以前の項目を検索" placeholder="検索" value={reuseQuery} onChange={(event) => setReuseQuery(event.target.value)} />{filteredRecent.length > 0 ? <div className="m2-task-sheet__list">{filteredRecent.map((task) => <button key={task.id} type="button" onClick={() => selectReuse(task)}><span><strong>{task.title}</strong><small>{recurrenceDescription(task)}</small></span></button>)}</div> : <p>見つかりませんでした</p>}</div></BottomSheet>
+        <BottomSheet open={sheet === "delete"} title="家事を削除しますか？" onClose={() => setSheet(null)}><div className="m2-task-sheet__delete"><p>この家事を削除します。</p><button type="button" className="m2-task-form__delete" disabled={deleting} onClick={() => void confirmDelete()}>削除する</button><button type="button" className="m2-task-sheet__cancel" onClick={() => setSheet(null)}>キャンセル</button></div></BottomSheet>
+      </main>
+    </AppFrame>
+  );
+}
+
+function formatLastCompletion(value: string, timezone: string) {
+  return new Intl.DateTimeFormat("ja-JP", { month: "numeric", day: "numeric", timeZone: timezone }).format(new Date(value));
+}
+
+function LegacyTaskFormScreen({
   household,
   mode,
   taskId,

@@ -9,6 +9,6 @@
 - visible UI変更ではreview用ScreenshotをPRへ載せる。
 - Motion / Swipe / Drag / transitionを変更した場合は動画Evidenceも残す。
 - Motion Evidenceの基本viewportは390×844とする。
-- 同じ意味・同じ役割のUIでは、既存の色、spacing、size、interaction、Motionを再利用する。
-- ProductionのAPI、認証、データ取得、保存、権限、Worker、D1、R2、Cloudflare構成をUI移植のsource of truthとし、UI作業で変更しない。
-- 参照Repositoryはread-onlyで扱い、fixture、data-uilab、hash routing、UI Lab adapterをProductionへ持ち込まない。
+- 同じ意味・同じ役割のUIでは、Mockup latest mainの色、spacing、size、copy、layout、interaction、Motionをcanonicalとして再利用する。Production固有の差はbackend/data semanticsまたはaccessibility・platform制約などの理由をPR本文へ記録する。
+- Mockup latest mainを作業開始時とparity audit時にfetchして確認する。Mockupはdesign / interaction / motionのsource of truth、ProductionはAPI、認証、データ取得、保存、権限、Worker、D1、R2、Cloudflare構成のsource of truthと明確に分ける。
+- 参照Repositoryはread-onlyで扱い、fixture、data-uilab、hash routing、UI Lab adapterをProductionへ持ち込まない。Productionのreview fixtureはvisual evidence専用とし、business logicの代替にしない。

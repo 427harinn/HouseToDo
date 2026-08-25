@@ -1,4 +1,4 @@
-import { unauthenticatedError } from "../lib/errors";
+import { unauthenticatedError, validationError } from "../lib/errors";
 import { okJson } from "../lib/response";
 import {
   parseJsonBody,
@@ -87,9 +87,15 @@ const recordResponse = (record: TaskRecord) => ({
   completedAt: record.completedAt,
   skippedAt: record.skippedAt,
   note: record.note,
+  taskTitleSnapshot: record.taskTitleSnapshot,
+  assignedUserIdSnapshot: record.assignedUserIdSnapshot,
+  assignedUserDisplayNameSnapshot: record.assignedUserDisplayNameSnapshot,
+  assignedUserColorSnapshot: record.assignedUserColorSnapshot,
+  assignedUserAvatarUrlSnapshot: record.assignedUserAvatarUrlSnapshot,
   createdAt: record.createdAt,
   updatedAt: record.updatedAt
 });
+
 
 const taskWithStatusResponse = (task: Awaited<ReturnType<TaskService["listToday"]>>["tasks"][number]) => ({
   ...taskResponse(task),
@@ -258,6 +264,15 @@ export const changeTaskStateRoute = (
     const user = requireUser(context.user);
     const input = validateTaskStateInput(await parseJsonBody(context.request));
     const result = await new TaskService(context.env.DB).changeState(user.id, taskId, action, input);
+    return okJson({ result }, context.requestId);
+  });
+
+export const restoreTaskRecordRoute = (taskId: string): Handler =>
+  requireAuth(async (context) => {
+    const user = requireUser(context.user);
+    const input = validateTaskStateInput(await parseJsonBody(context.request));
+    if (!input.recordId) throw validationError({ recordId: "recordId is required." });
+    const result = await new TaskService(context.env.DB).restoreRecord(user.id, taskId, input.recordId);
     return okJson({ result }, context.requestId);
   });
 

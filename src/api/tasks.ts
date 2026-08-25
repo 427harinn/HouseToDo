@@ -91,6 +91,24 @@ export type TodayTask = Task & {
   overdue?: boolean;
 };
 
+export type HomeHistoryRecord = {
+  id: string;
+  taskId: string;
+  status: "completed" | "skipped";
+  title: string;
+  taskActive: boolean;
+  actualCompleter: { userId: string; displayName: string | null; avatarUrl: string | null };
+  assignedUser: { userId: string; displayName: string | null; color: string | null; avatarUrl: string | null } | null;
+  completedAt: string | null;
+  skippedAt: string | null;
+  targetDate: string | null;
+  targetWeekStart: string | null;
+  occurrenceKey?: string | null;
+  periodKey?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type TaskRecord = {
   id: string;
   targetDate: string | null;
@@ -200,6 +218,7 @@ export type TaskActionInput = {
   targetDate?: string;
   targetWeekStart?: string;
   note?: string | null;
+  recordId?: string;
 };
 
 const withQuery = (path: string, params: Record<string, string | boolean | number | undefined>) => {
@@ -299,6 +318,13 @@ export const changeTaskState = (
   apiRequest<{ result: TodayTask | WeeklyTask | { reset: true } }>(`/api/tasks/${taskId}/${action}`, {
     method: "POST",
     body: JSON.stringify(input),
+    signal
+  });
+
+export const restoreTaskRecord = (taskId: string, recordId: string, signal?: AbortSignal) =>
+  apiRequest<{ result: { reset: true } }>(`/api/tasks/${taskId}/restore`, {
+    method: "POST",
+    body: JSON.stringify({ recordId }),
     signal
   });
 

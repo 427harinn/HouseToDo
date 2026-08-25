@@ -15,6 +15,11 @@ type TaskRecordRow = {
   completed_at: string | null;
   skipped_at: string | null;
   note: string | null;
+  task_title_snapshot: string | null;
+  assigned_user_id_snapshot: string | null;
+  assigned_user_display_name_snapshot: string | null;
+  assigned_user_color_snapshot: string | null;
+  assigned_user_avatar_url_snapshot: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -33,12 +38,19 @@ export type RecordStateInput = {
   completedAt: string | null;
   skippedAt: string | null;
   note: string | null;
+  taskTitleSnapshot?: string | null;
+  assignedUserIdSnapshot?: string | null;
+  assignedUserDisplayNameSnapshot?: string | null;
+  assignedUserColorSnapshot?: string | null;
+  assignedUserAvatarUrlSnapshot?: string | null;
   now: string;
 };
 
 const selectRecord = `tr.id, tr.household_id, tr.task_id, tr.target_date, tr.target_week_start,
   tr.occurrence_key, tr.period_key, tr.status, tr.acted_by, u.display_name AS acted_by_display_name, tr.started_at, tr.completed_at,
-  tr.skipped_at, tr.note, tr.created_at, tr.updated_at`;
+  tr.skipped_at, tr.note, tr.task_title_snapshot, tr.assigned_user_id_snapshot,
+  tr.assigned_user_display_name_snapshot, tr.assigned_user_color_snapshot,
+  tr.assigned_user_avatar_url_snapshot, tr.created_at, tr.updated_at`;
 
 const toRecord = (row: TaskRecordRow | null): TaskRecord | null =>
   row
@@ -57,6 +69,11 @@ const toRecord = (row: TaskRecordRow | null): TaskRecord | null =>
         completedAt: row.completed_at,
         skippedAt: row.skipped_at,
         note: row.note,
+        taskTitleSnapshot: row.task_title_snapshot ?? null,
+        assignedUserIdSnapshot: row.assigned_user_id_snapshot ?? null,
+        assignedUserDisplayNameSnapshot: row.assigned_user_display_name_snapshot ?? null,
+        assignedUserColorSnapshot: row.assigned_user_color_snapshot ?? null,
+        assignedUserAvatarUrlSnapshot: row.assigned_user_avatar_url_snapshot ?? null,
         createdAt: row.created_at,
         updatedAt: row.updated_at
       }
@@ -139,6 +156,37 @@ export class TaskRecordRepository {
     return (result.results ?? []).map((row) => toRecord(row)!);
   }
 
+  async listByHouseholdId(householdId: string): Promise<TaskRecord[]> {
+    const result = await this.db
+      .prepare(`SELECT ${selectRecord} FROM task_records tr LEFT JOIN users u ON u.id = tr.acted_by
+        WHERE tr.household_id = ? ORDER BY tr.updated_at DESC`)
+      .bind(householdId)
+      .all<TaskRecordRow>();
+    return (result.results ?? []).map((row) => toRecord(row)!);
+  }
+
+  async listActionRecordsBetween(householdId: string, from: string, to: string): Promise<TaskRecord[]> {
+    const result = await this.db
+      .prepare(
+        `SELECT ${selectRecord}
+         FROM task_records tr
+         LEFT JOIN users u ON u.id = tr.acted_by
+         WHERE tr.household_id = ?
+           AND (
+             (tr.completed_at >= ? AND tr.completed_at < ?)
+             OR (tr.skipped_at >= ? AND tr.skipped_at < ?)
+             OR (
+               tr.completed_at IS NULL AND tr.skipped_at IS NULL
+               AND tr.updated_at >= ? AND tr.updated_at < ?
+             )
+           )
+         ORDER BY tr.updated_at DESC`
+      )
+      .bind(householdId, from, to, from, to, from, to)
+      .all<TaskRecordRow>();
+    return (result.results ?? []).map((row) => toRecord(row)!);
+  }
+
   async listWeeklyRecords(householdId: string, targetWeekStart: string): Promise<TaskRecord[]> {
     const result = await this.db
       .prepare(
@@ -160,7 +208,12 @@ export class TaskRecordRepository {
         .prepare(
           `UPDATE task_records
            SET status = ?, acted_by = ?, started_at = ?, completed_at = ?, skipped_at = ?,
-               note = ?, updated_at = ?
+               note = ?, task_title_snapshot = ?,
+               assigned_user_id_snapshot = ?,
+               assigned_user_display_name_snapshot = ?,
+               assigned_user_color_snapshot = ?,
+               assigned_user_avatar_url_snapshot = ?,
+               updated_at = ?
            WHERE id = ?`
         )
         .bind(
@@ -170,6 +223,11 @@ export class TaskRecordRepository {
           input.completedAt,
           input.skippedAt,
           input.note,
+          input.taskTitleSnapshot ?? null,
+          input.assignedUserIdSnapshot ?? null,
+          input.assignedUserDisplayNameSnapshot ?? null,
+          input.assignedUserColorSnapshot ?? null,
+          input.assignedUserAvatarUrlSnapshot ?? null,
           input.now,
           existing.id
         )
@@ -191,7 +249,12 @@ export class TaskRecordRepository {
       .prepare(
         `UPDATE task_records
          SET status = ?, acted_by = ?, started_at = ?, completed_at = ?, skipped_at = ?,
-             note = ?, updated_at = ?
+             note = ?, task_title_snapshot = ?,
+             assigned_user_id_snapshot = ?,
+             assigned_user_display_name_snapshot = ?,
+             assigned_user_color_snapshot = ?,
+             assigned_user_avatar_url_snapshot = ?,
+             updated_at = ?
          WHERE household_id = ? AND id = ?`
       )
       .bind(
@@ -201,6 +264,11 @@ export class TaskRecordRepository {
         input.completedAt,
         input.skippedAt,
         input.note,
+        input.taskTitleSnapshot ?? null,
+        input.assignedUserIdSnapshot ?? null,
+        input.assignedUserDisplayNameSnapshot ?? null,
+        input.assignedUserColorSnapshot ?? null,
+        input.assignedUserAvatarUrlSnapshot ?? null,
         input.now,
         householdId,
         id
@@ -215,8 +283,10 @@ export class TaskRecordRepository {
       .prepare(
         `INSERT INTO task_records (
           id, household_id, task_id, target_date, target_week_start, occurrence_key, period_key,
-          status, acted_by, started_at, completed_at, skipped_at, note, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          status, acted_by, started_at, completed_at, skipped_at, note,
+          task_title_snapshot, assigned_user_id_snapshot, assigned_user_display_name_snapshot,
+          assigned_user_color_snapshot, assigned_user_avatar_url_snapshot, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .bind(
         input.id,
@@ -232,6 +302,11 @@ export class TaskRecordRepository {
         input.completedAt,
         input.skippedAt,
         input.note,
+        input.taskTitleSnapshot ?? null,
+        input.assignedUserIdSnapshot ?? null,
+        input.assignedUserDisplayNameSnapshot ?? null,
+        input.assignedUserColorSnapshot ?? null,
+        input.assignedUserAvatarUrlSnapshot ?? null,
         input.now,
         input.now
       )
@@ -258,6 +333,14 @@ export class TaskRecordRepository {
           )
           .bind(householdId, taskId, scope.targetWeekStart)
           .run();
+    return (result.meta.changes ?? 0) > 0;
+  }
+
+  async deleteById(householdId: string, taskId: string, id: string): Promise<boolean> {
+    const result = await this.db
+      .prepare("DELETE FROM task_records WHERE household_id = ? AND task_id = ? AND id = ?")
+      .bind(householdId, taskId, id)
+      .run();
     return (result.meta.changes ?? 0) > 0;
   }
 

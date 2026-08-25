@@ -258,6 +258,14 @@ export class TaskRepository {
     return (result.meta.changes ?? 0) > 0;
   }
 
+  async reactivate(householdId: string, taskId: string, updatedAt: string): Promise<boolean> {
+    const result = await this.db
+      .prepare("UPDATE tasks SET active = 1, updated_at = ? WHERE household_id = ? AND id = ?")
+      .bind(updatedAt, householdId, taskId)
+      .run();
+    return (result.meta.changes ?? 0) > 0;
+  }
+
   prepareAddWeekday(taskId: string, weekday: number): D1PreparedStatement {
     return this.db
       .prepare("INSERT INTO task_weekdays (task_id, weekday) VALUES (?, ?)")

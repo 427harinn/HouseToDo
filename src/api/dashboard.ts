@@ -1,5 +1,5 @@
 import { apiRequest } from "./client";
-import type { TodayTask, WeeklyTask } from "./tasks";
+import type { HomeHistoryRecord, TodayTask, WeeklyTask } from "./tasks";
 import type { HouseholdMember } from "../types";
 
 export type DashboardToday = {
@@ -7,6 +7,7 @@ export type DashboardToday = {
   household: {
     id: string;
     name: string;
+    timezone?: string;
   };
   summary: {
     total: number;
@@ -16,7 +17,11 @@ export type DashboardToday = {
     skipped: number;
   };
   todayTasks: TodayTask[];
+  /** M2 Home projection: active rows only, sorted by canonical deadline semantics. */
+  homeTasks: TodayTask[];
   weeklyTasks: WeeklyTask[];
+  completedRecords: HomeHistoryRecord[];
+  passedRecords: HomeHistoryRecord[];
   shopping: {
     pendingCount: number;
     previewItems: Array<{
@@ -25,7 +30,7 @@ export type DashboardToday = {
       quantity: string | null;
     }>;
   };
-  members: Array<Pick<HouseholdMember, "userId" | "displayName" | "role" | "color">>;
+  members: Array<Pick<HouseholdMember, "userId" | "displayName" | "role" | "color" | "avatarUrl">>;
 };
 
 export const getDashboardToday = (date?: string, signal?: AbortSignal) => {
