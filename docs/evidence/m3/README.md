@@ -24,9 +24,20 @@ The visual comparison target was Mockup `db8941dc3056f07862014242a349ae366da59e9
 - Production: `production/01-calendar-normal.png` through `production/12-calendar-task-edit-return-context.png`
 - Mockup: `mockup/01-calendar-normal.png` through `mockup/11-calendar-next-month.png`
 
+The Draft PR embeds the eleven shared states as pinned Production/Mockup image pairs and the Production-only task-edit return context. The image URLs are pinned to the evidence commit rather than the branch name.
+
 ## Motion recordings
 
 - `motion/calendar-task-complete.webm`
 - `motion/calendar-month-swipe.webm`
 - `motion/calendar-day-swipe.webm`
 - `motion/calendar-completed-undo.webm`
+
+Review GIF previews:
+
+- `motion/previews/calendar-task-complete.gif`
+- `motion/previews/calendar-month-swipe.gif`
+- `motion/previews/calendar-day-swipe.gif`
+- `motion/previews/calendar-completed-undo.gif`
+
+GIFs are generated from the existing WebM playback at 10 fps and preserve the WebM speed. WebM remains the source of truth.

@@ -37,6 +37,10 @@ M3まで完了。M4 Shopping本体の全面移植は次 milestone の対象と�
 
 Before creating the Draft PR, Codex rendered the latest Mockup main and Production Calendar at 390×844 and compared normal, dense, Shopping, Date Sheet, completed, restore, month-swipe, and day-swipe states. The audit evidence is kept under `docs/evidence/m3/`; any Production-only behavior is listed under `Deviations` in the PR body.
 
+## Visual Evidence operation
+
+Production UI migration PRs must include a Mockup comparison gallery and Motion preview in the PR body itself. Pinned GitHub image URLs are used for the main screenshots; animated GIFs are review previews and the original WebM files remain the canonical Motion evidence.
+
 ## M1 transitional mapping
 
 最終Bottom Navigationは`Home / Calendar / Add / Shopping / Other`の5枠とする。M1では正式なOther screenをまだ作らないため、Otherは既存の`/settings/members`へ遷移し、`/settings/members`表示時はOtherをcurrent扱いにする。この暫定mappingはM5で正式な`/other`へ置き換える。

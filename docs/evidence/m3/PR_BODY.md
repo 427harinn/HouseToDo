@@ -1,66 +1,136 @@
 ## Summary
 
-Production Calendar M3 migrated to Mockup latest-main parity on `feat/production-calendar-m3`.
+Production Calendar M3 migrated to Mockup latest-main parity. This follow-up updates only PR Evidence presentation; Calendar business logic, UI, API, DB, and WebM recordings are unchanged.
 
 ## Scope
 
-- Compact year/month header, Today control, Sunday-first 7×6 month grid, task summaries, deadline emphasis, Shopping markers.
-- Date Sheet with direct/period/completed/Shopping sections, task complete/pass, completed restore/edit, date/month swipe transforms, reduced-motion handling.
-- Calendar-to-task edit return context and Calendar-to-Shopping list target highlight.
-
-## Backend/API changes
-
-- Calendar response additively returns `dates[date].tasks` and selected-date snapshot-aware completed records.
-- Month projection excludes completed/skipped and daily tasks; flexible tasks appear only on deadline dates.
-- Shopping Calendar returns pending items with an exact planned purchase date only.
-- Added `POST /api/tasks/:taskId/calendar-restore` with strict household/task/record/status/date validation.
-
-## Migration
-
-- Added local-only additive `0017_calendar_action_date.sql` for period action-date persistence. Existing period identity and unique-index semantics remain unchanged.
+- PR-body visual gallery for the 390×844 Production / Mockup comparison states.
+- Animated GIF review previews generated from the existing canonical WebM files.
+- SHA-pinned GitHub raw/blob URLs so the gallery does not depend on the branch name.
 
 ## Mockup reference SHA
 
 `db8941dc3056f07862014242a349ae366da59e9c`
 
+## Mockup Parity Gallery
+
+Images are pinned to evidence commit `EVIDENCE_COMMIT_SHA`. Click either image to open the original 390×844 PNG.
+
+### Calendar normal
+
+| Production | Mockup |
+| --- | --- |
+| <a href="https://github.com/427harinn/HouseToDo/blob/EVIDENCE_COMMIT_SHA/docs/evidence/m3/production/01-calendar-normal.png"><img src="https://raw.githubusercontent.com/427harinn/HouseToDo/EVIDENCE_COMMIT_SHA/docs/evidence/m3/production/01-calendar-normal.png" width="180" alt="Production Calendar normal"></a> | <a href="https://github.com/427harinn/HouseToDo/blob/EVIDENCE_COMMIT_SHA/docs/evidence/m3/mockup/01-calendar-normal.png"><img src="https://raw.githubusercontent.com/427harinn/HouseToDo/EVIDENCE_COMMIT_SHA/docs/evidence/m3/mockup/01-calendar-normal.png" width="180" alt="Mockup Calendar normal"></a> |
+
+### Calendar dense
+
+| Production | Mockup |
+| --- | --- |
+| <a href="https://github.com/427harinn/HouseToDo/blob/EVIDENCE_COMMIT_SHA/docs/evidence/m3/production/02-calendar-dense.png"><img src="https://raw.githubusercontent.com/427harinn/HouseToDo/EVIDENCE_COMMIT_SHA/docs/evidence/m3/production/02-calendar-dense.png" width="180" alt="Production Calendar dense"></a> | <a href="https://github.com/427harinn/HouseToDo/blob/EVIDENCE_COMMIT_SHA/docs/evidence/m3/mockup/02-calendar-dense.png"><img src="https://raw.githubusercontent.com/427harinn/HouseToDo/EVIDENCE_COMMIT_SHA/docs/evidence/m3/mockup/02-calendar-dense.png" width="180" alt="Mockup Calendar dense"></a> |
+
+### Calendar Shopping
+
+| Production | Mockup |
+| --- | --- |
+| <a href="https://github.com/427harinn/HouseToDo/blob/EVIDENCE_COMMIT_SHA/docs/evidence/m3/production/03-calendar-shopping.png"><img src="https://raw.githubusercontent.com/427harinn/HouseToDo/EVIDENCE_COMMIT_SHA/docs/evidence/m3/production/03-calendar-shopping.png" width="180" alt="Production Calendar Shopping"></a> | <a href="https://github.com/427harinn/HouseToDo/blob/EVIDENCE_COMMIT_SHA/docs/evidence/m3/mockup/03-calendar-shopping.png"><img src="https://raw.githubusercontent.com/427harinn/HouseToDo/EVIDENCE_COMMIT_SHA/docs/evidence/m3/mockup/03-calendar-shopping.png" width="180" alt="Mockup Calendar Shopping"></a> |
+
+### Date Sheet normal
+
+| Production | Mockup |
+| --- | --- |
+| <a href="https://github.com/427harinn/HouseToDo/blob/EVIDENCE_COMMIT_SHA/docs/evidence/m3/production/04-calendar-date-open.png"><img src="https://raw.githubusercontent.com/427harinn/HouseToDo/EVIDENCE_COMMIT_SHA/docs/evidence/m3/production/04-calendar-date-open.png" width="180" alt="Production Date Sheet normal"></a> | <a href="https://github.com/427harinn/HouseToDo/blob/EVIDENCE_COMMIT_SHA/docs/evidence/m3/mockup/04-calendar-date-open.png"><img src="https://raw.githubusercontent.com/427harinn/HouseToDo/EVIDENCE_COMMIT_SHA/docs/evidence/m3/mockup/04-calendar-date-open.png" width="180" alt="Mockup Date Sheet normal"></a> |
+
+### Date Sheet period + Shopping
+
+| Production | Mockup |
+| --- | --- |
+| <a href="https://github.com/427harinn/HouseToDo/blob/EVIDENCE_COMMIT_SHA/docs/evidence/m3/production/05-calendar-date-period-shopping.png"><img src="https://raw.githubusercontent.com/427harinn/HouseToDo/EVIDENCE_COMMIT_SHA/docs/evidence/m3/production/05-calendar-date-period-shopping.png" width="180" alt="Production Date Sheet period Shopping"></a> | <a href="https://github.com/427harinn/HouseToDo/blob/EVIDENCE_COMMIT_SHA/docs/evidence/m3/mockup/05-calendar-date-period-shopping.png"><img src="https://raw.githubusercontent.com/427harinn/HouseToDo/EVIDENCE_COMMIT_SHA/docs/evidence/m3/mockup/05-calendar-date-period-shopping.png" width="180" alt="Mockup Date Sheet period Shopping"></a> |
+
+### Completed collapsed
+
+| Production | Mockup |
+| --- | --- |
+| <a href="https://github.com/427harinn/HouseToDo/blob/EVIDENCE_COMMIT_SHA/docs/evidence/m3/production/06-calendar-completed-collapsed.png"><img src="https://raw.githubusercontent.com/427harinn/HouseToDo/EVIDENCE_COMMIT_SHA/docs/evidence/m3/production/06-calendar-completed-collapsed.png" width="180" alt="Production completed collapsed"></a> | <a href="https://github.com/427harinn/HouseToDo/blob/EVIDENCE_COMMIT_SHA/docs/evidence/m3/mockup/06-calendar-completed-collapsed.png"><img src="https://raw.githubusercontent.com/427harinn/HouseToDo/EVIDENCE_COMMIT_SHA/docs/evidence/m3/mockup/06-calendar-completed-collapsed.png" width="180" alt="Mockup completed collapsed"></a> |
+
+### Completed open
+
+| Production | Mockup |
+| --- | --- |
+| <a href="https://github.com/427harinn/HouseToDo/blob/EVIDENCE_COMMIT_SHA/docs/evidence/m3/production/07-calendar-completed-open.png"><img src="https://raw.githubusercontent.com/427harinn/HouseToDo/EVIDENCE_COMMIT_SHA/docs/evidence/m3/production/07-calendar-completed-open.png" width="180" alt="Production completed open"></a> | <a href="https://github.com/427harinn/HouseToDo/blob/EVIDENCE_COMMIT_SHA/docs/evidence/m3/mockup/07-calendar-completed-open.png"><img src="https://raw.githubusercontent.com/427harinn/HouseToDo/EVIDENCE_COMMIT_SHA/docs/evidence/m3/mockup/07-calendar-completed-open.png" width="180" alt="Mockup completed open"></a> |
+
+### Completed swipe
+
+| Production | Mockup |
+| --- | --- |
+| <a href="https://github.com/427harinn/HouseToDo/blob/EVIDENCE_COMMIT_SHA/docs/evidence/m3/production/08-calendar-completed-swipe.png"><img src="https://raw.githubusercontent.com/427harinn/HouseToDo/EVIDENCE_COMMIT_SHA/docs/evidence/m3/production/08-calendar-completed-swipe.png" width="180" alt="Production completed swipe"></a> | <a href="https://github.com/427harinn/HouseToDo/blob/EVIDENCE_COMMIT_SHA/docs/evidence/m3/mockup/08-calendar-completed-swipe.png"><img src="https://raw.githubusercontent.com/427harinn/HouseToDo/EVIDENCE_COMMIT_SHA/docs/evidence/m3/mockup/08-calendar-completed-swipe.png" width="180" alt="Mockup completed swipe"></a> |
+
+### Deleted completed restore-only
+
+| Production | Mockup |
+| --- | --- |
+| <a href="https://github.com/427harinn/HouseToDo/blob/EVIDENCE_COMMIT_SHA/docs/evidence/m3/production/09-calendar-deleted-completed-restore-only.png"><img src="https://raw.githubusercontent.com/427harinn/HouseToDo/EVIDENCE_COMMIT_SHA/docs/evidence/m3/production/09-calendar-deleted-completed-restore-only.png" width="180" alt="Production deleted completed restore-only"></a> | <a href="https://github.com/427harinn/HouseToDo/blob/EVIDENCE_COMMIT_SHA/docs/evidence/m3/mockup/09-calendar-deleted-completed-restore-only.png"><img src="https://raw.githubusercontent.com/427harinn/HouseToDo/EVIDENCE_COMMIT_SHA/docs/evidence/m3/mockup/09-calendar-deleted-completed-restore-only.png" width="180" alt="Mockup deleted completed restore-only"></a> |
+
+### After restore
+
+| Production | Mockup |
+| --- | --- |
+| <a href="https://github.com/427harinn/HouseToDo/blob/EVIDENCE_COMMIT_SHA/docs/evidence/m3/production/10-calendar-after-restore.png"><img src="https://raw.githubusercontent.com/427harinn/HouseToDo/EVIDENCE_COMMIT_SHA/docs/evidence/m3/production/10-calendar-after-restore.png" width="180" alt="Production after restore"></a> | <a href="https://github.com/427harinn/HouseToDo/blob/EVIDENCE_COMMIT_SHA/docs/evidence/m3/mockup/10-calendar-after-restore.png"><img src="https://raw.githubusercontent.com/427harinn/HouseToDo/EVIDENCE_COMMIT_SHA/docs/evidence/m3/mockup/10-calendar-after-restore.png" width="180" alt="Mockup after restore"></a> |
+
+### Next month
+
+| Production | Mockup |
+| --- | --- |
+| <a href="https://github.com/427harinn/HouseToDo/blob/EVIDENCE_COMMIT_SHA/docs/evidence/m3/production/11-calendar-next-month.png"><img src="https://raw.githubusercontent.com/427harinn/HouseToDo/EVIDENCE_COMMIT_SHA/docs/evidence/m3/production/11-calendar-next-month.png" width="180" alt="Production next month"></a> | <a href="https://github.com/427harinn/HouseToDo/blob/EVIDENCE_COMMIT_SHA/docs/evidence/m3/mockup/11-calendar-next-month.png"><img src="https://raw.githubusercontent.com/427harinn/HouseToDo/EVIDENCE_COMMIT_SHA/docs/evidence/m3/mockup/11-calendar-next-month.png" width="180" alt="Mockup next month"></a> |
+
+### Production-only task edit return context
+
+<a href="https://github.com/427harinn/HouseToDo/blob/EVIDENCE_COMMIT_SHA/docs/evidence/m3/production/12-calendar-task-edit-return-context.png"><img src="https://raw.githubusercontent.com/427harinn/HouseToDo/EVIDENCE_COMMIT_SHA/docs/evidence/m3/production/12-calendar-task-edit-return-context.png" width="180" alt="Production task edit return context"></a>
+
+## Motion Evidence
+
+GIFs are review previews generated from the existing WebM at 10 fps without slowing playback. The original WebM remains the canonical Motion evidence.
+
+### Task completion
+
+<a href="https://github.com/427harinn/HouseToDo/blob/EVIDENCE_COMMIT_SHA/docs/evidence/m3/motion/previews/calendar-task-complete.gif"><img src="https://raw.githubusercontent.com/427harinn/HouseToDo/EVIDENCE_COMMIT_SHA/docs/evidence/m3/motion/previews/calendar-task-complete.gif" width="390" alt="Task completion GIF preview"></a>
+
+Original WebM: [calendar-task-complete.webm](https://github.com/427harinn/HouseToDo/blob/EVIDENCE_COMMIT_SHA/docs/evidence/m3/motion/calendar-task-complete.webm)
+
+### Month swipe
+
+<a href="https://github.com/427harinn/HouseToDo/blob/EVIDENCE_COMMIT_SHA/docs/evidence/m3/motion/previews/calendar-month-swipe.gif"><img src="https://raw.githubusercontent.com/427harinn/HouseToDo/EVIDENCE_COMMIT_SHA/docs/evidence/m3/motion/previews/calendar-month-swipe.gif" width="390" alt="Month swipe GIF preview"></a>
+
+Original WebM: [calendar-month-swipe.webm](https://github.com/427harinn/HouseToDo/blob/EVIDENCE_COMMIT_SHA/docs/evidence/m3/motion/calendar-month-swipe.webm)
+
+### Day swipe
+
+<a href="https://github.com/427harinn/HouseToDo/blob/EVIDENCE_COMMIT_SHA/docs/evidence/m3/motion/previews/calendar-day-swipe.gif"><img src="https://raw.githubusercontent.com/427harinn/HouseToDo/EVIDENCE_COMMIT_SHA/docs/evidence/m3/motion/previews/calendar-day-swipe.gif" width="390" alt="Day swipe GIF preview"></a>
+
+Original WebM: [calendar-day-swipe.webm](https://github.com/427harinn/HouseToDo/blob/EVIDENCE_COMMIT_SHA/docs/evidence/m3/motion/calendar-day-swipe.webm)
+
+### Completed undo
+
+<a href="https://github.com/427harinn/HouseToDo/blob/EVIDENCE_COMMIT_SHA/docs/evidence/m3/motion/previews/calendar-completed-undo.gif"><img src="https://raw.githubusercontent.com/427harinn/HouseToDo/EVIDENCE_COMMIT_SHA/docs/evidence/m3/motion/previews/calendar-completed-undo.gif" width="390" alt="Completed undo GIF preview"></a>
+
+Original WebM: [calendar-completed-undo.webm](https://github.com/427harinn/HouseToDo/blob/EVIDENCE_COMMIT_SHA/docs/evidence/m3/motion/calendar-completed-undo.webm)
+
 ## Mockup Parity Audit
 
-See `docs/evidence/m3/README.md` and the paired 390×844 captures under `docs/evidence/m3/production/` and `docs/evidence/m3/mockup/`. Normal, dense, Shopping, Date Sheet, completed, restore, month swipe, and day swipe states were compared.
+All shared states above were rendered side-by-side at 390×844. Production-only differences are real API loading/error/accessibility fallbacks; no unexplained parity deviation was introduced.
 
-## Screenshots
+## Tests / verification
 
-Production: `docs/evidence/m3/production/01-calendar-normal.png` through `12-calendar-task-edit-return-context.png`.
+- Evidence files exist at the pinned SHA and are referenced with GitHub raw/blob URLs.
+- PNGs are settled 390×844 captures; GIFs are 10 fps previews derived from the existing WebM files.
+- WebM originals remain unchanged.
 
-Mockup: `docs/evidence/m3/mockup/01-calendar-normal.png` through `11-calendar-next-month.png`.
+## Artifact details
 
-## Motion Recordings
-
-`calendar-task-complete.webm`, `calendar-month-swipe.webm`, `calendar-day-swipe.webm`, `calendar-completed-undo.webm` under `docs/evidence/m3/motion/`.
-
-## Tests
-
-- `npm run lint`
-- `npm run typecheck`
-- `npm test` — 36 files / 222 tests
-- `npm run build`
-- `npm run db:migrate:local`
-- `npm run test:e2e -- e2e/calendar-m3.spec.ts` — 2 passed
-
-## Shopping Calendar contract
-
-Pending + planned date equality only. Purchased and unplanned items are excluded from markers and Date Sheet. The existing Shopping UI is not restyled.
-
-## Task edit return context
-
-Calendar edit links retain `origin=calendar&calendarDate=YYYY-MM-DD`; save/back/delete return to the selected Calendar Date Sheet.
-
-## Legacy compatibility
-
-Legacy Calendar fields remain in the API; Home today-only restore remains unchanged; legacy task projection and existing Shopping routes remain available.
-
-## Deviations
-
-Only Production data/loading/error/accessibility fallbacks differ from the fixture Mockup. No unexplained visual or motion deviation remains.
+- PNG source: `docs/evidence/m3/production/` and `docs/evidence/m3/mockup/`
+- GIF previews: `docs/evidence/m3/motion/previews/`
+- Canonical WebM: `docs/evidence/m3/motion/`
+- No npm runtime dependency was added.
+- Calendar implementation code was not changed in this Evidence-only follow-up.
 
 ## Deploy status
 
