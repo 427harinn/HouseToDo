@@ -28,7 +28,7 @@ M3まで`origin/main`で完了。M4 Shoppingは`feat/production-shopping-m4`で�
 
 ## M4 completion record
 
-- Production render target SHA: `651363dd5700adfb18ce1a8608c7ee60ea999f91`
+- Production render target SHA: `c86486a99155dd8ba529bbdec88030bf29b516fb`
 - Mockup reference SHA: `db8941dc3056f07862014242a349ae366da59e9c`
 - Implemented list flat rows, one-row expand/collapse, seven-day purchased visibility, purchaser/time display, purchase/restore, pointer swipe Edit, and persisted household reorder with oldest-first fallback.
 - Implemented Add/Edit canonical form, unified Recent/Template-backed reuse search, OS image picker preservation, R2/image validation flow preservation, and Edit-only delete confirmation.
