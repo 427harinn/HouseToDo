@@ -187,7 +187,18 @@ await mockupShot(browser, "13-account-normal", "/other/account", "normal");
 await mockupShot(browser, "14-account-photo-selected", "/other/account", "photo-selected");
 await mockupShot(browser, "15-account-logout-confirm", "/other/account", "logout-confirm");
 
-await recordMotion(browser, "members-invite", "/other/members", async (page) => { await page.getByRole("button", { name: "招待する" }).click(); await page.getByRole("button", { name: "コードをコピー" }).click(); await page.getByRole("status").getByText("コードをコピーしました", { exact: true }).waitFor(); await page.getByRole("button", { name: "閉じる", exact: true }).click(); });
+await recordMotion(browser, "members-invite", "/other/members", async (page) => {
+  await page.getByRole("button", { name: "招待する" }).click();
+  const dialog = page.getByRole("dialog", { name: "メンバーを招待" });
+  await dialog.waitFor({ state: "visible" });
+  assert(await dialog.getByText("HOUSE-M5-4821", { exact: true }).count() === 1, "invite dialog code visible");
+  await dialog.getByRole("button", { name: "コードをコピー" }).click();
+  await page.getByRole("status").getByText("コードをコピーしました", { exact: true }).waitFor();
+  await page.waitForTimeout(450);
+  await dialog.getByRole("button", { name: "閉じる", exact: true }).click();
+  await dialog.waitFor({ state: "detached" });
+  assert(await page.getByRole("dialog", { name: "メンバーを招待" }).count() === 0 && await page.getByRole("heading", { name: "メンバー" }).count() === 1, "invite dialog closed");
+});
 await recordMotion(browser, "notifications-settings", "/other/notifications", async (page) => {
   const morning = page.getByRole("checkbox", { name: "朝のまとめ通知" });
   if (await morning.isChecked()) await morning.uncheck();
@@ -198,7 +209,32 @@ await recordMotion(browser, "notifications-settings", "/other/notifications", as
   await device.click(); await page.waitForTimeout(350); await device.click();
 });
 await recordMotion(browser, "household-settings", "/other/household", async (page) => { await page.getByRole("button", { name: /タイムゾーン/ }).click(); await page.getByRole("button", { name: "America/Los_Angeles" }).click(); await page.getByRole("textbox", { name: "家庭名" }).fill("Motion House"); await page.getByRole("button", { name: "保存" }).click(); await page.getByRole("status").getByText("保存しました").waitFor(); });
-await recordMotion(browser, "account-actions", "/other/account", async (page) => { const fixture = fixtureImage; await page.getByRole("button", { name: "プロフィール画像を変更" }).click(); await page.getByRole("button", { name: "写真を選択" }).click(); await page.locator('input[type="file"]').setInputFiles(fixture); await page.waitForTimeout(500); await page.getByRole("button", { name: "プロフィール画像を変更" }).click(); await page.getByRole("button", { name: "初期状態に戻す" }).click(); await page.getByRole("button", { name: "ログアウト" }).click(); await page.getByRole("button", { name: "キャンセル" }).click(); });
+await recordMotion(browser, "account-actions", "/other/account", async (page) => {
+  const fixture = fixtureImage;
+  await page.getByRole("button", { name: "プロフィール画像を変更" }).click();
+  const avatarDialog = page.getByRole("dialog", { name: "プロフィール画像" });
+  await avatarDialog.waitFor({ state: "visible" });
+  assert(await avatarDialog.count() === 1, "profile image dialog visible");
+  await avatarDialog.getByRole("button", { name: "写真を選択" }).click();
+  await page.locator('input[type="file"]').setInputFiles(fixture);
+  await page.getByRole("status").getByText("保存しました", { exact: true }).waitFor();
+  assert(await page.locator('span[role="img"][aria-label^="アバター:"] img').count() === 1, "avatar changed");
+  await page.waitForTimeout(450);
+  await page.getByRole("button", { name: "プロフィール画像を変更" }).click();
+  await avatarDialog.waitFor({ state: "visible" });
+  await avatarDialog.getByRole("button", { name: "初期状態に戻す" }).click();
+  await page.getByRole("status").getByText("初期状態に戻しました", { exact: true }).waitFor();
+  assert(await page.locator('span[role="img"][aria-label^="アバター:"] img').count() === 0, "avatar reset");
+  await page.getByRole("button", { name: "ログアウト" }).click();
+  const logoutDialog = page.getByRole("dialog", { name: "ログアウトしますか？" });
+  await logoutDialog.waitFor({ state: "visible" });
+  assert(await logoutDialog.count() === 1, "logout confirmation dialog visible");
+  await page.waitForTimeout(450);
+  await logoutDialog.getByRole("button", { name: "キャンセル" }).click();
+  await logoutDialog.waitFor({ state: "detached" });
+  assert(await page.getByRole("dialog", { name: "ログアウトしますか？" }).count() === 0 && await page.getByRole("heading", { name: "アカウント" }).count() === 1, "logout confirmation dialog closed after cancel");
+  await page.waitForTimeout(450);
+});
 
 await browser.close();
 const productionSha = (await execFileAsync("git", ["-c", `safe.directory=${gitRoot.replaceAll("\\", "/")}`, "rev-parse", "HEAD"], { cwd: root })).stdout.trim();
