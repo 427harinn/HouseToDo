@@ -4,7 +4,7 @@ import path from "node:path";
 
 const evidenceDir = path.resolve(process.env.PLAYWRIGHT_ARTIFACT_DIR ?? "artifacts/playwright/m2-home-task");
 const today = "2026-08-25";
-type HomeState = { completed: boolean; passed: boolean; deleted: boolean; empty?: boolean; completedTaskId?: string; completedTitle?: string; passedTaskId?: string; passedTitle?: string };
+type HomeState = { completed: boolean; passed: boolean; deleted: boolean; empty?: boolean; overdue?: boolean; completedTaskId?: string; completedTitle?: string; passedTaskId?: string; passedTitle?: string };
 
 test.use({
   viewport: { width: 390, height: 844 },
@@ -19,7 +19,7 @@ const task = (id: string, title: string, scope: "date" | "week" | "month" | "non
   assignmentType: assignedUserId ? "specific" : "anyone",
   assignedUserId,
   status: "pending",
-  deadlineDate: scope === "none" ? null : today,
+  deadlineDate: scope === "none" ? null : scope === "week" ? "2026-08-30" : scope === "month" ? "2026-08-31" : today,
   deadlineTime: scope === "date" || scope === "overdue" ? "09:00" : null,
   scheduledTime: null,
   targetDate: today,
@@ -40,14 +40,28 @@ const dashboard = (state: HomeState) => ({
   date: today,
   household: { id: "household-1", name: "わが家", timezone: "Asia/Tokyo" },
   summary: { total: 3, pending: state.completed || state.passed ? 2 : 3, inProgress: 0, completed: state.completed ? 1 : 0, skipped: state.passed ? 1 : 0 },
-  todayTasks: state.empty ? [] : state.completed || state.passed ? [task("m2-date", "朝の片付け", "date"), task("m2-none", "期限なし", "none")] : [task("m2-overdue", "期限超過の家事", "overdue"), task("m2-date", "朝の片付け", "date"), task("m2-week", "週の家事", "week"), task("m2-month", "月の家事", "month"), task("m2-none", "期限なし", "none", "user-2")],
-  homeTasks: state.empty ? [] : state.completed || state.passed ? [task("m2-date", "朝の片付け", "date"), task("m2-none", "期限なし", "none")] : [task("m2-overdue", "期限超過の家事", "overdue"), task("m2-date", "朝の片付け", "date"), task("m2-week", "週の家事", "week"), task("m2-month", "月の家事", "month"), task("m2-none", "期限なし", "none", "user-2")],
+  todayTasks: state.empty ? [] : homeTasks(state),
+  homeTasks: state.empty ? [] : homeTasks(state),
   weeklyTasks: [],
   completedRecords: state.completed ? [historyRecord("record-completed", state.completedTaskId ?? "m2-task-1", "completed", state.completedTitle ?? "ゴミ出し", state.deleted)] : [],
   passedRecords: state.passed ? [historyRecord("record-passed", state.passedTaskId ?? "m2-task-1", "skipped", state.passedTitle ?? "窓ふき", false)] : [],
   shopping: { pendingCount: 2, previewItems: [] },
   members: [{ userId: "user-1", displayName: "さや", role: "owner", color: "#d9f2eb", avatarUrl: null }, { userId: "user-2", displayName: "たくや", role: "member", color: "#e4eef8", avatarUrl: null }]
 });
+
+const homeTasks = (state: HomeState) => {
+  const allTasks = [
+    ...(state.overdue ? [task("m2-overdue", "期限超過の家事", "overdue")] : []),
+    task("m2-date", "朝の片付け", "date"),
+    task("m2-week", "週の家事", "week"),
+    task("m2-month", "月の家事", "month"),
+    task("m2-none", "期限なし", "none", "user-2")
+  ];
+  const actionTaskId = state.completedTaskId ?? state.passedTaskId;
+  return state.completed || state.passed
+    ? actionTaskId ? allTasks.filter((item) => item.id !== actionTaskId) : [task("m2-date", "朝の片付け", "date"), task("m2-none", "期限なし", "none")]
+    : allTasks;
+};
 
 const installRoutes = async (page: Page, state: HomeState) => {
   await page.route("**/api/**", async (route) => {
@@ -64,6 +78,7 @@ const installRoutes = async (page: Page, state: HomeState) => {
     if (actionMatch && request.method() === "POST") {
       const [, actionTaskId, action] = actionMatch;
       const titles: Record<string, string> = { "m2-overdue": "期限超過の家事", "m2-date": "朝の片付け", "m2-week": "週の家事", "m2-month": "月の家事", "m2-none": "期限なし" };
+      if (!titles[actionTaskId] && actionTaskId !== "m2-task-1") throw new Error(`Unexpected M2 action task: ${actionTaskId}`);
       if (action === "complete") { state.completed = true; state.completedTaskId = actionTaskId; state.completedTitle = titles[actionTaskId] ?? "ゴミ出し"; }
       if (action === "skip") { state.passed = true; state.passedTaskId = actionTaskId; state.passedTitle = titles[actionTaskId] ?? "窓ふき"; }
       if (action === "restore") { state.completed = false; state.passed = false; state.deleted = false; }
@@ -72,7 +87,7 @@ const installRoutes = async (page: Page, state: HomeState) => {
     if (url.pathname === "/api/tasks/recent") return json({ tasks: [{ id: "recent-1", title: "床そうじ", recurrenceType: "daily", modelRecurrenceType: "daily", assignmentType: "anyone", assignedUserId: null, description: "", startDate: "2026-08-01", targetDate: null, deadlineTime: null, notificationOffsetMinutes: null, weekdays: [], weeklyTargetCount: null, weeklyDeadlineWeekday: null, monthlyDayOfMonth: null, monthlyDeadlineType: null, active: true }] });
     if (url.pathname.startsWith("/api/tasks/task-edit") && !url.pathname.endsWith("/history") && request.method() === "GET") return json({ task: { id: "task-edit", title: "編集する家事", description: "メモ", recurrenceType: "daily", modelRecurrenceType: "daily", assignmentType: "anyone", assignedUserId: null, startDate: today, targetDate: null, deadlineTime: "09:00", notificationOffsetMinutes: 30, weekdays: [], weeklyTargetCount: null, active: true } });
     if (url.pathname === "/api/tasks/task-edit/history") return json({ records: [{ status: "completed", completedAt: "2026-08-20T01:00:00.000Z" }] });
-    return json({});
+    throw new Error(`Unexpected M2 API request: ${request.method()} ${url.pathname}`);
   });
 };
 
@@ -97,14 +112,18 @@ const copyVideo = async (page: Page, name: string) => {
 };
 
 test("M2 Home visual states and swipe actions at 390x844", async ({ page }) => {
-  const state = { completed: false, passed: false, deleted: false };
+  const state: HomeState = { completed: false, passed: false, deleted: false, overdue: false };
   await installRoutes(page, state);
   await page.goto("/home");
   await expect(page.getByRole("heading", { name: "やること" })).toBeVisible();
-  await expect(page.getByText("期限超過の家事")).toBeVisible();
+  await expect(page.locator(".m2-home__task-title", { hasText: "期限超過の家事" })).toHaveCount(0);
   await expect(page.getByText("買い物 2件")).toBeVisible();
   await neutralize(page);
   await screenshot(page, "01-home-normal-390x844.png");
+  state.overdue = true;
+  await page.reload();
+  await expect(page.getByText("期限超過の家事")).toBeVisible();
+  await neutralize(page);
   await screenshot(page, "02-home-overdue-390x844.png");
   await expect(page.getByRole("button", { name: /完了済み/ })).toHaveCount(0);
 
@@ -140,7 +159,7 @@ test("M2 Home visual states and swipe actions at 390x844", async ({ page }) => {
 });
 
 test("M2 Task add/reuse/edit/delete evidence", async ({ page }) => {
-  const state = { completed: false, passed: false, deleted: false };
+  const state: HomeState = { completed: false, passed: false, deleted: false };
   await installRoutes(page, state);
   await page.goto("/tasks/new");
   await expect(page.getByRole("heading", { name: "家事を追加" })).toBeVisible();
@@ -156,7 +175,10 @@ test("M2 Task add/reuse/edit/delete evidence", async ({ page }) => {
   await expect(page.getByText("前回：8/20")).toBeVisible();
   await screenshot(page, "10-task-edit-last-completion-390x844.png");
   await page.getByRole("button", { name: "この家事を削除" }).click();
-  await expect(page.getByRole("dialog", { name: "この家事を削除しますか？" })).toBeVisible();
+  const deleteDialog = page.getByRole("dialog", { name: "家事を削除しますか？" });
+  await expect(deleteDialog).toBeVisible();
+  await expect(deleteDialog.getByText("この家事を削除します。")).toBeVisible();
+  await expect(deleteDialog.getByRole("button", { name: "削除する" })).toBeVisible();
   await page.waitForTimeout(300);
   await screenshot(page, "11-task-delete-confirmation-390x844.png");
 });
@@ -164,19 +186,21 @@ test("M2 Task add/reuse/edit/delete evidence", async ({ page }) => {
 test("records task-complete.webm", async ({ browser }) => {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "ja-JP", timezoneId: "Asia/Tokyo", recordVideo: { dir: evidenceDir, size: { width: 390, height: 844 } } });
   const page = await context.newPage();
-  const state = { completed: false, passed: false, deleted: false };
+  const state: HomeState = { completed: false, passed: false, deleted: false, overdue: true };
   await installRoutes(page, state);
   await page.goto("/home");
   await page.waitForTimeout(500);
   await page.getByRole("button", { name: "期限超過の家事を完了" }).click();
   await page.waitForTimeout(550);
+  await expect(page.getByText("期限超過の家事")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /完了済み 1/ })).toBeVisible();
   await copyVideo(page, "task-complete.webm");
 });
 
 test("records task-swipe-pass.webm", async ({ browser }) => {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "ja-JP", timezoneId: "Asia/Tokyo", recordVideo: { dir: evidenceDir, size: { width: 390, height: 844 } } });
   const page = await context.newPage();
-  const state = { completed: false, passed: false, deleted: false };
+  const state: HomeState = { completed: false, passed: false, deleted: false, overdue: true };
   await installRoutes(page, state);
   await page.goto("/home");
   const row = page.locator(".m2-home__row").first();
@@ -189,13 +213,15 @@ test("records task-swipe-pass.webm", async ({ browser }) => {
   await page.mouse.up();
   await row.getByRole("button", { name: "パス" }).click();
   await page.waitForTimeout(350);
+  await expect(page.locator(".m2-home__task-title", { hasText: "期限超過の家事" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /パス済み 1/ })).toBeVisible();
   await copyVideo(page, "task-swipe-pass.webm");
 });
 
 test("records task-undo.webm", async ({ browser }) => {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "ja-JP", timezoneId: "Asia/Tokyo", recordVideo: { dir: evidenceDir, size: { width: 390, height: 844 } } });
   const page = await context.newPage();
-  const state = { completed: true, passed: false, deleted: false };
+  const state: HomeState = { completed: true, passed: false, deleted: false, overdue: true, completedTaskId: "m2-overdue", completedTitle: "期限超過の家事" };
   await installRoutes(page, state);
   await page.goto("/home");
   await page.getByRole("button", { name: /完了済み 1/ }).click();
@@ -209,6 +235,8 @@ test("records task-undo.webm", async ({ browser }) => {
   await page.mouse.up();
   await page.getByRole("button", { name: "戻す" }).click();
   await page.waitForTimeout(350);
+  await expect(page.getByRole("button", { name: "期限超過の家事を完了" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /完了済み/ })).toHaveCount(0);
   await copyVideo(page, "task-undo.webm");
 });
 

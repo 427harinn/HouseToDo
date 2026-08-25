@@ -1,6 +1,6 @@
 # Production UI Migration
 
-HouseToDo-Mockupをdesign / interaction / motionのsource of truthとし、ProductionのAPI・認証・router・データ・権限・Cloudflare構成はProduction側をsource of truthとする。
+HouseToDo-Mockup latest mainをdesign / interaction / motionのcanonical source of truthとし、ProductionのAPI・認証・router・データ・権限・Cloudflare構成はProduction側をsource of truthとする。UI parity auditではMockupの色、spacing、size、copy、layout、interaction、Motionを優先し、Production固有の差は理由をDeviationsへ記録する。
 
 ## Milestone overview
 
