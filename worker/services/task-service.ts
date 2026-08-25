@@ -57,6 +57,14 @@ export type CalendarDateMarker = {
   fixedCount: number;
   fixedCompletedCount: number;
   fixedSkippedCount: number;
+  tasks: Array<{ id: string; title: string; deadline: boolean }>;
+};
+
+export type CalendarCompletedRecord = {
+  record: TaskRecord;
+  task: Task | null;
+  taskActive: boolean;
+  selectedDate: string;
 };
 
 export type CalendarData = {
@@ -70,6 +78,7 @@ export type CalendarData = {
     fixed: TaskWithStatus[];
     weeklyFlexible: TaskWithStatus[];
     monthlyFlexible: TaskWithStatus[];
+    completed: CalendarCompletedRecord[];
   };
 };
 
@@ -315,17 +324,25 @@ export class TaskService {
     const dateKeys: string[] = [];
     for (let date = from; date <= to; date = nextDateKey(date)) dateKeys.push(date);
     const targetDate = selectedDate ?? getLocalDate(new Date(), household.timezone);
-    const allTasks = await this.tasks.listByHouseholdId(household.id);
+    const allTasks = await this.tasks.listByHouseholdId(household.id, { includeInactive: true });
+    const activeTasks = allTasks.filter((task) => task.active);
     const isFlexible = (task: Task) => task.modelRecurrenceType === "weekly_flexible" || task.modelRecurrenceType === "monthly_flexible";
-    const isFixed = (task: Task) => task.modelRecurrenceType
+    const isMonthFixed = (task: Task) => task.modelRecurrenceType
+      ? task.modelRecurrenceType !== "daily" && !isFlexible(task)
+      : task.recurrenceType === "scheduled";
+    const isSelectedDirect = (task: Task) => task.modelRecurrenceType
       ? !isFlexible(task)
       : task.recurrenceType === "daily" || task.recurrenceType === "scheduled";
+    // Completed Calendar history must remain visible after a flexible task is
+    // deactivated. Legacy period records may have only period_key populated,
+    // so include scopes from inactive flexible tasks for history lookup while
+    // keeping inactive tasks out of active month/detail projections.
     const periodKeys = allTasks
       .filter(isFlexible)
-      .map((task) => projectTaskOnDate(task, targetDate))
+      .flatMap((task) => [projectTaskOnDate(task, targetDate), ...dateKeys.map((date) => projectTaskOnDate(task, date))])
       .filter((scope) => scope.matchesDate && scope.periodKey)
       .map((scope) => scope.periodKey as string);
-    const records = await this.records.listCalendarRecords(household.id, from, to, Array.from(new Set(periodKeys)));
+    const records = await this.records.listCalendarRecords(household.id, from, to, targetDate, Array.from(new Set(periodKeys)));
     const recordsByTaskId = byTaskId(records);
     const recordsForScope = (task: Task, scope: ReturnType<typeof projectTaskOnDate>) => {
       const taskRecords = recordsByTaskId.get(task.id) ?? [];
@@ -337,29 +354,44 @@ export class TaskService {
     };
     const dates: Record<string, CalendarDateMarker> = {};
     for (const date of dateKeys) {
-      const projected = allTasks
-        .filter(isFixed)
+      const projected = activeTasks
+        .filter((task) => isMonthFixed(task) || isFlexible(task))
         .map((task) => ({ task, scope: projectTaskOnDate(task, date) }))
-        .filter(({ scope }) => scope.matchesDate)
+        .filter(({ task, scope }) => scope.matchesDate && (isMonthFixed(task) || scope.deadlineDate === date))
         .map(({ task, scope }) => this.mergeProjectedStatus(task, scope, recordsForScope(task, scope), household.timezone));
+      const visible = projected.filter((task) => task.status === "pending" || task.status === "in_progress");
       dates[date] = {
-        fixedCount: projected.length,
+        fixedCount: visible.length,
         fixedCompletedCount: projected.filter((task) => task.status === "completed").length,
-        fixedSkippedCount: projected.filter((task) => task.status === "skipped").length
+        fixedSkippedCount: projected.filter((task) => task.status === "skipped").length,
+        tasks: visible
+          .sort((a, b) => a.sortOrder - b.sortOrder)
+          .map((task) => ({ id: task.id, title: task.title, deadline: Boolean(task.deadlineDate === date) }))
       };
     }
-    const selectedFixed = allTasks
-      .filter(isFixed)
+    const selectedFixed = activeTasks
+      .filter(isSelectedDirect)
       .map((task) => ({ task, scope: projectTaskOnDate(task, targetDate) }))
       .filter(({ scope }) => scope.matchesDate)
       .map(({ task, scope }) => this.mergeProjectedStatus(task, scope, recordsForScope(task, scope), household.timezone))
+      .filter((task) => task.status === "pending" || task.status === "in_progress")
       .sort(compareTodayTasks);
-    const selectedFlexible = allTasks
+    const selectedFlexible = activeTasks
       .filter(isFlexible)
       .map((task) => ({ task, scope: projectTaskOnDate(task, targetDate) }))
       .filter(({ scope }) => scope.matchesDate)
       .map(({ task, scope }) => this.mergeProjectedStatus(task, scope, recordsForScope(task, scope), household.timezone))
+      .filter((task) => task.status === "pending" || task.status === "in_progress")
       .sort(compareTodayTasks);
+    const completed = records
+      .filter((record) => record.status === "completed")
+      .filter((record) => (record.calendarActionDate ?? record.targetDate ?? getLocalDate(record.completedAt ?? record.updatedAt, household.timezone)) === targetDate)
+      .map((record) => ({
+        record,
+        task: allTasks.find((task) => task.id === record.taskId) ?? null,
+        taskActive: Boolean(allTasks.find((task) => task.id === record.taskId)?.active),
+        selectedDate: targetDate
+      }));
     return {
       from,
       to,
@@ -370,7 +402,8 @@ export class TaskService {
       selected: {
         fixed: selectedFixed,
         weeklyFlexible: selectedFlexible.filter((task) => task.modelRecurrenceType === "weekly_flexible"),
-        monthlyFlexible: selectedFlexible.filter((task) => task.modelRecurrenceType === "monthly_flexible")
+        monthlyFlexible: selectedFlexible.filter((task) => task.modelRecurrenceType === "monthly_flexible"),
+        completed
       }
     };
   }
@@ -416,6 +449,27 @@ export class TaskService {
     return { reset: true };
   }
 
+  async restoreCalendarRecord(userId: string, taskId: string, recordId: string, selectedDate: string): Promise<{ reset: true }> {
+    const household = await this.households.requireCurrentHousehold(userId);
+    const task = await this.requireTask(household.id, taskId);
+    const selectedScope = projectTaskOnDate(task, selectedDate);
+    if (!selectedScope.matchesDate) throw validationError({ selectedDate: "Selected date is outside the task scope." });
+    const record = await this.records.findById(household.id, recordId);
+    if (!record || record.taskId !== task.id) throw taskNotFoundError();
+    if (record.status !== "completed") throw validationError({ recordId: "Only completed Calendar records can be restored." });
+    const recordDate = record.calendarActionDate
+      ?? record.targetDate
+      ?? getLocalDate(record.completedAt ?? record.updatedAt, household.timezone);
+    if (recordDate !== selectedDate) throw validationError({ selectedDate: "Record does not belong to selected date." });
+    const removed = await this.records.deleteById(household.id, taskId, recordId);
+    if (!removed) throw taskNotFoundError();
+    if (!task.active) {
+      const reactivated = await this.tasks.reactivate(household.id, taskId, nowIso());
+      if (!reactivated) throw taskNotFoundError();
+    }
+    return { reset: true };
+  }
+
   private async changeDailyState(
     household: HouseholdWithRole,
     userId: string,
@@ -428,12 +482,13 @@ export class TaskService {
     if (!scope.matchesDate) {
       throw validationError({ targetDate: "Task is not scheduled for targetDate." });
     }
+    validateCalendarDateForScope(scope, input.calendarDate);
     const existing = await this.records.findDailyRecord(task.id, targetDate);
     if (action === "reset") {
       await this.records.deleteByScope(household.id, task.id, { targetDate, occurrenceKey: scope.occurrenceKey ?? undefined });
       return { reset: true };
     }
-    const record = await this.applyState(userId, household.id, task, targetDate, null, action, existing, input.note);
+    const record = await this.applyState(userId, household.id, task, targetDate, null, action, existing, input.note, undefined, undefined, input.calendarDate);
     return this.mergeDailyStatus(task, record);
   }
 
@@ -441,6 +496,7 @@ export class TaskService {
     const targetDate = input.targetDate ?? getLocalDate(new Date(), household.timezone);
     const scope = projectTaskOnDate(task, targetDate);
     if (!scope.matchesDate) throw validationError({ targetDate: "Task is not scheduled for targetDate." });
+    validateCalendarDateForScope(scope, input.calendarDate);
     const existingRecords = scope.scopeType === "occurrence"
       ? (await this.records.findDailyRecord(task.id, targetDate))
         ? [await this.records.findDailyRecord(task.id, targetDate) as TaskRecord]
@@ -466,7 +522,8 @@ export class TaskService {
       open,
       input.note,
       scope.occurrenceKey,
-      scope.periodKey
+      scope.periodKey,
+      input.calendarDate
     );
     return this.mergeProjectedStatus(task, scope, [record, ...existingRecords.filter((item) => item.id !== record.id)], household.timezone);
   }
@@ -504,7 +561,10 @@ export class TaskService {
       targetWeekStart,
       action,
       open,
-      input.note
+      input.note,
+      undefined,
+      undefined,
+      input.calendarDate
     );
     return this.mergeWeeklyStatus(task, [record, ...existingRecords.filter((item) => item.id !== record.id)]);
   }
@@ -519,7 +579,8 @@ export class TaskService {
     existing: TaskRecord | null,
     note?: string | null,
     occurrenceKey?: string | null,
-    periodKey?: string | null
+    periodKey?: string | null,
+    calendarActionDate?: string | null
   ): Promise<TaskRecord> {
     const now = nowIso();
     if (existing?.status === "completed") return existing;
@@ -556,6 +617,7 @@ export class TaskService {
       assignedUserAvatarUrlSnapshot: assignee?.avatar
         ? `/api/users/${encodeURIComponent(assignee.userId)}/avatar?v=${encodeURIComponent(assignee.avatarUpdatedAt ?? "")}`
         : null,
+      calendarActionDate: action === "complete" ? calendarActionDate ?? null : null,
       now
     };
     // Flexible canonical tasks are period-scoped even though the action carries
@@ -638,6 +700,17 @@ export class TaskService {
     }
   }
 }
+
+const validateCalendarDateForScope = (
+  scope: ReturnType<typeof projectTaskOnDate>,
+  calendarDate: string | null | undefined
+): void => {
+  if (!calendarDate) return;
+  const inScope = scope.scopeType === "occurrence"
+    ? calendarDate === scope.targetDate
+    : calendarDate >= scope.periodStart && calendarDate <= scope.periodEnd;
+  if (!inScope) throw validationError({ calendarDate: "calendarDate is outside the task scope." });
+};
 
 const compareTodayTasks = (a: TaskWithStatus, b: TaskWithStatus): number => {
   if (Boolean(a.overdue) !== Boolean(b.overdue)) return a.overdue ? -1 : 1;

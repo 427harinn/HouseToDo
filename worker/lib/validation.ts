@@ -140,6 +140,7 @@ export type TaskStateInput = {
   targetDate?: string;
   targetWeekStart?: string;
   recordId?: string;
+  calendarDate?: string;
   note?: string | null;
 };
 
@@ -618,11 +619,15 @@ export const validateTaskStateInput = (value: unknown): TaskStateInput => {
   if (typeof input.targetDate === "string") output.targetDate = input.targetDate;
   if (typeof input.targetWeekStart === "string") output.targetWeekStart = input.targetWeekStart;
   if (typeof input.recordId === "string" && input.recordId.trim().length > 0) output.recordId = input.recordId.trim();
+  if (typeof input.calendarDate === "string") output.calendarDate = input.calendarDate;
   if (output.targetDate && !isValidDateKey(output.targetDate)) {
     throw validationError({ targetDate: "targetDate must be YYYY-MM-DD." });
   }
   if (output.targetWeekStart && !isValidDateKey(output.targetWeekStart)) {
     throw validationError({ targetWeekStart: "targetWeekStart must be YYYY-MM-DD." });
+  }
+  if (output.calendarDate && !isValidDateKey(output.calendarDate)) {
+    throw validationError({ calendarDate: "calendarDate must be YYYY-MM-DD." });
   }
   output.note = optionalString(input, "note", 500);
   return output;
@@ -658,9 +663,6 @@ export const validateCalendarRangeQuery = (request: Request): CalendarRangeQuery
   const days = Math.floor((last - first) / 86_400_000) + 1;
   if (from! > to!) throw validationError({ range: "from must be before or equal to to." });
   if (days < 1 || days > 62) throw validationError({ range: "Calendar range must contain from 1 to 62 days." });
-  if (selectedDate !== null && (selectedDate < from! || selectedDate > to!)) {
-    throw validationError({ selectedDate: "selectedDate must be inside the requested range." });
-  }
   return { from: from!, to: to!, selectedDate };
 };
 

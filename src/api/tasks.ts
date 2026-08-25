@@ -111,6 +111,7 @@ export type HomeHistoryRecord = {
 
 export type TaskRecord = {
   id: string;
+  taskId?: string;
   targetDate: string | null;
   targetWeekStart: string | null;
   status: Exclude<TaskDisplayStatus, "pending">;
@@ -119,6 +120,9 @@ export type TaskRecord = {
   completedAt: string | null;
   skippedAt: string | null;
   note: string | null;
+  calendarActionDate?: string | null;
+  taskTitleSnapshot?: string | null;
+  actualCompleter?: { userId: string; displayName: string | null; avatarUrl: string | null };
   createdAt: string;
   updatedAt: string;
 };
@@ -146,6 +150,7 @@ export type CalendarDateMarker = {
   fixedSkippedCount: number;
   shoppingCount: number;
   purchasedShoppingCount: number;
+  tasks: Array<{ id: string; title: string; deadline: boolean }>;
 };
 
 export type CalendarShoppingItem = {
@@ -170,8 +175,24 @@ export type CalendarResponse = {
     fixed: TodayTask[];
     weeklyFlexible: TodayTask[];
     monthlyFlexible: TodayTask[];
+    completed: CalendarCompletedRecord[];
     shopping: CalendarShoppingItem[];
   };
+};
+
+export type CalendarCompletedRecord = {
+  id: string;
+  taskId: string;
+  title: string;
+  taskActive: boolean;
+  selectedDate: string;
+  actualCompleter: { userId: string; displayName: string | null; avatarUrl: string | null };
+  calendarActionDate?: string | null;
+  targetDate: string | null;
+  targetWeekStart: string | null;
+  occurrenceKey?: string | null;
+  periodKey?: string | null;
+  status: "completed";
 };
 
 export type CreateTaskInput = {
@@ -219,6 +240,7 @@ export type TaskActionInput = {
   targetWeekStart?: string;
   note?: string | null;
   recordId?: string;
+  calendarDate?: string;
 };
 
 const withQuery = (path: string, params: Record<string, string | boolean | number | undefined>) => {
@@ -325,6 +347,13 @@ export const restoreTaskRecord = (taskId: string, recordId: string, signal?: Abo
   apiRequest<{ result: { reset: true } }>(`/api/tasks/${taskId}/restore`, {
     method: "POST",
     body: JSON.stringify({ recordId }),
+    signal
+  });
+
+export const restoreCalendarTaskRecord = (taskId: string, recordId: string, calendarDate: string, signal?: AbortSignal) =>
+  apiRequest<{ result: { reset: true } }>(`/api/tasks/${taskId}/calendar-restore`, {
+    method: "POST",
+    body: JSON.stringify({ recordId, calendarDate }),
     signal
   });
 

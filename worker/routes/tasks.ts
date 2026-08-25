@@ -76,12 +76,14 @@ const recordResponse = (record: TaskRecord) => ({
   targetWeekStart: record.targetWeekStart,
   occurrenceKey: record.occurrenceKey,
   periodKey: record.periodKey,
+  calendarActionDate: record.calendarActionDate,
   periodStart: record.periodKey ? record.periodKey.split(":").at(-2) ?? null : null,
   periodEnd: record.periodKey ? record.periodKey.split(":").at(-1) ?? null : null,
   status: record.status,
   actedBy: {
     userId: record.actedBy,
-    displayName: record.actedByDisplayName
+    displayName: record.actedByDisplayName,
+    avatarUrl: record.actedByAvatarUrl
   },
   startedAt: record.startedAt,
   completedAt: record.completedAt,
@@ -214,10 +216,9 @@ export const calendarTasksRoute: Handler = requireAuth(async (context) => {
   const user = requireUser(context.user);
   const query = validateCalendarRangeQuery(context.request);
   const shopping = new ShoppingService(context.env.DB);
-  const [data, plannedShoppingItems, unplannedShoppingItems] = await Promise.all([
+  const [data, plannedShoppingItems] = await Promise.all([
     new TaskService(context.env.DB).listCalendar(user.id, query.from, query.to, query.selectedDate),
-    shopping.listPlannedItems(user.id, query.from, query.to),
-    shopping.listUnplannedItems(user.id)
+    shopping.listPlannedItems(user.id, query.from, query.to)
   ]);
   const shoppingByDate = new Map<string, ShoppingItem[]>();
   for (const item of plannedShoppingItems) {
@@ -227,10 +228,7 @@ export const calendarTasksRoute: Handler = requireAuth(async (context) => {
       item
     ]);
   }
-  const selectedShopping = [
-    ...(shoppingByDate.get(data.selectedDate) ?? []),
-    ...unplannedShoppingItems
-  ];
+  const selectedShopping = shoppingByDate.get(data.selectedDate) ?? [];
   return okJson({
     from: data.from,
     to: data.to,
@@ -242,8 +240,9 @@ export const calendarTasksRoute: Handler = requireAuth(async (context) => {
         const planned = shoppingByDate.get(date) ?? [];
         return [date, {
           ...marker,
+          tasks: marker.tasks,
           shoppingCount: planned.length,
-          purchasedShoppingCount: planned.filter((item) => item.status === "purchased").length
+          purchasedShoppingCount: 0
         }];
       })
     ),
@@ -251,6 +250,18 @@ export const calendarTasksRoute: Handler = requireAuth(async (context) => {
       fixed: data.selected.fixed.map(taskWithStatusResponse),
       weeklyFlexible: data.selected.weeklyFlexible.map(taskWithStatusResponse),
       monthlyFlexible: data.selected.monthlyFlexible.map(taskWithStatusResponse),
+      completed: data.selected.completed.map((entry) => ({
+        ...recordResponse(entry.record),
+        taskId: entry.record.taskId,
+        title: entry.record.taskTitleSnapshot ?? entry.task?.title ?? "家事",
+        taskActive: entry.taskActive,
+        selectedDate: entry.selectedDate,
+        actualCompleter: {
+          userId: entry.record.actedBy,
+          displayName: entry.record.actedByDisplayName,
+          avatarUrl: entry.record.actedByAvatarUrl
+        }
+      })),
       shopping: selectedShopping.map(calendarShoppingResponse)
     }
   }, context.requestId);
@@ -273,6 +284,15 @@ export const restoreTaskRecordRoute = (taskId: string): Handler =>
     const input = validateTaskStateInput(await parseJsonBody(context.request));
     if (!input.recordId) throw validationError({ recordId: "recordId is required." });
     const result = await new TaskService(context.env.DB).restoreRecord(user.id, taskId, input.recordId);
+    return okJson({ result }, context.requestId);
+  });
+
+export const restoreCalendarTaskRecordRoute = (taskId: string): Handler =>
+  requireAuth(async (context) => {
+    const user = requireUser(context.user);
+    const input = validateTaskStateInput(await parseJsonBody(context.request));
+    if (!input.recordId || !input.calendarDate) throw validationError({ recordId: "recordId and calendarDate are required." });
+    const result = await new TaskService(context.env.DB).restoreCalendarRecord(user.id, taskId, input.recordId, input.calendarDate);
     return okJson({ result }, context.requestId);
   });
 
