@@ -108,7 +108,7 @@ test("M1 shared navigation and Add sheet work at the 390x844 review viewport", a
 
   await page.getByRole("button", { name: "カレンダー" }).click();
   await expect(page).toHaveURL(/\/calendar$/);
-  await expect(page.getByRole("heading", { name: "カレンダー" })).toBeVisible();
+  await expect(page.getByRole("grid", { name: /カレンダー/ })).toBeVisible();
   await moveToNeutral(page);
   await page.screenshot({ path: path.join(evidenceDir, "calendar-390x844.png"), fullPage: true });
 
