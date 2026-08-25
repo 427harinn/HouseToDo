@@ -1305,9 +1305,13 @@ textarea[aria-invalid="true"] {
 .calendar-detail-task__main { display: flex; align-items: center; gap: var(--space-3); width: 100%; min-height: 58px; padding: var(--space-2) 0; color: var(--color-text); text-align: left; background: var(--color-surface); border: 0; cursor: pointer; }
 .calendar-detail-task__main > span:last-child { min-width: 0; overflow-wrap: anywhere; font-size: .9375rem; font-weight: 500; }
 .calendar-detail-task__check { flex: 0 0 22px; width: 22px; height: 22px; border: 2px solid var(--color-primary-strong); border-radius: 50%; transition: background-color 180ms ease-out, transform 180ms ease-out; }
+.calendar-date-sheet.is-date-transitioning-next .calendar-date-sheet__content { animation: calendar-date-enter-from-right 220ms ease-out both; }
+.calendar-date-sheet.is-date-transitioning-previous .calendar-date-sheet__content { animation: calendar-date-enter-from-left 220ms ease-out both; }
+.calendar-detail-task__check.is-completing { background: var(--color-primary-strong); transform: scale(1.04); }
 .calendar-detail-task__check svg { width: 14px; height: 14px; margin: 2px; color: #fff; stroke-width: 3; animation: calendar-task-check-enter 160ms ease-out both; }
-.calendar-detail-task.is-completing .calendar-detail-task__check { background: var(--color-primary-strong); transform: scale(1.04); }
 .calendar-detail-task.is-completing { animation: calendar-task-complete-exit 90ms ease-out 260ms both; }
+.calendar-detail-task.is-passing { animation: calendar-task-pass-exit 200ms ease-out both; }
+.calendar-detail-task.is-restoring { animation: calendar-task-restore-enter 180ms ease-out both; }
 .calendar-detail-task__more { position: absolute; top: 7px; right: 0; display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 44px; color: var(--color-text-secondary); background: var(--color-surface); border: 0; cursor: pointer; }
 .calendar-detail-task__actions { display: grid; grid-template-columns: 1fr 1fr; width: 128px; margin-left: auto; }
 .calendar-detail-task__actions button { min-height: 44px; color: var(--color-text); background: var(--color-bg); border: 0; cursor: pointer; }
@@ -1324,12 +1328,16 @@ textarea[aria-invalid="true"] {
 .shopping-item-target { outline: 3px solid var(--color-accent); outline-offset: 4px; border-radius: 12px; }
 @keyframes calendar-month-enter-from-right { from { opacity: 1; transform: translateX(16px); } to { opacity: 1; transform: translateX(0); } }
 @keyframes calendar-month-enter-from-left { from { opacity: 1; transform: translateX(-16px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes calendar-date-enter-from-right { from { opacity: 1; transform: translateX(12px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes calendar-date-enter-from-left { from { opacity: 1; transform: translateX(-12px); } to { opacity: 1; transform: translateX(0); } }
 @keyframes calendar-task-check-enter { from { opacity: 0; transform: scale(.7); } to { opacity: 1; transform: scale(1); } }
-@keyframes calendar-task-complete-exit { to { opacity: 0; transform: translateX(-12px); } }
+@keyframes calendar-task-complete-exit { from { opacity: 1; max-height: 64px; transform: scale(1); } to { opacity: 0; max-height: 0; transform: scale(.985); } }
+@keyframes calendar-task-pass-exit { from { opacity: 1; max-height: 64px; transform: translateX(0); } to { opacity: 0; max-height: 0; transform: translateX(-10px); } }
+@keyframes calendar-task-restore-enter { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes calendar-backdrop-enter { from { opacity: 0; } to { opacity: 1; } }
 @keyframes calendar-sheet-enter { from { transform: translateY(20px); } to { transform: translateY(0); } }
 @media (max-width: 600px) { .calendar-detail-task__more { opacity: 0; pointer-events: none; } }
-@media (prefers-reduced-motion: reduce) { .calendar-month-grid, .calendar-date-sheet__content { transition: none; } .calendar-month-grid.is-month-transitioning-next, .calendar-month-grid.is-month-transitioning-previous, .calendar-date-sheet.is-date-transitioning-next .calendar-date-sheet__content, .calendar-date-sheet.is-date-transitioning-previous .calendar-date-sheet__content, .calendar-detail-task.is-completing, .calendar-detail-task__check svg { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .calendar-month-grid, .calendar-date-sheet__content { transition: none; } .calendar-month-grid.is-month-transitioning-next, .calendar-month-grid.is-month-transitioning-previous, .calendar-date-sheet.is-date-transitioning-next .calendar-date-sheet__content, .calendar-date-sheet.is-date-transitioning-previous .calendar-date-sheet__content, .calendar-detail-task.is-completing, .calendar-detail-task.is-passing, .calendar-detail-task.is-restoring, .calendar-detail-task__check svg { animation: none; } }
 
 .empty-state h2 {
   margin-bottom: 4px;

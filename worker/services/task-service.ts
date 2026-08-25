@@ -448,6 +448,8 @@ export class TaskService {
   async restoreCalendarRecord(userId: string, taskId: string, recordId: string, selectedDate: string): Promise<{ reset: true }> {
     const household = await this.households.requireCurrentHousehold(userId);
     const task = await this.requireTask(household.id, taskId);
+    const selectedScope = projectTaskOnDate(task, selectedDate);
+    if (!selectedScope.matchesDate) throw validationError({ selectedDate: "Selected date is outside the task scope." });
     const record = await this.records.findById(household.id, recordId);
     if (!record || record.taskId !== task.id) throw taskNotFoundError();
     if (record.status !== "completed") throw validationError({ recordId: "Only completed Calendar records can be restored." });
@@ -476,6 +478,7 @@ export class TaskService {
     if (!scope.matchesDate) {
       throw validationError({ targetDate: "Task is not scheduled for targetDate." });
     }
+    validateCalendarDateForScope(scope, input.calendarDate);
     const existing = await this.records.findDailyRecord(task.id, targetDate);
     if (action === "reset") {
       await this.records.deleteByScope(household.id, task.id, { targetDate, occurrenceKey: scope.occurrenceKey ?? undefined });
@@ -489,6 +492,7 @@ export class TaskService {
     const targetDate = input.targetDate ?? getLocalDate(new Date(), household.timezone);
     const scope = projectTaskOnDate(task, targetDate);
     if (!scope.matchesDate) throw validationError({ targetDate: "Task is not scheduled for targetDate." });
+    validateCalendarDateForScope(scope, input.calendarDate);
     const existingRecords = scope.scopeType === "occurrence"
       ? (await this.records.findDailyRecord(task.id, targetDate))
         ? [await this.records.findDailyRecord(task.id, targetDate) as TaskRecord]
@@ -692,6 +696,17 @@ export class TaskService {
     }
   }
 }
+
+const validateCalendarDateForScope = (
+  scope: ReturnType<typeof projectTaskOnDate>,
+  calendarDate: string | null | undefined
+): void => {
+  if (!calendarDate) return;
+  const inScope = scope.scopeType === "occurrence"
+    ? calendarDate === scope.targetDate
+    : calendarDate >= scope.periodStart && calendarDate <= scope.periodEnd;
+  if (!inScope) throw validationError({ calendarDate: "calendarDate is outside the task scope." });
+};
 
 const compareTodayTasks = (a: TaskWithStatus, b: TaskWithStatus): number => {
   if (Boolean(a.overdue) !== Boolean(b.overdue)) return a.overdue ? -1 : 1;

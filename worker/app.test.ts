@@ -725,7 +725,7 @@ describe("redesigned task model API", () => {
     await create({ title: "weekly fixed", modelRecurrenceType: "weekly_fixed", weekdays: [2, 5] });
     await create({ title: "monthly fixed", modelRecurrenceType: "monthly_fixed", monthlyDayOfMonth: 31 });
     const weeklyFlexibleId = await create({ title: "weekly flexible", modelRecurrenceType: "weekly_flexible", weeklyDeadlineWeekday: 5 });
-    await create({ title: "monthly flexible", modelRecurrenceType: "monthly_flexible", monthlyDeadlineType: "month_end" });
+    const monthlyFlexibleId = await create({ title: "monthly flexible", modelRecurrenceType: "monthly_flexible", monthlyDeadlineType: "month_end" });
 
     const calendar = await app.fetch(new Request("https://example.test/api/tasks/calendar?from=2026-08-01&to=2026-08-31&selectedDate=2026-08-14", { headers: { cookie: owner.cookie } }), env);
     expect(calendar.status).toBe(200);
@@ -740,6 +740,13 @@ describe("redesigned task model API", () => {
     expect(body.data.selected.fixed.map((task) => task.title)).toEqual(expect.arrayContaining(["once", "daily", "weekly fixed"]));
     expect(body.data.selected.weeklyFlexible.map((task) => task.title)).toEqual(["weekly flexible"]);
     expect(body.data.selected.monthlyFlexible.map((task) => task.title)).toEqual(["monthly flexible"]);
+
+    const invalidOccurrenceCalendarDate = await app.fetch(postJson(`/api/tasks/${dailyId}/complete`, { targetDate: "2026-08-14", calendarDate: "2026-08-15" }, owner.cookie), env);
+    expect(invalidOccurrenceCalendarDate.status).toBe(400);
+    const invalidWeeklyCalendarDate = await app.fetch(postJson(`/api/tasks/${weeklyFlexibleId}/complete`, { targetDate: "2026-08-14", calendarDate: "2026-08-16" }, owner.cookie), env);
+    expect(invalidWeeklyCalendarDate.status).toBe(400);
+    const invalidMonthlyCalendarDate = await app.fetch(postJson(`/api/tasks/${monthlyFlexibleId}/complete`, { targetDate: "2026-08-14", calendarDate: "2026-09-01" }, owner.cookie), env);
+    expect(invalidMonthlyCalendarDate.status).toBe(400);
 
     await app.fetch(postJson(`/api/tasks/${dailyId}/complete`, { targetDate: "2026-08-14", calendarDate: "2026-08-14" }, owner.cookie), env);
     const completed = await app.fetch(new Request("https://example.test/api/tasks/calendar?from=2026-08-01&to=2026-08-31&selectedDate=2026-08-14", { headers: { cookie: owner.cookie } }), env);
