@@ -1,0 +1,110 @@
+{
+  "generatedAt": "2026-08-26T11:49:12.325Z",
+  "mainSha": "e1048c8de66126c4c93952261d70313b1180ec43",
+  "originMainSha": "e1048c8de66126c4c93952261d70313b1180ec43",
+  "productionBaseSha": "e1048c8de66126c4c93952261d70313b1180ec43",
+  "branch": "chore/post-migration-release-readiness",
+  "currentMainState": "CLEAN_BASE_MATCH",
+  "productionUiMigration": "COMPLETE",
+  "currentMigrationCount": 17,
+  "currentWorkerRouteCount": 65,
+  "local": {
+    "lint": "PASS — exit 0; eslint .",
+    "typecheck": "PASS — exit 0; tsc --noEmit",
+    "vitest": "PASS — exit 0; 38 files / 238 tests",
+    "build": "PASS — exit 0; vite production build",
+    "migration": "PASS — exit 0; 17 migration files; No migrations to apply",
+    "changedSourceFormat": "PASS — exit 0; release-readiness changed-file format set",
+    "chromium": "PASS — exit 0; 38 passed / 1 skipped",
+    "twoUser": "PASS — exit 0; 4 passed / 0 skipped"
+  },
+  "remote": {
+    "cloudflareAuth": "PASS — authenticated Cloudflare session; secret values were not read",
+    "workerState": "REVIEW_REQUIRED — staging house-to-do-staging exists; latest version 44 (26a6fbf9-476e-4d36-9dfa-8ef07c07275c), no source SHA association in metadata; production/default Worker house-to-do exists=false",
+    "d1MigrationState": "REVIEW_REQUIRED — staging applied 14/17; pending 0015_account_avatars_and_morning_notifications.sql, 0016_task_record_snapshots.sql, 0017_calendar_action_date.sql; default D1 status=not found",
+    "r2Binding": "AVAILABLE — staging ATTACHMENTS binding and bucket house-to-do-attachments-staging exist; default bucket was not present in the read-only account list",
+    "requiredSecrets": "REVIEW_REQUIRED — staging secret names present 3/4; missing SESSION_SECRET; default Worker secret state unavailable",
+    "cron": "AVAILABLE — staging Cron */5 * * * * configured; default config Cron 0 18 * * *; no Cron change run"
+  },
+  "remoteDetails": {
+    "authExitCode": 0,
+    "stagingWorker": {
+      "configuredName": "house-to-do-staging",
+      "url": "https://house-to-do-staging.427harinn.workers.dev",
+      "latestVersionId": "26a6fbf9-476e-4d36-9dfa-8ef07c07275c",
+      "latestVersionNumber": 44,
+      "latestVersionCreatedOn": "2026-08-18T12:50:07.30587Z",
+      "latestDeploymentId": "0ed9d3f7-5ad7-4725-8ba1-0c9fd254e92b",
+      "latestDeploymentCreatedOn": "2026-08-18T12:50:07.985473Z",
+      "bindingNames": [
+        "ALLOWED_ORIGINS",
+        "APP_ENV",
+        "ASSETS",
+        "ATTACHMENTS",
+        "DB",
+        "WEB_PUSH_SUBJECT",
+        "WEB_PUSH_VAPID_PRIVATE_KEY",
+        "WEB_PUSH_VAPID_PUBLIC_KEY"
+      ]
+    },
+    "environments": {
+      "stagingConfigured": true,
+      "productionConfigured": false,
+      "productionWorkerDeployed": false
+    },
+    "d1": {
+      "stagingDatabaseName": "house-to-do-staging",
+      "localMigrationCount": 17,
+      "remoteAppliedCount": 14,
+      "missingMigrations": [
+        "0015_account_avatars_and_morning_notifications.sql",
+        "0016_task_record_snapshots.sql",
+        "0017_calendar_action_date.sql"
+      ],
+      "missingMigrationRisk": {
+        "0015_account_avatars_and_morning_notifications.sql": "Additive avatar metadata and notification defaults; existing rows receive defaults, but profile/notification behavior needs staging validation.",
+        "0016_task_record_snapshots.sql": "Additive nullable historical task/assignee snapshots and an index; no backfill required, but history rendering should be checked before apply.",
+        "0017_calendar_action_date.sql": "Additive nullable Calendar action date and an index; no rewrite required, but Calendar completion/restore behavior should be checked before apply."
+      },
+      "remoteMigration": "NOT RUN",
+      "schemaDataOperation": "NOT RUN",
+      "metadataQueryRowsRead": 14,
+      "metadataQueryRowsWritten": 0
+    },
+    "r2": {
+      "configuredStagingBucket": "house-to-do-attachments-staging",
+      "accountVisibleBucketNames": ["house-to-do-attachments-staging"]
+    },
+    "requiredSecretNames": {
+      "required": [
+        "SESSION_SECRET",
+        "WEB_PUSH_VAPID_PUBLIC_KEY",
+        "WEB_PUSH_VAPID_PRIVATE_KEY",
+        "WEB_PUSH_SUBJECT"
+      ],
+      "stagingPresent": [
+        "WEB_PUSH_SUBJECT",
+        "WEB_PUSH_VAPID_PRIVATE_KEY",
+        "WEB_PUSH_VAPID_PUBLIC_KEY"
+      ],
+      "stagingMissing": ["SESSION_SECRET"]
+    },
+    "cron": {
+      "defaultConfigured": ["0 18 * * *"],
+      "stagingConfigured": ["*/5 * * * *"]
+    }
+  },
+  "deployment": {
+    "staging": "NOT_RUN",
+    "production": "NOT_RUN",
+    "remoteMigration": "NOT_RUN"
+  },
+  "safety": {
+    "productionDataWrites": "NONE",
+    "secretValues": "NOT_READ / NOT_STORED",
+    "cronChanges": "NONE",
+    "schemaChanges": "NONE"
+  },
+  "verdict": "REMOTE_MIGRATION_REVIEW_REQUIRED",
+  "recommendedNextAction": "Review the staging/default environment gap and the three pending staging migrations; do not apply remote migrations automatically. After human approval, use the existing staging runbook, then authenticated staging smoke, real iPhone validation, and a separate production deploy review."
+}
