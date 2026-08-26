@@ -35,7 +35,7 @@ M1〜M6は`origin/main`で完了。M7 Integration / Legacy UI Cleanupを`feat/pr
 ## M7 completion record
 
 - Implementation/render target SHA: `fbe0855f76cdea05cb5f05429513338955fcda76` (`test: align canonical m7 e2e contracts`).
-- Evidence commit SHA: `d0c85d9da644e6ae1b6096dddfb2ddd5906885c4`.
+- Evidence commit SHA: `75ce6e42ff4e9ecadcb1828a95d8bcd9a914fab7`.
 - Legacy route Playwright generated actual-path diagnostics with zero old-screen renders. Canonical internal navigation and stale M2/Calendar/Shopping expectations were aligned to the final contract.
 - Real local Worker + local D1 two-user coverage passed Task complete/pass/restore/edit, Shopping reorder/purchase/restore/planned-date Calendar deep-link, Other/member displayName/permission/household sync, and logout isolation.
 - Production-like PWA diagnostics passed manifest, icon dimensions, service worker scope/controller, start URL state machine, direct route reload, representative legacy redirect, and notification URL safety. WebKit is unavailable; real iPhone is not run.

@@ -28,7 +28,7 @@
 ## M7 completion record
 
 - Implementation/render target SHA: `fbe0855f76cdea05cb5f05429513338955fcda76` (`test: align canonical m7 e2e contracts`).
-- Evidence commit SHA: `d0c85d9da644e6ae1b6096dddfb2ddd5906885c4`.
+- Evidence commit SHA: `75ce6e42ff4e9ecadcb1828a95d8bcd9a914fab7`.
 - Local Worker + D1 two-user coverage includes Task complete/pass/restore/edit, Shopping reorder/purchase/restore/planned-date Calendar deep-link, Other member/displayName/permission/household sync, and logout isolation.
 - Production-like PWA diagnostics passed manifest, icons, service worker, start URL states, direct routes, legacy redirect, and notification URL safety. WebKit is unavailable locally; real iPhone remains manual follow-up.
 - Evidence review package contains exactly four boards and four final WebM files; M8 backend cleanup has not started.
