@@ -4,19 +4,30 @@ HouseToDo-Mockup latest mainをdesign / interaction / motionのcanonical source 
 
 ## Milestone overview
 
-| Milestone | Scope | Status |
-| --- | --- | --- |
-| M1 | Shared UI Foundation: tokens, global foundation, motion constants, App Shell, Bottom Navigation, Add Bottom Sheet | Done |
-| M2 | Home + Task: new Home, complete/pass/undo, task add/edit/delete, previous completion, and related Motion | Done |
-| M3 | Calendar screen visual migration and Calendar interactions | Done |
-| M4 | Shopping screen visual migration and Shopping interactions | Done on `main` after PR #5 |
-| M5 | Other / Settings and formal `/other` route | Done and merged to `main` in PR #6 |
-| M6 | Auth / Household Entry. Guest and onboarding are removed from the new UI direction, not visually migrated. | Done and merged to `main` in PR #7 at `d89a9d7` |
-| M7 | Integration / Legacy UI cleanup: retire user-facing old Task list/detail/respond/templates and Shopping detail/templates routes, then verify 2-user flows, E2E, and PWA behavior | Done and merged to `main` in PR #8 at `8e465328` |
-| M8A | Backend reachability audit and non-destructive dead wrapper/internal method cleanup | Current on `feat/backend-cleanup-m8a` |
-| M8B | Destructive schema, persisted-value, and compatibility cleanup after M8A review | Pending review; not started |
+| Milestone | Scope                                                                                                                                                                            | Status                                                        |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| M1        | Shared UI Foundation: tokens, global foundation, motion constants, App Shell, Bottom Navigation, Add Bottom Sheet                                                                | Done                                                          |
+| M2        | Home + Task: new Home, complete/pass/undo, task add/edit/delete, previous completion, and related Motion                                                                         | Done                                                          |
+| M3        | Calendar screen visual migration and Calendar interactions                                                                                                                       | Done                                                          |
+| M4        | Shopping screen visual migration and Shopping interactions                                                                                                                       | Done on `main` after PR #5                                    |
+| M5        | Other / Settings and formal `/other` route                                                                                                                                       | Done and merged to `main` in PR #6                            |
+| M6        | Auth / Household Entry. Guest and onboarding are removed from the new UI direction, not visually migrated.                                                                       | Done and merged to `main` in PR #7 at `d89a9d7`               |
+| M7        | Integration / Legacy UI cleanup: retire user-facing old Task list/detail/respond/templates and Shopping detail/templates routes, then verify 2-user flows, E2E, and PWA behavior | Done and merged to `main` in PR #8 at `8e465328`              |
+| M8A       | Backend reachability audit and non-destructive dead wrapper/internal method cleanup                                                                                              | Done and merged to `main` in PR #9 at `3c608ac`               |
+| M8B       | Compatibility / Schema Finalization: final six-candidate proof, minimal safe cleanup, intentional KEEP contracts, and production completion gate                                 | Implemented on `feat/backend-finalization-m8b`; Draft PR open |
 
-M1〜M7は`origin/main`で完了。M8A Backend Reachability Audit / Non-destructive Cleanupを`feat/backend-cleanup-m8a`で実施中。M8BはM8Aレビュー後に判断する。Deployとremote migrationは実施していない。
+M1〜M7は`origin/main`で完了。M8AはPR #9でmerge済み。M8Bは`feat/backend-finalization-m8b`で実装済み、Draft PRレビュー/merge待ち。M8B中もdeployとremote migrationは実施していない。
+
+## M8B start and finalization record
+
+- Production base SHA: `3c608ac07f90ca0f0d10d0e515c50b14b62ba83a` (`origin/main`, PR #9 / M8A merge)
+- Branch: `feat/backend-finalization-m8b`
+- Scope is limited to the six M8A candidates: Task Templates; Shopping Templates; Dashboard legacy fields; Calendar additive fields; legacy recurrence; nullable TaskRecord snapshots / `calendar_action_date`.
+- The final enum is `REMOVE_SAFE`, `KEEP_CANONICAL`, `KEEP_BACKGROUND`, `KEEP_DATA_COMPAT`, `KEEP_EXTERNAL_COMPAT`, or `KEEP_UNKNOWN`. Each candidate is machine-readable in `docs/evidence/m8b/diagnostics/final-candidate-decisions.json`.
+- Public Worker routes are not removed from zero frontend callers alone. M8B proves persisted rows and/or canonical/background/public compatibility dependencies where present; no route or response field met the complete removal proof.
+- M8B result: 65 Worker routes before / 65 after; 17 migrations before / 17 after; `SCHEMA CHANGE: NONE`; no data rewrite, enum conversion, route removal, or response-field removal.
+- Local populated D1 and MemoryD1 legacy fixtures verify template retention, canonical Shopping template list/reuse, Dashboard/Calendar current and compatibility shapes, legacy recurrence fallback, historical NULL snapshots, and restore behavior. Remote D1, production data, deploy, secrets, and Cron were untouched.
+- Production UI Migration: `COMPLETE` after M8B implementation, pending review/merge. Pending follow-up is deploy, real iPhone manual validation, and optional future compatibility cleanup.
 
 ## M7 start record
 
