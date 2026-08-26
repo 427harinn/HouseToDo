@@ -1,0 +1,42 @@
+{
+  "sourceSha": "28e341a1bfab70a18e00bb39386252b113a22361",
+  "environment": "staging",
+  "candidateHouseholds": 3,
+  "candidateUsers": 6,
+  "householdIntegrity": {
+    "createdBySynthetic": 3,
+    "memberCountPerHouseholdExpected": 2,
+    "memberCounts": [2, 2, 2],
+    "nonSyntheticMembersFound": 0
+  },
+  "crossHouseholdReferencesFound": 0,
+  "tableCounts": {
+    "users": 6,
+    "sessions": 6,
+    "user_notification_settings": 0,
+    "households": 3,
+    "household_members": 6,
+    "household_invites": 3,
+    "tasks": 0,
+    "task_weekdays": 0,
+    "task_records": 0,
+    "task_templates": 0,
+    "shopping_items": 0,
+    "shopping_templates": 0,
+    "attachments": 0,
+    "push_subscriptions": 0,
+    "notification_logs": 0,
+    "notification_deliveries": 0,
+    "household_image_usage": 1,
+    "image_upload_reservations": 0,
+    "shopping_item_images": 0,
+    "orphan_r2_objects": 0
+  },
+  "totalAffectedRows": 25,
+  "temporaryTasksFound": 0,
+  "temporaryShoppingItemsFound": 0,
+  "cleanupSqlPrepared": true,
+  "cleanupExecuted": false,
+  "privateArtifactsIgnored": true,
+  "recommendedVerdict": "READY_FOR_TARGETED_STAGING_FIXTURE_CLEANUP"
+}

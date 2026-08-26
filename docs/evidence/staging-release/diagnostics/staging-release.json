@@ -1,0 +1,62 @@
+{
+  "sourceSha": "28e341a1bfab70a18e00bb39386252b113a22361",
+  "environment": "staging",
+  "migration": {
+    "before": 14,
+    "after": 17,
+    "pending": 0,
+    "recoveryBookmarkCaptured": true
+  },
+  "deploy": {
+    "previousVersion": "26a6fbf9-476e-4d36-9dfa-8ef07c07275c",
+    "currentVersion": "6ee2b2d8-13a8-4ab0-a01c-740af3b4e78c",
+    "health": "PASS"
+  },
+  "previousFixture": {
+    "status": "RETAINED",
+    "users": 4,
+    "households": 2
+  },
+  "runnerDiagnosis": {
+    "classification": "RUNNER_LOCATOR_BUG",
+    "apiMemberPresent": true,
+    "dialogMemberPresent": true,
+    "oldLocator": "FAILED"
+  },
+  "authFixture": {
+    "strategy": "synthetic-registration",
+    "usersCreated": 2,
+    "householdCreated": 1,
+    "credentialsPersisted": false,
+    "fixtureRetained": true
+  },
+  "smoke": {
+    "home": "PASS",
+    "calendar": "PASS",
+    "shopping": "PASS",
+    "other": "PASS",
+    "taskSnapshot": "NOT_RUN",
+    "calendarActionDate": "NOT_RUN",
+    "twoUser": "NOT_RUN",
+    "isolation": "PASS"
+  },
+  "cleanup": {
+    "task": "NOT_RUN",
+    "shopping": "NOT_RUN",
+    "invite": "retained by dedicated fixture",
+    "usersHousehold": "retained"
+  },
+  "browserSignals": {
+    "consoleErrors": 0,
+    "pageErrors": 0,
+    "requestFailures": 0,
+    "crossOriginRequests": 0
+  },
+  "production": {
+    "deploy": "NOT_RUN",
+    "migration": "NOT_RUN",
+    "dataAccess": "NONE",
+    "dataWrite": "NONE"
+  },
+  "verdict": "AUTHENTICATED_SMOKE_FAILED"
+}

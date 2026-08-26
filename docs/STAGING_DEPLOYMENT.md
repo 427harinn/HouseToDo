@@ -1,5 +1,16 @@
 # Staging runbook
 
+## 2026-08-26 Staging smoke recovery / cleanup dry-run
+
+- Source SHA: `28e341a1bfab70a18e00bb39386252b113a22361`. This recovery turn used no migration, deploy, registration, or production operation.
+- Runner diagnosis: `RUNNER_LOCATOR_BUG`. The prior fixed `STG-B` exact accessible-name locator failed; local verification now uses the actual member display name from `/api/households/current/members`, the `担当` dialog, and a dialog-scoped text locator. Registration settles on pathname, canonical heading, and loader disappearance. Calendar uses the production `grid` accessible name and semantic date-cell `aria-label`.
+- Local runner reproduction passed `3/3`; related local Chromium suites passed `10/10` (Calendar, Auth entry, and M7 two-user coverage). Vitest passed 38 files / 238 tests; lint, typecheck, and build passed.
+- Read-only staging inventory found 6 synthetic users and 3 synthetic households. Each candidate household had a synthetic creator and exactly two synthetic members. Non-synthetic members: 0. Cross-household references: 0.
+- Matching row counts were limited to users 6, sessions 6, household members 6, household invites 3, and household image usage 1. Task, task record, task template, Shopping, attachment, push, notification, image-reservation, and orphan-R2 rows: 0.
+- Previous failed synthetic fixtures remain retained. No account/household canonical deletion API exists. A fixed-ID dependency-ordered cleanup SQL was prepared in a private ignored artifact; it was not executed. Cleanup execution: `NO`.
+- Staging D1 remains 17/17 with no pending migrations. Worker `6ee2b2d8-13a8-4ab0-a01c-740af3b4e78c` and `/api/health` remained unchanged and healthy. Cron, R2, and secrets were unchanged; production was untouched.
+- Final recovery verdict: `READY_FOR_TARGETED_STAGING_FIXTURE_CLEANUP`. This does not advance the release to real iPhone validation.
+
 ## 2026-08-18 Shopping planned purchase date / Calendar staging verification
 
 - Implementation commit `ef5a89bf0ff8c3789fc0702670b2c5c77a32582e` passed lint, typecheck, 201 tests, build, local migration, staging-config validation, and diff-check. Docker was unavailable, so the documented host gates were used.
@@ -71,11 +82,11 @@
 | Worker | `house-to-do-staging` |
 | URL / origin | `https://house-to-do-staging.427harinn.workers.dev` |
 | D1 | `house-to-do-staging` |
-| R2 | `house-to-attachments-staging` |
+| R2 | `house-to-do-attachments-staging` |
 | Static Assets | `dist/client`、SPA fallback |
 | Observability | 有効（stagingのみ） |
 | Cron | `*/5 * * * *` |
-| migration source | repositoryの `migrations/`（現在0013まで） |
+| migration source | repositoryの `migrations/`（現在0017まで） |
 
 Worker名、binding、Cron、originの現在値は `wrangler.jsonc` をsource of truthとします。Version IDは固定記載しません。remote migrationの適用済み状態は次の確認コマンドで都度確認します。
 
@@ -83,7 +94,6 @@ Worker名、binding、Cron、originの現在値は `wrangler.jsonc` をsource of
 
 staging Workerには必要に応じて次のsecret名を登録します。値はこのrepositoryやrunbookへ書きません。
 
-- `SESSION_SECRET`
 - `WEB_PUSH_VAPID_PUBLIC_KEY`
 - `WEB_PUSH_VAPID_PRIVATE_KEY`
 - `WEB_PUSH_SUBJECT`
@@ -104,8 +114,6 @@ npx wrangler d1 migrations list DB --env staging --remote
 npx wrangler r2 bucket list
 npm run cf:validate:staging
 ```
-
-`scripts/validate-staging-config.mjs`には旧Cron値を検証する既知の不整合が残っています。コード/config変更禁止のcleanup範囲では修正せず、stagingのCron判断には `wrangler.jsonc` を使います。validator修正は別タスクです。
 
 ## 安全な順序
 
