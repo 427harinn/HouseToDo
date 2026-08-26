@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-26T05:32:46.424Z",
+  "generatedAt": "2026-08-26T06:56:06.190Z",
   "base": "http://127.0.0.1:8789",
   "manifest": {
     "http200": true,
@@ -23,12 +23,34 @@
     "householdReadyHome": true
   },
   "directRoutes": {
-    "/home": true,
-    "/calendar": true,
-    "/shopping": true,
-    "/other": true,
-    "/tasks/new": true,
-    "/shopping/new": true
+    "/home": {
+      "httpOk": true,
+      "uiReady": true
+    },
+    "/calendar": {
+      "httpOk": true,
+      "uiReady": true
+    },
+    "/shopping": {
+      "httpOk": true,
+      "uiReady": true
+    },
+    "/other": {
+      "httpOk": true,
+      "uiReady": true
+    },
+    "/tasks/new": {
+      "httpOk": true,
+      "uiReady": true
+    },
+    "/shopping/new": {
+      "httpOk": true,
+      "uiReady": true
+    },
+    "/shopping?item=2582bc69-da88-414c-abf0-08f3bb23e551": {
+      "httpOk": true,
+      "uiReady": true
+    }
   },
   "legacyRoute": {
     "requestedRoute": "/tasks",
