@@ -150,6 +150,8 @@ test("M6 register invite rejects before register, then joins Home with a valid c
 
   state.validInvite = true;
   await page.getByLabel("招待コード（任意）").fill("VALID-CODE");
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(page.getByLabel("招待コード（任意）")).toHaveAttribute("aria-invalid", "false");
   await page.getByRole("button", { name: "新規登録" }).click();
   await expect(page).toHaveURL(/\/home$/);
   await expect(page.getByRole("heading", { name: "やること" })).toBeVisible();
@@ -168,6 +170,8 @@ test("M6 household Join keeps invalid input and reaches Home on valid code", asy
   await expect(page.getByRole("alert")).toHaveText("招待コードを確認してください");
   await expect(page.getByLabel("招待コード")).toHaveValue("INVALID-CODE");
   await page.getByLabel("招待コード").fill("VALID-CODE");
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(page.getByLabel("招待コード")).toHaveAttribute("aria-invalid", "false");
   await page.getByRole("button", { name: "参加する" }).click();
   await expect(page).toHaveURL(/\/home$/);
   expect(state.joinCount).toBe(2);

@@ -1,3 +1,4 @@
+/* global document, HTMLElement, HTMLInputElement */
 import { chromium } from "@playwright/test";
 import { Buffer } from "node:buffer";
 import { setInterval as setIntervalTimer, clearInterval as clearIntervalTimer } from "node:timers";
@@ -58,9 +59,25 @@ async function installProductionApi(page, state) {
 }
 
 async function neutralize(page) {
+  await page.evaluate(() => {
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+  });
   await page.addStyleTag({ content: "* { caret-color: transparent !important; }" });
   await page.mouse.move(8, 8);
   await page.waitForTimeout(250);
+  const activeTag = await page.evaluate(() => document.activeElement?.tagName ?? "BODY");
+  if (["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(activeTag)) {
+    throw new Error(`Evidence capture retained focus on ${activeTag}`);
+  }
+}
+
+async function clearVisualValues(page, ids) {
+  await page.evaluate((inputIds) => {
+    for (const id of inputIds) {
+      const input = document.getElementById(id);
+      if (input instanceof HTMLInputElement) input.value = "";
+    }
+  }, ids);
 }
 
 async function fillRegister(page, code = "") {
@@ -137,6 +154,9 @@ async function captureScreenshots(browser) {
     await installProductionApi(production, auth);
     await production.goto(`${productionBase}/${kind === "household-create" ? "household/create" : kind === "household-join" ? "household/join" : kind}?m6Evidence=${state}`);
     await assertProductionState(production, kind, state);
+    if (kind === "login" && state === "error") await clearVisualValues(production, ["login-email", "login-password"]);
+    if (kind === "register" && state === "error") await clearVisualValues(production, ["register-name", "register-email", "register-password", "register-invite-code"]);
+    if (kind === "register" && state === "invalid-invite-code") await clearVisualValues(production, ["register-name", "register-email", "register-password"]);
     await neutralize(production);
     await production.screenshot({ path: path.join(productionRoot, `${kind}-${state}.png`), animations: "disabled" });
     await production.unroute("**/api/**");
@@ -232,6 +252,8 @@ async function recordFlows(browser) {
     await page.waitForTimeout(700);
     state.validInvite = true;
     await page.getByLabel("招待コード（任意）").fill("VALID-CODE");
+    if (await page.getByRole("alert").filter({ hasText: "招待コードを確認してください" }).count() !== 0) throw new Error("register invite error did not clear after input change");
+    if (await page.getByLabel("招待コード（任意）").getAttribute("aria-invalid") !== "false") throw new Error("register invite aria-invalid did not clear after input change");
     await page.getByRole("button", { name: "新規登録" }).click();
     await page.getByRole("heading", { name: "やること" }).waitFor();
     await page.waitForTimeout(700);
@@ -245,6 +267,8 @@ async function recordFlows(browser) {
     await page.getByRole("alert").filter({ hasText: "招待コードを確認してください" }).waitFor();
     await page.waitForTimeout(700);
     await page.getByLabel("招待コード").fill("VALID-CODE");
+    if (await page.getByRole("alert").filter({ hasText: "招待コードを確認してください" }).count() !== 0) throw new Error("join invite error did not clear after input change");
+    if (await page.getByLabel("招待コード").getAttribute("aria-invalid") !== "false") throw new Error("join invite aria-invalid did not clear after input change");
     await page.getByRole("button", { name: "参加する" }).click();
     await page.getByRole("heading", { name: "やること" }).waitFor();
     await page.waitForTimeout(700);
@@ -253,27 +277,36 @@ async function recordFlows(browser) {
 
 async function buildBoards() {
   const boardSpecs = [
-    ["01-login.png", [["production", "login-normal"], ["mockup", "login-normal"], ["production", "login-error"], ["mockup", "login-error"]]],
-    ["02-register.png", [["production", "register-normal"], ["mockup", "register-normal"], ["production", "register-error"], ["mockup", "register-error"]]],
-    ["03-register-invite.png", [["production", "register-invite-code"], ["mockup", "register-invite-code"], ["production", "register-invalid-invite-code"], ["mockup", "register-invalid-invite-code"]]],
-    ["04-household-entry.png", [["production", "household-create-normal"], ["mockup", "household-create-normal"], ["production", "household-join-normal"], ["mockup", "household-join-normal"], ["production", "household-join-invalid-code"], ["mockup", "household-join-invalid-code"]]]
+    ["01-login.png", ["login normal", "login-error"].map((stateLabel) => ({ stateLabel: stateLabel === "login normal" ? "login normal" : "login error", name: stateLabel === "login normal" ? "login-normal" : "login-error" }))],
+    ["02-register.png", ["register normal", "register error"].map((stateLabel) => ({ stateLabel, name: stateLabel === "register normal" ? "register-normal" : "register-error" }))],
+    ["03-register-invite.png", ["register invite-code", "register invalid-invite-code"].map((stateLabel) => ({ stateLabel, name: stateLabel === "register invite-code" ? "register-invite-code" : "register-invalid-invite-code" }))],
+    ["04-household-entry.png", [
+      { stateLabel: "household create normal", name: "household-create-normal" },
+      { stateLabel: "household join normal", name: "household-join-normal" },
+      { stateLabel: "household join invalid-code", name: "household-join-invalid-code" }
+    ]]
   ];
   for (const [file, rows] of boardSpecs) {
-    const panels = rows;
     const panelWidth = 390;
     const panelHeight = 844;
-    const headerHeight = 86;
-    const boardWidth = panelWidth * panels.length;
-    const boardHeight = headerHeight + panelHeight;
+    const headerHeight = 96;
+    const rowHeight = headerHeight + panelHeight;
+    const boardWidth = panelWidth * 2;
+    const boardHeight = rowHeight * rows.length;
     const composites = [];
-    for (let index = 0; index < panels.length; index += 1) {
-      const [sourceKind, name] = panels[index];
-      const kindState = name.replace(/-/g, " ");
-      const label = `${sourceKind} / ${kindState}`;
-      const svg = Buffer.from(`<svg width="390" height="86" xmlns="http://www.w3.org/2000/svg"><rect width="390" height="86" fill="#303531"/><text x="16" y="28" fill="white" font-family="Arial" font-size="16">${label}</text><text x="16" y="52" fill="#b8d9ca" font-family="Arial" font-size="11">Production SHA: ${productionSha}</text><text x="16" y="70" fill="#f0d998" font-family="Arial" font-size="11">Mockup SHA: ${mockupSha} · Evidence: production/mockup</text></svg>`);
-      const source = sourceKind === "production" ? path.join(productionRoot, `${name}.png`) : path.join(mockupRoot, `${name}.png`);
-      composites.push({ input: svg, left: index * panelWidth, top: 0 });
-      composites.push({ input: await sharp(source).png().toBuffer(), left: index * panelWidth, top: headerHeight });
+    for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
+      const row = rows[rowIndex];
+      for (const [columnIndex, sourceKind] of ["production", "mockup"].entries()) {
+        const evidence = sourceKind === "production" && row.name === "register-error"
+          ? "Production validation detail"
+          : sourceKind === "production" ? "Production fixture"
+            : "Mockup canonical";
+        const sourceLabel = sourceKind === "production" ? "Production" : "Mockup";
+        const svg = Buffer.from(`<svg width="390" height="96" xmlns="http://www.w3.org/2000/svg"><rect width="390" height="96" fill="#303531"/><text x="12" y="22" fill="white" font-family="Arial" font-size="14">${sourceLabel} / ${row.stateLabel}</text><text x="12" y="43" fill="#b8d9ca" font-family="monospace" font-size="8.5">Production SHA: ${productionSha}</text><text x="12" y="61" fill="#f0d998" font-family="monospace" font-size="8.5">Mockup SHA: ${mockupSha}</text><text x="12" y="80" fill="#d5ded7" font-family="Arial" font-size="9">Evidence: ${evidence}</text></svg>`);
+        const source = sourceKind === "production" ? path.join(productionRoot, `${row.name}.png`) : path.join(mockupRoot, `${row.name}.png`);
+        composites.push({ input: svg, left: columnIndex * panelWidth, top: rowIndex * rowHeight });
+        composites.push({ input: await sharp(source).png().toBuffer(), left: columnIndex * panelWidth, top: rowIndex * rowHeight + headerHeight });
+      }
     }
     await sharp({ create: { width: boardWidth, height: boardHeight, channels: 4, background: "#ffffff" } }).composite(composites).png().toFile(path.join(reviewRoot, file));
   }

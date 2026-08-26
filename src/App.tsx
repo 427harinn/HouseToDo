@@ -279,6 +279,12 @@ const isAppRoute = (route: Route) =>
 const validateEmail = (email: string) =>
   /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 const normalizeInviteCode = (code: string) => code.trim();
+const clearFormError = (errors: FormErrors, field: string) => {
+  if (!errors[field]) return errors;
+  const next = { ...errors };
+  delete next[field];
+  return next;
+};
 
 const todayInTimezone = (timezone = "Asia/Tokyo") => {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -691,7 +697,10 @@ function LoginScreen({
               autoComplete="email"
               error={errors.email}
               id="login-email"
-              onChange={setEmail}
+              onChange={(value) => {
+                setEmail(value);
+                setErrors((current) => clearFormError(current, "email"));
+              }}
               value={email}
             />
           </FormField>
@@ -700,7 +709,10 @@ function LoginScreen({
               autoComplete="current-password"
               error={errors.password}
               id="login-password"
-              onChange={setPassword}
+              onChange={(value) => {
+                setPassword(value);
+                setErrors((current) => clearFormError(current, "password"));
+              }}
               value={password}
             />
           </FormField>
@@ -777,7 +789,10 @@ function RegisterScreen({
               autoComplete="name"
               error={errors.displayName}
               id="register-name"
-              onChange={setDisplayName}
+              onChange={(value) => {
+                setDisplayName(value);
+                setErrors((current) => clearFormError(current, "displayName"));
+              }}
               value={displayName}
             />
           </FormField>
@@ -786,7 +801,10 @@ function RegisterScreen({
               autoComplete="email"
               error={errors.email}
               id="register-email"
-              onChange={setEmail}
+              onChange={(value) => {
+                setEmail(value);
+                setErrors((current) => clearFormError(current, "email"));
+              }}
               value={email}
             />
           </FormField>
@@ -795,7 +813,10 @@ function RegisterScreen({
               autoComplete="new-password"
               error={errors.password}
               id="register-password"
-              onChange={setPassword}
+              onChange={(value) => {
+                setPassword(value);
+                setErrors((current) => clearFormError(current, "password"));
+              }}
               value={password}
             />
           </FormField>
@@ -804,7 +825,10 @@ function RegisterScreen({
               autoComplete="one-time-code"
               error={errors.inviteCode}
               id="register-invite-code"
-              onChange={setInviteCode}
+              onChange={(value) => {
+                setInviteCode(value);
+                setErrors((current) => clearFormError(current, "inviteCode"));
+              }}
               value={inviteCode}
             />
           </FormField>
@@ -859,8 +883,10 @@ function CreateHouseholdScreen({
               autoComplete="organization"
               error={errors.name}
               id="household-name"
-              onChange={setName}
-              placeholder="例: わが家"
+              onChange={(value) => {
+                setName(value);
+                setErrors((current) => clearFormError(current, "name"));
+              }}
               value={name}
             />
           </FormField>
@@ -924,7 +950,10 @@ function JoinHouseholdScreen({
               autoComplete="one-time-code"
               error={errors.code}
               id="invite-code"
-              onChange={setCode}
+              onChange={(value) => {
+                setCode(value);
+                setErrors((current) => clearFormError(current, "code"));
+              }}
               value={code}
             />
           </FormField>

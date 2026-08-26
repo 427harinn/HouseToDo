@@ -610,6 +610,9 @@ describe("M6 auth and household entry", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("メールアドレスまたはパスワードが正しくありません");
     expect(screen.getByLabelText("パスワード")).toHaveAttribute("aria-invalid", "true");
+    fireEvent.change(screen.getByLabelText("パスワード"), { target: { value: "corrected-password" } });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("パスワード")).toHaveAttribute("aria-invalid", "false");
     expect(window.location.pathname).toBe("/login");
     expect(screen.queryByText("ゲストで試す")).not.toBeInTheDocument();
     expect(calls.filter((call) => call.includes("/api/auth/login"))).toHaveLength(1);
@@ -640,6 +643,10 @@ describe("M6 auth and household entry", () => {
     expect(screen.getByLabelText("招待コード（任意）")).toHaveAttribute("aria-invalid", "true");
     expect(calls.filter((call) => call.includes("/api/auth/register"))).toHaveLength(0);
     expect(window.location.pathname).toBe("/register");
+
+    fireEvent.change(screen.getByLabelText("招待コード（任意）"), { target: { value: "VALID" } });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("招待コード（任意）")).toHaveAttribute("aria-invalid", "false");
   });
 });
 
