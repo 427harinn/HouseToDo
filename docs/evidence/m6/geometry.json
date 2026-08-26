@@ -1,0 +1,956 @@
+{
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "productionSha": "cc4d3d3",
+  "mockupSha": "db8941dc3056f07862014242a349ae366da59e9c",
+  "captures": [
+    {
+      "source": "production",
+      "kind": "login",
+      "state": "normal",
+      "inputs": [
+        {
+          "height": 39,
+          "fontSize": "13px",
+          "lineHeight": "normal",
+          "padding": [
+            "10px",
+            "12px",
+            "10px",
+            "12px"
+          ],
+          "labelToInputGap": 8
+        },
+        {
+          "height": 39,
+          "fontSize": "13px",
+          "lineHeight": "normal",
+          "padding": [
+            "10px",
+            "12px",
+            "10px",
+            "12px"
+          ],
+          "labelToInputGap": 8
+        }
+      ],
+      "buttonToSecondaryLinkGap": 0
+    },
+    {
+      "source": "production",
+      "kind": "login",
+      "state": "error",
+      "inputs": [
+        {
+          "height": 39,
+          "fontSize": "13px",
+          "lineHeight": "normal",
+          "padding": [
+            "10px",
+            "12px",
+            "10px",
+            "12px"
+          ],
+          "labelToInputGap": 8
+        },
+        {
+          "height": 39,
+          "fontSize": "13px",
+          "lineHeight": "normal",
+          "padding": [
+            "10px",
+            "12px",
+            "10px",
+            "12px"
+          ],
+          "labelToInputGap": 8
+        }
+      ],
+      "buttonToSecondaryLinkGap": 0
+    },
+    {
+      "source": "production",
+      "kind": "register",
+      "state": "normal",
+      "inputs": [
+        {
+          "height": 39,
+          "fontSize": "13px",
+          "lineHeight": "normal",
+          "padding": [
+            "10px",
+            "12px",
+            "10px",
+            "12px"
+          ],
+          "labelToInputGap": 8
+        },
+        {
+          "height": 39,
+          "fontSize": "13px",
+          "lineHeight": "normal",
+          "padding": [
+            "10px",
+            "12px",
+            "10px",
+            "12px"
+          ],
+          "labelToInputGap": 8
+        },
+        {
+          "height": 39,
+          "fontSize": "13px",
+          "lineHeight": "normal",
+          "padding": [
+            "10px",
+            "12px",
+            "10px",
+            "12px"
+          ],
+          "labelToInputGap": 8
+        },
+        {
+          "height": 39,
+          "fontSize": "13px",
+          "lineHeight": "normal",
+          "padding": [
+            "10px",
+            "12px",
+            "10px",
+            "12px"
+          ],
+          "labelToInputGap": 8
+        }
+      ],
+      "buttonToSecondaryLinkGap": 0
+    },
+    {
+      "source": "production",
+      "kind": "register",
+      "state": "error",
+      "inputs": [
+        {
+          "height": 39,
+          "fontSize": "13px",
+          "lineHeight": "normal",
+          "padding": [
+            "10px",
+            "12px",
+            "10px",
+            "12px"
+          ],
+          "labelToInputGap": 8
+        },
+        {
+          "height": 39,
+          "fontSize": "13px",
+          "lineHeight": "normal",
+          "padding": [
+            "10px",
+            "12px",
+            "10px",
+            "12px"
+          ],
+          "labelToInputGap": 8
+        },
+        {
+          "height": 39,
+          "fontSize": "13px",
+          "lineHeight": "normal",
+          "padding": [
+            "10px",
+            "12px",
+            "10px",
+            "12px"
+          ],
+          "labelToInputGap": 8
+        },
+        {
+          "height": 39,
+          "fontSize": "13px",
+          "lineHeight": "normal",
+          "padding": [
+            "10px",
+            "12px",
+            "10px",
+            "12px"
+          ],
+          "labelToInputGap": 8
+        }
+      ],
+      "buttonToSecondaryLinkGap": 0
+    },
+    {
+      "source": "production",
+      "kind": "register",
+      "state": "invite-code",
+      "inputs": [
+        {
+          "height": 39,
+          "fontSize": "13px",
+          "lineHeight": "normal",
+          "padding": [
+            "10px",
+            "12px",
+            "10px",
+            "12px"
+          ],
+          "labelToInputGap": 8
+        },
+        {
+          "height": 39,
+          "fontSize": "13px",
+          "lineHeight": "normal",
+          "padding": [
+            "10px",
+            "12px",
+            "10px",
+            "12px"
+          ],
+          "labelToInputGap": 8
+        },
+        {
+          "height": 39,
+          "fontSize": "13px",
+          "lineHeight": "normal",
+          "padding": [
+            "10px",
+            "12px",
+            "10px",
+            "12px"
+          ],
+          "labelToInputGap": 8
+        },
+        {
+          "height": 39,
+          "fontSize": "13px",
+          "lineHeight": "normal",
+          "padding": [
+            "10px",
+            "12px",
+            "10px",
+            "12px"
+          ],
+          "labelToInputGap": 8
+        }
+      ],
+      "buttonToSecondaryLinkGap": 0
+    },
+    {
+      "source": "production",
+      "kind": "register",
+      "state": "invalid-invite-code",
+      "inputs": [
+        {
+          "height": 39,
+          "fontSize": "13px",
+          "lineHeight": "normal",
+          "padding": [
+            "10px",
+            "12px",
+            "10px",
+            "12px"
+          ],
+          "labelToInputGap": 8
+        },
+        {
+          "height": 39,
+          "fontSize": "13px",
+          "lineHeight": "normal",
+          "padding": [
+            "10px",
+            "12px",
+            "10px",
+            "12px"
+          ],
+          "labelToInputGap": 8
+        },
+        {
+          "height": 39,
+          "fontSize": "13px",
+          "lineHeight": "normal",
+          "padding": [
+            "10px",
+            "12px",
+            "10px",
+            "12px"
+          ],
+          "labelToInputGap": 8
+        },
+        {
+          "height": 39,
+          "fontSize": "13px",
+          "lineHeight": "normal",
+          "padding": [
+            "10px",
+            "12px",
+            "10px",
+            "12px"
+          ],
+          "labelToInputGap": 8
+        }
+      ],
+      "buttonToSecondaryLinkGap": 0
+    },
+    {
+      "source": "production",
+      "kind": "household-create",
+      "state": "normal",
+      "inputs": [
+        {
+          "height": 39,
+          "fontSize": "13px",
+          "lineHeight": "normal",
+          "padding": [
+            "10px",
+            "12px",
+            "10px",
+            "12px"
+          ],
+          "labelToInputGap": 8
+        }
+      ],
+      "buttonToSecondaryLinkGap": 0
+    },
+    {
+      "source": "production",
+      "kind": "household-join",
+      "state": "normal",
+      "inputs": [
+        {
+          "height": 39,
+          "fontSize": "13px",
+          "lineHeight": "normal",
+          "padding": [
+            "10px",
+            "12px",
+            "10px",
+            "12px"
+          ],
+          "labelToInputGap": 8
+        }
+      ],
+      "buttonToSecondaryLinkGap": 0
+    },
+    {
+      "source": "production",
+      "kind": "household-join",
+      "state": "invalid-code",
+      "inputs": [
+        {
+          "height": 39,
+          "fontSize": "13px",
+          "lineHeight": "normal",
+          "padding": [
+            "10px",
+            "12px",
+            "10px",
+            "12px"
+          ],
+          "labelToInputGap": 8
+        }
+      ],
+      "buttonToSecondaryLinkGap": 0
+    },
+    {
+      "source": "mockup",
+      "kind": "login",
+      "state": "normal",
+      "inputs": [
+        {
+          "height": 39,
+          "fontSize": "13px",
+          "lineHeight": "normal",
+          "padding": [
+            "10px",
+            "12px",
+            "10px",
+            "12px"
+          ],
+          "labelToInputGap": 8
+        },
+        {
+          "height": 39,
+          "fontSize": "13px",
+          "lineHeight": "normal",
+          "padding": [
+            "10px",
+            "12px",
+            "10px",
+            "12px"
+          ],
+          "labelToInputGap": 8
+        }
+      ],
+      "buttonToSecondaryLinkGap": 0
+    },
+    {
+      "source": "mockup",
+      "kind": "login",
+      "state": "error",
+      "inputs": [
+        {
+          "height": 39,
+          "fontSize": "13px",
+          "lineHeight": "normal",
+          "padding": [
+            "10px",
+            "12px",
+            "10px",
+            "12px"
+          ],
+          "labelToInputGap": 8
+        },
+        {
+          "height": 39,
+          "fontSize": "13px",
+          "lineHeight": "normal",
+          "padding": [
+            "10px",
+            "12px",
+            "10px",
+            "12px"
+          ],
+          "labelToInputGap": 8
+        }
+      ],
+      "buttonToSecondaryLinkGap": 0
+    },
+    {
+      "source": "mockup",
+      "kind": "register",
+      "state": "normal",
+      "inputs": [
+        {
+          "height": 39,
+          "fontSize": "13px",
+          "lineHeight": "normal",
+          "padding": [
+            "10px",
+            "12px",
+            "10px",
+            "12px"
+          ],
+          "labelToInputGap": 8
+        },
+        {
+          "height": 39,
+          "fontSize": "13px",
+          "lineHeight": "normal",
+          "padding": [
+            "10px",
+            "12px",
+            "10px",
+            "12px"
+          ],
+          "labelToInputGap": 8
+        },
+        {
+          "height": 39,
+          "fontSize": "13px",
+          "lineHeight": "normal",
+          "padding": [
+            "10px",
+            "12px",
+            "10px",
+            "12px"
+          ],
+          "labelToInputGap": 8
+        },
+        {
+          "height": 39,
+          "fontSize": "13px",
+          "lineHeight": "normal",
+          "padding": [
+            "10px",
+            "12px",
+            "10px",
+            "12px"
+          ],
+          "labelToInputGap": 8
+        }
+      ],
+      "buttonToSecondaryLinkGap": 0
+    },
+    {
+      "source": "mockup",
+      "kind": "register",
+      "state": "error",
+      "inputs": [
+        {
+          "height": 39,
+          "fontSize": "13px",
+          "lineHeight": "normal",
+          "padding": [
+            "10px",
+            "12px",
+            "10px",
+            "12px"
+          ],
+          "labelToInputGap": 8
+        },
+        {
+          "height": 39,
+          "fontSize": "13px",
+          "lineHeight": "normal",
+          "padding": [
+            "10px",
+            "12px",
+            "10px",
+            "12px"
+          ],
+          "labelToInputGap": 8
+        },
+        {
+          "height": 39,
+          "fontSize": "13px",
+          "lineHeight": "normal",
+          "padding": [
+            "10px",
+            "12px",
+            "10px",
+            "12px"
+          ],
+          "labelToInputGap": 8
+        },
+        {
+          "height": 39,
+          "fontSize": "13px",
+          "lineHeight": "normal",
+          "padding": [
+            "10px",
+            "12px",
+            "10px",
+            "12px"
+          ],
+          "labelToInputGap": 8
+        }
+      ],
+      "buttonToSecondaryLinkGap": 0
+    },
+    {
+      "source": "mockup",
+      "kind": "register",
+      "state": "invite-code",
+      "inputs": [
+        {
+          "height": 39,
+          "fontSize": "13px",
+          "lineHeight": "normal",
+          "padding": [
+            "10px",
+            "12px",
+            "10px",
+            "12px"
+          ],
+          "labelToInputGap": 8
+        },
+        {
+          "height": 39,
+          "fontSize": "13px",
+          "lineHeight": "normal",
+          "padding": [
+            "10px",
+            "12px",
+            "10px",
+            "12px"
+          ],
+          "labelToInputGap": 8
+        },
+        {
+          "height": 39,
+          "fontSize": "13px",
+          "lineHeight": "normal",
+          "padding": [
+            "10px",
+            "12px",
+            "10px",
+            "12px"
+          ],
+          "labelToInputGap": 8
+        },
+        {
+          "height": 39,
+          "fontSize": "13px",
+          "lineHeight": "normal",
+          "padding": [
+            "10px",
+            "12px",
+            "10px",
+            "12px"
+          ],
+          "labelToInputGap": 8
+        }
+      ],
+      "buttonToSecondaryLinkGap": 0
+    },
+    {
+      "source": "mockup",
+      "kind": "register",
+      "state": "invalid-invite-code",
+      "inputs": [
+        {
+          "height": 39,
+          "fontSize": "13px",
+          "lineHeight": "normal",
+          "padding": [
+            "10px",
+            "12px",
+            "10px",
+            "12px"
+          ],
+          "labelToInputGap": 8
+        },
+        {
+          "height": 39,
+          "fontSize": "13px",
+          "lineHeight": "normal",
+          "padding": [
+            "10px",
+            "12px",
+            "10px",
+            "12px"
+          ],
+          "labelToInputGap": 8
+        },
+        {
+          "height": 39,
+          "fontSize": "13px",
+          "lineHeight": "normal",
+          "padding": [
+            "10px",
+            "12px",
+            "10px",
+            "12px"
+          ],
+          "labelToInputGap": 8
+        },
+        {
+          "height": 39,
+          "fontSize": "13px",
+          "lineHeight": "normal",
+          "padding": [
+            "10px",
+            "12px",
+            "10px",
+            "12px"
+          ],
+          "labelToInputGap": 8
+        }
+      ],
+      "buttonToSecondaryLinkGap": 0
+    },
+    {
+      "source": "mockup",
+      "kind": "household-create",
+      "state": "normal",
+      "inputs": [
+        {
+          "height": 39,
+          "fontSize": "13px",
+          "lineHeight": "normal",
+          "padding": [
+            "10px",
+            "12px",
+            "10px",
+            "12px"
+          ],
+          "labelToInputGap": 8
+        }
+      ],
+      "buttonToSecondaryLinkGap": 0
+    },
+    {
+      "source": "mockup",
+      "kind": "household-join",
+      "state": "normal",
+      "inputs": [
+        {
+          "height": 39,
+          "fontSize": "13px",
+          "lineHeight": "normal",
+          "padding": [
+            "10px",
+            "12px",
+            "10px",
+            "12px"
+          ],
+          "labelToInputGap": 8
+        }
+      ],
+      "buttonToSecondaryLinkGap": 0
+    },
+    {
+      "source": "mockup",
+      "kind": "household-join",
+      "state": "invalid-code",
+      "inputs": [
+        {
+          "height": 39,
+          "fontSize": "13px",
+          "lineHeight": "normal",
+          "padding": [
+            "10px",
+            "12px",
+            "10px",
+            "12px"
+          ],
+          "labelToInputGap": 8
+        }
+      ],
+      "buttonToSecondaryLinkGap": 0
+    }
+  ],
+  "parity": [
+    {
+      "kind": "login",
+      "production": {
+        "inputs": [
+          {
+            "height": 39,
+            "fontSize": "13px",
+            "lineHeight": "normal",
+            "padding": [
+              "10px",
+              "12px",
+              "10px",
+              "12px"
+            ],
+            "labelToInputGap": 8
+          },
+          {
+            "height": 39,
+            "fontSize": "13px",
+            "lineHeight": "normal",
+            "padding": [
+              "10px",
+              "12px",
+              "10px",
+              "12px"
+            ],
+            "labelToInputGap": 8
+          }
+        ],
+        "buttonToSecondaryLinkGap": 0
+      },
+      "mockup": {
+        "inputs": [
+          {
+            "height": 39,
+            "fontSize": "13px",
+            "lineHeight": "normal",
+            "padding": [
+              "10px",
+              "12px",
+              "10px",
+              "12px"
+            ],
+            "labelToInputGap": 8
+          },
+          {
+            "height": 39,
+            "fontSize": "13px",
+            "lineHeight": "normal",
+            "padding": [
+              "10px",
+              "12px",
+              "10px",
+              "12px"
+            ],
+            "labelToInputGap": 8
+          }
+        ],
+        "buttonToSecondaryLinkGap": 0
+      },
+      "matches": true
+    },
+    {
+      "kind": "register",
+      "production": {
+        "inputs": [
+          {
+            "height": 39,
+            "fontSize": "13px",
+            "lineHeight": "normal",
+            "padding": [
+              "10px",
+              "12px",
+              "10px",
+              "12px"
+            ],
+            "labelToInputGap": 8
+          },
+          {
+            "height": 39,
+            "fontSize": "13px",
+            "lineHeight": "normal",
+            "padding": [
+              "10px",
+              "12px",
+              "10px",
+              "12px"
+            ],
+            "labelToInputGap": 8
+          },
+          {
+            "height": 39,
+            "fontSize": "13px",
+            "lineHeight": "normal",
+            "padding": [
+              "10px",
+              "12px",
+              "10px",
+              "12px"
+            ],
+            "labelToInputGap": 8
+          },
+          {
+            "height": 39,
+            "fontSize": "13px",
+            "lineHeight": "normal",
+            "padding": [
+              "10px",
+              "12px",
+              "10px",
+              "12px"
+            ],
+            "labelToInputGap": 8
+          }
+        ],
+        "buttonToSecondaryLinkGap": 0
+      },
+      "mockup": {
+        "inputs": [
+          {
+            "height": 39,
+            "fontSize": "13px",
+            "lineHeight": "normal",
+            "padding": [
+              "10px",
+              "12px",
+              "10px",
+              "12px"
+            ],
+            "labelToInputGap": 8
+          },
+          {
+            "height": 39,
+            "fontSize": "13px",
+            "lineHeight": "normal",
+            "padding": [
+              "10px",
+              "12px",
+              "10px",
+              "12px"
+            ],
+            "labelToInputGap": 8
+          },
+          {
+            "height": 39,
+            "fontSize": "13px",
+            "lineHeight": "normal",
+            "padding": [
+              "10px",
+              "12px",
+              "10px",
+              "12px"
+            ],
+            "labelToInputGap": 8
+          },
+          {
+            "height": 39,
+            "fontSize": "13px",
+            "lineHeight": "normal",
+            "padding": [
+              "10px",
+              "12px",
+              "10px",
+              "12px"
+            ],
+            "labelToInputGap": 8
+          }
+        ],
+        "buttonToSecondaryLinkGap": 0
+      },
+      "matches": true
+    },
+    {
+      "kind": "household-create",
+      "production": {
+        "inputs": [
+          {
+            "height": 39,
+            "fontSize": "13px",
+            "lineHeight": "normal",
+            "padding": [
+              "10px",
+              "12px",
+              "10px",
+              "12px"
+            ],
+            "labelToInputGap": 8
+          }
+        ],
+        "buttonToSecondaryLinkGap": 0
+      },
+      "mockup": {
+        "inputs": [
+          {
+            "height": 39,
+            "fontSize": "13px",
+            "lineHeight": "normal",
+            "padding": [
+              "10px",
+              "12px",
+              "10px",
+              "12px"
+            ],
+            "labelToInputGap": 8
+          }
+        ],
+        "buttonToSecondaryLinkGap": 0
+      },
+      "matches": true
+    },
+    {
+      "kind": "household-join",
+      "production": {
+        "inputs": [
+          {
+            "height": 39,
+            "fontSize": "13px",
+            "lineHeight": "normal",
+            "padding": [
+              "10px",
+              "12px",
+              "10px",
+              "12px"
+            ],
+            "labelToInputGap": 8
+          }
+        ],
+        "buttonToSecondaryLinkGap": 0
+      },
+      "mockup": {
+        "inputs": [
+          {
+            "height": 39,
+            "fontSize": "13px",
+            "lineHeight": "normal",
+            "padding": [
+              "10px",
+              "12px",
+              "10px",
+              "12px"
+            ],
+            "labelToInputGap": 8
+          }
+        ],
+        "buttonToSecondaryLinkGap": 0
+      },
+      "matches": true
+    }
+  ]
+}
