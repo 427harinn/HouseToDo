@@ -39,10 +39,18 @@ M5まで`origin/main`で完了。M6 Auth / Household Entryを`feat/production-au
 - Production base SHA: `ed749b70707068b1b7dfb96e055d4e06371af094`
 - Mockup reference SHA: `db8941dc3056f07862014242a349ae366da59e9c`
 - Evidence scope: nine Production and nine Mockup 390x844 states, four actual-input/click WebM flows, four GIF previews, four labeled parity boards, and an exact eight-file `review-upload` package.
-- Implementation commit: `0150ed4`; Evidence refresh commit: `8113629`; Draft PR: `#7`.
+- Review correction implementation commit: `0fabce3`; Evidence refresh commit: `b54297c`; Draft PR: `#7`.
 - Quality-gate note: lint, typecheck, build, targeted M6 App tests (25/25), M6 Playwright (5/5), Worker invite-validation coverage, and semantic Evidence capture pass. Full Vitest has one pre-existing M2 Home fixture failure (36 files / 232 passed / 1 failed); the same test fails at this M6 base SHA and was not changed by M6.
 - Docker-authenticated E2E was unavailable and was not treated as passed. Home/Calendar/Shopping/Other smoke coverage was run through the existing local test fixtures; no unrelated legacy selector/fixture failures were changed.
 - No migration, remote D1 operation, staging deploy, production deploy, secrets change, Cron change, or PR merge was performed.
+
+## M6 PR #7 review correction record
+
+- Entry primary actions now use Mockup `--color-primary-strong`, white semibold text, 48px minimum height, 10px action radius, and scoped disabled opacity. Entry labels use `--color-text-secondary`; Household Create has no placeholder.
+- Login, Register, Household Create, and Household Join clear the corrected field's previous field error and `aria-invalid` state on input change. Register/Join invite E2E asserts error removal before the successful submit.
+- Register error keeps Production display-name/email/password field-level validation detail required by the existing Production validation contract. The Mockup global error remains, and the visible Production-only detail is labeled in the board as `Production validation detail`.
+- Evidence capture now blurs the active element, asserts no input/textarea/select/button retains focus, aligns Production fixture values with Mockup where possible, and produces vertical two-column Production/Mockup boards with one state per row.
+- Final review Evidence: Production render target `0fabce3`, Evidence commit `b54297c`, exactly eight files in `docs/evidence/m6/review-upload/`.
 
 ## M5 start record (2026-08-25)
 

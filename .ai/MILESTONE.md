@@ -27,8 +27,9 @@
 
 ## M6 completion record
 
-- Implementation commit: `0150ed4`; Evidence refresh commit: `8113629`; Draft PR: `https://github.com/427harinn/HouseToDo/pull/7`.
+- Review correction implementation commit: `0fabce3`; Evidence refresh commit: `b54297c`; Draft PR: `https://github.com/427harinn/HouseToDo/pull/7`.
 - Review package contains exactly four labeled boards and four canonical WebM files. GIFs remain under `motion/previews/` only.
+- Entry primary/label parity, field-error clear, focus-neutral capture, semantic fixture alignment, and vertical Production/Mockup boards were rechecked for PR #7 review.
 - No merge, deploy, remote D1 migration, secrets/Cron change, or M7 work was performed.
 
 ## M2 delivery

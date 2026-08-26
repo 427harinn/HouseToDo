@@ -11,6 +11,7 @@
 - [x] Preserve session, PBKDF2, cookie, permission, invite expiry/single-use, and D1 semantics
 - [x] Add M6 unit/API/Playwright coverage and Home/Calendar/Shopping/Other smoke checks
 - [x] Generate nine Production + nine Mockup captures, four boards, four WebM, four GIF previews, and exact eight-file review package
+- [x] Address PR #7 visual parity review: strong Entry primary, secondary labels, placeholder removal, field-error clear, focus-neutral capture, aligned fixtures, vertical boards, and refreshed motion Evidence
 - [x] Run final gates, commit, push, and create Draft PR #7 without merge/deploy/M7 (full Vitest has one base-reproduced M2 fixture failure; Docker authenticated E2E unavailable)
 
 ## Production UI Migration M5 — Other / Settings (current milestone)
