@@ -1645,7 +1645,7 @@ function ShoppingM4ListScreen({
     if (isPurchased) setPurchasedOpen(true);
     setExpandedId(targetItemId);
     window.requestAnimationFrame(() => target.scrollIntoView({ block: "center", behavior: "smooth" }));
-  }, [loading, targetItemId, pending, purchased]);
+  }, [loading, targetItemId, orderedPending, pending, purchased]);
 
   const toggleExpanded = (itemId: string) => {
     setExpandedId((current) => (current === itemId ? null : itemId));

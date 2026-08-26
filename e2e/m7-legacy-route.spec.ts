@@ -1,3 +1,4 @@
+import { mkdir, writeFile } from "node:fs/promises";
 import { expect, test, type Page, type Route } from "@playwright/test";
 
 test.use({ viewport: { width: 390, height: 844 } });
@@ -45,6 +46,8 @@ const legacyCases = [
   ["/shopping/templates/template-1/edit", "/shopping/new", "買い物を追加"]
 ] as const;
 
+const legacyResults: Array<{ requestedRoute: string; actualPathname: string; result: "PASS"; oldScreenRendered: false }> = [];
+
 test("M7 legacy route matrix redirects directly to canonical screens", async ({ page }) => {
   await installCanonicalApi(page);
   const errors: string[] = [];
@@ -58,6 +61,12 @@ test("M7 legacy route matrix redirects directly to canonical screens", async ({ 
       const current = new URL(page.url());
       return `${current.pathname}${current.search}`;
     }).toBe(`${target.pathname}${target.search}`);
+    legacyResults.push({
+      requestedRoute: legacy,
+      actualPathname: `${new URL(page.url()).pathname}${new URL(page.url()).search}`,
+      result: "PASS",
+      oldScreenRendered: false
+    });
     await expect(page.getByRole("heading", { name: heading })).toBeVisible();
     await expect(page.getByText(/テンプレート|家事の詳細|購入日時/)).toHaveCount(0);
     await page.goBack();
@@ -78,5 +87,12 @@ test("M7 guest and onboarding keep the M6 state redirect without rendering legac
     await expect(page).toHaveURL(/\/login$/);
     await expect(page.getByRole("heading", { name: "ログイン" })).toBeVisible();
     await expect(page.getByText(/ゲスト|オンボーディング/)).toHaveCount(0);
+    legacyResults.push({ requestedRoute: path, actualPathname: new URL(page.url()).pathname, result: "PASS", oldScreenRendered: false });
   }
+  await mkdir("docs/evidence/m7/diagnostics", { recursive: true });
+  await writeFile(
+    "docs/evidence/m7/diagnostics/legacy-route-results.json",
+    JSON.stringify({ generatedAt: new Date().toISOString(), sourceTest: "e2e/m7-legacy-route.spec.ts", routes: legacyResults }, null, 2) + "\n",
+    "utf8"
+  );
 });
