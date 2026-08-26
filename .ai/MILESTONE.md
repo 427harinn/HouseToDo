@@ -1,4 +1,4 @@
-# Milestone: Production UI Migration M8B — Compatibility / Schema Finalization
+# Milestone: Post-Migration Closeout / Release Readiness
 
 ## Current boundary
 
@@ -9,9 +9,11 @@
 - M6 Auth / Household Entry is merged to `main` in PR #7 at base `d89a9d7`.
 - M7 Integration / Legacy UI Cleanup is merged to `main` in PR #8 at `8e4653286d964f1ef88be6da92ad7b11e9c21ed5`.
 - M8A Backend Reachability Audit / Non-destructive Cleanup is merged in PR #9 at `3c608ac07f90ca0f0d10d0e515c50b14b62ba83a`.
-- M8B Compatibility / Schema Finalization is implemented on `feat/backend-finalization-m8b`; Draft PR review/merge is pending.
-- Production UI Migration is not complete until M8B is reviewed and merged.
+- M8B Compatibility / Schema Finalization is done and merged to `main` in PR #10 at `e1048c8de66126c4c93952261d70313b1180ec43`.
+- Production UI Migration is `COMPLETE`.
 - Deploy and remote migration have not been performed.
+- Pending follow-up is release/deploy validation, real iPhone manual validation, and optional future compatibility cleanup.
+- This closeout is not M9 feature development; UI, API, schema, and migration changes are out of scope.
 - 詳細なM1〜M8計画は[docs/PRODUCTION_UI_MIGRATION.md](../docs/PRODUCTION_UI_MIGRATION.md)を参照。
 
 ## M8B start record
@@ -31,7 +33,16 @@
 - No REMOVE_SAFE candidate was proven. Public API external-consumer absence is not inferred from zero frontend callers; persisted template/record data, canonical Shopping reuse, legacy recurrence readers, and public response compatibility remain protected.
 - No destructive migration, data rewrite, route removal, or response-field removal was made. Schema change is `NONE`.
 - Local D1 populated-data audit and MemoryD1 legacy fixture/contract tests pass; remote D1 and production data were not touched.
-- Production UI Migration: COMPLETE pending M8B review/merge. Pending after merge: deploy, real iPhone validation, and optional future cleanup only.
+- M8B: Done and merged to `main` in PR #10. Merge commit: `e1048c8de66126c4c93952261d70313b1180ec43`.
+- Production UI Migration: `COMPLETE`. Pending after merge: release/deploy validation, real iPhone validation, and optional future cleanup only.
+
+## Post-Migration Closeout record
+
+- Production base SHA: `e1048c8de66126c4c93952261d70313b1180ec43` (`origin/main`, PR #10 / M8B merge)
+- Branch: `chore/post-migration-release-readiness`
+- Current migration count: 17 SQL files; current Worker public route count: 65.
+- Read-only local and Cloudflare audit evidence is under `docs/evidence/release-readiness/`.
+- Staging deploy, production deploy, remote migration apply, production data writes, secret value reads, secret changes, and Cron changes: not run.
 
 ## M8A start record
 
@@ -62,14 +73,14 @@
 - Implementation commit SHA: `03c87555d29ab6e8bb60b8f4fcdeb490bb013d83`.
 - Evidence commit SHA: `02534b7`.
 - Final local verification: 37 Vitest files / 236 tests passed; canonical Chromium 38 passed / 1 staging-only skipped; lint, typecheck, build, and local migration passed.
-- Review upload contains exactly four PNG boards and four WebM files. No deploy, remote migration, secret/Cron change, merge, or M8B work was performed.
+- At the M8A evidence checkpoint, no deploy, remote migration, secret/Cron change, or M8B cleanup had been performed; M8B was subsequently completed and merged in PR #10.
 
 ## M7 start record
 
 - Production base SHA: `d89a9d7ad52f5580b65a2a44b0e350295ef542c7`
 - Mockup reference SHA: `db8941dc3056f07862014242a349ae366da59e9c`
 - Branch: `feat/production-integration-legacy-m7`
-- M6 is merged to `main`; M7 is merged to `main` in PR #8; M8A is the current boundary.
+- M6 is merged to `main`; M7 is merged to `main` in PR #8; M8A and M8B are complete, and the current boundary is Post-Migration Closeout / Release Readiness.
 
 ## M7 delivery boundary
 

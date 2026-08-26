@@ -4,19 +4,19 @@ HouseToDo-Mockup latest mainをdesign / interaction / motionのcanonical source 
 
 ## Milestone overview
 
-| Milestone | Scope                                                                                                                                                                            | Status                                                        |
-| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| M1        | Shared UI Foundation: tokens, global foundation, motion constants, App Shell, Bottom Navigation, Add Bottom Sheet                                                                | Done                                                          |
-| M2        | Home + Task: new Home, complete/pass/undo, task add/edit/delete, previous completion, and related Motion                                                                         | Done                                                          |
-| M3        | Calendar screen visual migration and Calendar interactions                                                                                                                       | Done                                                          |
-| M4        | Shopping screen visual migration and Shopping interactions                                                                                                                       | Done on `main` after PR #5                                    |
-| M5        | Other / Settings and formal `/other` route                                                                                                                                       | Done and merged to `main` in PR #6                            |
-| M6        | Auth / Household Entry. Guest and onboarding are removed from the new UI direction, not visually migrated.                                                                       | Done and merged to `main` in PR #7 at `d89a9d7`               |
-| M7        | Integration / Legacy UI cleanup: retire user-facing old Task list/detail/respond/templates and Shopping detail/templates routes, then verify 2-user flows, E2E, and PWA behavior | Done and merged to `main` in PR #8 at `8e465328`              |
-| M8A       | Backend reachability audit and non-destructive dead wrapper/internal method cleanup                                                                                              | Done and merged to `main` in PR #9 at `3c608ac`               |
-| M8B       | Compatibility / Schema Finalization: final six-candidate proof, minimal safe cleanup, intentional KEEP contracts, and production completion gate                                 | Implemented on `feat/backend-finalization-m8b`; Draft PR open |
+| Milestone | Scope                                                                                                                                                                            | Status                                           |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| M1        | Shared UI Foundation: tokens, global foundation, motion constants, App Shell, Bottom Navigation, Add Bottom Sheet                                                                | Done                                             |
+| M2        | Home + Task: new Home, complete/pass/undo, task add/edit/delete, previous completion, and related Motion                                                                         | Done                                             |
+| M3        | Calendar screen visual migration and Calendar interactions                                                                                                                       | Done                                             |
+| M4        | Shopping screen visual migration and Shopping interactions                                                                                                                       | Done on `main` after PR #5                       |
+| M5        | Other / Settings and formal `/other` route                                                                                                                                       | Done and merged to `main` in PR #6               |
+| M6        | Auth / Household Entry. Guest and onboarding are removed from the new UI direction, not visually migrated.                                                                       | Done and merged to `main` in PR #7 at `d89a9d7`  |
+| M7        | Integration / Legacy UI cleanup: retire user-facing old Task list/detail/respond/templates and Shopping detail/templates routes, then verify 2-user flows, E2E, and PWA behavior | Done and merged to `main` in PR #8 at `8e465328` |
+| M8A       | Backend reachability audit and non-destructive dead wrapper/internal method cleanup                                                                                              | Done and merged to `main` in PR #9 at `3c608ac`  |
+| M8B       | Compatibility / Schema Finalization: final six-candidate proof, minimal safe cleanup, intentional KEEP contracts, and production completion gate                                 | Done and merged to `main` in PR #10 at `e1048c8` |
 
-M1〜M7は`origin/main`で完了。M8AはPR #9でmerge済み。M8Bは`feat/backend-finalization-m8b`で実装済み、Draft PRレビュー/merge待ち。M8B中もdeployとremote migrationは実施していない。
+M1〜M8Bは`origin/main`で完了。M8BはPR #10でmerge済み（merge commit: `e1048c8de66126c4c93952261d70313b1180ec43`）。Production UI Migrationは`COMPLETE`。Pending follow-upはrelease/deploy validation、real iPhone manual validation、optional future compatibility cleanup。M8B中もdeployとremote migrationは実施していない。
 
 ## M8B start and finalization record
 
@@ -27,14 +27,26 @@ M1〜M7は`origin/main`で完了。M8AはPR #9でmerge済み。M8Bは`feat/backe
 - Public Worker routes are not removed from zero frontend callers alone. M8B proves persisted rows and/or canonical/background/public compatibility dependencies where present; no route or response field met the complete removal proof.
 - M8B result: 65 Worker routes before / 65 after; 17 migrations before / 17 after; `SCHEMA CHANGE: NONE`; no data rewrite, enum conversion, route removal, or response-field removal.
 - Local populated D1 and MemoryD1 legacy fixtures verify template retention, canonical Shopping template list/reuse, Dashboard/Calendar current and compatibility shapes, legacy recurrence fallback, historical NULL snapshots, and restore behavior. Remote D1, production data, deploy, secrets, and Cron were untouched.
-- Production UI Migration: `COMPLETE` after M8B implementation, pending review/merge. Pending follow-up is deploy, real iPhone manual validation, and optional future compatibility cleanup.
+- M8B: Done and merged to `main` in PR #10. Merge commit: `e1048c8de66126c4c93952261d70313b1180ec43`.
+- Production UI Migration: `COMPLETE`. Pending follow-up is release/deploy validation, real iPhone manual validation, and optional future compatibility cleanup.
+
+## Post-Migration Closeout / Release Readiness
+
+- Production base SHA: `e1048c8de66126c4c93952261d70313b1180ec43` (`origin/main`, PR #10 / M8B merge)
+- Branch: `chore/post-migration-release-readiness`
+- Current migration count: 17 SQL files. Current Worker public route count: 65.
+- Scope is documentation closeout and read-only release readiness audit. No UI, API, schema, or migration change is part of this work; this is not M9 feature development.
+- Production UI Migration: `COMPLETE`.
+- Pending follow-up: release/deploy validation; real iPhone manual validation; optional future compatibility cleanup.
+- Staging deploy: `NOT RUN`. Production deploy: `NOT RUN`. Remote migration apply: `NOT RUN`. Production data writes: none.
+- Cloudflare findings and machine-readable readiness state are recorded under `docs/evidence/release-readiness/diagnostics/`.
 
 ## M7 start record
 
 - Production base SHA: `d89a9d7ad52f5580b65a2a44b0e350295ef542c7` (`origin/main`, PR #7 / M6 merge)
 - Mockup reference SHA: `db8941dc3056f07862014242a349ae366da59e9c` (`HouseToDo-Mockup` `origin/main`)
 - Branch: `feat/production-integration-legacy-m7`
-- M6 is merged; M7 is merged in PR #8; M8A is the current milestone and M8B is pending review.
+- M6 is merged; M7 is merged in PR #8; M8A and M8B are complete. This historical record is superseded by the Post-Migration Closeout / Release Readiness section above.
 - Scope boundary: canonical frontend route integration, legacy user-facing redirect/cleanup, local two-user verification, E2E/PWA integration. Worker routes, services, repositories, D1 schema/migrations, and compatibility response fields remain for M8.
 
 ## M8 cleanup inventory (M7 pre-audit; superseded by M8A audit)
@@ -42,7 +54,7 @@ M1〜M7は`origin/main`で完了。M8AはPR #9でmerge済み。M8Bは`feat/backe
 - M7 deliberately left all backend template and compatibility surfaces in place pending M8A reachability review.
 - M8A confirms `listShoppingTemplates` and the `ShoppingTemplate` type are canonical reuse contracts; Task/Shopping template CRUD wrappers and other dead frontend wrappers were removed from `src/api`.
 - Worker template routes, compatibility response fields, repositories, services, D1 tables/columns, and migration history remain unchanged where external consumers or persisted compatibility cannot be disproven from this repository.
-- M8B candidates are recorded with reader, writer, migration requirement, risk, and recommended action in `docs/evidence/m8a/diagnostics/api-reachability.json`.
+- M8B candidates were finalized with reader, writer, migration requirement, risk, and recommended action in `docs/evidence/m8b/diagnostics/final-candidate-decisions.json`.
 
 ## M7 completion record
 
@@ -68,7 +80,7 @@ M1〜M7は`origin/main`で完了。M8AはPR #9でmerge済み。M8Bは`feat/backe
 
 - Dashboard `todayTasks`, `weeklyTasks`, `summary` and Calendar additive count/status fields remain `DEFER_COMPAT`; response-shape removal is intentionally not part of M8A.
 - Auth, Household, notification scheduler, push subscription, image usage/R2 reservation, orphan cleanup, service worker, and PWA contracts are KEEP and were not simplified based on frontend grep results.
-- M8B candidates, current readers/writers, migration requirements, risks, and recommended action are machine-readable in `api-reachability.json` and are pending reviewer decision.
+- M8B candidates, current readers/writers, migration requirements, risks, and recommended action are finalized in the M8A/M8B diagnostics; no candidate was removed in M8B.
 
 ## M6 start record
 
@@ -197,4 +209,4 @@ For visible UI migrations, generate a clean reviewer upload package after the fi
 - Review corrections include the flat row button border reset, green timezone selection check, read-only-but-not-disabled email styling, clipboard success/fallback coverage, and single-flight display-name commits (Enter and blur each issue exactly one PATCH).
 - Local gates passed: lint, typecheck, build, full Vitest (37 files / 228 tests), M5 Playwright (6 tests), and semantic Evidence capture. Clipboard success asserts `コードをコピーしました`; rejected clipboard asserts the safe selection fallback. Docker authenticated E2E was unavailable and was not treated as passed.
 - Calendar/Shopping baseline comparison used the same command and allowed-origin Worker environment at base `585e65f3d976710a19ef5bbc8317d4ebef2c3ddb` and the M5 branch. Base failed at the pre-existing legacy heading/selector assumptions: Calendar `カレンダー` heading, Shopping `買い物` strict locator, and Home `ホーム` heading. The branch reached later local fixture failures: `.calendar-cell--today` count 0, Shopping reorder remained `牛乳` before `パン`, and the M1 smoke still expected legacy `買い物リスト`. These are recorded as pre-existing regression-suite/fixture incompatibilities; no M5 behavior regression was identified.
-- Deployment status: staging/production not performed; remote D1 migration, secrets, and Cron were not touched; PR #7/M6 and PR #8/M7 are merged, M8A is the current audit/cleanup boundary, and M8B is pending review.
+- Deployment status: staging/production not performed; remote D1 migration, secrets, and Cron were not touched; PR #7/M6, PR #8/M7, PR #9/M8A, and PR #10/M8B are merged. The current boundary is Post-Migration Closeout / Release Readiness.

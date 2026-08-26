@@ -1,6 +1,18 @@
 # Current milestone tasks
 
-## Production UI Migration M8B — Compatibility / Schema Finalization (current milestone)
+## Post-Migration Closeout / Release Readiness
+
+- [x] Fetch `origin`, confirm clean tree, and create `chore/post-migration-release-readiness` from `origin/main` at `e1048c8de66126c4c93952261d70313b1180ec43`
+- [x] Record production base SHA, branch, migration count 17, Worker route count 65, and current main state
+- [x] Close out M8B as done and merged to `main` in PR #10; record merge commit `e1048c8de66126c4c93952261d70313b1180ec43`
+- [x] Mark Production UI Migration `COMPLETE` and record only release/deploy validation, real iPhone validation, and optional future compatibility cleanup as follow-up
+- [x] Run local lint, typecheck, Vitest, build, local migration, changed-file format check, canonical Chromium, and explicit two-user smoke
+- [x] Run read-only Cloudflare Worker, D1 migration metadata, R2, required-secret-name, and Cron/config audit
+- [x] Generate machine-readable readiness diagnostics and exactly four PNG release-readiness boards
+- [x] Add the real iPhone manual validation checklist
+- [x] Commit, push, and open PR `Post-Migration Closeout / Release Readiness Audit`; do not merge or deploy
+
+## Production UI Migration M8B — Compatibility / Schema Finalization (completed in PR #10)
 
 - [x] Confirm clean working tree, verify PR #9 merged, verify `origin/main` at `3c608ac07f90ca0f0d10d0e515c50b14b62ba83a`, and create `feat/backend-finalization-m8b`
 - [x] Read M8A diagnostics and freeze the six-candidate scope
@@ -11,12 +23,12 @@
 - [x] Generate final candidate decisions, final schema snapshot, API/schema diff, legacy compatibility, and final gate diagnostics
 - [x] Run lint, typecheck, Vitest, build, local migration, changed-source format check, canonical Chromium, two-user, scheduler/notification, and image/R2-safe checks
 - [x] Generate exactly four PNG boards and four WebM motion files for `docs/evidence/m8b/review-upload/`
-- [x] Commit implementation and Evidence separately, push, and open a Draft PR; do not merge, deploy, or run remote migration
+- [x] Commit implementation and Evidence separately, push, and open PR #10; do not deploy or run remote migration
 
 ## M8B final status
 
 - [x] Production UI Migration is complete after M8B implementation: all six candidates are `REMOVE_SAFE` implemented or `KEEP_*` with a recorded reason
-- [ ] Human review and merge of the M8B Draft PR
+- [x] Human review and merge of the M8B PR #10
 - [ ] Deploy, remote migration, and real iPhone manual validation
 
 ## Production UI Migration M8A — Backend Reachability Audit / Non-destructive Cleanup (current milestone)
@@ -31,10 +43,10 @@
 - [x] Generate four diagnostic boards, four local regression WebM files, and exactly eight reviewer-upload files
 - [x] Commit, push, and create Draft PR #9 without merge, deploy, remote migration, secret/Cron changes, or M8B work
 
-## M8B — pending review after M8A
+## M8B compatibility follow-up record (closed in PR #10)
 
-- [ ] Review schema, compatibility response, and persisted-value candidates from M8A diagnostics
-- [ ] No M8B destructive migration or compatibility cleanup is part of this task
+- [x] Review schema, compatibility response, and persisted-value candidates from M8A diagnostics
+- [x] Confirm no M8B destructive migration or compatibility cleanup was required; schema change is NONE
 
 ## Production UI Migration M7 — Integration / Legacy UI Cleanup (merged to main in PR #8)
 

@@ -1,0 +1,145 @@
+{
+  "generatedAt": "2026-08-26T12:23:13.196Z",
+  "commandResults": [
+    {
+      "name": "lint",
+      "command": "npm.cmd run lint",
+      "exitCode": 0,
+      "status": "PASS",
+      "summary": "> house-to-do@0.1.0 lint | > eslint ."
+    },
+    {
+      "name": "typecheck",
+      "command": "npm.cmd run typecheck",
+      "exitCode": 0,
+      "status": "PASS",
+      "summary": "> house-to-do@0.1.0 typecheck | > tsc --noEmit"
+    },
+    {
+      "name": "Vitest",
+      "command": "npm.cmd test",
+      "exitCode": 0,
+      "status": "PASS",
+      "summary": "38 files / 238 tests"
+    },
+    {
+      "name": "build",
+      "command": "npm.cmd run build",
+      "exitCode": 0,
+      "status": "PASS",
+      "summary": "transforming... | ✓ 1839 modules transformed. | rendering chunks... | computing gzip size... | dist/client/index.html                   0.59 kB │ gzip:  0.36 kB | dist/client/assets/index-Cp0w5hjt.css   65.53 kB │ gzip: 11.32 kB | dist/client/assets/index-CNyIWL6p.js   301.79 kB │ gzip: 89.80 kB | ✓ built in 2.24s"
+    },
+    {
+      "name": "local migration",
+      "command": "npm.cmd run db:migrate:local",
+      "exitCode": 0,
+      "status": "PASS",
+      "summary": "> house-to-do@0.1.0 db:migrate:local | > wrangler d1 migrations apply house-to-do --local | ⛅️ wrangler 4.114.0 (update available 4.126.0) | ─────────────────────────────────────────────── | Resource location: local | Use --remote if you want to access the remote instance. | ✅ No migrations to apply!"
+    },
+    {
+      "name": "changed-source format",
+      "command": "C:\\Program Files\\nodejs\\node.exe C:\\Users\\rinnr\\Documents\\GitHub\\HouseToDo\\node_modules\\prettier\\bin\\prettier.cjs --check scripts/generate-release-readiness.mjs .ai/MILESTONE.md .ai/TASKS.md docs/PRODUCTION_UI_MIGRATION.md docs/RELEASE_MANUAL_CHECKLIST.md",
+      "exitCode": 0,
+      "status": "PASS",
+      "summary": "Checking formatting... | All matched files use Prettier code style!"
+    },
+    {
+      "name": "canonical Chromium",
+      "command": "prior actual browser baseline retained; see readiness.json",
+      "exitCode": 0,
+      "status": "PASS",
+      "summary": "38 passed / 1 skipped"
+    },
+    {
+      "name": "two-user smoke",
+      "command": "prior actual browser baseline retained; see readiness.json",
+      "exitCode": 0,
+      "status": "PASS",
+      "summary": "4 passed / 0 skipped"
+    },
+    {
+      "name": "Cloudflare auth",
+      "command": "C:\\Program Files\\nodejs\\node.exe C:\\Users\\rinnr\\Documents\\GitHub\\HouseToDo\\node_modules\\wrangler\\bin\\wrangler.js whoami --json",
+      "exitCode": 0,
+      "status": "PASS",
+      "summary": "\"connectivity:admin\", | \"email_routing:write\", | \"email_sending:write\", | \"browser:write\", | \"challenge-widgets.write\", | \"offline_access\" | ] | }"
+    },
+    {
+      "name": "default Worker versions",
+      "command": "C:\\Program Files\\nodejs\\node.exe C:\\Users\\rinnr\\Documents\\GitHub\\HouseToDo\\node_modules\\wrangler\\bin\\wrangler.js versions list --name house-to-do --json",
+      "exitCode": 1,
+      "status": "FAIL",
+      "summary": "\u001b[31mX \u001b[41;31m[\u001b[41;97mERROR\u001b[41;31m]\u001b[0m \u001b[1mA request to the Cloudflare API (/accounts/[redacted-account]/workers/scripts/house-to-do/versions?deployable=true) failed.\u001b[0m | This Worker does not exist on your account. [code: 10007] | If you think this is a bug, please open an issue at: \u001b[4mhttps://github.com/cloudflare/workers-sdk/issues/new/choose\u001b[0m | 🪵  Logs were written to \"Wrangler log path redacted"
+    },
+    {
+      "name": "default Worker deployments",
+      "command": "C:\\Program Files\\nodejs\\node.exe C:\\Users\\rinnr\\Documents\\GitHub\\HouseToDo\\node_modules\\wrangler\\bin\\wrangler.js deployments list --name house-to-do --json",
+      "exitCode": 1,
+      "status": "FAIL",
+      "summary": "\u001b[31mX \u001b[41;31m[\u001b[41;97mERROR\u001b[41;31m]\u001b[0m \u001b[1mA request to the Cloudflare API (/accounts/[redacted-account]/workers/scripts/house-to-do/deployments) failed.\u001b[0m | This Worker does not exist on your account. [code: 10007] | If you think this is a bug, please open an issue at: \u001b[4mhttps://github.com/cloudflare/workers-sdk/issues/new/choose\u001b[0m | 🪵  Logs were written to \"Wrangler log path redacted"
+    },
+    {
+      "name": "staging Worker versions",
+      "command": "C:\\Program Files\\nodejs\\node.exe C:\\Users\\rinnr\\Documents\\GitHub\\HouseToDo\\node_modules\\wrangler\\bin\\wrangler.js versions list --name house-to-do-staging --json",
+      "exitCode": 0,
+      "status": "PASS",
+      "summary": "\"author_email\": \"[redacted-email]\", | \"has_preview\": true | }, | \"annotations\": { | \"workers/triggered_by\": \"version_upload\" | } | } | ]"
+    },
+    {
+      "name": "staging Worker deployments",
+      "command": "C:\\Program Files\\nodejs\\node.exe C:\\Users\\rinnr\\Documents\\GitHub\\HouseToDo\\node_modules\\wrangler\\bin\\wrangler.js deployments list --name house-to-do-staging --json",
+      "exitCode": 0,
+      "status": "PASS",
+      "summary": "{ | \"version_id\": \"26a6fbf9-476e-4d36-9dfa-8ef07c07275c\", | \"percentage\": 100 | } | ], | \"created_on\": \"2026-08-18T12:50:07.985473Z\" | } | ]"
+    },
+    {
+      "name": "default D1 migration status",
+      "command": "C:\\Program Files\\nodejs\\node.exe C:\\Users\\rinnr\\Documents\\GitHub\\HouseToDo\\node_modules\\wrangler\\bin\\wrangler.js d1 migrations list house-to-do --remote",
+      "exitCode": 1,
+      "status": "FAIL",
+      "summary": "⛅️ wrangler 4.114.0 (update available 4.126.0) | ─────────────────────────────────────────────── | Resource location: remote | \u001b[31mX \u001b[41;31m[\u001b[41;97mERROR\u001b[41;31m]\u001b[0m \u001b[1mA request to the Cloudflare API (/accounts/[redacted-account]/d1/database/00000000-0000-0000-0000-000000000000/query) failed.\u001b[0m | The database 00000000-0000-0000-0000-000000000000 could not be found [code: 7404] | If you think this is a bug, please open an issue at: \u001b[4mhttps://github.com/cloudflare/workers-sdk/issues/new/choose\u001b[0m | 🪵  Logs were written to \"Wrangler log path redacted"
+    },
+    {
+      "name": "staging D1 migration status",
+      "command": "C:\\Program Files\\nodejs\\node.exe C:\\Users\\rinnr\\Documents\\GitHub\\HouseToDo\\node_modules\\wrangler\\bin\\wrangler.js d1 migrations list house-to-do-staging --env staging --remote",
+      "exitCode": 0,
+      "status": "PASS",
+      "summary": "│ Name                                               │ | ├────────────────────────────────────────────────────┤ | │ 0015_account_avatars_and_morning_notifications.sql │ | ├────────────────────────────────────────────────────┤ | │ 0016_task_record_snapshots.sql                     │ | ├────────────────────────────────────────────────────┤ | │ 0017_calendar_action_date.sql                      │ | └────────────────────────────────────────────────────┘"
+    },
+    {
+      "name": "staging D1 migration metadata",
+      "command": "C:\\Program Files\\nodejs\\node.exe C:\\Users\\rinnr\\Documents\\GitHub\\HouseToDo\\node_modules\\wrangler\\bin\\wrangler.js d1 execute DB --env staging --remote --command SELECT id, name, applied_at FROM d1_migrations ORDER BY id --json",
+      "exitCode": 0,
+      "status": "PASS",
+      "summary": "\"changed_db\": false, | \"size_after\": 503808, | \"rows_read\": 14, | \"rows_written\": 0, | \"total_attempts\": 1 | } | } | ]"
+    },
+    {
+      "name": "R2 bucket list",
+      "command": "C:\\Program Files\\nodejs\\node.exe C:\\Users\\rinnr\\Documents\\GitHub\\HouseToDo\\node_modules\\wrangler\\bin\\wrangler.js r2 bucket list",
+      "exitCode": 0,
+      "status": "PASS",
+      "summary": "⛅️ wrangler 4.114.0 (update available 4.126.0) | ─────────────────────────────────────────────── | Listing buckets... | name:           house-to-do-attachments-staging | creation_date:  2026-08-04T08:43:18.086Z"
+    },
+    {
+      "name": "default Worker secret names",
+      "command": "C:\\Program Files\\nodejs\\node.exe C:\\Users\\rinnr\\Documents\\GitHub\\HouseToDo\\node_modules\\wrangler\\bin\\wrangler.js secret list --name house-to-do --format json",
+      "exitCode": 1,
+      "status": "FAIL",
+      "summary": "\u001b[31mX \u001b[41;31m[\u001b[41;97mERROR\u001b[41;31m]\u001b[0m \u001b[1mWorker \"house-to-do\" not found.\u001b[0m | If this is a new Worker, run `wrangler deploy` first to create it. | Otherwise, check that the Worker name is correct and you're logged into the right account. | 🪵  Logs were written to \"Wrangler log path redacted"
+    },
+    {
+      "name": "staging Worker secret names",
+      "command": "C:\\Program Files\\nodejs\\node.exe C:\\Users\\rinnr\\Documents\\GitHub\\HouseToDo\\node_modules\\wrangler\\bin\\wrangler.js secret list --name house-to-do-staging --format json",
+      "exitCode": 0,
+      "status": "PASS",
+      "summary": "\"name\": \"WEB_PUSH_VAPID_PRIVATE_KEY\", | \"type\": \"secret_text\" | }, | { | \"name\": \"WEB_PUSH_VAPID_PUBLIC_KEY\", | \"type\": \"secret_text\" | } | ]"
+    },
+    {
+      "name": "latest staging Worker version metadata",
+      "command": "C:\\Program Files\\nodejs\\node.exe C:\\Users\\rinnr\\Documents\\GitHub\\HouseToDo\\node_modules\\wrangler\\bin\\wrangler.js versions view 26a6fbf9-476e-4d36-9dfa-8ef07c07275c --name house-to-do-staging --json",
+      "exitCode": 0,
+      "status": "PASS",
+      "summary": "}, | { | \"name\": \"WEB_PUSH_VAPID_PUBLIC_KEY\", | \"type\": \"secret_text\" | } | ] | } | }"
+    }
+  ]
+}
