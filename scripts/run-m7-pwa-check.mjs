@@ -11,6 +11,53 @@ const assert = (condition, message) => {
 };
 const originHeaders = { origin: base };
 
+const waitForHeading = (page, name) =>
+  page.getByRole("heading", { name, exact: true }).waitFor({ state: "visible" });
+const waitForTextToDisappear = (page, text) =>
+  page.waitForFunction((value) => !document.body.innerText.includes(value), text);
+const waitForCanonicalScreen = async (page, path) => {
+  if (path === "/home") {
+    await waitForHeading(page, "やること");
+    await waitForTextToDisappear(page, "家庭の情報を確認しています");
+    return;
+  }
+  if (path === "/calendar") {
+    await page.getByRole("grid", { name: /カレンダー/ }).waitFor({ state: "visible" });
+    await waitForTextToDisappear(page, "カレンダーを読み込んでいます");
+    return;
+  }
+  if (path === "/shopping") {
+    await waitForHeading(page, "買い物");
+    await waitForTextToDisappear(page, "買い物リストを読み込んでいます");
+    return;
+  }
+  if (path === "/other") {
+    await waitForHeading(page, "その他");
+    await page.locator(".m5-other-row").first().waitFor({ state: "visible" });
+    return;
+  }
+  if (path === "/tasks/new") {
+    await waitForHeading(page, "家事を追加");
+    return;
+  }
+  if (path === "/shopping/new") {
+    await waitForHeading(page, "買い物を追加");
+    return;
+  }
+  throw new Error(`no canonical readiness assertion for ${path}`);
+};
+
+const readyRoute = async (page, path) => {
+  const response = await page.goto(`${base}${path}`);
+  const httpOk = Boolean(response && response.status() < 400);
+  assert(httpOk, `direct route failed: ${path}`);
+  await waitForCanonicalScreen(page, path);
+  const uiReady = true;
+  await page.reload();
+  await waitForCanonicalScreen(page, path);
+  return { httpOk, uiReady };
+};
+
 const pngSize = (bytes) => {
   assert(
     bytes.length >= 24 && bytes.readUInt32BE(0) === 0x89504e47,
@@ -120,10 +167,7 @@ for (const path of [
   "/tasks/new",
   "/shopping/new"
 ]) {
-  const response = await page.goto(`${base}${path}`);
-  assert(response && response.status() < 400, `direct route failed: ${path}`);
-  await page.waitForLoadState("domcontentloaded");
-  result.directRoutes[path] = true;
+  result.directRoutes[path] = await readyRoute(page, path);
 }
 
 const plannedDate = new Intl.DateTimeFormat("en-CA", {
@@ -146,55 +190,65 @@ assert(
 );
 const itemId = (await itemResponse.json()).data.item.id;
 const deepLink = `/shopping?item=${encodeURIComponent(itemId)}`;
-await page.goto(`${base}${deepLink}`);
+const deepLinkResponse = await page.goto(`${base}${deepLink}`);
+const deepLinkHttpOk = Boolean(deepLinkResponse && deepLinkResponse.status() < 400);
+assert(deepLinkHttpOk, "deep link route failed");
 const targetRow = page.locator(`[data-shopping-m4-id="${itemId}"]`);
-await targetRow.waitFor();
-await page.waitForTimeout(650);
-await targetRow
-  .getByRole("button", { name: new RegExp(`M7 PWA deep link ${id}`) })
-  .waitFor();
-assert(
-  (await targetRow
-    .getByRole("button", { name: new RegExp(`M7 PWA deep link ${id}`) })
-    .getAttribute("aria-expanded")) === "true",
-  "deep link target did not expand"
-);
-await targetRow.getByRole("button", { name: "購入" }).waitFor();
-await page.screenshot({ path: `${screenshotDir}/pwa-shopping.png`, fullPage: true });
+const assertDeepLinkReady = async () => {
+  await targetRow.waitFor({ state: "visible" });
+  const targetButton = targetRow.getByRole("button", {
+    name: new RegExp(`M7 PWA deep link ${id}`)
+  });
+  await targetButton.waitFor({ state: "visible" });
+  assert(
+    (await targetButton.getAttribute("aria-expanded")) === "true",
+    "deep link target did not expand"
+  );
+  await targetRow.getByRole("button", { name: "購入" }).waitFor({ state: "visible" });
+};
+await assertDeepLinkReady();
+result.directRoutes[deepLink] = { httpOk: deepLinkHttpOk, uiReady: true };
+await page.screenshot({
+  path: `${screenshotDir}/pwa-deeplink-shopping.png`,
+  fullPage: true
+});
 await page.reload();
-await targetRow.waitFor();
-assert(
-  (await targetRow
-    .getByRole("button", { name: new RegExp(`M7 PWA deep link ${id}`) })
-    .getAttribute("aria-expanded")) === "true",
-  "deep link expansion was not restored after reload"
-);
+await assertDeepLinkReady();
 
 await page.goto(`${base}/calendar`);
+await waitForCanonicalScreen(page, "/calendar");
 const dayLabel = `${Number(plannedDate.slice(5, 7))}月${Number(plannedDate.slice(8, 10))}日`;
 const dayCell = page.locator(`.calendar-day-cell[aria-label^="${dayLabel}"]`);
 await dayCell.click();
 await page.getByRole("heading", { name: "買うもの" }).waitFor();
 await page.getByRole("button", { name: new RegExp(`M7 PWA deep link ${id}`) }).click();
 await page.waitForURL(new RegExp(`/shopping\\?item=${itemId}`));
-await page
-  .locator(`[data-shopping-m4-id="${itemId}"]`)
-  .getByRole("button", { name: "購入" })
-  .waitFor();
-await page.screenshot({ path: `${screenshotDir}/pwa-calendar.png`, fullPage: true });
+await assertDeepLinkReady();
+await page.screenshot({
+  path: `${screenshotDir}/pwa-calendar-date-sheet.png`,
+  fullPage: true
+});
+
+// Final Smoke captures are intentionally last and use screen-specific readiness,
+// so intermediate deep-link/date-sheet states cannot overwrite them.
 await page.getByRole("button", { name: "カレンダー" }).click();
-await page.waitForLoadState("domcontentloaded");
+await page.waitForURL(/\/calendar$/);
+await waitForCanonicalScreen(page, "/calendar");
 await page.screenshot({ path: `${screenshotDir}/pwa-calendar.png`, fullPage: true });
-await page.reload();
-await page.getByRole("grid", { name: /カレンダー/ }).waitFor();
+
 await page.getByRole("button", { name: "買い物" }).click();
-await page.waitForLoadState("domcontentloaded");
+await page.waitForURL(/\/shopping$/);
+await waitForCanonicalScreen(page, "/shopping");
 await page.screenshot({ path: `${screenshotDir}/pwa-shopping.png`, fullPage: true });
+
 await page.getByRole("button", { name: "その他" }).click();
-await page.waitForLoadState("domcontentloaded");
+await page.waitForURL(/\/other$/);
+await waitForCanonicalScreen(page, "/other");
 await page.screenshot({ path: `${screenshotDir}/pwa-other.png`, fullPage: true });
+
 await page.getByRole("button", { name: "ホーム" }).click();
-await page.waitForLoadState("domcontentloaded");
+await page.waitForURL(/\/home$/);
+await waitForCanonicalScreen(page, "/home");
 await page.screenshot({ path: `${screenshotDir}/pwa-home.png`, fullPage: true });
 
 await page.goto(`${base}/tasks`);
@@ -234,17 +288,36 @@ assert(
   "service worker controller missing after reload"
 );
 
+let webkitFailure = null;
+let webkitBrowser = null;
 try {
-  const webkitBrowser = await webkit.launch({ headless: true });
-  const webkitPage = await webkitBrowser.newPage({
-    viewport: { width: 390, height: 844 }
-  });
-  await webkitPage.goto(`${base}/home`);
-  await webkitPage.getByRole("heading", { name: "やること" }).waitFor();
-  result.webkit = "PASS";
-  await webkitBrowser.close();
+  webkitBrowser = await webkit.launch({ headless: true });
 } catch (error) {
-  result.webkit = `UNAVAILABLE: ${error instanceof Error ? error.message.split("\n")[0] : "executable unavailable"}`;
+  const message = error instanceof Error ? error.message : "executable unavailable";
+  if (/Executable doesn't exist|Executable doesn't exist at/.test(message)) {
+    result.webkit = `UNAVAILABLE: ${message.split("\n")[0]}`;
+  } else {
+    result.webkit = "FAIL";
+    webkitFailure = new Error(`WebKit launch failed: ${message}`);
+  }
+}
+if (webkitBrowser) {
+  try {
+    const webkitPage = await webkitBrowser.newPage({
+      viewport: { width: 390, height: 844 }
+    });
+    await webkitPage.goto(`${base}/`);
+    await webkitPage
+      .getByRole("heading", { name: "ログイン" })
+      .waitFor({ state: "visible" });
+    result.webkit = "PASS";
+  } catch (error) {
+    result.webkit = "FAIL";
+    webkitFailure =
+      error instanceof Error ? error : new Error("WebKit UI smoke failed");
+  } finally {
+    await webkitBrowser.close();
+  }
 }
 
 try {
@@ -268,4 +341,5 @@ await writeFile(
   JSON.stringify(result, null, 2) + "\n",
   "utf8"
 );
+if (webkitFailure) throw webkitFailure;
 console.log(JSON.stringify(result, null, 2));

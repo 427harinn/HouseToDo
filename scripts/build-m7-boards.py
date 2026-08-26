@@ -64,7 +64,17 @@ def require_pwa():
         pwa.get("startUrl", {}).get("householdReadyHome"), pwa.get("legacyRoute", {}).get("result") == "PASS",
         pwa.get("notificationSanitizer", {}).get("result") == "PASS",
     ]
-    required.extend(pwa.get("directRoutes", {}).get(path) is True for path in ["/home", "/calendar", "/shopping", "/other", "/tasks/new", "/shopping/new"])
+    direct_routes = pwa.get("directRoutes", {})
+    required.extend(
+        isinstance(direct_routes.get(path), dict)
+        and direct_routes[path].get("httpOk") is True
+        and direct_routes[path].get("uiReady") is True
+        for path in ["/home", "/calendar", "/shopping", "/other", "/tasks/new", "/shopping/new"]
+    )
+    required.append(all(
+        isinstance(value, dict) and value.get("httpOk") is True and value.get("uiReady") is True
+        for value in direct_routes.values()
+    ))
     if not all(required):
         raise SystemExit("pwa diagnostic contains a missing or failed required assertion")
 
@@ -170,7 +180,7 @@ def board4():
         f"service worker registered: {'PASS' if pwa['serviceWorker']['registered'] else 'FAIL'}   scope: {pwa['serviceWorker']['scope']}",
         f"active: {'PASS' if pwa['serviceWorker']['active'] else 'FAIL'}   controller after reload: {'PASS' if pwa['serviceWorker']['controllerAfterReload'] else 'FAIL'}",
         f"start_url state machine: {'PASS' if all(pwa['startUrl'].values()) else 'FAIL'}",
-        f"direct route reload: {'PASS' if all(pwa['directRoutes'].values()) else 'FAIL'}",
+        f"direct route reload + UI ready: {'PASS' if all(value.get('httpOk') and value.get('uiReady') for value in pwa['directRoutes'].values()) else 'FAIL'}",
         f"legacy direct route: {pwa['legacyRoute']['result']}",
         f"notification URL sanitizer: {pwa['notificationSanitizer']['result']}",
         f"WebKit smoke: {pwa['webkit']}",
