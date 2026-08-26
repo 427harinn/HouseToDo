@@ -11,7 +11,7 @@ HouseToDo-Mockup latest mainをdesign / interaction / motionのcanonical source 
 | M3 | Calendar screen visual migration and Calendar interactions | Done |
 | M4 | Shopping screen visual migration and Shopping interactions | Done on `main` after PR #5 |
 | M5 | Other / Settings and formal `/other` route | Done and merged to `main` in PR #6 |
-| M6 | Auth / Household Entry. Guest and onboarding are removed from the new UI direction, not visually migrated. | In progress on `feat/production-auth-entry-m6` |
+| M6 | Auth / Household Entry. Guest and onboarding are removed from the new UI direction, not visually migrated. | Implemented on `feat/production-auth-entry-m6`; Draft PR #7 open |
 | M7 | Integration / Legacy UI cleanup: retire user-facing old Task list/detail/respond/templates and Shopping detail/templates routes, then verify 2-user flows, E2E, and PWA behavior | Planned |
 | M8 | Legacy backend cleanup: after the new UI is stable, safely remove unused API/DB/compatibility code in separate PRs | Planned |
 
@@ -39,6 +39,7 @@ M5まで`origin/main`で完了。M6 Auth / Household Entryを`feat/production-au
 - Production base SHA: `ed749b70707068b1b7dfb96e055d4e06371af094`
 - Mockup reference SHA: `db8941dc3056f07862014242a349ae366da59e9c`
 - Evidence scope: nine Production and nine Mockup 390x844 states, four actual-input/click WebM flows, four GIF previews, four labeled parity boards, and an exact eight-file `review-upload` package.
+- Implementation commit: `0150ed4`; Evidence refresh commit: `8113629`; Draft PR: `#7`.
 - Quality-gate note: lint, typecheck, build, targeted M6 App tests (25/25), M6 Playwright (5/5), Worker invite-validation coverage, and semantic Evidence capture pass. Full Vitest has one pre-existing M2 Home fixture failure (36 files / 232 passed / 1 failed); the same test fails at this M6 base SHA and was not changed by M6.
 - Docker-authenticated E2E was unavailable and was not treated as passed. Home/Calendar/Shopping/Other smoke coverage was run through the existing local test fixtures; no unrelated legacy selector/fixture failures were changed.
 - No migration, remote D1 operation, staging deploy, production deploy, secrets change, Cron change, or PR merge was performed.

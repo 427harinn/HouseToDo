@@ -6,7 +6,7 @@
 - M2 Home + Task is complete on the dedicated production branch. Mockup is used only for design, interaction, and motion reference; production API, auth, permissions, persisted data, and Cloudflare architecture remain authoritative.
 - M3 Calendar and M4 Shopping are complete on `origin/main`.
 - M5 Other / Settings is complete and merged in PR #6 at base `ed749b7`.
-- M6 Auth / Household Entry is the current milestone on `feat/production-auth-entry-m6`.
+- M6 Auth / Household Entry is implemented on `feat/production-auth-entry-m6`; Draft PR #7 is open for review.
 - M7 legacy cleanup and M8 backend cleanup are explicitly out of scope.
 - 詳細なM1〜M8計画は[docs/PRODUCTION_UI_MIGRATION.md](../docs/PRODUCTION_UI_MIGRATION.md)を参照。
 
@@ -24,6 +24,12 @@
 - Add only the minimal unauthenticated read-only invite validation contract needed to avoid register-then-join partial success for invalid invite codes.
 - Remove Guest and Onboarding from the new runtime flow by redirecting `/guest` and `/onboarding` through the auth/household state machine.
 - Add M6 unit/API/E2E coverage and fresh 390x844 Production/Mockup parity and motion Evidence.
+
+## M6 completion record
+
+- Implementation commit: `0150ed4`; Evidence refresh commit: `8113629`; Draft PR: `https://github.com/427harinn/HouseToDo/pull/7`.
+- Review package contains exactly four labeled boards and four canonical WebM files. GIFs remain under `motion/previews/` only.
+- No merge, deploy, remote D1 migration, secrets/Cron change, or M7 work was performed.
 
 ## M2 delivery
 

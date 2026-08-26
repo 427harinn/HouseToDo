@@ -1,6 +1,6 @@
 # Current milestone tasks
 
-## Production UI Migration M6 — Auth / Household Entry (in progress)
+## Production UI Migration M6 — Auth / Household Entry (implemented; Draft PR #7 open)
 
 - [x] Confirm latest Production `origin/main` / PR #6 M5 merge and create `feat/production-auth-entry-m6`
 - [x] Record Production base SHA `ed749b70707068b1b7dfb96e055d4e06371af094` and Mockup SHA `db8941dc3056f07862014242a349ae366da59e9c`
@@ -11,7 +11,7 @@
 - [x] Preserve session, PBKDF2, cookie, permission, invite expiry/single-use, and D1 semantics
 - [x] Add M6 unit/API/Playwright coverage and Home/Calendar/Shopping/Other smoke checks
 - [x] Generate nine Production + nine Mockup captures, four boards, four WebM, four GIF previews, and exact eight-file review package
-- [ ] Run final gates, commit, push, and create a Draft PR without merge/deploy/M7 (full Vitest has one base-reproduced M2 fixture failure; Docker authenticated E2E unavailable)
+- [x] Run final gates, commit, push, and create Draft PR #7 without merge/deploy/M7 (full Vitest has one base-reproduced M2 fixture failure; Docker authenticated E2E unavailable)
 
 ## Production UI Migration M5 — Other / Settings (current milestone)
 
