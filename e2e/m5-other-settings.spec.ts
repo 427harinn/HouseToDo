@@ -29,7 +29,7 @@ async function mockM5Api(page: import("@playwright/test").Page) {
 
 test.describe("M5 Other / Settings", () => {
   test.beforeEach(async ({ page }) => {
-    await page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin: "http://127.0.0.1:5174" });
+    await page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin: process.env.PLAYWRIGHT_BASE_URL ?? "http://app:5173" });
     await page.addInitScript(() => {
       Object.defineProperty(window, "Notification", { configurable: true, value: { permission: "granted", requestPermission: async () => "granted" } });
       window.PushManager = function PushManager() {};

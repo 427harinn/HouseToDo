@@ -1,6 +1,19 @@
 # Current milestone tasks
 
-## Production UI Migration M6 — Auth / Household Entry (implemented; Draft PR #7 open)
+## Production UI Migration M7 — Integration / Legacy UI Cleanup (current milestone)
+
+- [x] Confirm clean working tree, fetch Production/Mockup main, confirm M6 PR #7 merge, and create `feat/production-integration-legacy-m7` from Production `d89a9d7`
+- [x] Record Production base SHA `d89a9d7ad52f5580b65a2a44b0e350295ef542c7` and Mockup SHA `db8941dc3056f07862014242a349ae366da59e9c`
+- [x] Update M6/M7/M8 milestone state and record the pre-change legacy route inventory/matrix
+- [ ] Replace legacy user-facing routes with canonical history-replacing redirects and assert no legacy UI flash
+- [ ] Remove only unreachable legacy frontend screens/references; keep backend compatibility for M8
+- [ ] Audit canonical internal navigation and update stale E2E/fixture expectations to the final contract
+- [ ] Verify two-user Task, Shopping, Other/permission, household sync, and session isolation against local Worker + D1
+- [ ] Verify production-like build, manifest/icons, service worker, direct routes, notification URL safety, Chromium 390x844, and WebKit smoke/limitation
+- [ ] Generate M7 route, sync, PWA boards and four canonical WebM files; finalize exactly eight reviewer-upload files
+- [ ] Run all gates, commit, push, and create Draft PR without merge, deploy, remote migration, or M8 cleanup
+
+## Production UI Migration M6 — Auth / Household Entry (merged to main in PR #7)
 
 - [x] Confirm latest Production `origin/main` / PR #6 M5 merge and create `feat/production-auth-entry-m6`
 - [x] Record Production base SHA `ed749b70707068b1b7dfb96e055d4e06371af094` and Mockup SHA `db8941dc3056f07862014242a349ae366da59e9c`
@@ -12,7 +25,7 @@
 - [x] Add M6 unit/API/Playwright coverage and Home/Calendar/Shopping/Other smoke checks
 - [x] Generate nine Production + nine Mockup captures, four boards, four WebM, four GIF previews, and exact eight-file review package
 - [x] Address PR #7 visual parity review: strong Entry primary, secondary labels, placeholder removal, field-error clear, focus-neutral capture, aligned fixtures, vertical boards, and refreshed motion Evidence
-- [x] Run final gates, commit, push, and create Draft PR #7 without merge/deploy/M7 (full Vitest has one base-reproduced M2 fixture failure; Docker authenticated E2E unavailable)
+- [x] Run final gates, commit, push, and create Draft PR #7; PR #7 is now merged at `d89a9d7`; no deploy or remote migration was performed
 
 ## Production UI Migration M5 — Other / Settings (current milestone)
 

@@ -109,7 +109,7 @@ test.describe("shopping image upload UX", () => {
     await page.locator("#shopping-image").setInputFiles(fixture("shopping-item-portrait.png"));
     await expect(page.locator(".shopping-image-preview")).toBeVisible();
     await page.getByRole("button", { name: "保存" }).click();
-    await expect(page).toHaveURL(/\/shopping\/items\/item-1$/);
+    await expect(page).toHaveURL(/\/shopping\?item=item-1$/);
   });
 
   test("normal upload shows usage and refreshes it after success", async ({ page }) => {

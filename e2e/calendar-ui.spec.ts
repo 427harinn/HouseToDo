@@ -61,8 +61,8 @@ test("calendar supports month navigation, selected-date sections, markers, and t
     expect(response.status()).toBe(201);
     return (await response.json()).data.task.id as string;
   };
-  await createTask({ title: `Calendar once ${id}`, modelRecurrenceType: "once", targetDate: today });
-  const dailyId = await createTask({ title: `Calendar daily ${id}`, modelRecurrenceType: "daily" });
+  const onceId = await createTask({ title: `Calendar once ${id}`, modelRecurrenceType: "once", targetDate: today });
+  await createTask({ title: `Calendar daily ${id}`, modelRecurrenceType: "daily" });
   await createTask({ title: `Calendar weekly fixed ${id}`, modelRecurrenceType: "weekly_fixed", weekdays: [weekday(today)] });
   await createTask({ title: `Calendar monthly fixed ${id}`, modelRecurrenceType: "monthly_fixed", monthlyDayOfMonth: Number(today.slice(8, 10)) });
   await createTask({ title: `Calendar weekly flexible ${id}`, modelRecurrenceType: "weekly_flexible", weeklyDeadlineWeekday: weekday(today) });
@@ -71,8 +71,7 @@ test("calendar supports month navigation, selected-date sections, markers, and t
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/calendar");
   await expect(page.getByRole("grid", { name: /カレンダー/ })).toBeVisible();
-  await expect(page.locator(".calendar-cell--today")).toHaveCount(1);
-  await expect(page.getByRole("heading", { name: "今日のタスク" }).first()).toBeVisible();
+  await expect(page.locator(".calendar-day-number.is-today")).toHaveCount(1);
   await expect(page.getByText(`Calendar weekly flexible ${id}`)).toBeVisible();
   await expect(page.getByText(`Calendar monthly flexible ${id}`)).toBeVisible();
   await expectNoHorizontalScroll(page);
@@ -80,15 +79,16 @@ test("calendar supports month navigation, selected-date sections, markers, and t
   await shot(page, "calendar-flexible-sections.png");
 
   const tomorrow = addDays(today, 1);
-  await page.locator(`.calendar-cell[aria-label^="${new Intl.DateTimeFormat("ja-JP", { month: "long", day: "numeric", weekday: "short", timeZone: "UTC" }).format(new Date(`${tomorrow}T00:00:00Z`))}"]`).click();
-  await expect(page.getByRole("heading", { name: /のタスク$/ }).first()).toBeVisible();
+  await page.locator(`.calendar-day-cell[aria-label^="${Number(tomorrow.slice(5, 7))}月${Number(tomorrow.slice(8, 10))}日"]`).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
   await shot(page, "calendar-selected-date.png");
+  await page.getByRole("button", { name: "閉じる", exact: true }).click();
 
-  await page.getByRole("button", { name: "次月" }).click();
+  await page.getByRole("button", { name: "次の月" }).click();
   await expect(page.getByRole("heading", { name: /2026年|年.*月/ }).first()).toBeVisible();
-  await page.getByRole("button", { name: "前月" }).click();
+  await page.getByRole("button", { name: "前の月" }).click();
   await page.getByRole("button", { name: "今日" }).click();
-  await expect(page.getByRole("heading", { name: "今日のタスク" }).first()).toBeVisible();
+  await expect(page.getByRole("grid", { name: /カレンダー/ })).toBeVisible();
 
   await page.setViewportSize({ width: 320, height: 720 });
   await expectNoHorizontalScroll(page);
@@ -99,8 +99,11 @@ test("calendar supports month navigation, selected-date sections, markers, and t
   await expect(page.getByRole("grid", { name: /カレンダー/ })).toBeVisible();
   await shot(page, "calendar-desktop.png");
 
-  await page.getByRole("button", { name: new RegExp(`Calendar daily ${id}`) }).click();
-  await expect(page).toHaveURL(new RegExp(`/tasks/${dailyId}$`));
+  await page.locator(`.calendar-day-task[title="Calendar once ${id}"]`).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.getByRole("button", { name: `Calendar once ${id}の操作` }).click();
+  await page.getByRole("button", { name: "編集" }).click();
+  await expect(page).toHaveURL(new RegExp(`/tasks/${onceId}/edit`));
   expect(errors).toEqual([]);
   expect(requestFailures).toEqual([]);
 });

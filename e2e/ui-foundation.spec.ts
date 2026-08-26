@@ -114,7 +114,7 @@ test("M1 shared navigation and Add sheet work at the 390x844 review viewport", a
 
   await page.getByRole("button", { name: "買い物" }).click();
   await expect(page).toHaveURL(/\/shopping$/);
-  await expect(page.getByRole("heading", { name: "買い物リスト" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "買い物" })).toBeVisible();
   await moveToNeutral(page);
   await page.screenshot({ path: path.join(evidenceDir, "shopping-390x844.png"), fullPage: true });
 

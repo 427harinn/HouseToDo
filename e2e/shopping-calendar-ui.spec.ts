@@ -27,12 +27,7 @@ const addDays = (value: string, amount: number) => {
   return date.toISOString().slice(0, 10);
 };
 const formatCalendarDate = (value: string) =>
-  new Intl.DateTimeFormat("ja-JP", {
-    month: "long",
-    day: "numeric",
-    weekday: "short",
-    timeZone: "UTC"
-  }).format(new Date(`${value}T00:00:00Z`));
+  `${Number(value.slice(5, 7))}月${Number(value.slice(8, 10))}日`;
 const shot = async (page: Page, name: string, fullPage = true) => {
   await mkdir(artifactDir, { recursive: true });
   await page.screenshot({ path: path.resolve(artifactDir, name), fullPage });
@@ -107,6 +102,7 @@ test("planned shopping date integrates with Calendar, purchase state, reuse excl
 
   await page.goto("/shopping/new");
   await expect(page.getByLabel("購入予定日")).toHaveValue("");
+  await page.getByRole("button", { name: "以前の項目から選ぶ" }).click();
   await page.getByRole("button", { name: new RegExp(templateName) }).click();
   await expect(page.getByLabel("購入予定日")).toHaveValue("");
   await page.locator("#shopping-name").fill(itemName);
@@ -115,7 +111,9 @@ test("planned shopping date integrates with Calendar, purchase state, reuse excl
   await page.getByLabel("購入予定日").fill(today);
   await shot(page, "shopping-planned-date-form.png");
   await page.locator('form button[type="submit"]').click();
-  await expect(page.getByRole("heading", { name: itemName })).toBeVisible();
+  await expect(page).toHaveURL(/\/shopping\?item=/);
+  await expect(page.getByText(itemName)).toBeVisible();
+  await page.locator("[data-shopping-m4-id]").filter({ hasText: itemName }).getByRole("button", { name: itemName }).click();
   await expect(page.getByText("購入予定日")).toBeVisible();
 
   const unscheduledItemName = `トイレットペーパー ${id}`;
@@ -128,92 +126,80 @@ test("planned shopping date integrates with Calendar, purchase state, reuse excl
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/calendar");
   const todayCell = page.locator(
-    `.calendar-cell[aria-label^="${formatCalendarDate(today)}"]`
+    `.calendar-day-cell[aria-label^="${formatCalendarDate(today)}"]`
   );
   await expect(todayCell).toHaveAttribute(
     "aria-label",
-    new RegExp("タスク2件、買うもの1件")
+    new RegExp("買い物1件")
   );
+  await todayCell.click();
   await expect(page.getByRole("heading", { name: "買うもの" })).toBeVisible();
   await expect(
-    page.getByRole("button", { name: new RegExp(`${itemName}、未購入`) })
-  ).toBeVisible();
-  await expect(
-    page.getByRole("button", {
-      name: new RegExp(`${unscheduledItemName}、未購入、予定日未定`)
-    })
+    page.getByRole("button", { name: new RegExp(itemName) })
   ).toBeVisible();
   await expectNoHorizontalScroll(page);
   await shot(page, "calendar-shopping-unscheduled.png");
   await shot(page, "calendar-shopping-mixed-schedule.png");
+  await page.getByRole("button", { name: "閉じる", exact: true }).click();
 
   const otherDateCell = page.locator(
-    `.calendar-cell[aria-label^="${formatCalendarDate(movedDate)}"]`
+    `.calendar-day-cell[aria-label^="${formatCalendarDate(movedDate)}"]`
   );
-  await expect(otherDateCell).toHaveAttribute("aria-label", new RegExp("買うもの0件"));
   await otherDateCell.click();
+  await expect(page.getByRole("dialog")).toBeVisible();
   await expect(
-    page.getByRole("button", {
-      name: new RegExp(`${unscheduledItemName}、未購入、予定日未定`)
-    })
-  ).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: new RegExp(`${itemName}、未購入`) })
+    page.getByRole("button", { name: new RegExp(itemName) })
   ).toBeHidden();
+  await page.getByRole("button", { name: "閉じる", exact: true }).click();
 
   await page.goto(`/calendar?date=${today}`);
   await expect(
-    page.getByRole("button", { name: new RegExp(`${itemName}、未購入`) })
+    page.getByRole("button", { name: new RegExp(itemName) })
   ).toBeVisible();
-  await page.getByRole("button", { name: new RegExp(`${itemName}、未購入`) }).click();
-  await expect(page).toHaveURL(/\/shopping\/items\/[^/]+$/);
-  await expect(page.getByRole("heading", { name: itemName })).toBeVisible();
+  await page.getByRole("button", { name: new RegExp(itemName) }).click();
+  await expect(page).toHaveURL(/\/shopping\?item=/);
+  await expect(page.getByText(itemName)).toBeVisible();
+  const shoppingItemId = new URL(page.url()).searchParams.get("item");
+  if (!shoppingItemId) throw new Error("Shopping deep-link did not include an item id");
 
   await page.goto("/shopping");
-  await page.getByRole("button", { name: `${itemName}を購入済みにする` }).click();
+  await page.locator("[data-shopping-m4-id]").filter({ hasText: itemName }).getByRole("button", { name: itemName }).click();
+  await page.getByRole("button", { name: "購入", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: `${itemName}を未購入へ戻す` })
+    page.getByRole("button", { name: /購入済み 1件/ })
   ).toBeVisible();
-  await page.goto("/calendar");
-  await expect(
-    page.getByRole("button", { name: new RegExp(`${itemName}、購入済み`) })
-  ).toBeVisible();
-  await expect(todayCell).toHaveAttribute("aria-label", new RegExp("買うもの1件"));
   await page.goto("/shopping");
-  const shoppingPurchaseDateTime = page.getByText(/2026\/\d+\/\d+ \d{2}:\d{2}/);
+  await page.getByRole("button", { name: /購入済み 1件/ }).click();
+  const shoppingPurchaseDateTime = page.getByText(/2026\/\d{1,2}\/\d{1,2} \d{2}:\d{2}/);
   await expect(shoppingPurchaseDateTime).toBeVisible();
   await shoppingPurchaseDateTime.evaluate((element) =>
     element.scrollIntoView({ block: "center", inline: "nearest" })
   );
   await shot(page, "shopping-purchased-datetime.png", false);
-  await page.goto("/calendar");
-
-  await page.getByRole("button", { name: new RegExp(`${itemName}、購入済み`) }).click();
-  await expect(page.getByText("購入日時")).toBeVisible();
-  await expect(page.getByText(/2026\/\d+\/\d+ \d{2}:\d{2}/)).toBeVisible();
-  await page.getByRole("button", { name: "編集" }).click();
+  await page.locator("[data-shopping-m4-id]").filter({ hasText: itemName }).getByRole("button", { name: itemName }).click();
+  await page.getByRole("button", { name: "戻す", exact: true }).click();
+  await expect(page.getByRole("button", { name: /購入済み 0件/ })).toBeVisible();
+  await page.goto(`/shopping/items/${shoppingItemId}/edit`);
   await expect(page.getByLabel("購入予定日")).toHaveValue(today);
   await page.getByLabel("購入予定日").fill(movedDate);
   await page.locator('form button[type="submit"]').click();
-  await expect(page.getByText("購入予定日")).toBeVisible();
+  await expect(page).toHaveURL(/\/shopping\?item=/);
 
   await page.goto("/calendar");
-  const originalCell = page.locator(
-    `.calendar-cell[aria-label^="${formatCalendarDate(today)}"]`
-  );
   const movedCell = page.locator(
-    `.calendar-cell[aria-label^="${formatCalendarDate(movedDate)}"]`
+    `.calendar-day-cell[aria-label^="${formatCalendarDate(movedDate)}"]`
   );
-  await expect(originalCell).toHaveAttribute("aria-label", new RegExp("買うもの0件"));
-  await expect(movedCell).toHaveAttribute("aria-label", new RegExp("買うもの1件"));
+  await expect(movedCell).toHaveAttribute("aria-label", new RegExp("買い物1件"));
   await movedCell.click();
   await expect(
-    page.getByRole("button", { name: new RegExp(`${itemName}、購入済み`) })
+    page.getByRole("button", { name: new RegExp(itemName) })
   ).toBeVisible();
 
   await page.goto("/shopping/new");
+  await page.getByRole("button", { name: "以前の項目から選ぶ" }).click();
   await page.getByRole("button", { name: new RegExp(itemName) }).click();
   await expect(page.getByLabel("購入予定日")).toHaveValue("");
+  await page.getByRole("button", { name: "以前の項目から選ぶ" }).click();
   await page.getByRole("button", { name: new RegExp(templateName) }).click();
   await expect(page.getByLabel("購入予定日")).toHaveValue("");
 
@@ -225,7 +211,7 @@ test("planned shopping date integrates with Calendar, purchase state, reuse excl
   ]) {
     await page.setViewportSize(size);
     await page.goto(`/calendar?date=${movedDate}`);
-    await expect(page.getByRole("heading", { name: "買うもの" })).toBeVisible();
+    await expect(page.getByRole("grid", { name: /カレンダー/ })).toBeVisible();
     await expectNoHorizontalScroll(page);
   }
 

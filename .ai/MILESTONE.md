@@ -1,4 +1,4 @@
-# Milestone: Production UI Migration M6 — Auth / Household Entry
+# Milestone: Production UI Migration M7 — Integration / Legacy UI Cleanup
 
 ## Current boundary
 
@@ -6,16 +6,24 @@
 - M2 Home + Task is complete on the dedicated production branch. Mockup is used only for design, interaction, and motion reference; production API, auth, permissions, persisted data, and Cloudflare architecture remain authoritative.
 - M3 Calendar and M4 Shopping are complete on `origin/main`.
 - M5 Other / Settings is complete and merged in PR #6 at base `ed749b7`.
-- M6 Auth / Household Entry is implemented on `feat/production-auth-entry-m6`; Draft PR #7 is open for review.
-- M7 legacy cleanup and M8 backend cleanup are explicitly out of scope.
+- M6 Auth / Household Entry is merged to `main` in PR #7 at base `d89a9d7`.
+- M7 Integration / Legacy UI Cleanup is the current milestone on `feat/production-integration-legacy-m7`.
+- M8 Legacy backend cleanup has not started and remains out of scope.
 - 詳細なM1〜M8計画は[docs/PRODUCTION_UI_MIGRATION.md](../docs/PRODUCTION_UI_MIGRATION.md)を参照。
 
-## M6 start record
+## M7 start record
 
-- Production base SHA: `ed749b70707068b1b7dfb96e055d4e06371af094`
+- Production base SHA: `d89a9d7ad52f5580b65a2a44b0e350295ef542c7`
 - Mockup reference SHA: `db8941dc3056f07862014242a349ae366da59e9c`
-- Branch: `feat/production-auth-entry-m6`
-- M5 is merged to `main`; M6 is the current boundary.
+- Branch: `feat/production-integration-legacy-m7`
+- M6 is merged to `main`; M7 is the current boundary; M8 is not started.
+
+## M7 delivery boundary
+
+- Keep only the M1–M6 canonical user-facing flow and replace legacy Task, Shopping, and Settings route renders with history-replacing redirects.
+- Audit internal navigation, remove unreachable legacy frontend screens and their dead references where safe, and retain all backend compatibility routes, services, repositories, D1 schema, migrations, and response fields for M8.
+- Verify two separate authenticated local sessions against the local Worker and local D1 for Task, Shopping, Other/permission, household sync, and session isolation.
+- Re-run canonical Vitest/Playwright coverage and production-like PWA/direct-route/service-worker checks. No deploy, remote migration, or visual redesign is in scope.
 
 ## M6 delivery boundary
 
