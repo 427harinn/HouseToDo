@@ -12,11 +12,11 @@ M7 Integration / Legacy UI cleanup. Existing canonical M1–M6 UI remains the us
 
 ## Production render target SHA
 
-`fbe0855`
+`fbe0855f76cdea05cb5f05429513338955fcda76`
 
 ## Evidence commit SHA
 
-`pending-final-evidence-commit`
+`d0c85d9da644e6ae1b6096dddfb2ddd5906885c4`
 
 ## Legacy Route Matrix
 
@@ -60,23 +60,23 @@ Local Worker + local D1 + real session cookies + separate browser contexts:
 
 ## Visual Evidence
 
-![Legacy route cleanup](https://github.com/427harinn/HouseToDo/blob/pending-final-evidence-commit/docs/evidence/m7/review-upload/01-legacy-route-cleanup.png?raw=1)
+![Legacy route cleanup](https://github.com/427harinn/HouseToDo/blob/d0c85d9da644e6ae1b6096dddfb2ddd5906885c4/docs/evidence/m7/review-upload/01-legacy-route-cleanup.png?raw=1)
 
-![Two-user Task sync](https://github.com/427harinn/HouseToDo/blob/pending-final-evidence-commit/docs/evidence/m7/review-upload/02-two-user-task-sync.png?raw=1)
+![Two-user Task sync](https://github.com/427harinn/HouseToDo/blob/d0c85d9da644e6ae1b6096dddfb2ddd5906885c4/docs/evidence/m7/review-upload/02-two-user-task-sync.png?raw=1)
 
-![Two-user Shopping sync](https://github.com/427harinn/HouseToDo/blob/pending-final-evidence-commit/docs/evidence/m7/review-upload/03-two-user-shopping-sync.png?raw=1)
+![Two-user Shopping sync](https://github.com/427harinn/HouseToDo/blob/d0c85d9da644e6ae1b6096dddfb2ddd5906885c4/docs/evidence/m7/review-upload/03-two-user-shopping-sync.png?raw=1)
 
-![PWA final smoke](https://github.com/427harinn/HouseToDo/blob/pending-final-evidence-commit/docs/evidence/m7/review-upload/04-pwa-final-smoke.png?raw=1)
+![PWA final smoke](https://github.com/427harinn/HouseToDo/blob/d0c85d9da644e6ae1b6096dddfb2ddd5906885c4/docs/evidence/m7/review-upload/04-pwa-final-smoke.png?raw=1)
 
 ## Motion Evidence
 
-![Canonical navigation](https://github.com/427harinn/HouseToDo/blob/pending-final-evidence-commit/docs/evidence/m7/motion/previews/canonical-navigation.gif?raw=1)
+![Canonical navigation](https://github.com/427harinn/HouseToDo/blob/d0c85d9da644e6ae1b6096dddfb2ddd5906885c4/docs/evidence/m7/motion/previews/canonical-navigation.gif?raw=1)
 
-![Two-user Task sync](https://github.com/427harinn/HouseToDo/blob/pending-final-evidence-commit/docs/evidence/m7/motion/previews/two-user-task-sync.gif?raw=1)
+![Two-user Task sync](https://github.com/427harinn/HouseToDo/blob/d0c85d9da644e6ae1b6096dddfb2ddd5906885c4/docs/evidence/m7/motion/previews/two-user-task-sync.gif?raw=1)
 
-![Two-user Shopping sync](https://github.com/427harinn/HouseToDo/blob/pending-final-evidence-commit/docs/evidence/m7/motion/previews/two-user-shopping-sync.gif?raw=1)
+![Two-user Shopping sync](https://github.com/427harinn/HouseToDo/blob/d0c85d9da644e6ae1b6096dddfb2ddd5906885c4/docs/evidence/m7/motion/previews/two-user-shopping-sync.gif?raw=1)
 
-![PWA reload/deep-link](https://github.com/427harinn/HouseToDo/blob/pending-final-evidence-commit/docs/evidence/m7/motion/previews/pwa-reload-deeplink.gif?raw=1)
+![PWA reload/deep-link](https://github.com/427harinn/HouseToDo/blob/d0c85d9da644e6ae1b6096dddfb2ddd5906885c4/docs/evidence/m7/motion/previews/pwa-reload-deeplink.gif?raw=1)
 
 Canonical WebM files are in the pinned `review-upload` package at the Evidence commit.
 
