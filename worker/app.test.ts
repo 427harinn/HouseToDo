@@ -4,6 +4,7 @@ import { MemoryD1 } from "./test-utils/memory-d1";
 import type { Env } from "./types/env";
 import { MemoryR2 } from "./test-utils/memory-r2";
 import { ShoppingItemImageService } from "./services/shopping-item-image-service";
+import { getLocalDate } from "./lib/date-time";
 
 const createTestEnv = (db = new MemoryD1()): Env =>
   ({
@@ -1489,7 +1490,7 @@ describe("M2 Home contract", () => {
       displayName: "M2 Owner"
     });
     await app.fetch(postJson("/api/households", { name: "M2 Home" }, owner.cookie), env);
-    const today = "2026-08-25";
+    const today = getLocalDate(new Date(), "Asia/Tokyo");
     const created = await app.fetch(
       postJson(
         "/api/tasks",
@@ -1515,6 +1516,9 @@ describe("M2 Home contract", () => {
     expect(complete.status).toBe(200);
     const record = Array.from(db.taskRecords.values()).find((item) => item.task_id === taskId);
     if (!record) throw new Error("complete did not create a task record");
+    // Keep the fixture's action day stable when the suite runs on a different wall-clock date.
+    record.completed_at = `${today}T12:00:00.000Z`;
+    record.updated_at = `${today}T12:00:00.000Z`;
     expect(record).toMatchObject({ task_title_snapshot: "ゴミ出し", assigned_user_id_snapshot: null });
     const ownerId = Array.from(db.users.values()).find((item) => item.email === "m2-home-owner@example.com")?.id;
     if (!ownerId) throw new Error("owner was not created");
@@ -1531,6 +1535,8 @@ describe("M2 Home contract", () => {
     await app.fetch(postJson(`/api/tasks/${passedTaskId}/skip`, { targetDate: today }, owner.cookie), env);
     const passedRecord = Array.from(db.taskRecords.values()).find((item) => item.task_id === passedTaskId);
     if (!passedRecord) throw new Error("skip did not create a task record");
+    passedRecord.skipped_at = `${today}T12:00:00.000Z`;
+    passedRecord.updated_at = `${today}T12:00:00.000Z`;
     expect(passedRecord).toMatchObject({ task_title_snapshot: "窓ふき", assigned_user_id_snapshot: ownerId, assigned_user_display_name_snapshot: "M2 Owner" });
 
     const edited = await app.fetch(

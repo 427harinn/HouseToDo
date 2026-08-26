@@ -1,0 +1,66 @@
+{
+  "generatedAt": "2026-08-26T06:56:06.190Z",
+  "base": "http://127.0.0.1:8789",
+  "manifest": {
+    "http200": true,
+    "requiredFields": true
+  },
+  "icons": {
+    "icon192": true,
+    "icon512": true,
+    "dimensions192": true,
+    "dimensions512": true
+  },
+  "serviceWorker": {
+    "registered": true,
+    "scope": "/",
+    "active": true,
+    "controllerAfterReload": true
+  },
+  "startUrl": {
+    "unauthenticatedLogin": true,
+    "noHouseholdCreate": true,
+    "householdReadyHome": true
+  },
+  "directRoutes": {
+    "/home": {
+      "httpOk": true,
+      "uiReady": true
+    },
+    "/calendar": {
+      "httpOk": true,
+      "uiReady": true
+    },
+    "/shopping": {
+      "httpOk": true,
+      "uiReady": true
+    },
+    "/other": {
+      "httpOk": true,
+      "uiReady": true
+    },
+    "/tasks/new": {
+      "httpOk": true,
+      "uiReady": true
+    },
+    "/shopping/new": {
+      "httpOk": true,
+      "uiReady": true
+    },
+    "/shopping?item=2582bc69-da88-414c-abf0-08f3bb23e551": {
+      "httpOk": true,
+      "uiReady": true
+    }
+  },
+  "legacyRoute": {
+    "requestedRoute": "/tasks",
+    "actualPathname": "/home",
+    "result": "PASS"
+  },
+  "notificationSanitizer": {
+    "result": "PASS",
+    "source": "npm test -- src/lib/notification-url.test.ts"
+  },
+  "webkit": "UNAVAILABLE: browserType.launch: Executable doesn't exist at C:\\Users\\rinnr\\AppData\\Local\\ms-playwright\\webkit-2336\\Playwright.exe",
+  "realIphone": "NOT RUN"
+}

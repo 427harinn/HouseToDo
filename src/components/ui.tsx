@@ -4,10 +4,8 @@ import { CalendarDays, Ellipsis, House, Plus, ShoppingCart } from "lucide-react"
 type NavigationPath =
   | "/home"
   | "/calendar"
-  | "/tasks"
   | "/shopping"
-  | "/other"
-  | "/settings/members";
+  | "/other";
 
 type ButtonProps = {
   children: ReactNode;
@@ -248,7 +246,7 @@ function NavigationButton({
   current,
   onNavigate
 }: {
-  item: { path: Exclude<NavigationPath, "/tasks">; label: string; Icon: typeof House };
+  item: { path: NavigationPath; label: string; Icon: typeof House };
   current: NavigationPath;
   onNavigate: (path: NavigationPath) => void;
 }) {

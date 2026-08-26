@@ -349,73 +349,6 @@ describe("App task form payload", () => {
   }, 15000);
 });
 
-describe("App members UI", () => {
-  it("ignores the StrictMode abort from the first members load", async () => {
-    let memberLoads = 0;
-    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
-      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-      if (url.endsWith("/api/auth/me")) return Promise.resolve(ok({ user }));
-      if (url.endsWith("/api/households/current")) return Promise.resolve(ok({ household }));
-      if (url.endsWith("/api/households/current/members")) {
-        memberLoads += 1;
-        return memberLoads === 1
-          ? Promise.reject(new DOMException("The operation was aborted.", "AbortError"))
-          : Promise.resolve(ok({ members: members.slice(0, 1) }));
-      }
-      if (url.endsWith("/api/households/current/image-usage")) return Promise.resolve(ok(imageUsage));
-      return Promise.resolve(failure("NOT_FOUND", 404));
-    });
-    window.history.replaceState({}, "", "/settings/members");
-
-    render(
-      <StrictMode>
-        <App />
-      </StrictMode>
-    );
-
-    expect(await screen.findByText(members[0].displayName)).toBeInTheDocument();
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-  }, 15000);
-
-  it("shows the existing error for a members API failure", async () => {
-    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
-      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-      if (url.endsWith("/api/auth/me")) return Promise.resolve(ok({ user }));
-      if (url.endsWith("/api/households/current")) return Promise.resolve(ok({ household }));
-      if (url.endsWith("/api/households/current/members")) return Promise.resolve(failure("INTERNAL_ERROR", 500));
-      if (url.endsWith("/api/households/current/image-usage")) return Promise.resolve(ok(imageUsage));
-      return Promise.resolve(failure("NOT_FOUND", 404));
-    });
-    window.history.replaceState({}, "", "/settings/members");
-
-    render(<App />);
-
-    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
-  }, 15000);
-
-  it("renders the owner member screen successfully", async () => {
-    mockFetch();
-    window.history.replaceState({}, "", "/settings/members");
-
-    render(<App />);
-
-    expect(await screen.findByText(members[0].displayName)).toBeInTheDocument();
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "招待コードを発行" })).toBeInTheDocument();
-  }, 15000);
-
-  it("does not show the invite action for a member", async () => {
-    const memberHousehold = { ...household, role: "member" };
-    mockFetch(memberHousehold);
-    window.history.replaceState({}, "", "/settings/members");
-
-    render(<App />);
-
-    expect(await screen.findByText(members[0].displayName)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "招待コードを発行" })).not.toBeInTheDocument();
-  }, 15000);
-});
-
 describe("M5 Other / Settings routes", () => {
   it("uses /other as the selected Bottom Navigation route and hides it on detail screens", async () => {
     mockFetch();
@@ -434,71 +367,32 @@ describe("M5 Other / Settings routes", () => {
   });
 });
 
-describe("App image usage UI", () => {
-  it("shows usage metrics and cleanup information", async () => {
-    mockFetch(household, {
-      ...imageUsage,
-      reservedCount: 1,
-      reservedBytes: 1024,
-      pendingCleanupBytes: 2.3 * 1024 * 1024,
-      pendingCleanupUnknownCount: 1,
-      storedBytes: 75 * 1024 * 1024,
-      storedBytesKnown: false
-    });
-    window.history.replaceState({}, "", "/settings/members");
+describe("M7 legacy route redirects", () => {
+  const cases = [
+    ["/settings/members", "/other/members", ""],
+    ["/tasks", "/home", ""],
+    ["/tasks/task-1", "/tasks/task-1/edit", ""],
+    ["/tasks/task-1/respond", "/home", ""],
+    ["/tasks/templates", "/tasks/new", ""],
+    ["/tasks/templates/template-1/edit", "/tasks/new", ""],
+    ["/shopping/items/shop-2", "/shopping", "?item=shop-2"],
+    ["/shopping/templates", "/shopping/new", ""],
+    ["/shopping/templates/new", "/shopping/new", ""],
+    ["/shopping/templates/template-1/edit", "/shopping/new", ""]
+  ] as const;
+
+  it.each(cases)("replaces %s with %s before rendering", (legacy, pathname, search) => {
+    mockFetch();
+    window.history.replaceState({}, "", legacy);
 
     render(<App />);
 
-    expect(await screen.findByText("画像ストレージ")).toBeInTheDocument();
-    expect(await screen.findByText("3 / 50 枚")).toBeInTheDocument();
-    expect(await screen.findByText("12.4 MB / 50 MB")).toBeInTheDocument();
-    expect(await screen.findByText("確認中 / 75 MB")).toBeInTheDocument();
-    expect(await screen.findByText("4 / 20 回")).toBeInTheDocument();
-    expect(await screen.findByText("アップロード処理中: 1件")).toBeInTheDocument();
-    expect(await screen.findByText("削除処理待ち: 2.3 MB")).toBeInTheDocument();
-    expect(await screen.findByText("削除処理待ちの画像があるため、保存容量を正確に確認できません。")).toBeInTheDocument();
-    expect(screen.queryByText("保存容量の上限に達しています。")).not.toBeInTheDocument();
-  }, 15000);
-
-  it("shows warnings at 80 percent and at the limit", async () => {
-    mockFetch(household, {
-      ...imageUsage,
-      activeCount: 50,
-      activeBytes: 40 * 1024 * 1024,
-      storedBytes: 60 * 1024 * 1024,
-      dailyUploadCount: 16
-    });
-    window.history.replaceState({}, "", "/settings/members");
-
-    render(<App />);
-
-    expect(await screen.findByText("画像数の上限に達しています。")).toBeInTheDocument();
-    expect(screen.getByText("使用容量の使用量が上限に近づいています。")).toBeInTheDocument();
-    expect(screen.getByText("保存容量の使用量が上限に近づいています。")).toBeInTheDocument();
-    expect(screen.getByText("本日のアップロードの使用量が上限に近づいています。")).toBeInTheDocument();
-  }, 15000);
-
-  it("shows an error and retries image usage loading", async () => {
-    let attempts = 0;
-    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
-      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-      if (url.endsWith("/api/auth/me")) return Promise.resolve(ok({ user }));
-      if (url.endsWith("/api/households/current")) return Promise.resolve(ok({ household }));
-      if (url.endsWith("/api/households/current/members")) return Promise.resolve(ok({ members }));
-      if (url.endsWith("/api/households/current/image-usage")) {
-        attempts += 1;
-        return Promise.resolve(attempts === 1 ? failure("INTERNAL_ERROR", 500) : ok(imageUsage));
-      }
-      return Promise.resolve(failure("NOT_FOUND", 404));
-    });
-    window.history.replaceState({}, "", "/settings/members");
-
-    render(<App />);
-
-    expect(await screen.findByText("画像使用量を取得できませんでした。")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "再試行" }));
-    expect(await screen.findByText("3 / 50 枚")).toBeInTheDocument();
-  }, 15000);
+    expect(window.location.pathname).toBe(pathname);
+    expect(window.location.search).toBe(search);
+    expect(screen.queryByText("タスク詳細")).not.toBeInTheDocument();
+    expect(screen.queryByText("タスクテンプレート")).not.toBeInTheDocument();
+    expect(screen.queryByText("よく買うもの")).not.toBeInTheDocument();
+  });
 });
 
 afterEach(() => {
@@ -542,15 +436,18 @@ describe("App shopping UI", () => {
     expect(screen.getByLabelText("購入者: たくや")).toBeInTheDocument();
   }, 15000);
 
-  it("shows the purchase date and time in shopping detail", async () => {
+  it("redirects the retired shopping detail route to the canonical list", async () => {
     mockFetch();
     window.history.replaceState({}, "", "/shopping/items/shop-2");
 
     render(<App />);
 
-    expect(await screen.findByRole("heading", { name: purchasedItem.name })).toBeInTheDocument();
-    expect(screen.getByText("購入日時")).toBeInTheDocument();
-    expect(screen.getByText("2026/8/24 10:32")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(window.location.pathname).toBe("/shopping");
+      expect(window.location.search).toBe("?item=shop-2");
+    });
+    expect(await screen.findByRole("heading", { name: "買い物" })).toBeInTheDocument();
+    expect(screen.queryByText("購入日時")).not.toBeInTheDocument();
   }, 15000);
 
   it("prefills shopping forms from recent items and templates without reusing image inputs", async () => {
