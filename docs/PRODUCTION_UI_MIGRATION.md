@@ -49,8 +49,8 @@ M5まで`origin/main`で完了。M6 Auth / Household Entryを`feat/production-au
 - Entry primary actions now use Mockup `--color-primary-strong`, white semibold text, 48px minimum height, 10px action radius, and scoped disabled opacity. Entry labels use `--color-text-secondary`; Household Create has no placeholder.
 - Login, Register, Household Create, and Household Join clear the corrected field's previous field error and `aria-invalid` state on input change. Register/Join invite E2E asserts error removal before the successful submit.
 - Register error keeps Production display-name/email/password field-level validation detail required by the existing Production validation contract. The Mockup global error remains, and the visible Production-only detail is labeled in the board as `Production validation detail`.
-- Evidence capture now blurs the active element, asserts no input/textarea/select/button retains focus, aligns Production fixture values with Mockup where possible, and produces vertical two-column Production/Mockup boards with one state per row.
-- Final review Evidence: Production render target `0fabce3`, Evidence commit `b54297c`, exactly eight files in `docs/evidence/m6/review-upload/`.
+- Evidence capture now blurs the active element, asserts no input/textarea/select/button retains focus, records computed Entry geometry, asserts 4-route Production/Mockup normal-state parity, aligns Production fixture values with Mockup where possible, and produces vertical two-column Production/Mockup boards with one state per row.
+- Final review Evidence: Production render target `cc4d3d3`, Evidence commit `af01341`, exactly eight files in `docs/evidence/m6/review-upload/`. Entry input geometry is `39px / 13px / 10px 12px` and button-to-secondary-link gap is `0px` across Login, Register, Household Create, and Household Join.
 
 ## M5 start record (2026-08-25)
 
