@@ -12,7 +12,7 @@ HouseToDo-Mockup latest mainをdesign / interaction / motionのcanonical source 
 | M4 | Shopping screen visual migration and Shopping interactions | Done on `main` after PR #5 |
 | M5 | Other / Settings and formal `/other` route | Done and merged to `main` in PR #6 |
 | M6 | Auth / Household Entry. Guest and onboarding are removed from the new UI direction, not visually migrated. | Done and merged to `main` in PR #7 at `d89a9d7` |
-| M7 | Integration / Legacy UI cleanup: retire user-facing old Task list/detail/respond/templates and Shopping detail/templates routes, then verify 2-user flows, E2E, and PWA behavior | Current on `feat/production-integration-legacy-m7` |
+| M7 | Integration / Legacy UI cleanup: retire user-facing old Task list/detail/respond/templates and Shopping detail/templates routes, then verify 2-user flows, E2E, and PWA behavior | Implemented on `feat/production-integration-legacy-m7`; PR #8 remains Draft |
 | M8 | Legacy backend cleanup: after the new UI is stable, safely remove unused API/DB/compatibility code in separate PRs | Planned |
 
 M1〜M6は`origin/main`で完了。M7 Integration / Legacy UI Cleanupを`feat/production-integration-legacy-m7`で実施中。M8 Backend Cleanupには進まない。
@@ -22,7 +22,7 @@ M1〜M6は`origin/main`で完了。M7 Integration / Legacy UI Cleanupを`feat/pr
 - Production base SHA: `d89a9d7ad52f5580b65a2a44b0e350295ef542c7` (`origin/main`, PR #7 / M6 merge)
 - Mockup reference SHA: `db8941dc3056f07862014242a349ae366da59e9c` (`HouseToDo-Mockup` `origin/main`)
 - Branch: `feat/production-integration-legacy-m7`
-- M6 is merged; M7 is current; M8 is not started.
+- M6 is merged; M7 is implemented and under PR #8 review; M8 is not started.
 - Scope boundary: canonical frontend route integration, legacy user-facing redirect/cleanup, local two-user verification, E2E/PWA integration. Worker routes, services, repositories, D1 schema/migrations, and compatibility response fields remain for M8.
 
 ## M8 cleanup inventory (identified by M7 reference audit; not removed)
@@ -31,6 +31,14 @@ M1〜M6は`origin/main`で完了。M7 Integration / Legacy UI Cleanupを`feat/pr
 - Frontend API wrappers for recent/template/reuse operations remain because canonical screens still call them; they are not M7 dead code.
 - Legacy Worker route handlers, compatibility response fields, repositories, services, D1 tables/columns, and migration history remain unchanged.
 - Candidate removal requires a separate M8 usage audit after the canonical reuse paths are intentionally migrated or retired; M7 does not infer unused status from route retirement alone.
+
+## M7 completion record
+
+- Implementation/render target SHA: `fbe0855` (`test: align canonical m7 e2e contracts`).
+- Legacy route Playwright generated actual-path diagnostics with zero old-screen renders. Canonical internal navigation and stale M2/Calendar/Shopping expectations were aligned to the final contract.
+- Real local Worker + local D1 two-user coverage passed Task complete/pass/restore/edit, Shopping reorder/purchase/restore/planned-date Calendar deep-link, Other/member displayName/permission/household sync, and logout isolation.
+- Production-like PWA diagnostics passed manifest, icon dimensions, service worker scope/controller, start URL state machine, direct route reload, representative legacy redirect, and notification URL safety. WebKit is unavailable; real iPhone is not run.
+- Final Evidence package is exactly four boards plus four WebM files. No deploy, remote migration, secrets/Cron change, merge, or M8 backend cleanup was performed.
 
 ## M6 start record
 
@@ -55,9 +63,9 @@ M1〜M6は`origin/main`で完了。M7 Integration / Legacy UI Cleanupを`feat/pr
 - Mockup reference SHA: `db8941dc3056f07862014242a349ae366da59e9c`
 - Evidence scope: nine Production and nine Mockup 390x844 states, four actual-input/click WebM flows, four GIF previews, four labeled parity boards, and an exact eight-file `review-upload` package.
 - Review correction implementation commit: `0fabce3`; Evidence refresh commit: `b54297c`; Draft PR: `#7`.
-- Quality-gate note: lint, typecheck, build, targeted M6 App tests (25/25), M6 Playwright (5/5), Worker invite-validation coverage, and semantic Evidence capture pass. Full Vitest has one pre-existing M2 Home fixture failure (36 files / 232 passed / 1 failed); the same test fails at this M6 base SHA and was not changed by M6.
+- Quality-gate note: M6 targeted gates passed. The stale M2 fixture note was resolved during M7; final full Vitest is green at 37 files / 236 tests.
 - Docker-authenticated E2E was unavailable and was not treated as passed. Home/Calendar/Shopping/Other smoke coverage was run through the existing local test fixtures; no unrelated legacy selector/fixture failures were changed.
-- No migration, remote D1 operation, staging deploy, production deploy, secrets change, Cron change, or PR merge was performed.
+- No migration, remote D1 operation, staging deploy, production deploy, secrets change, Cron change, or PR merge was performed for the M6/M7 local work.
 
 ## M6 PR #7 review correction record
 
@@ -159,4 +167,4 @@ For visible UI migrations, generate a clean reviewer upload package after the fi
 - Review corrections include the flat row button border reset, green timezone selection check, read-only-but-not-disabled email styling, clipboard success/fallback coverage, and single-flight display-name commits (Enter and blur each issue exactly one PATCH).
 - Local gates passed: lint, typecheck, build, full Vitest (37 files / 228 tests), M5 Playwright (6 tests), and semantic Evidence capture. Clipboard success asserts `コードをコピーしました`; rejected clipboard asserts the safe selection fallback. Docker authenticated E2E was unavailable and was not treated as passed.
 - Calendar/Shopping baseline comparison used the same command and allowed-origin Worker environment at base `585e65f3d976710a19ef5bbc8317d4ebef2c3ddb` and the M5 branch. Base failed at the pre-existing legacy heading/selector assumptions: Calendar `カレンダー` heading, Shopping `買い物` strict locator, and Home `ホーム` heading. The branch reached later local fixture failures: `.calendar-cell--today` count 0, Shopping reorder remained `牛乳` before `パン`, and the M1 smoke still expected legacy `買い物リスト`. These are recorded as pre-existing regression-suite/fixture incompatibilities; no M5 behavior regression was identified.
-- Deployment status: staging/production not performed; remote D1 migration, secrets, and Cron were not touched; PR #7/M6 is merged, M7 is current, and M8 has not started.
+- Deployment status: staging/production not performed; remote D1 migration, secrets, and Cron were not touched; PR #7/M6 is merged, PR #8/M7 is under review, and M8 has not started.

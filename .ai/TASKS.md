@@ -5,13 +5,13 @@
 - [x] Confirm clean working tree, fetch Production/Mockup main, confirm M6 PR #7 merge, and create `feat/production-integration-legacy-m7` from Production `d89a9d7`
 - [x] Record Production base SHA `d89a9d7ad52f5580b65a2a44b0e350295ef542c7` and Mockup SHA `db8941dc3056f07862014242a349ae366da59e9c`
 - [x] Update M6/M7/M8 milestone state and record the pre-change legacy route inventory/matrix
-- [ ] Replace legacy user-facing routes with canonical history-replacing redirects and assert no legacy UI flash
-- [ ] Remove only unreachable legacy frontend screens/references; keep backend compatibility for M8
-- [ ] Audit canonical internal navigation and update stale E2E/fixture expectations to the final contract
-- [ ] Verify two-user Task, Shopping, Other/permission, household sync, and session isolation against local Worker + D1
-- [ ] Verify production-like build, manifest/icons, service worker, direct routes, notification URL safety, Chromium 390x844, and WebKit smoke/limitation
-- [ ] Generate M7 route, sync, PWA boards and four canonical WebM files; finalize exactly eight reviewer-upload files
-- [ ] Run all gates, commit, push, and create Draft PR without merge, deploy, remote migration, or M8 cleanup
+- [x] Replace legacy user-facing routes with canonical history-replacing redirects and assert no legacy UI flash
+- [x] Remove only unreachable legacy frontend screens/references; keep backend compatibility for M8
+- [x] Audit canonical internal navigation and update stale E2E/fixture expectations to the final contract
+- [x] Verify two-user Task, Shopping, Other/permission, household sync, and session isolation against local Worker + D1
+- [x] Verify production-like build, manifest/icons, service worker, direct routes, notification URL safety, Chromium 390x844, and WebKit smoke/limitation
+- [x] Generate M7 route, sync, PWA boards and four canonical WebM files; finalize exactly eight reviewer-upload files
+- [x] Run all gates, commit, push, and create Draft PR without merge, deploy, remote migration, or M8 cleanup
 
 ## Production UI Migration M6 — Auth / Household Entry (merged to main in PR #7)
 

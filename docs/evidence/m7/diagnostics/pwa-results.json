@@ -1,0 +1,44 @@
+{
+  "generatedAt": "2026-08-26T05:32:46.424Z",
+  "base": "http://127.0.0.1:8789",
+  "manifest": {
+    "http200": true,
+    "requiredFields": true
+  },
+  "icons": {
+    "icon192": true,
+    "icon512": true,
+    "dimensions192": true,
+    "dimensions512": true
+  },
+  "serviceWorker": {
+    "registered": true,
+    "scope": "/",
+    "active": true,
+    "controllerAfterReload": true
+  },
+  "startUrl": {
+    "unauthenticatedLogin": true,
+    "noHouseholdCreate": true,
+    "householdReadyHome": true
+  },
+  "directRoutes": {
+    "/home": true,
+    "/calendar": true,
+    "/shopping": true,
+    "/other": true,
+    "/tasks/new": true,
+    "/shopping/new": true
+  },
+  "legacyRoute": {
+    "requestedRoute": "/tasks",
+    "actualPathname": "/home",
+    "result": "PASS"
+  },
+  "notificationSanitizer": {
+    "result": "PASS",
+    "source": "npm test -- src/lib/notification-url.test.ts"
+  },
+  "webkit": "UNAVAILABLE: browserType.launch: Executable doesn't exist at C:\\Users\\rinnr\\AppData\\Local\\ms-playwright\\webkit-2336\\Playwright.exe",
+  "realIphone": "NOT RUN"
+}

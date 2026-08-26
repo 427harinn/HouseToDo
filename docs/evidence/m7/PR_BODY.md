@@ -1,111 +1,109 @@
 ## Summary
 
-M7 Integration / Legacy UI cleanup.
+M7 Integration / Legacy UI cleanup. Existing canonical M1–M6 UI remains the user-facing flow; legacy routes history-replace into canonical destinations. No visual redesign was introduced.
 
 ## Production base SHA
 
-`d89a9d7ad52f5580b65a2a44b0e350295ef542c7` (M6 merge, PR #7)
+`d89a9d7ad52f5580b65a2a44b0e350295ef542c7`
 
 ## Mockup reference SHA
 
 `db8941dc3056f07862014242a349ae366da59e9c`
 
+## Production render target SHA
+
+`fbe0855`
+
+## Evidence commit SHA
+
+`pending-final-evidence-commit`
+
 ## Legacy Route Matrix
 
-| Legacy route | Canonical destination | Result |
+| Requested legacy route | Actual canonical pathname | Result |
 | --- | --- | --- |
-| `/settings/members` | `/other/members` | PASS: replace redirect, no legacy render |
+| `/settings/members` | `/other/members` | PASS |
 | `/tasks` | `/home` | PASS |
 | `/tasks/:taskId` | `/tasks/:taskId/edit` | PASS |
-| `/tasks/:taskId/respond` | `/home` | PASS; no action is executed |
+| `/tasks/:taskId/respond` | `/home` | PASS; no action executed |
 | `/tasks/templates` | `/tasks/new` | PASS |
 | `/tasks/templates/:templateId/edit` | `/tasks/new` | PASS |
 | `/shopping/items/:itemId` | `/shopping?item=:itemId` | PASS |
 | `/shopping/templates` | `/shopping/new` | PASS |
 | `/shopping/templates/new` | `/shopping/new` | PASS |
 | `/shopping/templates/:templateId/edit` | `/shopping/new` | PASS |
-| `/guest`, `/onboarding` | M6 auth/household state machine | PASS |
+| `/guest`, `/onboarding` | M6 auth/household state redirect | PASS |
 
-`e2e/m7-legacy-route.spec.ts` passed 2/2. Redirects use `history.replaceState`; canonical route state is initialized before the first screen render.
+Playwright generated `docs/evidence/m7/diagnostics/legacy-route-results.json`; old UI render count was zero. The existing `legacyRedirectFor()` → `history.replaceState()` flow was preserved.
 
 ## Frontend cleanup
 
-Retired user-facing Task list/detail/respond/template screens, Shopping detail/template screens, old Settings members/profile/notification UI, and unreachable legacy-only E2E coverage. Canonical Task Add/Edit, Shopping Add/Edit, Calendar Shopping deep-link, Other, Auth, and Household Entry flows remain.
+Legacy Task list/detail/respond/template, Shopping detail/template, and old Settings members screens are unreachable from user-facing routes. Canonical Task Add/Edit, Shopping Add/Edit, Calendar Shopping deep-link, Other, Auth, and Household Entry remain. Internal canonical navigation contains zero user-facing legacy destinations.
 
 ## Backend boundary
 
-No Worker route, service, repository, D1 table/column, migration, compatibility response field, or legacy API wrapper was removed. Task/Shopping template APIs remain because canonical reuse flows still call them. M8 cleanup inventory is recorded in `docs/PRODUCTION_UI_MIGRATION.md`.
+Worker legacy routes, template endpoints, services, repositories, D1 tables/columns, migrations, and compatibility response fields remain untouched for M8. No new migration was added.
 
 ## Two-user verification
 
-Executed against the local Wrangler Worker + local D1 + Vite proxy with separate Playwright browser contexts and real session cookies. Docker Compose was attempted but the Docker daemon was unavailable, so the repository-native local fallback was used.
+Local Worker + local D1 + real session cookies + separate browser contexts:
 
-- Task: A created/assigned; B saw it; B completed; A saw B as completer; A restored; B saw active; A edit synchronized through the Production API and Home projection.
-- Shopping: A added a planned item; B saw it; canonical long-press reorder persisted the same order; B purchased; A saw B as purchaser and the actual timestamp; A restored; B saw pending with planned date preserved.
-- Other/permission/session: canonical M5/M6 suites passed; separate auth cookies were used for the core integration. Existing authorization/session API tests remain green.
+- Task: A created/assigned to B; B saw it after reload; B completed; A saw B as completer; A restored; B saw active; A edited and B saw the updated title. A separate real pass test used B's pointer swipe and A saw the same task in Passed; Production history returned skipped with B as actor.
+- Shopping: A added a planned item; B saw it; A long-press reordered and B saw the same order; B purchased; A saw purchaser B and actual API `purchasedAt` matching the UI; A restored and B saw pending with planned date preserved.
+- Calendar: both-user planned-date data showed the marker and Date Sheet Shopping; UI navigation reached `/shopping?item=<actual-id>` and expanded the target row.
+- Other/permission: same two-member list; B displayName refresh synced to A; owner household name/timezone update synced to B; member update was denied/read-only.
+- Session isolation: A logout reached `/login`; B remained authenticated and used canonical Home.
 
 ## PWA verification
 
-- Manifest: PASS, HTTP 200; name, short_name, id, start_url, scope, standalone display, theme/background colors verified.
-- Icons: PASS, `house-todo-192.png` is 192x192 and `house-todo-512.png` is 512x512; both HTTP 200.
-- Service worker: PASS in production-like Wrangler asset hosting; registration present, scope `/`, controller present before and after reload.
-- Direct route reload: PASS for `/home`, `/calendar`, `/shopping`, `/other`, `/tasks/new`, `/shopping/new`, and Shopping deep-link fallback.
-- WebKit: unavailable because the local Playwright WebKit executable is not installed.
-- Real iPhone: NOT RUN; manual follow-up is in `docs/PWA_MANUAL_CHECKLIST.md`.
+`docs/evidence/m7/diagnostics/pwa-results.json` was generated by the production-like local Wrangler asset server. Manifest 200/required fields, 192/512 icon dimensions, service-worker registration/scope/active/controller, all three start URL states, direct route reloads, `/tasks` legacy redirect, and notification sanitizer result passed. WebKit is `UNAVAILABLE` because its Playwright executable is not installed. Real iPhone is `NOT RUN`; see `docs/PWA_MANUAL_CHECKLIST.md`.
 
 ## Visual Evidence
 
-![Legacy route cleanup](docs/evidence/m7/review-upload/01-legacy-route-cleanup.png)
+![Legacy route cleanup](https://github.com/427harinn/HouseToDo/blob/pending-final-evidence-commit/docs/evidence/m7/review-upload/01-legacy-route-cleanup.png?raw=1)
 
-![Two-user Task sync](docs/evidence/m7/review-upload/02-two-user-task-sync.png)
+![Two-user Task sync](https://github.com/427harinn/HouseToDo/blob/pending-final-evidence-commit/docs/evidence/m7/review-upload/02-two-user-task-sync.png?raw=1)
 
-![Two-user Shopping sync](docs/evidence/m7/review-upload/03-two-user-shopping-sync.png)
+![Two-user Shopping sync](https://github.com/427harinn/HouseToDo/blob/pending-final-evidence-commit/docs/evidence/m7/review-upload/03-two-user-shopping-sync.png?raw=1)
 
-![PWA final smoke](docs/evidence/m7/review-upload/04-pwa-final-smoke.png)
+![PWA final smoke](https://github.com/427harinn/HouseToDo/blob/pending-final-evidence-commit/docs/evidence/m7/review-upload/04-pwa-final-smoke.png?raw=1)
 
 ## Motion Evidence
 
-![Canonical navigation](docs/evidence/m7/motion/previews/canonical-navigation.gif)
+![Canonical navigation](https://github.com/427harinn/HouseToDo/blob/pending-final-evidence-commit/docs/evidence/m7/motion/previews/canonical-navigation.gif?raw=1)
 
-![Two-user Task sync](docs/evidence/m7/motion/previews/two-user-task-sync.gif)
+![Two-user Task sync](https://github.com/427harinn/HouseToDo/blob/pending-final-evidence-commit/docs/evidence/m7/motion/previews/two-user-task-sync.gif?raw=1)
 
-![Two-user Shopping sync](docs/evidence/m7/motion/previews/two-user-shopping-sync.gif)
+![Two-user Shopping sync](https://github.com/427harinn/HouseToDo/blob/pending-final-evidence-commit/docs/evidence/m7/motion/previews/two-user-shopping-sync.gif?raw=1)
 
-![PWA reload/deep-link](docs/evidence/m7/motion/previews/pwa-reload-deeplink.gif)
+![PWA reload/deep-link](https://github.com/427harinn/HouseToDo/blob/pending-final-evidence-commit/docs/evidence/m7/motion/previews/pwa-reload-deeplink.gif?raw=1)
 
-Canonical WebM files:
-
-- [canonical-navigation.webm](docs/evidence/m7/review-upload/canonical-navigation.webm)
-- [two-user-task-sync.webm](docs/evidence/m7/review-upload/two-user-task-sync.webm)
-- [two-user-shopping-sync.webm](docs/evidence/m7/review-upload/two-user-shopping-sync.webm)
-- [pwa-reload-deeplink.webm](docs/evidence/m7/review-upload/pwa-reload-deeplink.webm)
+Canonical WebM files are in the pinned `review-upload` package at the Evidence commit.
 
 ## Test debt resolution
 
-- M2 Home fixture: replaced the hard-coded stale date with the current Asia/Tokyo local date.
-- Calendar smoke: updated old cell selectors, old headings, and old direct Task route expectation to the canonical calendar grid/date sheet/edit flow.
-- Shopping smoke: updated stale reuse, purchased-section, deep-link, locale timestamp, reorder, and reload assertions to the canonical contract. Shopping reorder now compares persisted A/B order rather than assuming the unrelated first row.
+The stale M2 Home fixture, Calendar selectors/fixtures, and Shopping selectors/fixtures were aligned to the final canonical contract. Full Vitest is green; no unrelated backend behavior was rewritten.
 
 ## Tests
 
-- `npm run lint` PASS
-- `npm run typecheck` PASS
-- `npm run build` PASS
-- `npm test -- --reporter=dot` PASS: 37 files, 236 tests
-- `npm run db:migrate:local` PASS: no local migrations pending; remote untouched
-- Canonical Chromium local Playwright suites M2/M3/M4/M5/M6: PASS
-- M7 legacy route suite: PASS, 2/2
-- M7 real two-user integration: PASS, 2/2
-- M7 PWA production-like checks: PASS in local production asset hosting
-- `npm run format:check`: repository baseline remains non-green across 156 files; no broad formatting rewrite was applied.
+- `npm run lint`: PASS
+- `npm run typecheck`: PASS
+- `npm run build`: PASS
+- `npm test -- --reporter=dot`: PASS, 37 files / 236 tests
+- `npm run db:migrate:local`: PASS, no pending local migrations; remote untouched
+- M7 legacy route Playwright: PASS, 2/2
+- M7 real two-user integration Playwright: PASS, 4/4; combined legacy + integration: 6/6
+- Full canonical local Chromium Playwright: PASS, 38/38 at 390x844
+- M7 PWA production-like check: PASS; WebKit UNAVAILABLE
+- Changed-source format comparison: repository baseline remains non-green; M7 changed legacy/integration source files had the same baseline Prettier failure profile, and new capture/diagnostic scripts are formatted.
 
 ## Deviations / Manual follow-up
 
-Docker daemon and Playwright WebKit were unavailable locally. Real iPhone PWA checks are not claimed; use `docs/PWA_MANUAL_CHECKLIST.md`. No offline-first behavior was added or claimed.
+Docker daemon and WebKit executable were unavailable. Avatar/R2 sync was not run because no safe local image/R2 fixture was available; required displayName sync and all owner/member permissions were verified. Real iPhone checks remain manual and unrun. Offline-first behavior was not added or claimed.
 
 ## Reviewer upload package
 
-`docs/evidence/m7/review-upload/` contains exactly 8 files: 4 PNG boards and 4 canonical WebM videos. Raw recordings, previews, traces, and diagnostics are kept outside the upload directory.
+`docs/evidence/m7/review-upload/` contains exactly 8 files: 4 PNG boards and 4 final side-by-side/canonical WebM videos. Raw A/B videos, GIF previews, diagnostics, screenshots, and traces are outside the upload directory.
 
 ## Deploy status
 

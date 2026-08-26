@@ -1,0 +1,78 @@
+{
+  "generatedAt": "2026-08-26T05:36:41.399Z",
+  "sourceTest": "e2e/m7-legacy-route.spec.ts",
+  "routes": [
+    {
+      "requestedRoute": "/settings/members",
+      "actualPathname": "/other/members",
+      "result": "PASS",
+      "oldScreenRendered": false
+    },
+    {
+      "requestedRoute": "/tasks",
+      "actualPathname": "/home",
+      "result": "PASS",
+      "oldScreenRendered": false
+    },
+    {
+      "requestedRoute": "/tasks/task-1",
+      "actualPathname": "/tasks/task-1/edit",
+      "result": "PASS",
+      "oldScreenRendered": false
+    },
+    {
+      "requestedRoute": "/tasks/task-1/respond",
+      "actualPathname": "/home",
+      "result": "PASS",
+      "oldScreenRendered": false
+    },
+    {
+      "requestedRoute": "/tasks/templates",
+      "actualPathname": "/tasks/new",
+      "result": "PASS",
+      "oldScreenRendered": false
+    },
+    {
+      "requestedRoute": "/tasks/templates/template-1/edit",
+      "actualPathname": "/tasks/new",
+      "result": "PASS",
+      "oldScreenRendered": false
+    },
+    {
+      "requestedRoute": "/shopping/items/item-1",
+      "actualPathname": "/shopping?item=item-1",
+      "result": "PASS",
+      "oldScreenRendered": false
+    },
+    {
+      "requestedRoute": "/shopping/templates",
+      "actualPathname": "/shopping/new",
+      "result": "PASS",
+      "oldScreenRendered": false
+    },
+    {
+      "requestedRoute": "/shopping/templates/new",
+      "actualPathname": "/shopping/new",
+      "result": "PASS",
+      "oldScreenRendered": false
+    },
+    {
+      "requestedRoute": "/shopping/templates/template-1/edit",
+      "actualPathname": "/shopping/new",
+      "result": "PASS",
+      "oldScreenRendered": false
+    },
+    {
+      "requestedRoute": "/guest",
+      "actualPathname": "/login",
+      "result": "PASS",
+      "oldScreenRendered": false
+    },
+    {
+      "requestedRoute": "/onboarding",
+      "actualPathname": "/login",
+      "result": "PASS",
+      "oldScreenRendered": false
+    }
+  ]
+}

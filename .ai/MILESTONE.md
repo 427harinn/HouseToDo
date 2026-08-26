@@ -7,7 +7,7 @@
 - M3 Calendar and M4 Shopping are complete on `origin/main`.
 - M5 Other / Settings is complete and merged in PR #6 at base `ed749b7`.
 - M6 Auth / Household Entry is merged to `main` in PR #7 at base `d89a9d7`.
-- M7 Integration / Legacy UI Cleanup is the current milestone on `feat/production-integration-legacy-m7`.
+- M7 Integration / Legacy UI Cleanup is implemented on `feat/production-integration-legacy-m7`; PR #8 remains open as Draft for review.
 - M8 Legacy backend cleanup has not started and remains out of scope.
 - 詳細なM1〜M8計画は[docs/PRODUCTION_UI_MIGRATION.md](../docs/PRODUCTION_UI_MIGRATION.md)を参照。
 
@@ -24,6 +24,13 @@
 - Audit internal navigation, remove unreachable legacy frontend screens and their dead references where safe, and retain all backend compatibility routes, services, repositories, D1 schema, migrations, and response fields for M8.
 - Verify two separate authenticated local sessions against the local Worker and local D1 for Task, Shopping, Other/permission, household sync, and session isolation.
 - Re-run canonical Vitest/Playwright coverage and production-like PWA/direct-route/service-worker checks. No deploy, remote migration, or visual redesign is in scope.
+
+## M7 completion record
+
+- Implementation/render target SHA: `fbe0855` (`test: align canonical m7 e2e contracts`).
+- Local Worker + D1 two-user coverage includes Task complete/pass/restore/edit, Shopping reorder/purchase/restore/planned-date Calendar deep-link, Other member/displayName/permission/household sync, and logout isolation.
+- Production-like PWA diagnostics passed manifest, icons, service worker, start URL states, direct routes, legacy redirect, and notification URL safety. WebKit is unavailable locally; real iPhone remains manual follow-up.
+- Evidence review package contains exactly four boards and four final WebM files; M8 backend cleanup has not started.
 
 ## M6 delivery boundary
 
