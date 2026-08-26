@@ -1,12 +1,36 @@
-# Milestone: Production UI Migration M5 — Other / Settings
+# Milestone: Production UI Migration M6 — Auth / Household Entry
 
 ## Current boundary
 
 - M1 Shared UI Foundation is complete.
 - M2 Home + Task is complete on the dedicated production branch. Mockup is used only for design, interaction, and motion reference; production API, auth, permissions, persisted data, and Cloudflare architecture remain authoritative.
-- M3 Calendar is complete on `origin/main` after PR #4. M4 Shopping is complete on `origin/main` after PR #5.
-- M5 Other / Settings is the current milestone on `feat/production-other-settings-m5`.
+- M3 Calendar and M4 Shopping are complete on `origin/main`.
+- M5 Other / Settings is complete and merged in PR #6 at base `ed749b7`.
+- M6 Auth / Household Entry is implemented on `feat/production-auth-entry-m6`; Draft PR #7 is open for review.
+- M7 legacy cleanup and M8 backend cleanup are explicitly out of scope.
 - 詳細なM1〜M8計画は[docs/PRODUCTION_UI_MIGRATION.md](../docs/PRODUCTION_UI_MIGRATION.md)を参照。
+
+## M6 start record
+
+- Production base SHA: `ed749b70707068b1b7dfb96e055d4e06371af094`
+- Mockup reference SHA: `db8941dc3056f07862014242a349ae366da59e9c`
+- Branch: `feat/production-auth-entry-m6`
+- M5 is merged to `main`; M6 is the current boundary.
+
+## M6 delivery boundary
+
+- Migrate Login, Register, Household Create, and Household Join to the Mockup Entry foundation.
+- Preserve Cookie session, PBKDF2 authentication, auth/household APIs, D1 persistence, permissions, and invite single-use/expiry semantics.
+- Add only the minimal unauthenticated read-only invite validation contract needed to avoid register-then-join partial success for invalid invite codes.
+- Remove Guest and Onboarding from the new runtime flow by redirecting `/guest` and `/onboarding` through the auth/household state machine.
+- Add M6 unit/API/E2E coverage and fresh 390x844 Production/Mockup parity and motion Evidence.
+
+## M6 completion record
+
+- Review correction implementation commit: `0fabce3`; Evidence refresh commit: `b54297c`; Draft PR: `https://github.com/427harinn/HouseToDo/pull/7`.
+- Review package contains exactly four labeled boards and four canonical WebM files. GIFs remain under `motion/previews/` only.
+- Entry primary/label parity, field-error clear, focus-neutral capture, semantic fixture alignment, and vertical Production/Mockup boards were rechecked for PR #7 review.
+- No merge, deploy, remote D1 migration, secrets/Cron change, or M7 work was performed.
 
 ## M2 delivery
 

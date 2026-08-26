@@ -32,6 +32,11 @@ export class HouseholdInviteService {
     this.householdService = new HouseholdService(db);
   }
 
+  async validateCode(code: string): Promise<boolean> {
+    const invite = await this.invites.findByCodeHash(await sha256Hex(code));
+    return Boolean(invite && !invite.usedAt && !isExpired(invite.expiresAt));
+  }
+
   async createInvite(userId: string): Promise<CreatedInvite> {
     const household = await this.householdService.requireHouseholdRole(userId, "owner");
     const code = generateInviteCode();

@@ -79,7 +79,7 @@ test("planned shopping date integrates with Calendar, purchase state, reuse excl
   await page.locator("#register-email").fill(`calendar-shopper-${id}@example.test`);
   await page.locator("#register-password").fill(password);
   await page.locator('form button[type="submit"]').click();
-  await expect(page).toHaveURL(/\/onboarding|\/home/);
+  await expect(page).toHaveURL(/\/household\/create|\/home/);
   await page.goto("/household/create");
   await page.locator("#household-name").fill(`Shopping Calendar House ${id}`);
   await page.locator('form button[type="submit"]').click();

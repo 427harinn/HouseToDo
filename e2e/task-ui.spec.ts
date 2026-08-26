@@ -61,7 +61,7 @@ const registerViaUi = async (page: Page, user: TestUser) => {
   await page.locator("#register-email").fill(user.email);
   await page.locator("#register-password").fill(password);
   await page.locator('form button[type="submit"]').click();
-  await expect(page).toHaveURL(/\/onboarding|\/home/);
+  await expect(page).toHaveURL(/\/household\/create|\/home/);
 };
 
 const loginViaUi = async (page: Page, user: TestUser) => {

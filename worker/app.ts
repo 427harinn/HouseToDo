@@ -12,6 +12,7 @@ import {
   currentHouseholdMembersRoute,
   currentHouseholdRoute,
   joinHouseholdRoute,
+  validateHouseholdInviteRoute,
   updateCurrentHouseholdRoute
 } from "./routes/households";
 import {
@@ -222,6 +223,8 @@ const routeApi = withErrorHandling(
         return createHouseholdInviteRoute(context);
       case "POST /api/households/join":
         return joinHouseholdRoute(context);
+      case "POST /api/households/invites/validate":
+        return validateHouseholdInviteRoute(context);
       case "GET /api/tasks":
         return listTasksRoute(context);
       case "GET /api/tasks/recent":
