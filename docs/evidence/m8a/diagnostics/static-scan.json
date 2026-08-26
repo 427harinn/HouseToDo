@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "milestone": "M8A",
+  "scope": ["src/", "worker/", "e2e/", "scripts/", "public/sw.js", "worker/index.ts"],
+  "removedFrontendWrappers": {
+    "runtimeReferenceCount": 0,
+    "names": ["listTasks", "listTodayTasks", "listWeekTasks", "listTaskTemplates", "getTaskTemplate", "createTaskTemplate", "updateTaskTemplate", "deactivateTaskTemplate", "clearPurchasedItems", "clearPurchasedShoppingItems", "getShoppingTemplate", "createShoppingTemplate", "updateShoppingTemplate", "deleteShoppingTemplate", "addShoppingItemFromTemplate"]
+  },
+  "removedInternalMethods": {
+    "runtimeReferenceCount": 0,
+    "names": ["ShoppingService.listUnplannedItems", "ShoppingItemRepository.listUnplannedByHouseholdId", "TaskRecordRepository.findWeeklyOpenRecord", "TaskRepository.replaceWeekdays", "ShoppingItemImageRepository.deleteForItem", "ShoppingItemImageService.listMetadata", "ShoppingItemImageService.deleteForHouseholdItem", "ShoppingItemImageService.deletePurchased"]
+  },
+  "scheduledKeepReferences": ["TaskRecordRepository.findByOccurrenceKey in worker/services/notification-scheduler-service.ts"],
+  "removedWorkerRoutes": [],
+  "removedRouteHandlers": [],
+  "removedEndpointStringAssertions": [],
+  "deadImportCount": 0,
+  "verification": ["rg source scan", "npm run lint", "npm run typecheck"]
+}

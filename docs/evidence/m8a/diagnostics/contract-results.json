@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "milestone": "M8A",
+  "source": "final local-only verification commands and canonical Chromium run",
+  "checks": [
+    { "name": "Removed endpoints: 404", "status": "NOT_APPLICABLE", "evidence": "No Worker route met REMOVE_DEAD_API; route count unchanged and no removed-route contract was fabricated." },
+    { "name": "Canonical Task", "status": "PASS", "evidence": "38 passed Chromium suite; worker/app.test.ts; m7-real-integration Task/Pass" },
+    { "name": "Canonical Shopping", "status": "PASS", "evidence": "38 passed Chromium suite; shopping-ui/image/calendar; worker/app.test.ts" },
+    { "name": "Reuse", "status": "PASS", "evidence": "Task recent reuse and Shopping Recent/Template-backed picker in canonical Chromium" },
+    { "name": "Calendar", "status": "PASS", "evidence": "calendar-ui + shopping-calendar-ui Chromium; local Calendar→Task Edit recording" },
+    { "name": "Dashboard", "status": "PASS", "evidence": "Home/dashboard coverage in 38 passed Chromium and worker/app.test.ts" },
+    { "name": "Auth/Household", "status": "PASS", "evidence": "m6-auth-entry and m7 household isolation Chromium; worker auth/household tests" },
+    { "name": "Notifications/background", "status": "PASS", "evidence": "worker/notifications.test.ts, scheduler and cleanup service tests" },
+    { "name": "Full Vitest", "status": "PASS", "evidence": "37 files passed; 236 tests passed" },
+    { "name": "Canonical Playwright", "status": "PASS", "evidence": "38 passed; 1 staging-only test skipped; local Vite + Wrangler Worker+D1" },
+    { "name": "Two-user smoke", "status": "PASS", "evidence": "local two-user Task and Shopping motion run completed with separate sessions" }
+  ]
+}

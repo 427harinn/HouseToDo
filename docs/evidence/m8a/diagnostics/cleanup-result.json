@@ -1,0 +1,184 @@
+{
+  "schemaVersion": 1,
+  "milestone": "M8A",
+  "productionBaseSha": "8e4653286d964f1ef88be6da92ad7b11e9c21ed5",
+  "implementationSha": "03c87555d29ab6e8bb60b8f4fcdeb490bb013d83",
+  "routeCount": {
+    "before": 65,
+    "after": 65,
+    "removed": 0,
+    "kept": 65
+  },
+  "removedFrontendWrappers": [
+    {
+      "name": "listTasks",
+      "file": "src/api/tasks.ts",
+      "replacement": "getDashboardToday / listRecentTaskDefinitions",
+      "runtimeReferenceCount": 0,
+      "verdict": "REMOVE_DEAD_WRAPPER"
+    },
+    {
+      "name": "listTodayTasks",
+      "file": "src/api/tasks.ts",
+      "replacement": "getDashboardToday",
+      "runtimeReferenceCount": 0,
+      "verdict": "REMOVE_DEAD_WRAPPER"
+    },
+    {
+      "name": "listWeekTasks",
+      "file": "src/api/tasks.ts",
+      "replacement": "getDashboardToday",
+      "runtimeReferenceCount": 0,
+      "verdict": "REMOVE_DEAD_WRAPPER"
+    },
+    {
+      "name": "Task Template CRUD wrappers",
+      "file": "src/api/tasks.ts",
+      "replacement": "listTaskTemplates route remains deferred; no canonical wrapper caller",
+      "runtimeReferenceCount": 0,
+      "verdict": "REMOVE_DEAD_WRAPPER"
+    },
+    {
+      "name": "clearPurchasedItems / clearPurchasedShoppingItems",
+      "file": "src/api/shopping.ts",
+      "replacement": "Worker route remains DEFER_COMPAT",
+      "runtimeReferenceCount": 0,
+      "verdict": "REMOVE_DEAD_WRAPPER"
+    },
+    {
+      "name": "Shopping Template CRUD/detail/add wrappers",
+      "file": "src/api/shopping.ts",
+      "replacement": "listShoppingTemplates",
+      "runtimeReferenceCount": 0,
+      "verdict": "REMOVE_DEAD_WRAPPER"
+    }
+  ],
+  "removedInternalMethods": [
+    {
+      "symbol": "ShoppingService.listUnplannedItems",
+      "file": "worker/services/shopping-service.ts",
+      "runtimeReferenceCount": 0
+    },
+    {
+      "symbol": "ShoppingItemRepository.listUnplannedByHouseholdId",
+      "file": "worker/repositories/shopping-item-repository.ts",
+      "runtimeReferenceCount": 0
+    },
+    {
+      "symbol": "TaskRecordRepository.findWeeklyOpenRecord",
+      "file": "worker/repositories/task-record-repository.ts",
+      "runtimeReferenceCount": 0
+    },
+    {
+      "symbol": "TaskRepository.replaceWeekdays",
+      "file": "worker/repositories/task-repository.ts",
+      "runtimeReferenceCount": 0
+    },
+    {
+      "symbol": "ShoppingItemImageRepository.deleteForItem",
+      "file": "worker/repositories/shopping-item-image-repository.ts",
+      "runtimeReferenceCount": 0
+    },
+    {
+      "symbol": "ShoppingItemImageService.listMetadata",
+      "file": "worker/services/shopping-item-image-service.ts",
+      "runtimeReferenceCount": 0
+    },
+    {
+      "symbol": "ShoppingItemImageService.deleteForHouseholdItem",
+      "file": "worker/services/shopping-item-image-service.ts",
+      "runtimeReferenceCount": 0
+    },
+    {
+      "symbol": "ShoppingItemImageService.deletePurchased",
+      "file": "worker/services/shopping-item-image-service.ts",
+      "runtimeReferenceCount": 0
+    }
+  ],
+  "removedWorkerRoutes": [],
+  "removedRouteHandlers": [],
+  "removedServiceMethods": [
+    {
+      "symbol": "ShoppingService.listUnplannedItems",
+      "file": "worker/services/shopping-service.ts",
+      "runtimeReferenceCount": 0
+    },
+    {
+      "symbol": "ShoppingItemImageService.listMetadata",
+      "file": "worker/services/shopping-item-image-service.ts",
+      "runtimeReferenceCount": 0
+    },
+    {
+      "symbol": "ShoppingItemImageService.deleteForHouseholdItem",
+      "file": "worker/services/shopping-item-image-service.ts",
+      "runtimeReferenceCount": 0
+    },
+    {
+      "symbol": "ShoppingItemImageService.deletePurchased",
+      "file": "worker/services/shopping-item-image-service.ts",
+      "runtimeReferenceCount": 0
+    }
+  ],
+  "removedRepositoryMethods": [
+    {
+      "symbol": "ShoppingItemRepository.listUnplannedByHouseholdId",
+      "file": "worker/repositories/shopping-item-repository.ts",
+      "runtimeReferenceCount": 0
+    },
+    {
+      "symbol": "TaskRecordRepository.findWeeklyOpenRecord",
+      "file": "worker/repositories/task-record-repository.ts",
+      "runtimeReferenceCount": 0
+    },
+    {
+      "symbol": "TaskRepository.replaceWeekdays",
+      "file": "worker/repositories/task-repository.ts",
+      "runtimeReferenceCount": 0
+    },
+    {
+      "symbol": "ShoppingItemImageRepository.deleteForItem",
+      "file": "worker/repositories/shopping-item-image-repository.ts",
+      "runtimeReferenceCount": 0
+    }
+  ],
+  "removedTests": [
+    "dead frontend wrapper request assertions only; Worker route contract tests retained"
+  ],
+  "intentionallyKept": {
+    "canonicalReuse": [
+      "GET /api/tasks/recent",
+      "GET /api/shopping/recent",
+      "GET /api/shopping/templates"
+    ],
+    "backgroundScheduled": [
+      "TaskService.listToday",
+      "TaskService.listWeek",
+      "TaskRecordRepository.findByOccurrenceKey (notification scheduler)",
+      "ShoppingService.clearPurchased",
+      "ShoppingItemImageRepository.listPurchasedByHousehold",
+      "notification scheduler",
+      "image reservation cleanup",
+      "orphan R2 cleanup"
+    ],
+    "compatibilityDeferred": [
+      "GET /api/tasks",
+      "GET /api/tasks/today",
+      "GET /api/tasks/week",
+      "GET /api/task-templates",
+      "POST /api/task-templates",
+      "POST /api/shopping/items/clear-purchased",
+      "POST /api/shopping/templates",
+      "GET /api/task-templates/:id",
+      "PATCH /api/task-templates/:id",
+      "DELETE /api/task-templates/:id",
+      "POST /api/tasks/:id/start",
+      "POST /api/tasks/:id/reset",
+      "GET /api/shopping/templates/:id",
+      "PATCH /api/shopping/templates/:id",
+      "DELETE /api/shopping/templates/:id",
+      "POST /api/shopping/templates/:id/add"
+    ],
+    "dbSchema": "unchanged"
+  },
+  "verdict": "NON_DESTRUCTIVE_CLEANUP_ONLY"
+}

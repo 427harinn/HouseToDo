@@ -26,12 +26,12 @@ M1〜M7は`origin/main`で完了。M8A Backend Reachability Audit / Non-destruct
 - M6 is merged; M7 is merged in PR #8; M8A is the current milestone and M8B is pending review.
 - Scope boundary: canonical frontend route integration, legacy user-facing redirect/cleanup, local two-user verification, E2E/PWA integration. Worker routes, services, repositories, D1 schema/migrations, and compatibility response fields remain for M8.
 
-## M8 cleanup inventory (identified by M7 reference audit; not removed)
+## M8 cleanup inventory (M7 pre-audit; superseded by M8A audit)
 
-- Task template API routes/services/repository and Shopping template API routes/services/repository remain in use by canonical Add/Shopping reuse flows (`listTaskTemplates`, `listShoppingTemplates`, and template-backed add operations).
-- Frontend API wrappers for recent/template/reuse operations remain because canonical screens still call them; they are not M7 dead code.
-- Legacy Worker route handlers, compatibility response fields, repositories, services, D1 tables/columns, and migration history remain unchanged.
-- Candidate removal requires a separate M8 usage audit after the canonical reuse paths are intentionally migrated or retired; M7 does not infer unused status from route retirement alone.
+- M7 deliberately left all backend template and compatibility surfaces in place pending M8A reachability review.
+- M8A confirms `listShoppingTemplates` and the `ShoppingTemplate` type are canonical reuse contracts; Task/Shopping template CRUD wrappers and other dead frontend wrappers were removed from `src/api`.
+- Worker template routes, compatibility response fields, repositories, services, D1 tables/columns, and migration history remain unchanged where external consumers or persisted compatibility cannot be disproven from this repository.
+- M8B candidates are recorded with reader, writer, migration requirement, risk, and recommended action in `docs/evidence/m8a/diagnostics/api-reachability.json`.
 
 ## M7 completion record
 

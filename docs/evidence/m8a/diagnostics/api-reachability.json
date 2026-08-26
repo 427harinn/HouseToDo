@@ -1,0 +1,1671 @@
+{
+  "schemaVersion": 1,
+  "milestone": "M8A",
+  "generatedBy": "scripts/generate-m8a-diagnostics.mjs",
+  "productionBaseSha": "8e4653286d964f1ef88be6da92ad7b11e9c21ed5",
+  "implementationSha": "03c87555d29ab6e8bb60b8f4fcdeb490bb013d83",
+  "branch": "feat/backend-cleanup-m8a",
+  "routeRegistrySource": "worker/app.ts",
+  "routeCount": {
+    "before": 65,
+    "after": 65,
+    "removed": 0,
+    "kept": 65
+  },
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "routeHandler": "healthRoute",
+      "service": "Health",
+      "repository": "none",
+      "frontendCaller": [],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [
+        "e2e/* waitForApp"
+      ],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "local health",
+      "verdict": "KEEP_INTERNAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/register",
+      "routeHandler": "registerRoute",
+      "service": "AuthService.register",
+      "repository": "UserRepository + SessionRepository",
+      "frontendCaller": [
+        "register"
+      ],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [
+        "e2e/*"
+      ],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Auth",
+      "verdict": "KEEP_CANONICAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/login",
+      "routeHandler": "loginRoute",
+      "service": "AuthService.login",
+      "repository": "UserRepository + SessionRepository",
+      "frontendCaller": [
+        "login"
+      ],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [
+        "e2e/m6-auth-entry.spec.ts"
+      ],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Auth",
+      "verdict": "KEEP_CANONICAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/logout",
+      "routeHandler": "logoutRoute",
+      "service": "AuthService.logout",
+      "repository": "SessionRepository",
+      "frontendCaller": [
+        "logout"
+      ],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [
+        "e2e/m5-other-settings.spec.ts"
+      ],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Auth",
+      "verdict": "KEEP_CANONICAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "routeHandler": "meRoute",
+      "service": "AuthService.authenticateRequest",
+      "repository": "SessionRepository + UserRepository",
+      "frontendCaller": [
+        "me"
+      ],
+      "internalWorkerCaller": [
+        "App route state machine"
+      ],
+      "scheduledCaller": [],
+      "e2eCaller": [
+        "e2e/*"
+      ],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Auth / route state",
+      "verdict": "KEEP_CANONICAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/account/avatar",
+      "routeHandler": "profileImageMetadataRoute",
+      "service": "UserAvatarService.metadata",
+      "repository": "UserRepository",
+      "frontendCaller": [
+        "getCurrentProfileImage"
+      ],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [
+        "e2e/m5-other-settings.spec.ts"
+      ],
+      "testOnlyCaller": [
+        "worker/account.test.ts"
+      ],
+      "canonicalFeature": "Account image",
+      "verdict": "KEEP_CANONICAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/account/profile",
+      "routeHandler": "updateProfileRoute",
+      "service": "UserRepository.updateDisplayName",
+      "repository": "UserRepository",
+      "frontendCaller": [
+        "updateProfile"
+      ],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [
+        "e2e/m5-other-settings.spec.ts"
+      ],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Account",
+      "verdict": "KEEP_CANONICAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "PUT",
+      "path": "/api/account/avatar",
+      "routeHandler": "uploadProfileImageRoute",
+      "service": "UserAvatarService.upload",
+      "repository": "UserRepository + HouseholdImageUsageRepository",
+      "frontendCaller": [
+        "uploadProfileImage"
+      ],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [
+        "e2e/m5-other-settings.spec.ts"
+      ],
+      "testOnlyCaller": [
+        "worker/account.test.ts"
+      ],
+      "canonicalFeature": "Account image",
+      "verdict": "KEEP_CANONICAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/account/avatar",
+      "routeHandler": "deleteProfileImageRoute",
+      "service": "UserAvatarService.remove",
+      "repository": "UserRepository + HouseholdImageUsageRepository",
+      "frontendCaller": [
+        "deleteProfileImage"
+      ],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [
+        "e2e/m5-other-settings.spec.ts"
+      ],
+      "testOnlyCaller": [
+        "worker/account.test.ts"
+      ],
+      "canonicalFeature": "Account image",
+      "verdict": "KEEP_CANONICAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/notifications/vapid-public-key",
+      "routeHandler": "vapidPublicKeyRoute",
+      "service": "none",
+      "repository": "none",
+      "frontendCaller": [
+        "getVapidPublicKey"
+      ],
+      "internalWorkerCaller": [
+        "Notification settings"
+      ],
+      "scheduledCaller": [
+        "notification scheduler config"
+      ],
+      "e2eCaller": [
+        "e2e/m5-other-settings.spec.ts"
+      ],
+      "testOnlyCaller": [
+        "worker/notifications.test.ts"
+      ],
+      "canonicalFeature": "Notifications",
+      "verdict": "KEEP_INTERNAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/notifications/subscriptions",
+      "routeHandler": "registerPushSubscriptionRoute",
+      "service": "PushSubscriptionService.register",
+      "repository": "PushSubscriptionRepository",
+      "frontendCaller": [
+        "registerPushSubscription"
+      ],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [
+        "notification scheduler"
+      ],
+      "e2eCaller": [
+        "e2e/m5-other-settings.spec.ts"
+      ],
+      "testOnlyCaller": [
+        "worker/notifications.test.ts"
+      ],
+      "canonicalFeature": "Notifications",
+      "verdict": "KEEP_CANONICAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/notifications/subscriptions",
+      "routeHandler": "unregisterPushSubscriptionRoute",
+      "service": "PushSubscriptionService.unregister",
+      "repository": "PushSubscriptionRepository",
+      "frontendCaller": [
+        "unregisterPushSubscription"
+      ],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [
+        "notification scheduler"
+      ],
+      "e2eCaller": [
+        "e2e/m5-other-settings.spec.ts"
+      ],
+      "testOnlyCaller": [
+        "worker/notifications.test.ts"
+      ],
+      "canonicalFeature": "Notifications",
+      "verdict": "KEEP_CANONICAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/notifications/test",
+      "routeHandler": "testPushNotificationRoute",
+      "service": "WebPushService.sendTest",
+      "repository": "PushSubscriptionRepository",
+      "frontendCaller": [],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [
+        "e2e/m5-other-settings.spec.ts"
+      ],
+      "testOnlyCaller": [
+        "worker/notifications.test.ts"
+      ],
+      "canonicalFeature": "Notifications diagnostic",
+      "verdict": "KEEP_INTERNAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/notifications/settings",
+      "routeHandler": "getNotificationSettingsRoute",
+      "service": "NotificationSettingsRepository.find",
+      "repository": "NotificationSettingsRepository",
+      "frontendCaller": [
+        "getNotificationSettings"
+      ],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [
+        "notification scheduler"
+      ],
+      "e2eCaller": [
+        "e2e/m5-other-settings.spec.ts"
+      ],
+      "testOnlyCaller": [
+        "worker/notifications.test.ts"
+      ],
+      "canonicalFeature": "Notifications",
+      "verdict": "KEEP_CANONICAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/notifications/settings",
+      "routeHandler": "updateNotificationSettingsRoute",
+      "service": "NotificationSettingsRepository.upsert",
+      "repository": "NotificationSettingsRepository",
+      "frontendCaller": [
+        "updateNotificationSettings"
+      ],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [
+        "notification scheduler"
+      ],
+      "e2eCaller": [
+        "e2e/m5-other-settings.spec.ts"
+      ],
+      "testOnlyCaller": [
+        "worker/notifications.test.ts"
+      ],
+      "canonicalFeature": "Notifications",
+      "verdict": "KEEP_CANONICAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/households",
+      "routeHandler": "createHouseholdRoute",
+      "service": "HouseholdService.createHousehold",
+      "repository": "HouseholdRepository + HouseholdMemberRepository",
+      "frontendCaller": [
+        "createHousehold"
+      ],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [
+        "e2e/*"
+      ],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Household",
+      "verdict": "KEEP_CANONICAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/households/current",
+      "routeHandler": "currentHouseholdRoute",
+      "service": "HouseholdService.getCurrentHousehold",
+      "repository": "HouseholdRepository + HouseholdMemberRepository",
+      "frontendCaller": [
+        "getCurrentHousehold"
+      ],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [
+        "e2e/*"
+      ],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Household",
+      "verdict": "KEEP_CANONICAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/households/current",
+      "routeHandler": "updateCurrentHouseholdRoute",
+      "service": "HouseholdService.updateCurrentHousehold",
+      "repository": "HouseholdRepository",
+      "frontendCaller": [
+        "updateCurrentHousehold"
+      ],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [
+        "e2e/m5-other-settings.spec.ts"
+      ],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Household",
+      "verdict": "KEEP_CANONICAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/households/current/members",
+      "routeHandler": "currentHouseholdMembersRoute",
+      "service": "HouseholdService.listCurrentMembers",
+      "repository": "HouseholdMemberRepository",
+      "frontendCaller": [
+        "listMembers"
+      ],
+      "internalWorkerCaller": [
+        "DashboardService member projection"
+      ],
+      "scheduledCaller": [],
+      "e2eCaller": [
+        "e2e/*"
+      ],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Household",
+      "verdict": "KEEP_CANONICAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/households/current/image-usage",
+      "routeHandler": "currentHouseholdImageUsageRoute",
+      "service": "HouseholdImageUsageService.getForUser",
+      "repository": "HouseholdImageUsageRepository",
+      "frontendCaller": [
+        "getCurrentImageUsage"
+      ],
+      "internalWorkerCaller": [
+        "image upload services"
+      ],
+      "scheduledCaller": [],
+      "e2eCaller": [
+        "e2e/image-upload-ux.spec.ts"
+      ],
+      "testOnlyCaller": [
+        "worker/image-usage.test.ts"
+      ],
+      "canonicalFeature": "Image usage",
+      "verdict": "KEEP_CANONICAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/households/current/invites",
+      "routeHandler": "createHouseholdInviteRoute",
+      "service": "HouseholdInviteService.createInvite",
+      "repository": "HouseholdInviteRepository",
+      "frontendCaller": [
+        "createInvite"
+      ],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [
+        "e2e/m5-other-settings.spec.ts"
+      ],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Household invite",
+      "verdict": "KEEP_CANONICAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/households/join",
+      "routeHandler": "joinHouseholdRoute",
+      "service": "HouseholdInviteService.joinByCode",
+      "repository": "HouseholdInviteRepository + HouseholdMemberRepository",
+      "frontendCaller": [
+        "joinHousehold"
+      ],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [
+        "e2e/m6-auth-entry.spec.ts"
+      ],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Household invite",
+      "verdict": "KEEP_CANONICAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/households/invites/validate",
+      "routeHandler": "validateHouseholdInviteRoute",
+      "service": "HouseholdInviteService.validateCode",
+      "repository": "HouseholdInviteRepository",
+      "frontendCaller": [
+        "validateInviteCode"
+      ],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [
+        "e2e/m6-auth-entry.spec.ts"
+      ],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Household invite",
+      "verdict": "KEEP_CANONICAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/tasks",
+      "routeHandler": "listTasksRoute",
+      "service": "TaskService.listTasks",
+      "repository": "TaskRepository.listByHouseholdId",
+      "frontendCaller": [],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [
+        "none (only route mocks)"
+      ],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Legacy Task list",
+      "verdict": "DEFER_COMPAT",
+      "finalStatus": "KEPT",
+      "reason": "No canonical runtime caller; external consumers and persisted compatibility data are not provably absent."
+    },
+    {
+      "method": "GET",
+      "path": "/api/tasks/recent",
+      "routeHandler": "recentTasksRoute",
+      "service": "TaskService.listRecentTasks",
+      "repository": "TaskRepository.listRecentCanonicalByHouseholdId",
+      "frontendCaller": [
+        "listRecentTaskDefinitions"
+      ],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [
+        "e2e/m2-home-task.spec.ts (mock only)"
+      ],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Task Add reuse",
+      "verdict": "KEEP_CANONICAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/tasks",
+      "routeHandler": "createTaskRoute",
+      "service": "TaskService.createTask",
+      "repository": "TaskRepository.create",
+      "frontendCaller": [
+        "createTask"
+      ],
+      "internalWorkerCaller": [
+        "DashboardService / Calendar projections read created task"
+      ],
+      "scheduledCaller": [
+        "notification scheduler reads canonical tasks"
+      ],
+      "e2eCaller": [
+        "e2e/*"
+      ],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Task Add",
+      "verdict": "KEEP_CANONICAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/tasks/today",
+      "routeHandler": "todayTasksRoute",
+      "service": "TaskService.listToday",
+      "repository": "TaskRepository.listByHouseholdId + TaskRecordRepository",
+      "frontendCaller": [],
+      "internalWorkerCaller": [
+        "DashboardService.getToday -> TaskService.listToday"
+      ],
+      "scheduledCaller": [],
+      "e2eCaller": [
+        "none (only route mocks)"
+      ],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Legacy Task today list",
+      "verdict": "DEFER_COMPAT",
+      "finalStatus": "KEPT",
+      "reason": "No canonical runtime caller; external consumers and persisted compatibility data are not provably absent."
+    },
+    {
+      "method": "GET",
+      "path": "/api/tasks/week",
+      "routeHandler": "weekTasksRoute",
+      "service": "TaskService.listWeek",
+      "repository": "TaskRepository + TaskRecordRepository",
+      "frontendCaller": [],
+      "internalWorkerCaller": [
+        "DashboardService.getToday -> TaskService.listWeek"
+      ],
+      "scheduledCaller": [],
+      "e2eCaller": [
+        "none (only route mocks)"
+      ],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Legacy Task week list",
+      "verdict": "DEFER_COMPAT",
+      "finalStatus": "KEPT",
+      "reason": "No canonical runtime caller; external consumers and persisted compatibility data are not provably absent."
+    },
+    {
+      "method": "GET",
+      "path": "/api/tasks/calendar",
+      "routeHandler": "calendarTasksRoute",
+      "service": "TaskService.listCalendar + ShoppingService.listPlannedItems",
+      "repository": "TaskRepository + TaskRecordRepository + ShoppingItemRepository",
+      "frontendCaller": [
+        "listCalendarTasks"
+      ],
+      "internalWorkerCaller": [
+        "Calendar UI"
+      ],
+      "scheduledCaller": [],
+      "e2eCaller": [
+        "e2e/calendar-ui.spec.ts"
+      ],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Calendar",
+      "verdict": "KEEP_CANONICAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/task-templates",
+      "routeHandler": "listTaskTemplatesRoute",
+      "service": "TaskTemplateService.listTemplates",
+      "repository": "TaskTemplateRepository.listByHouseholdId",
+      "frontendCaller": [],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [
+        "e2e/ui-foundation.spec.ts (mock only)"
+      ],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Task Template compatibility surface",
+      "verdict": "DEFER_COMPAT",
+      "finalStatus": "KEPT",
+      "reason": "No canonical runtime caller; external consumers and persisted compatibility data are not provably absent."
+    },
+    {
+      "method": "POST",
+      "path": "/api/task-templates",
+      "routeHandler": "createTaskTemplateRoute",
+      "service": "TaskTemplateService.createTemplate",
+      "repository": "TaskTemplateRepository.create",
+      "frontendCaller": [],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [
+        "none (worker test only)"
+      ],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Task Template compatibility surface",
+      "verdict": "DEFER_COMPAT",
+      "finalStatus": "KEPT",
+      "reason": "No canonical runtime caller; external consumers and persisted compatibility data are not provably absent."
+    },
+    {
+      "method": "GET",
+      "path": "/api/dashboard/today",
+      "routeHandler": "dashboardTodayRoute",
+      "service": "DashboardService.getToday",
+      "repository": "TaskRepository + TaskRecordRepository + ShoppingItemRepository + HouseholdMemberRepository",
+      "frontendCaller": [
+        "getDashboardToday"
+      ],
+      "internalWorkerCaller": [
+        "Home UI"
+      ],
+      "scheduledCaller": [
+        "notification scheduler is independent; no route call"
+      ],
+      "e2eCaller": [
+        "e2e/*"
+      ],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Home / Dashboard",
+      "verdict": "KEEP_CANONICAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/shopping/items",
+      "routeHandler": "listShoppingItemsRoute",
+      "service": "ShoppingService.listItems",
+      "repository": "ShoppingItemRepository + ShoppingItemImageRepository",
+      "frontendCaller": [
+        "listShoppingItems"
+      ],
+      "internalWorkerCaller": [
+        "DashboardService shopping preview"
+      ],
+      "scheduledCaller": [],
+      "e2eCaller": [
+        "e2e/*"
+      ],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Shopping",
+      "verdict": "KEEP_CANONICAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/shopping/recent",
+      "routeHandler": "listRecentShoppingItemsRoute",
+      "service": "ShoppingService.listRecentItems",
+      "repository": "ShoppingItemRepository.listRecentByHouseholdId",
+      "frontendCaller": [
+        "listRecentShoppingItems"
+      ],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [
+        "e2e/shopping-calendar-ui.spec.ts"
+      ],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Shopping Add reuse",
+      "verdict": "KEEP_CANONICAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/shopping/items",
+      "routeHandler": "createShoppingItemRoute",
+      "service": "ShoppingService.createItem",
+      "repository": "ShoppingItemRepository.create",
+      "frontendCaller": [
+        "createShoppingItem"
+      ],
+      "internalWorkerCaller": [
+        "Calendar / Dashboard projections read created item"
+      ],
+      "scheduledCaller": [],
+      "e2eCaller": [
+        "e2e/*"
+      ],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Shopping Add",
+      "verdict": "KEEP_CANONICAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/shopping/items/clear-purchased",
+      "routeHandler": "clearPurchasedShoppingItemsRoute",
+      "service": "ShoppingService.clearPurchased",
+      "repository": "ShoppingItemRepository.clearPurchasedWithImages + ShoppingItemImageRepository",
+      "frontendCaller": [],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [
+        "e2e/shopping-image.spec.ts cleanup",
+        "staging comment only"
+      ],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Legacy Shopping cleanup",
+      "verdict": "DEFER_COMPAT",
+      "finalStatus": "KEPT",
+      "reason": "No canonical runtime caller; external consumers and persisted compatibility data are not provably absent."
+    },
+    {
+      "method": "GET",
+      "path": "/api/shopping/templates",
+      "routeHandler": "listShoppingTemplatesRoute",
+      "service": "ShoppingTemplateService.listTemplates",
+      "repository": "ShoppingTemplateRepository.listByHouseholdId",
+      "frontendCaller": [
+        "listShoppingTemplates"
+      ],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [
+        "e2e/shopping-calendar-ui.spec.ts"
+      ],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Shopping Add reuse",
+      "verdict": "KEEP_CANONICAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/shopping/templates",
+      "routeHandler": "createShoppingTemplateRoute",
+      "service": "ShoppingTemplateService.createTemplate",
+      "repository": "ShoppingTemplateRepository.create",
+      "frontendCaller": [],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [
+        "e2e/shopping-calendar-ui.spec.ts fixture setup"
+      ],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Shopping Template compatibility surface",
+      "verdict": "DEFER_COMPAT",
+      "finalStatus": "KEPT",
+      "reason": "No canonical runtime caller; external consumers and persisted compatibility data are not provably absent."
+    },
+    {
+      "method": "GET",
+      "path": "/api/users/:id/avatar",
+      "routeHandler": "getProfileImageRoute",
+      "service": "UserAvatarService.get",
+      "repository": "UserRepository.findById",
+      "frontendCaller": [],
+      "internalWorkerCaller": [
+        "TaskService snapshot URL",
+        "DashboardService member avatar URL"
+      ],
+      "scheduledCaller": [],
+      "e2eCaller": [],
+      "testOnlyCaller": [
+        "worker/app.test.ts",
+        "e2e/shopping-image.spec.ts"
+      ],
+      "canonicalFeature": "avatar / image ownership",
+      "verdict": "KEEP_INTERNAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/task-templates/:id",
+      "routeHandler": "getTaskTemplateRoute",
+      "service": "getTemplate",
+      "repository": "TaskTemplateRepository",
+      "frontendCaller": [],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Task Template compatibility surface",
+      "verdict": "DEFER_COMPAT",
+      "finalStatus": "KEPT",
+      "reason": "No canonical Task runtime caller; external consumers and persisted template rows are not provably absent."
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/task-templates/:id",
+      "routeHandler": "updateTaskTemplateRoute",
+      "service": "updateTemplate",
+      "repository": "TaskTemplateRepository",
+      "frontendCaller": [],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Task Template compatibility surface",
+      "verdict": "DEFER_COMPAT",
+      "finalStatus": "KEPT",
+      "reason": "No canonical Task runtime caller; external consumers and persisted template rows are not provably absent."
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/task-templates/:id",
+      "routeHandler": "deleteTaskTemplateRoute",
+      "service": "deactivateTemplate",
+      "repository": "TaskTemplateRepository",
+      "frontendCaller": [],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Task Template compatibility surface",
+      "verdict": "DEFER_COMPAT",
+      "finalStatus": "KEPT",
+      "reason": "No canonical Task runtime caller; external consumers and persisted template rows are not provably absent."
+    },
+    {
+      "method": "GET",
+      "path": "/api/tasks/:id",
+      "routeHandler": "getTaskRoute",
+      "service": "TaskService.getTask",
+      "repository": "TaskRepository + TaskRecordRepository",
+      "frontendCaller": [
+        "getTask"
+      ],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Task Add/Edit",
+      "verdict": "KEEP_CANONICAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/tasks/:id",
+      "routeHandler": "updateTaskRoute",
+      "service": "TaskService.updateTask",
+      "repository": "TaskRepository + TaskRecordRepository",
+      "frontendCaller": [
+        "updateTask"
+      ],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Task Edit",
+      "verdict": "KEEP_CANONICAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/tasks/:id",
+      "routeHandler": "deleteTaskRoute",
+      "service": "TaskService.deactivateTask",
+      "repository": "TaskRepository + TaskRecordRepository",
+      "frontendCaller": [
+        "deactivateTask"
+      ],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Task Edit delete",
+      "verdict": "KEEP_CANONICAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/tasks/:id/history",
+      "routeHandler": "taskHistoryRoute",
+      "service": "TaskService.listHistory",
+      "repository": "TaskRepository + TaskRecordRepository",
+      "frontendCaller": [
+        "listHistory"
+      ],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Task Edit previous completion",
+      "verdict": "KEEP_CANONICAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/tasks/:id/restore",
+      "routeHandler": "restoreTaskRecordRoute",
+      "service": "TaskService.restoreRecord",
+      "repository": "TaskRepository + TaskRecordRepository",
+      "frontendCaller": [
+        "restoreRecord"
+      ],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Home restore",
+      "verdict": "KEEP_CANONICAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/tasks/:id/calendar-restore",
+      "routeHandler": "restoreCalendarTaskRecordRoute",
+      "service": "TaskService.restoreCalendarRecord",
+      "repository": "TaskRepository + TaskRecordRepository",
+      "frontendCaller": [
+        "restoreCalendarRecord"
+      ],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Calendar restore",
+      "verdict": "KEEP_CANONICAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/tasks/:id/start",
+      "routeHandler": "changeTaskStateRoute",
+      "service": "TaskService.changeState",
+      "repository": "TaskRepository + TaskRecordRepository",
+      "frontendCaller": [],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Legacy task state compatibility",
+      "verdict": "DEFER_COMPAT",
+      "finalStatus": "KEPT",
+      "reason": "No canonical Task runtime caller; external consumers and legacy state semantics are not provably absent."
+    },
+    {
+      "method": "POST",
+      "path": "/api/tasks/:id/complete",
+      "routeHandler": "changeTaskStateRoute",
+      "service": "TaskService.changeState",
+      "repository": "TaskRepository + TaskRecordRepository",
+      "frontendCaller": [
+        "changeTaskState"
+      ],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Home / Calendar complete",
+      "verdict": "KEEP_CANONICAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/tasks/:id/skip",
+      "routeHandler": "changeTaskStateRoute",
+      "service": "TaskService.changeState",
+      "repository": "TaskRepository + TaskRecordRepository",
+      "frontendCaller": [
+        "changeTaskState"
+      ],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Home / Calendar pass",
+      "verdict": "KEEP_CANONICAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/tasks/:id/reset",
+      "routeHandler": "changeTaskStateRoute",
+      "service": "TaskService.changeState",
+      "repository": "TaskRepository + TaskRecordRepository",
+      "frontendCaller": [],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Legacy task state compatibility",
+      "verdict": "DEFER_COMPAT",
+      "finalStatus": "KEPT",
+      "reason": "No canonical Task runtime caller; external consumers and legacy state semantics are not provably absent."
+    },
+    {
+      "method": "GET",
+      "path": "/api/shopping/items/:id",
+      "routeHandler": "getShoppingItemRoute",
+      "service": "getItem",
+      "repository": "ShoppingItemRepository / ShoppingItemImageRepository",
+      "frontendCaller": [
+        "getItem"
+      ],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [
+        "e2e/shopping-image.spec.ts"
+      ],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Shopping detail / Calendar deep link",
+      "verdict": "KEEP_CANONICAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/shopping/items/:id",
+      "routeHandler": "updateShoppingItemRoute",
+      "service": "updateItem",
+      "repository": "ShoppingItemRepository / ShoppingItemImageRepository",
+      "frontendCaller": [
+        "updateItem"
+      ],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [
+        "e2e/shopping-image.spec.ts"
+      ],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Shopping Edit",
+      "verdict": "KEEP_CANONICAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/shopping/items/:id",
+      "routeHandler": "deleteShoppingItemRoute",
+      "service": "deleteItem",
+      "repository": "ShoppingItemRepository / ShoppingItemImageRepository",
+      "frontendCaller": [
+        "deleteItem"
+      ],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [
+        "e2e/shopping-image.spec.ts"
+      ],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Shopping Edit delete",
+      "verdict": "KEEP_CANONICAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/shopping/items/:id/purchase",
+      "routeHandler": "purchaseShoppingItemRoute",
+      "service": "markPurchased",
+      "repository": "ShoppingItemRepository / ShoppingItemImageRepository",
+      "frontendCaller": [
+        "markPurchased"
+      ],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [
+        "e2e/shopping-image.spec.ts"
+      ],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Shopping purchase",
+      "verdict": "KEEP_CANONICAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/shopping/items/:id/unpurchase",
+      "routeHandler": "unpurchaseShoppingItemRoute",
+      "service": "markPending",
+      "repository": "ShoppingItemRepository / ShoppingItemImageRepository",
+      "frontendCaller": [
+        "markPending"
+      ],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [
+        "e2e/shopping-image.spec.ts"
+      ],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Shopping restore",
+      "verdict": "KEEP_CANONICAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "PUT",
+      "path": "/api/shopping/items/:id/image",
+      "routeHandler": "uploadShoppingItemImageRoute",
+      "service": "ShoppingItemImageService.upload",
+      "repository": "ShoppingItemRepository / ShoppingItemImageRepository",
+      "frontendCaller": [
+        "upload"
+      ],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [
+        "e2e/shopping-image.spec.ts"
+      ],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Shopping image upload",
+      "verdict": "KEEP_CANONICAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/shopping/items/:id/image",
+      "routeHandler": "getShoppingItemImageRoute",
+      "service": "ShoppingItemImageService.get",
+      "repository": "ShoppingItemRepository / ShoppingItemImageRepository",
+      "frontendCaller": [
+        "get"
+      ],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [
+        "e2e/shopping-image.spec.ts"
+      ],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Shopping image read",
+      "verdict": "KEEP_CANONICAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/shopping/items/:id/image",
+      "routeHandler": "deleteShoppingItemImageRoute",
+      "service": "ShoppingItemImageService.delete",
+      "repository": "ShoppingItemRepository / ShoppingItemImageRepository",
+      "frontendCaller": [
+        "delete"
+      ],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [
+        "e2e/shopping-image.spec.ts"
+      ],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Shopping image delete",
+      "verdict": "KEEP_CANONICAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/shopping/items/reorder",
+      "routeHandler": "reorderShoppingItemsRoute",
+      "service": "reorderItems",
+      "repository": "ShoppingItemRepository.reorderPending",
+      "frontendCaller": [
+        "reorderShoppingItems"
+      ],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [
+        "e2e/shopping-ui.spec.ts",
+        "e2e/m7-real-integration.spec.ts"
+      ],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Shopping reorder",
+      "verdict": "KEEP_CANONICAL",
+      "finalStatus": "KEPT",
+      "reason": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/shopping/templates/:id",
+      "routeHandler": "getShoppingTemplateRoute",
+      "service": "getTemplate",
+      "repository": "ShoppingTemplateRepository",
+      "frontendCaller": [],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [
+        "e2e/shopping-calendar-ui.spec.ts"
+      ],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Shopping Template compatibility surface",
+      "verdict": "DEFER_COMPAT",
+      "finalStatus": "KEPT",
+      "reason": "Template rows remain a reuse source; CRUD and shortcut route callers are not canonical runtime callers, but external consumers and persisted data are not provably absent."
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/shopping/templates/:id",
+      "routeHandler": "updateShoppingTemplateRoute",
+      "service": "updateTemplate",
+      "repository": "ShoppingTemplateRepository",
+      "frontendCaller": [],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [
+        "e2e/shopping-calendar-ui.spec.ts"
+      ],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Shopping Template compatibility surface",
+      "verdict": "DEFER_COMPAT",
+      "finalStatus": "KEPT",
+      "reason": "Template rows remain a reuse source; CRUD and shortcut route callers are not canonical runtime callers, but external consumers and persisted data are not provably absent."
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/shopping/templates/:id",
+      "routeHandler": "deleteShoppingTemplateRoute",
+      "service": "deactivateTemplate",
+      "repository": "ShoppingTemplateRepository",
+      "frontendCaller": [],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [
+        "e2e/shopping-calendar-ui.spec.ts"
+      ],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Shopping Template compatibility surface",
+      "verdict": "DEFER_COMPAT",
+      "finalStatus": "KEPT",
+      "reason": "Template rows remain a reuse source; CRUD and shortcut route callers are not canonical runtime callers, but external consumers and persisted data are not provably absent."
+    },
+    {
+      "method": "POST",
+      "path": "/api/shopping/templates/:id/add",
+      "routeHandler": "addShoppingItemFromTemplateRoute",
+      "service": "ShoppingService.addFromTemplate",
+      "repository": "ShoppingTemplateRepository",
+      "frontendCaller": [],
+      "internalWorkerCaller": [],
+      "scheduledCaller": [],
+      "e2eCaller": [
+        "e2e/shopping-calendar-ui.spec.ts"
+      ],
+      "testOnlyCaller": [
+        "worker/app.test.ts"
+      ],
+      "canonicalFeature": "Shopping Template compatibility surface",
+      "verdict": "DEFER_COMPAT",
+      "finalStatus": "KEPT",
+      "reason": "Template rows remain a reuse source; CRUD and shortcut route callers are not canonical runtime callers, but external consumers and persisted data are not provably absent."
+    }
+  ],
+  "searchScope": [
+    "src/",
+    "worker/",
+    "e2e/",
+    "scripts/",
+    "service worker (public/sw.js)",
+    "scheduled handler (worker/index.ts)",
+    "tests (src/**/*.test.*, worker/**/*.test.*)"
+  ],
+  "wrapperAudit": {
+    "removed": [
+      {
+        "name": "listTasks",
+        "file": "src/api/tasks.ts",
+        "replacement": "getDashboardToday / listRecentTaskDefinitions",
+        "runtimeReferenceCount": 0,
+        "verdict": "REMOVE_DEAD_WRAPPER"
+      },
+      {
+        "name": "listTodayTasks",
+        "file": "src/api/tasks.ts",
+        "replacement": "getDashboardToday",
+        "runtimeReferenceCount": 0,
+        "verdict": "REMOVE_DEAD_WRAPPER"
+      },
+      {
+        "name": "listWeekTasks",
+        "file": "src/api/tasks.ts",
+        "replacement": "getDashboardToday",
+        "runtimeReferenceCount": 0,
+        "verdict": "REMOVE_DEAD_WRAPPER"
+      },
+      {
+        "name": "Task Template CRUD wrappers",
+        "file": "src/api/tasks.ts",
+        "replacement": "listTaskTemplates route remains deferred; no canonical wrapper caller",
+        "runtimeReferenceCount": 0,
+        "verdict": "REMOVE_DEAD_WRAPPER"
+      },
+      {
+        "name": "clearPurchasedItems / clearPurchasedShoppingItems",
+        "file": "src/api/shopping.ts",
+        "replacement": "Worker route remains DEFER_COMPAT",
+        "runtimeReferenceCount": 0,
+        "verdict": "REMOVE_DEAD_WRAPPER"
+      },
+      {
+        "name": "Shopping Template CRUD/detail/add wrappers",
+        "file": "src/api/shopping.ts",
+        "replacement": "listShoppingTemplates",
+        "runtimeReferenceCount": 0,
+        "verdict": "REMOVE_DEAD_WRAPPER"
+      }
+    ],
+    "kept": [
+      "listRecentTaskDefinitions",
+      "getTask",
+      "createTask",
+      "updateTask",
+      "deactivateTask",
+      "listCalendarTasks",
+      "changeTaskState",
+      "restoreTaskRecord",
+      "restoreCalendarTaskRecord",
+      "listTaskHistory",
+      "listShoppingItems",
+      "listRecentShoppingItems",
+      "listShoppingTemplates",
+      "getShoppingItem",
+      "createShoppingItem",
+      "updateShoppingItem",
+      "purchaseShoppingItem",
+      "unpurchaseShoppingItem",
+      "reorderShoppingItems",
+      "deleteShoppingItem",
+      "uploadShoppingItemImage",
+      "deleteShoppingItemImage",
+      "getShoppingItemImageUrl"
+    ]
+  },
+  "internalMethodCleanup": {
+    "removed": [
+      {
+        "symbol": "ShoppingService.listUnplannedItems",
+        "file": "worker/services/shopping-service.ts",
+        "runtimeReferenceCount": 0
+      },
+      {
+        "symbol": "ShoppingItemRepository.listUnplannedByHouseholdId",
+        "file": "worker/repositories/shopping-item-repository.ts",
+        "runtimeReferenceCount": 0
+      },
+      {
+        "symbol": "TaskRecordRepository.findWeeklyOpenRecord",
+        "file": "worker/repositories/task-record-repository.ts",
+        "runtimeReferenceCount": 0
+      },
+      {
+        "symbol": "TaskRepository.replaceWeekdays",
+        "file": "worker/repositories/task-repository.ts",
+        "runtimeReferenceCount": 0
+      },
+      {
+        "symbol": "ShoppingItemImageRepository.deleteForItem",
+        "file": "worker/repositories/shopping-item-image-repository.ts",
+        "runtimeReferenceCount": 0
+      },
+      {
+        "symbol": "ShoppingItemImageService.listMetadata",
+        "file": "worker/services/shopping-item-image-service.ts",
+        "runtimeReferenceCount": 0
+      },
+      {
+        "symbol": "ShoppingItemImageService.deleteForHouseholdItem",
+        "file": "worker/services/shopping-item-image-service.ts",
+        "runtimeReferenceCount": 0
+      },
+      {
+        "symbol": "ShoppingItemImageService.deletePurchased",
+        "file": "worker/services/shopping-item-image-service.ts",
+        "runtimeReferenceCount": 0
+      }
+    ],
+    "keptBecauseSharedOrBackground": [
+      "TaskService.listToday",
+      "TaskService.listWeek",
+      "TaskRecordRepository.findByOccurrenceKey (notification scheduler)",
+      "ShoppingService.clearPurchased",
+      "ShoppingItemImageRepository.listPurchasedByHousehold",
+      "notification scheduler",
+      "image reservation cleanup",
+      "orphan R2 cleanup"
+    ]
+  },
+  "compatibilityAudit": {
+    "dashboard": [
+      {
+        "field": "todayTasks",
+        "runtimeReader": "src/App.tsx fallback only; DashboardToday type/tests",
+        "writer": "DashboardService.getToday",
+        "verdict": "DEFER_COMPAT",
+        "reason": "Response-shape removal has higher compatibility risk; keep additive legacy field in M8A."
+      },
+      {
+        "field": "weeklyTasks",
+        "runtimeReader": "DashboardToday type/tests; no canonical Home render",
+        "writer": "DashboardService.getToday -> TaskService.listWeek",
+        "verdict": "DEFER_COMPAT",
+        "reason": "Task week route/service remains compatibility surface."
+      },
+      {
+        "field": "summary",
+        "runtimeReader": "DashboardToday type/tests",
+        "writer": "DashboardService.getToday",
+        "verdict": "DEFER_COMPAT",
+        "reason": "Response-shape removal has higher compatibility risk."
+      },
+      {
+        "field": "homeTasks / completedRecords / passedRecords / shopping / members",
+        "runtimeReader": "Home, Calendar-linked projection, Other and avatar flows",
+        "writer": "DashboardService.getToday",
+        "verdict": "KEEP",
+        "reason": "Canonical Home or shared data contract."
+      }
+    ],
+    "calendar": [
+      {
+        "field": "from / to / today / timezone / selectedDate / dates / selected",
+        "runtimeReader": "Calendar UI",
+        "writer": "TaskService.listCalendar + ShoppingService.listPlannedItems",
+        "verdict": "KEEP",
+        "reason": "Canonical Calendar contract."
+      },
+      {
+        "field": "fixedCompletedCount / fixedSkippedCount / purchasedShoppingCount",
+        "runtimeReader": "No destructive removal in M8A",
+        "writer": "calendarTasksRoute",
+        "verdict": "DEFER_COMPAT",
+        "reason": "Additive M3 fields and response compatibility are retained."
+      },
+      {
+        "field": "shoppingCount / selected.shopping / task summaries / completed records",
+        "runtimeReader": "Calendar grid, Date Sheet and Shopping deep links",
+        "writer": "calendarTasksRoute",
+        "verdict": "KEEP",
+        "reason": "Canonical Calendar and Shopping integration."
+      }
+    ]
+  },
+  "m8bCandidates": [
+    {
+      "candidate": "task_templates table and CRUD response surface",
+      "currentReader": "TaskTemplateService.listTemplates; no canonical Task runtime import",
+      "currentWriter": "TaskTemplateService CRUD routes; persisted rows",
+      "rowOrDataMigrationRequirement": "Unknown; no migration proposed",
+      "risk": "External consumer and old template rows",
+      "recommendedAction": "DEFER_SCHEMA / DEFER_COMPAT; review after M8A"
+    },
+    {
+      "candidate": "shopping_templates table and CRUD/add routes",
+      "currentReader": "ShoppingTemplateService.listTemplates; Shopping Add reuse reads list",
+      "currentWriter": "ShoppingTemplateService CRUD routes",
+      "rowOrDataMigrationRequirement": "Unknown; no migration proposed",
+      "risk": "Canonical reuse source and external consumer",
+      "recommendedAction": "KEEP list; DEFER_COMPAT CRUD/add"
+    },
+    {
+      "candidate": "dashboard legacy response fields",
+      "currentReader": "todayTasks fallback/type/tests; weeklyTasks/summary compatibility",
+      "currentWriter": "DashboardService.getToday",
+      "rowOrDataMigrationRequirement": "None for M8A",
+      "risk": "API response-shape compatibility",
+      "recommendedAction": "DEFER_COMPAT"
+    },
+    {
+      "candidate": "calendar additive count/status fields",
+      "currentReader": "Canonical counts partly unused; response retained",
+      "currentWriter": "calendarTasksRoute",
+      "rowOrDataMigrationRequirement": "None for M8A",
+      "risk": "Calendar clients and old fixtures",
+      "recommendedAction": "DEFER_COMPAT"
+    },
+    {
+      "candidate": "legacy task recurrence columns and enum values",
+      "currentReader": "TaskRepository, TaskService, scheduler and legacy weekly compatibility",
+      "currentWriter": "Task create/update compatibility path",
+      "rowOrDataMigrationRequirement": "Persisted value conversion may be required",
+      "risk": "Existing task records and scheduler semantics",
+      "recommendedAction": "KEEP / UNKNOWN"
+    },
+    {
+      "candidate": "nullable task record snapshots and calendar_action_date",
+      "currentReader": "Dashboard, Calendar and fallback projections",
+      "currentWriter": "TaskService.applyState",
+      "rowOrDataMigrationRequirement": "No conversion established",
+      "risk": "Historical NULL rows and restore identity",
+      "recommendedAction": "KEEP / UNKNOWN"
+    }
+  ],
+  "dbSafety": {
+    "migrationFilesChanged": 0,
+    "newMigrationFiles": [],
+    "migrationHash": "945e9918a0c3b97541d61c05396ede188ee5ca73f095fddf80ad90f589f751b3",
+    "schemaDiff": 0,
+    "remoteMigration": "NOT RUN",
+    "deploy": "NOT RUN",
+    "secretsOrCronChanged": false
+  }
+}
