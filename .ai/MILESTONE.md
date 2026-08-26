@@ -37,6 +37,13 @@
 - Dashboard legacy fields and Calendar additive compatibility fields are `DEFER_COMPAT`; no response-shape removal was made.
 - DB schema and migration history are unchanged. M8B candidates are recorded with reader/writer/risk/action in the diagnostics JSON.
 
+## M8A completion record
+
+- Implementation commit SHA: `03c87555d29ab6e8bb60b8f4fcdeb490bb013d83`.
+- Evidence commit SHA: `02534b7`.
+- Final local verification: 37 Vitest files / 236 tests passed; canonical Chromium 38 passed / 1 staging-only skipped; lint, typecheck, build, and local migration passed.
+- Review upload contains exactly four PNG boards and four WebM files. No deploy, remote migration, secret/Cron change, merge, or M8B work was performed.
+
 ## M7 start record
 
 - Production base SHA: `d89a9d7ad52f5580b65a2a44b0e350295ef542c7`
