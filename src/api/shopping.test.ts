@@ -1,21 +1,16 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  addShoppingItemFromTemplate,
-  clearPurchasedItems,
   createShoppingItem,
-  createShoppingTemplate,
   deleteShoppingItem,
-  deleteShoppingTemplate,
   getShoppingItem,
   getShoppingItemImageUrl,
-  getShoppingTemplate,
   listShoppingItems,
   listShoppingTemplates,
   purchaseShoppingItem,
   unpurchaseShoppingItem,
   updateShoppingItem,
-  updateShoppingTemplate
-  , uploadShoppingItemImage, deleteShoppingItemImage
+  uploadShoppingItemImage,
+  deleteShoppingItemImage
 } from "./shopping";
 import type { ProcessedImage } from "../lib/image-processing";
 
@@ -41,7 +36,6 @@ describe("shopping api clients", () => {
     await purchaseShoppingItem("i1");
     await unpurchaseShoppingItem("i1");
     await deleteShoppingItem("i1");
-    await clearPurchasedItems();
 
     expect(fetchMock.mock.calls.map((call) => [call[0], (call[1] as RequestInit)?.method ?? "GET"])).toEqual([
       ["/api/shopping/items", "GET"],
@@ -51,7 +45,6 @@ describe("shopping api clients", () => {
       ["/api/shopping/items/i1/purchase", "POST"],
       ["/api/shopping/items/i1/unpurchase", "POST"],
       ["/api/shopping/items/i1", "DELETE"],
-      ["/api/shopping/items/clear-purchased", "POST"]
     ]);
   });
 
@@ -61,19 +54,8 @@ describe("shopping api clients", () => {
       .mockImplementation(() => Promise.resolve(ok({ template: { id: "t1" } })));
 
     await listShoppingTemplates();
-    await getShoppingTemplate("t1");
-    await createShoppingTemplate({ name: "卵", quantity: "1パック" });
-    await updateShoppingTemplate("t1", { note: "いつもの" });
-    await addShoppingItemFromTemplate("t1");
-    await deleteShoppingTemplate("t1");
-
     expect(fetchMock.mock.calls.map((call) => [call[0], (call[1] as RequestInit)?.method ?? "GET"])).toEqual([
-      ["/api/shopping/templates", "GET"],
-      ["/api/shopping/templates/t1", "GET"],
-      ["/api/shopping/templates", "POST"],
-      ["/api/shopping/templates/t1", "PATCH"],
-      ["/api/shopping/templates/t1/add", "POST"],
-      ["/api/shopping/templates/t1", "DELETE"]
+      ["/api/shopping/templates", "GET"]
     ]);
   });
 

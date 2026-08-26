@@ -272,12 +272,6 @@ export class TaskRepository {
       .bind(taskId, weekday);
   }
 
-  async replaceWeekdays(taskId: string, weekdays: number[]): Promise<void> {
-    await this.db.batch([
-      this.db.prepare("DELETE FROM task_weekdays WHERE task_id = ?").bind(taskId),
-      ...weekdays.map((weekday) => this.prepareAddWeekday(taskId, weekday))
-    ]);
-  }
 }
 
 const toModelRecurrenceType = (

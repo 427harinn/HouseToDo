@@ -233,8 +233,6 @@ export type CreateTaskTemplateInput = {
   monthlyDeadlineType: "month_end" | "day_of_month" | null;
 };
 
-export type UpdateTaskTemplateInput = Partial<CreateTaskTemplateInput>;
-
 export type TaskActionInput = {
   targetDate?: string;
   targetWeekStart?: string;
@@ -252,38 +250,8 @@ const withQuery = (path: string, params: Record<string, string | boolean | numbe
   return suffix ? `${path}?${suffix}` : path;
 };
 
-export const listTasks = (includeInactive = false, signal?: AbortSignal) =>
-  apiRequest<{ tasks: Task[] }>(withQuery("/api/tasks", { includeInactive }), { signal });
-
 export const listRecentTaskDefinitions = (limit = 8, signal?: AbortSignal) =>
   apiRequest<{ tasks: Task[] }>(withQuery("/api/tasks/recent", { limit }), { signal });
-
-export const listTaskTemplates = (signal?: AbortSignal) =>
-  apiRequest<{ templates: TaskTemplate[] }>("/api/task-templates", { signal });
-
-export const getTaskTemplate = (templateId: string, signal?: AbortSignal) =>
-  apiRequest<{ template: TaskTemplate }>(`/api/task-templates/${templateId}`, { signal });
-
-export const createTaskTemplate = (input: CreateTaskTemplateInput, signal?: AbortSignal) =>
-  apiRequest<{ template: TaskTemplate }>("/api/task-templates", {
-    method: "POST",
-    body: JSON.stringify(input),
-    signal
-  });
-
-export const updateTaskTemplate = (templateId: string, input: UpdateTaskTemplateInput, signal?: AbortSignal) =>
-  apiRequest<{ template: TaskTemplate }>(`/api/task-templates/${templateId}`, {
-    method: "PATCH",
-    body: JSON.stringify(input),
-    signal
-  });
-
-export const deactivateTaskTemplate = (templateId: string, signal?: AbortSignal) =>
-  apiRequest<{ deleted: true }>(`/api/task-templates/${templateId}`, {
-    method: "DELETE",
-    body: JSON.stringify({}),
-    signal
-  });
 
 export const createTask = (input: CreateTaskInput, signal?: AbortSignal) =>
   apiRequest<{ task: Task }>("/api/tasks", {
@@ -308,17 +276,6 @@ export const deactivateTask = (taskId: string, signal?: AbortSignal) =>
     body: JSON.stringify({}),
     signal
   });
-
-export const listTodayTasks = (date?: string, signal?: AbortSignal) =>
-  apiRequest<{ date: string; tasks: TodayTask[] }>(withQuery("/api/tasks/today", { date }), {
-    signal
-  });
-
-export const listWeekTasks = (weekStart?: string, signal?: AbortSignal) =>
-  apiRequest<{ weekStart: string; weekEnd: string; tasks: WeeklyTask[] }>(
-    withQuery("/api/tasks/week", { weekStart }),
-    { signal }
-  );
 
 export const listCalendarTasks = (
   from: string,

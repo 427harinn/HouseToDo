@@ -1,6 +1,23 @@
 # Current milestone tasks
 
-## Production UI Migration M7 — Integration / Legacy UI Cleanup (current milestone)
+## Production UI Migration M8A — Backend Reachability Audit / Non-destructive Cleanup (current milestone)
+
+- [x] Confirm clean working tree, fetch attempt, M7 PR #8 merge, and create `feat/backend-cleanup-m8a` from `origin/main` at `8e4653286d964f1ef88be6da92ad7b11e9c21ed5`
+- [x] Record migration count and full Vitest / canonical Chromium baselines
+- [x] Audit all Worker routes and trace route → handler → service → repository plus frontend, scheduled, internal, E2E, and test-only callers
+- [x] Audit Dashboard and Calendar compatibility fields; preserve `DEFER_COMPAT` fields
+- [x] Remove only dead frontend wrappers and unreferenced internal methods; keep deferred Worker compatibility routes and template/reuse backend
+- [ ] Add removed-route contract tests if an endpoint is proven removable; current audit removed zero Worker routes
+- [ ] Verify all M8A local gates and canonical Chromium / two-user smoke when local Docker services are available
+- [ ] Generate four diagnostic boards, four local regression WebM files, and exactly eight reviewer-upload files
+- [ ] Commit, push, and create Draft PR without merge, deploy, remote migration, secret/Cron changes, or M8B work
+
+## M8B — pending review after M8A
+
+- [ ] Review schema, compatibility response, and persisted-value candidates from M8A diagnostics
+- [ ] No M8B destructive migration or compatibility cleanup is part of this task
+
+## Production UI Migration M7 — Integration / Legacy UI Cleanup (merged to main in PR #8)
 
 - [x] Confirm clean working tree, fetch Production/Mockup main, confirm M6 PR #7 merge, and create `feat/production-integration-legacy-m7` from Production `d89a9d7`
 - [x] Record Production base SHA `d89a9d7ad52f5580b65a2a44b0e350295ef542c7` and Mockup SHA `db8941dc3056f07862014242a349ae366da59e9c`
@@ -11,7 +28,7 @@
 - [x] Verify two-user Task, Shopping, Other/permission, household sync, and session isolation against local Worker + D1
 - [x] Verify production-like build, manifest/icons, service worker, direct routes, notification URL safety, Chromium 390x844, and WebKit smoke/limitation
 - [x] Generate M7 route, sync, PWA boards and four canonical WebM files; finalize exactly eight reviewer-upload files
-- [x] Run all gates, commit, push, and create Draft PR without merge, deploy, remote migration, or M8 cleanup
+- [x] Run all gates, commit, push, and create Draft PR without merge, deploy, remote migration, or M8 cleanup; PR #8 is merged to `main`
 
 ## Production UI Migration M6 — Auth / Household Entry (merged to main in PR #7)
 
@@ -27,7 +44,7 @@
 - [x] Address PR #7 visual parity review: strong Entry primary, secondary labels, placeholder removal, field-error clear, focus-neutral capture, aligned fixtures, vertical boards, and refreshed motion Evidence
 - [x] Run final gates, commit, push, and create Draft PR #7; PR #7 is now merged at `d89a9d7`; no deploy or remote migration was performed
 
-## Production UI Migration M5 — Other / Settings (current milestone)
+## Production UI Migration M5 — Other / Settings (merged to main)
 
 - [x] Record Production/M4-merged main and Mockup latest-main SHAs; complete Mockup parity audit/render
 - [x] Formalize `/other` route and Bottom Navigation Other mapping while preserving legacy `/settings/members`

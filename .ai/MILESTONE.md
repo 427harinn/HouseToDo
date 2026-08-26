@@ -1,4 +1,4 @@
-# Milestone: Production UI Migration M7 — Integration / Legacy UI Cleanup
+# Milestone: Production UI Migration M8A — Backend Reachability Audit / Non-destructive Cleanup
 
 ## Current boundary
 
@@ -7,16 +7,42 @@
 - M3 Calendar and M4 Shopping are complete on `origin/main`.
 - M5 Other / Settings is complete and merged in PR #6 at base `ed749b7`.
 - M6 Auth / Household Entry is merged to `main` in PR #7 at base `d89a9d7`.
-- M7 Integration / Legacy UI Cleanup is implemented on `feat/production-integration-legacy-m7`; PR #8 remains open as Draft for review.
-- M8 Legacy backend cleanup has not started and remains out of scope.
+- M7 Integration / Legacy UI Cleanup is merged to `main` in PR #8 at `8e4653286d964f1ef88be6da92ad7b11e9c21ed5`.
+- M8A Backend Reachability Audit / Non-destructive Cleanup is the current milestone on `feat/backend-cleanup-m8a`.
+- M8B destructive/schema/compatibility cleanup is pending review after M8A and has not started.
+- Deploy and remote migration have not been performed.
 - 詳細なM1〜M8計画は[docs/PRODUCTION_UI_MIGRATION.md](../docs/PRODUCTION_UI_MIGRATION.md)を参照。
+
+## M8A start record
+
+- Production base SHA: `8e4653286d964f1ef88be6da92ad7b11e9c21ed5` (`origin/main`, PR #8 / M7 merge)
+- Branch: `feat/backend-cleanup-m8a`
+- Migration count: 17 SQL files; migration hash is recorded in `docs/evidence/m8a/diagnostics/schema-snapshot.json`
+- Full Vitest baseline: 37 files / 236 tests passed
+- Canonical Chromium baseline: 39 tests discovered; 38 failed before app reachability (`app` DNS unavailable), 1 skipped; no baseline pass is claimed
+- `git fetch origin` was attempted but this environment denied `.git/FETCH_HEAD`; the existing `origin/main` ref was verified at the base SHA above.
+
+## M8A delivery boundary
+
+- Audit every Worker route from `worker/app.ts` through handler, service, repository, frontend caller, internal/scheduled caller, E2E caller, and test-only caller.
+- Keep canonical Task, Calendar, Dashboard, Shopping, reuse, Auth, Household, notification, image, PWA, and scheduler contracts.
+- Remove only source-local dead API wrappers and unreferenced internal methods. Do not remove Worker routes whose external consumer absence cannot be proven from this repository.
+- Do not add or modify migrations, schema objects, persisted values, response compatibility fields, secrets, Cron, deployment, or remote data.
+
+## M8A audit result
+
+- Worker public route count remains 65 before / 65 after; no Worker route or route handler was removed because deferred compatibility routes have unknown external consumers.
+- Removed frontend wrappers are recorded in `api-reachability.json`; canonical Shopping template list and Task/Shopping reuse types remain.
+- Removed internal methods are limited to unreferenced Shopping unplanned projection, obsolete task-record lookups, obsolete weekday replacement helper, and obsolete image helper methods.
+- Dashboard legacy fields and Calendar additive compatibility fields are `DEFER_COMPAT`; no response-shape removal was made.
+- DB schema and migration history are unchanged. M8B candidates are recorded with reader/writer/risk/action in the diagnostics JSON.
 
 ## M7 start record
 
 - Production base SHA: `d89a9d7ad52f5580b65a2a44b0e350295ef542c7`
 - Mockup reference SHA: `db8941dc3056f07862014242a349ae366da59e9c`
 - Branch: `feat/production-integration-legacy-m7`
-- M6 is merged to `main`; M7 is the current boundary; M8 is not started.
+- M6 is merged to `main`; M7 is merged to `main` in PR #8; M8A is the current boundary.
 
 ## M7 delivery boundary
 
@@ -31,7 +57,7 @@
 - Evidence commit SHA: `75ce6e42ff4e9ecadcb1828a95d8bcd9a914fab7`.
 - Local Worker + D1 two-user coverage includes Task complete/pass/restore/edit, Shopping reorder/purchase/restore/planned-date Calendar deep-link, Other member/displayName/permission/household sync, and logout isolation.
 - Production-like PWA diagnostics passed manifest, icons, service worker, start URL states, direct routes, legacy redirect, and notification URL safety. WebKit is unavailable locally; real iPhone remains manual follow-up.
-- Evidence review package contains exactly four boards and four final WebM files; M8 backend cleanup has not started.
+- Evidence review package contains exactly four boards and four final WebM files; M8A backend cleanup is now in progress.
 
 ## M6 delivery boundary
 

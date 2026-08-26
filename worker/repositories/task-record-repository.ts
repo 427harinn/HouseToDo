@@ -138,21 +138,6 @@ export class TaskRecordRepository {
     return (result.results ?? []).map((row) => toRecord(row)!);
   }
 
-  async findWeeklyOpenRecord(taskId: string, targetWeekStart: string): Promise<TaskRecord | null> {
-    const row = await this.db
-      .prepare(
-        `SELECT ${selectRecord}
-         FROM task_records tr
-         LEFT JOIN users u ON u.id = tr.acted_by
-         WHERE tr.task_id = ? AND tr.target_week_start = ? AND tr.status IN ('in_progress', 'skipped')
-         ORDER BY tr.updated_at DESC
-         LIMIT 1`
-      )
-      .bind(taskId, targetWeekStart)
-      .first<TaskRecordRow>();
-    return toRecord(row);
-  }
-
   async listDailyRecords(householdId: string, targetDate: string): Promise<TaskRecord[]> {
     const result = await this.db
       .prepare(

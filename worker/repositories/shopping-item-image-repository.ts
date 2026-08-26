@@ -89,10 +89,6 @@ export class ShoppingItemImageRepository {
     ).bind(input.id, input.shoppingItemId, input.householdId, input.r2Key, input.contentType, input.sizeBytes, input.width, input.height, input.createdBy, input.createdAt, input.updatedAt);
   }
 
-  async deleteForItem(householdId: string, itemId: string): Promise<void> {
-    await this.db.prepare("DELETE FROM shopping_item_images WHERE household_id = ? AND shopping_item_id = ?").bind(householdId, itemId).run();
-  }
-
   async existsByR2Key(r2Key: string): Promise<boolean> {
     return (await this.db.prepare("SELECT id FROM shopping_item_images WHERE r2_key = ?").bind(r2Key).first<{ id: string }>()) !== null;
   }

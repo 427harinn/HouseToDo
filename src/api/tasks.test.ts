@@ -3,9 +3,6 @@ import {
   changeTaskState,
   createTask,
   listTaskHistory,
-  listTasks,
-  listTodayTasks,
-  listWeekTasks,
   updateTask
 } from "./tasks";
 import { getDashboardToday } from "./dashboard";
@@ -20,20 +17,12 @@ afterEach(() => {
 });
 
 describe("task api clients", () => {
-  it("fetches task lists and dashboard data", async () => {
+  it("fetches dashboard data", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(ok({ tasks: [] })));
-
-    await listTasks(true);
-    await listTodayTasks("2026-07-31");
-    await listWeekTasks("2026-07-27");
-
     fetchMock.mockResolvedValueOnce(ok({ date: "2026-07-31", todayTasks: [], weeklyTasks: [] }));
     await getDashboardToday("2026-07-31");
 
     expect(fetchMock.mock.calls.map((call) => call[0])).toEqual([
-      "/api/tasks?includeInactive=true",
-      "/api/tasks/today?date=2026-07-31",
-      "/api/tasks/week?weekStart=2026-07-27",
       "/api/dashboard/today?date=2026-07-31"
     ]);
   });

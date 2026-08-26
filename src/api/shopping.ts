@@ -53,9 +53,6 @@ export type ShoppingRecentItem = {
 
 export type CreateShoppingItemInput = ShoppingWriteInput;
 export type UpdateShoppingItemInput = ShoppingUpdateInput;
-export type CreateShoppingTemplateInput = ShoppingWriteInput;
-export type UpdateShoppingTemplateInput = ShoppingUpdateInput;
-
 export type ShoppingUpdateInput = {
   name?: string;
   quantity?: string | null;
@@ -114,52 +111,8 @@ export const deleteShoppingItem = (itemId: string, signal?: AbortSignal) =>
     signal
   });
 
-export const clearPurchasedItems = (signal?: AbortSignal) =>
-  apiRequest<{ clearedCount: number }>("/api/shopping/items/clear-purchased", {
-    method: "POST",
-    body: JSON.stringify({}),
-    signal
-  });
-
-export const clearPurchasedShoppingItems = clearPurchasedItems;
-
 export const listShoppingTemplates = (signal?: AbortSignal) =>
   apiRequest<{ templates: ShoppingTemplate[] }>("/api/shopping/templates", { signal });
-
-export const getShoppingTemplate = (templateId: string, signal?: AbortSignal) =>
-  apiRequest<{ template: ShoppingTemplate }>(`/api/shopping/templates/${templateId}`, { signal });
-
-export const createShoppingTemplate = (input: CreateShoppingTemplateInput, signal?: AbortSignal) =>
-  apiRequest<{ template: ShoppingTemplate }>("/api/shopping/templates", {
-    method: "POST",
-    body: JSON.stringify(input),
-    signal
-  });
-
-export const updateShoppingTemplate = (
-  templateId: string,
-  input: UpdateShoppingTemplateInput,
-  signal?: AbortSignal
-) =>
-  apiRequest<{ template: ShoppingTemplate }>(`/api/shopping/templates/${templateId}`, {
-    method: "PATCH",
-    body: JSON.stringify(input),
-    signal
-  });
-
-export const deleteShoppingTemplate = (templateId: string, signal?: AbortSignal) =>
-  apiRequest<{ deleted: true }>(`/api/shopping/templates/${templateId}`, {
-    method: "DELETE",
-    body: JSON.stringify({}),
-    signal
-  });
-
-export const addShoppingItemFromTemplate = (templateId: string, signal?: AbortSignal) =>
-  apiRequest<{ item: ShoppingItem }>(`/api/shopping/templates/${templateId}/add`, {
-    method: "POST",
-    body: JSON.stringify({}),
-    signal
-  });
 
 export const uploadShoppingItemImage = (itemId: string, image: ProcessedImage, signal?: AbortSignal) => {
   const body = new FormData();

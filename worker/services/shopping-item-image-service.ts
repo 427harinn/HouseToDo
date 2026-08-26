@@ -47,11 +47,6 @@ export class ShoppingItemImageService {
     await this.deleteR2ObjectOrEnqueueCleanup(image.r2Key, { sourceType, sourceId: image.shoppingItemId, householdId: image.householdId, byteSize: image.sizeBytes, reason });
   }
 
-  async listMetadata(userId: string): Promise<Map<string, ShoppingItemImage>> {
-    const household = await this.households.requireCurrentHousehold(userId);
-    return new Map((await this.images.listByHousehold(household.id)).map((image) => [image.shoppingItemId, image]));
-  }
-
   async upload(userId: string, itemId: string, input: ImageUploadInput): Promise<ShoppingItemImage> {
     const household = await this.households.requireCurrentHousehold(userId);
     if (!(await this.items.findByIdForHousehold(household.id, itemId))) throw shoppingItemNotFoundError();
@@ -108,17 +103,4 @@ export class ShoppingItemImageService {
     await this.deleteKnownImage(image, "shopping_item_image_delete", "image metadata deleted");
   }
 
-  async deleteForHouseholdItem(householdId: string, itemId: string): Promise<void> {
-    const image = await this.images.findByItemForHousehold(householdId, itemId);
-    if (!image) return;
-    await this.images.deleteMetadataAndUpdateUsage(householdId, itemId, image, nowIso());
-    await this.deleteKnownImage(image, "shopping_item_delete", "shopping item deleted");
-  }
-
-  async deletePurchased(householdId: string): Promise<void> {
-    for (const image of await this.images.listPurchasedByHousehold(householdId)) {
-      await this.images.deleteMetadataAndUpdateUsage(householdId, image.shoppingItemId, image, nowIso());
-      await this.deleteKnownImage(image, "shopping_clear_purchased", "purchased shopping items cleared");
-    }
-  }
 }
