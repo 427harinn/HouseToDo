@@ -18,6 +18,13 @@ export const joinHousehold = (code: string, signal?: AbortSignal) =>
     signal
   });
 
+export const validateInviteCode = (code: string, signal?: AbortSignal) =>
+  apiRequest<{ valid: boolean }>("/api/households/invites/validate", {
+    method: "POST",
+    body: JSON.stringify({ code }),
+    signal
+  });
+
 export const listMembers = (signal?: AbortSignal) =>
   apiRequest<{ members: HouseholdMember[] }>("/api/households/current/members", {
     signal

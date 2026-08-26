@@ -262,6 +262,77 @@ p {
   gap: 16px;
 }
 
+.entry-page {
+  width: min(100%, 520px);
+  padding: 0 16px 32px;
+}
+
+.entry-page__content {
+  width: min(100%, 360px);
+  margin: 0 auto;
+  padding-top: clamp(32px, 8vh, 64px);
+}
+
+.entry-page__header {
+  margin-bottom: 24px;
+}
+
+.entry-page__header h1 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.entry-form {
+  display: grid;
+  gap: 16px;
+}
+
+.entry-page .form-field {
+  gap: 8px;
+}
+
+.entry-page .form-field label {
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.entry-page input {
+  min-height: 48px;
+  border-radius: 8px;
+  background: var(--color-surface);
+  font-size: 16px;
+}
+
+.entry-page .field-error,
+.entry-page .message {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.entry-page .entry-primary-action {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.entry-link-row {
+  margin: 24px 0 0;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+  text-align: center;
+}
+
+.entry-link-row a {
+  color: var(--color-primary-strong);
+  font-weight: 600;
+}
+
 .page-header {
   display: flex;
   align-items: flex-start;
@@ -1584,16 +1655,6 @@ textarea[aria-invalid="true"] {
 
 .invite-box span {
   color: var(--color-text-muted);
-}
-
-.guest-banner {
-  margin-bottom: 12px;
-  padding: 12px;
-  border: 1px solid #f0dbad;
-  border-radius: var(--radius-sm);
-  background: #fff8e8;
-  color: #76510d;
-  line-height: 1.65;
 }
 
 .bottom-nav {

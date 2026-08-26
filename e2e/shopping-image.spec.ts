@@ -20,7 +20,7 @@ const register = async (page: Page, user: User) => {
   await page.locator("#register-email").fill(user.email);
   await page.locator("#register-password").fill(password);
   await page.locator('form button[type="submit"]').click();
-  await expect(page).toHaveURL(/\/onboarding|\/home/);
+  await expect(page).toHaveURL(/\/household\/create|\/home/);
 };
 
 const createHousehold = async (page: Page, name: string) => {

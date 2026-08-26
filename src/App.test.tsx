@@ -515,13 +515,13 @@ describe("App shopping UI", () => {
     await waitFor(() => expect(window.location.pathname).toBe("/login"));
   }, 15000);
 
-  it("redirects household-less shopping access to onboarding", async () => {
+  it("redirects household-less shopping access to household create", async () => {
     mockFetch(null);
     window.history.replaceState({}, "", "/shopping");
 
     render(<App />);
 
-    await waitFor(() => expect(window.location.pathname).toBe("/onboarding"));
+    await waitFor(() => expect(window.location.pathname).toBe("/household/create"));
   }, 15000);
 
   it("renders the canonical shopping list with a collapsed purchased section", async () => {
@@ -576,6 +576,71 @@ describe("App shopping UI", () => {
     expect(container.querySelector<HTMLInputElement>("#shopping-image")).not.toHaveAttribute("capture");
     expect(container.querySelector<HTMLInputElement>("#shopping-image")).toHaveAttribute("accept", "image/*");
   }, 15000);
+});
+
+describe("M6 auth and household entry", () => {
+  it.each(["/guest", "/onboarding"])("redirects unauthenticated %s to login", async (path) => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(failure("UNAUTHENTICATED", 401));
+    window.history.replaceState({}, "", path);
+
+    render(<App />);
+
+    await waitFor(() => expect(window.location.pathname).toBe("/login"));
+    expect(screen.getByRole("heading", { name: "ログイン" })).toBeVisible();
+    expect(screen.queryByText(/ゲスト|家庭をはじめましょう/)).not.toBeInTheDocument();
+  });
+
+  it("shows the generic login error on the password field without guest actions", async () => {
+    const calls: string[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      calls.push(`${init?.method ?? "GET"} ${url}`);
+      if (url.endsWith("/api/auth/me")) return Promise.resolve(failure("UNAUTHENTICATED", 401));
+      if (url.endsWith("/api/auth/login")) return Promise.resolve(failure("UNAUTHENTICATED", 401));
+      return Promise.resolve(failure("NOT_FOUND", 404));
+    });
+    window.history.replaceState({}, "", "/login");
+
+    render(<App />);
+
+    await screen.findByRole("heading", { name: "ログイン" });
+    fireEvent.change(screen.getByLabelText("メールアドレス"), { target: { value: "user@example.com" } });
+    fireEvent.change(screen.getByLabelText("パスワード"), { target: { value: "very-long-password" } });
+    fireEvent.click(screen.getByRole("button", { name: "ログイン" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("メールアドレスまたはパスワードが正しくありません");
+    expect(screen.getByLabelText("パスワード")).toHaveAttribute("aria-invalid", "true");
+    expect(window.location.pathname).toBe("/login");
+    expect(screen.queryByText("ゲストで試す")).not.toBeInTheDocument();
+    expect(calls.filter((call) => call.includes("/api/auth/login"))).toHaveLength(1);
+  });
+
+  it("validates an optional invite before registering", async () => {
+    const calls: string[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      calls.push(`${init?.method ?? "GET"} ${url}`);
+      if (url.endsWith("/api/auth/me")) return Promise.resolve(failure("UNAUTHENTICATED", 401));
+      if (url.endsWith("/api/households/invites/validate")) return Promise.resolve(ok({ valid: false }));
+      if (url.endsWith("/api/auth/register")) return Promise.resolve(ok({ user }, 201));
+      return Promise.resolve(failure("NOT_FOUND", 404));
+    });
+    window.history.replaceState({}, "", "/register");
+
+    render(<App />);
+
+    await screen.findByRole("heading", { name: "新規登録" });
+    fireEvent.change(screen.getByLabelText("表示名"), { target: { value: "さや" } });
+    fireEvent.change(screen.getByLabelText("メールアドレス"), { target: { value: "new@example.com" } });
+    fireEvent.change(screen.getByLabelText("パスワード"), { target: { value: "very-long-password" } });
+    fireEvent.change(screen.getByLabelText("招待コード（任意）"), { target: { value: "INVALID" } });
+    fireEvent.click(screen.getByRole("button", { name: "新規登録" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("招待コードを確認してください");
+    expect(screen.getByLabelText("招待コード（任意）")).toHaveAttribute("aria-invalid", "true");
+    expect(calls.filter((call) => call.includes("/api/auth/register"))).toHaveLength(0);
+    expect(window.location.pathname).toBe("/register");
+  });
 });
 
 describe("M2 Home", () => {

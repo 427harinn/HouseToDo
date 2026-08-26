@@ -11,6 +11,7 @@ type NavigationPath =
 
 type ButtonProps = {
   children: ReactNode;
+  className?: string;
   type?: "button" | "submit";
   variant?: "primary" | "secondary" | "ghost" | "danger";
   disabled?: boolean;
@@ -20,6 +21,7 @@ type ButtonProps = {
 
 export function Button({
   children,
+  className = "",
   type = "button",
   variant = "primary",
   disabled = false,
@@ -28,7 +30,7 @@ export function Button({
 }: ButtonProps) {
   return (
     <button
-      className={`button button--${variant}`}
+      className={`button button--${variant} ${className}`.trim()}
       disabled={disabled}
       aria-label={ariaLabel}
       onClick={onClick}
@@ -52,7 +54,7 @@ export function FormField({ id, label, error, children }: FormFieldProps) {
       <label htmlFor={id}>{label}</label>
       {children}
       {error ? (
-        <p className="field-error" id={`${id}-error`}>
+        <p className="field-error" id={`${id}-error`} role="alert">
           {error}
         </p>
       ) : null}
@@ -196,14 +198,6 @@ export function MemberAvatar({
     <span className="member-avatar" style={{ backgroundColor: color ?? undefined }}>
       {imageUrl ? <img src={imageUrl} alt="" /> : initial}
     </span>
-  );
-}
-
-export function GuestBanner() {
-  return (
-    <div className="guest-banner" role="status">
-      ゲストモードです。表示中のデータはサンプルで、実際の家庭には保存されません。
-    </div>
   );
 }
 

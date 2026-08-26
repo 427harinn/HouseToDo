@@ -97,3 +97,9 @@ export const joinHouseholdRoute: Handler = requireAuth(async (context) => {
   );
   return okJson({ household: toHouseholdResponse(household) }, context.requestId);
 });
+
+export const validateHouseholdInviteRoute: Handler = async (context) => {
+  const input = validateJoinHouseholdInput(await parseJsonBody(context.request));
+  const valid = await new HouseholdInviteService(context.env.DB).validateCode(input.code);
+  return okJson({ valid }, context.requestId);
+};

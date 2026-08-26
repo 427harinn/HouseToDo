@@ -53,7 +53,8 @@ import {
   createInvite,
   getCurrentHousehold,
   joinHousehold,
-  listMembers
+  listMembers,
+  validateInviteCode
 } from "./api/households";
 import {
   changeTaskState,
@@ -91,7 +92,6 @@ import {
   EmptyState,
   ErrorMessage,
   FormField,
-  GuestBanner,
   InlineLoading,
   LoadingScreen,
   MemberAvatar,
@@ -101,7 +101,6 @@ import {
   TextInput
 } from "./components/ui";
 import { BottomSheet } from "./components/BottomSheet";
-import { APP_NAME } from "./constants";
 import {
   assignmentLabels,
   formatSchedule,
@@ -249,7 +248,7 @@ const parseRoute = (pathname: string): Route => {
 };
 
 const isAuthRoute = (route: Route) =>
-  route.name === "/login" || route.name === "/register" || route.name === "/guest";
+  route.name === "/login" || route.name === "/register";
 
 const isOnboardingRoute = (route: Route) =>
   route.name === "/onboarding" ||
@@ -395,7 +394,7 @@ export function App() {
   const [route, setRoute] = useState<Route>(() => parseRoute(window.location.pathname));
   const [auth, setAuth] = useState<AuthState>({ status: "loading" });
   const [household, setHousehold] = useState<HouseholdState>({ status: "idle" });
-  const [guestMode, setGuestMode] = useState(false);
+  const [pendingInviteCode, setPendingInviteCode] = useState("");
 
   const navigate = useCallback(
     (nextRoute: string, replace = false) => {
@@ -436,8 +435,30 @@ export function App() {
 
   const completeAuth = async (user: AuthUser) => {
     setAuth({ status: "authenticated", user });
-    setGuestMode(false);
     await refreshHousehold();
+  };
+
+  const completeRegistration = async (user: AuthUser, inviteCode: string) => {
+    setAuth({ status: "authenticated", user });
+    if (!inviteCode) {
+      await refreshHousehold();
+      return;
+    }
+    setHousehold({ status: "loading" });
+    try {
+      const result = await joinHousehold(inviteCode);
+      setHousehold({ status: "ready", household: result.household });
+      navigate("/home", true);
+    } catch (error) {
+      setPendingInviteCode(inviteCode);
+      setHousehold({ status: "none" });
+      navigate("/household/join", true);
+      if (error instanceof ApiError && error.code === "UNAUTHENTICATED") {
+        setAuth({ status: "unauthenticated" });
+        setHousehold({ status: "idle" });
+        navigate("/login", true);
+      }
+    }
   };
 
   const signOut = async () => {
@@ -446,7 +467,6 @@ export function App() {
     } finally {
       setAuth({ status: "unauthenticated" });
       setHousehold({ status: "idle" });
-      setGuestMode(false);
       navigate("/login", true);
     }
   };
@@ -473,10 +493,6 @@ export function App() {
   }, [refreshHousehold]);
 
   useEffect(() => {
-    if (guestMode) {
-      if (route.name !== "/guest") navigate("/guest", true);
-      return;
-    }
     if (auth.status === "loading") return;
     if (auth.status === "unauthenticated") {
       if (!isAuthRoute(route)) navigate("/login", true);
@@ -484,26 +500,22 @@ export function App() {
     }
     if (household.status === "idle" || household.status === "loading") return;
     if (route.name === "/" || isAuthRoute(route)) {
-      navigate(household.status === "ready" ? "/home" : "/onboarding", true);
+      navigate(household.status === "ready" ? "/home" : "/household/create", true);
       return;
     }
-    if (household.status === "none" && isAppRoute(route)) navigate("/onboarding", true);
-    if (household.status === "ready" && isOnboardingRoute(route))
+    if (household.status === "none" && (isAppRoute(route) || route.name === "/guest" || route.name === "/onboarding")) navigate("/household/create", true);
+    if (household.status === "ready" && (isOnboardingRoute(route) || route.name === "/guest"))
       navigate("/home", true);
-  }, [auth.status, guestMode, household.status, navigate, route]);
+  }, [auth.status, household.status, navigate, route]);
 
-  if (guestMode)
-    return <GuestScreen onNavigate={navigate} onExit={() => setGuestMode(false)} />;
   if (auth.status === "loading")
     return <LoadingScreen message="ログイン状態を確認しています" />;
   if (auth.status === "unauthenticated") {
     if (route.name === "/register")
-      return <RegisterScreen onRegister={completeAuth} onNavigate={navigate} />;
-    if (route.name === "/guest")
-      return <GuestScreen onNavigate={navigate} onExit={() => navigate("/login")} />;
+      return <RegisterScreen onRegister={completeRegistration} onNavigate={navigate} />;
+    if (route.name !== "/login") return <LoadingScreen message="移動しています" />;
     return (
       <LoginScreen
-        onGuest={() => setGuestMode(true)}
         onLogin={completeAuth}
         onNavigate={navigate}
       />
@@ -544,17 +556,13 @@ export function App() {
             setHousehold({ status: "ready", household: next });
             navigate("/home", true);
           }}
+          initialCode={pendingInviteCode}
+          onCodeConsumed={() => setPendingInviteCode("")}
           onNavigate={navigate}
         />
       );
     }
-    return (
-      <OnboardingScreen
-        user={auth.user}
-        onNavigate={navigate}
-        onLogout={() => void signOut()}
-      />
-    );
+    return <LoadingScreen message="移動しています" />;
   }
 
   const shellProps = {
@@ -637,13 +645,10 @@ export function App() {
     );
   return <HomeScreen {...shellProps} />;
 }
-
 function LoginScreen({
-  onGuest,
   onLogin,
   onNavigate
 }: {
-  onGuest: () => void;
   onLogin: (user: AuthUser) => Promise<void>;
   onNavigate: (route: StaticRoute) => void;
 }) {
@@ -666,20 +671,21 @@ function LoginScreen({
       const result = await login({ email: email.trim(), password });
       await onLogin(result.user);
     } catch (error) {
-      setMessage(apiErrorMessage(error));
-      if (error instanceof ApiError && error.details) setErrors(error.details);
+      if (error instanceof ApiError && error.code === "UNAUTHENTICATED") {
+        setErrors({ password: "メールアドレスまたはパスワードが正しくありません" });
+      } else {
+        setMessage(apiErrorMessage(error));
+        if (error instanceof ApiError && error.details) setErrors(error.details);
+      }
     } finally {
       setSubmitting(false);
     }
   };
   return (
-    <main className="app-shell auth-layout">
-      <PageHeader
-        title={APP_NAME}
-        description="家のことを、ふたりで軽く見渡せるように。"
-      />
-      <Card>
-        <form className="stack" onSubmit={(event) => void submit(event)}>
+    <main className="app-shell entry-page">
+      <div className="entry-page__content">
+        <header className="entry-page__header"><h1>ログイン</h1></header>
+        <form className="entry-form" onSubmit={(event) => void submit(event)}>
           <FormField id="login-email" label="メールアドレス" error={errors.email}>
             <TextInput
               autoComplete="email"
@@ -699,33 +705,26 @@ function LoginScreen({
             />
           </FormField>
           <ErrorMessage message={message} />
-          <Button disabled={submitting} type="submit">
+          <Button className="entry-primary-action" disabled={submitting} type="submit">
             {submitting ? <InlineLoading /> : "ログイン"}
           </Button>
         </form>
-      </Card>
-      <div className="secondary-actions">
-        <Button variant="secondary" onClick={() => onNavigate("/register")}>
-          新規登録
-        </Button>
-        <Button variant="ghost" onClick={onGuest}>
-          ゲストで試す
-        </Button>
+        <p className="entry-link-row">はじめての方は <a href="/register" onClick={(event) => { event.preventDefault(); onNavigate("/register"); }}>アカウントを作る</a></p>
       </div>
     </main>
   );
 }
-
 function RegisterScreen({
   onRegister,
   onNavigate
 }: {
-  onRegister: (user: AuthUser) => Promise<void>;
+  onRegister: (user: AuthUser, inviteCode: string) => Promise<void>;
   onNavigate: (route: StaticRoute) => void;
 }) {
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const [errors, setErrors] = useState<FormErrors>({});
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -739,31 +738,40 @@ function RegisterScreen({
     if (password.length < 12 || password.length > 128)
       nextErrors.password = "パスワードは12〜128文字で入力してください。";
     setErrors(nextErrors);
-    setMessage("");
+    setMessage(Object.keys(nextErrors).length > 0 ? "入力内容を確認してください" : "");
     if (Object.keys(nextErrors).length > 0) return;
     setSubmitting(true);
     try {
+      const normalizedInviteCode = normalizeInviteCode(inviteCode);
+      if (normalizedInviteCode) {
+        const validation = await validateInviteCode(normalizedInviteCode);
+        if (!validation.valid) {
+          setErrors({ inviteCode: "招待コードを確認してください" });
+          return;
+        }
+      }
       const result = await register({
         displayName: displayName.trim(),
         email: email.trim(),
         password
       });
-      await onRegister(result.user);
+      await onRegister(result.user, normalizedInviteCode);
     } catch (error) {
-      setMessage(apiErrorMessage(error));
-      if (error instanceof ApiError && error.details) setErrors(error.details);
+      if (error instanceof ApiError && error.code === "CONFLICT") {
+        setErrors({ email: "このメールアドレスはすでに登録されています。" });
+      } else {
+        setMessage(apiErrorMessage(error));
+        if (error instanceof ApiError && error.details) setErrors(error.details);
+      }
     } finally {
       setSubmitting(false);
     }
   };
   return (
-    <main className="app-shell auth-layout">
-      <PageHeader
-        title="新規登録"
-        description="登録後、そのまま家庭の作成または参加へ進みます。"
-      />
-      <Card>
-        <form className="stack" onSubmit={(event) => void submit(event)}>
+    <main className="app-shell entry-page">
+      <div className="entry-page__content">
+        <header className="entry-page__header"><h1>新規登録</h1></header>
+        <form className="entry-form" onSubmit={(event) => void submit(event)}>
           <FormField id="register-name" label="表示名" error={errors.displayName}>
             <TextInput
               autoComplete="name"
@@ -791,55 +799,25 @@ function RegisterScreen({
               value={password}
             />
           </FormField>
+          <FormField id="register-invite-code" label="招待コード（任意）" error={errors.inviteCode}>
+            <TextInput
+              autoComplete="one-time-code"
+              error={errors.inviteCode}
+              id="register-invite-code"
+              onChange={setInviteCode}
+              value={inviteCode}
+            />
+          </FormField>
           <ErrorMessage message={message} />
-          <Button disabled={submitting} type="submit">
-            {submitting ? <InlineLoading /> : "登録する"}
+          <Button className="entry-primary-action" disabled={submitting} type="submit">
+            {submitting ? <InlineLoading /> : "新規登録"}
           </Button>
         </form>
-      </Card>
-      <Button variant="ghost" onClick={() => onNavigate("/login")}>
-        ログインへ戻る
-      </Button>
-    </main>
-  );
-}
-
-function OnboardingScreen({
-  user,
-  onNavigate,
-  onLogout
-}: {
-  user: AuthUser;
-  onNavigate: (route: StaticRoute) => void;
-  onLogout: () => void;
-}) {
-  return (
-    <main className="app-shell">
-      <PageHeader
-        title="家庭をはじめましょう"
-        description={`${user.displayName}さん、まず使う家庭を選びます。`}
-      />
-      <div className="choice-grid">
-        <Card className="choice-card">
-          <h2>新しい家庭を作る</h2>
-          <p>あなたが owner になり、あとから招待コードでメンバーを招待できます。</p>
-          <Button onClick={() => onNavigate("/household/create")}>作成へ進む</Button>
-        </Card>
-        <Card className="choice-card">
-          <h2>招待コードで参加する</h2>
-          <p>家族から共有されたコードを入力して、同じ家庭に参加します。</p>
-          <Button variant="secondary" onClick={() => onNavigate("/household/join")}>
-            参加へ進む
-          </Button>
-        </Card>
+        <p className="entry-link-row">すでにアカウントを持っている方 <a href="/login" onClick={(event) => { event.preventDefault(); onNavigate("/login"); }}>ログイン</a></p>
       </div>
-      <Button variant="ghost" onClick={onLogout}>
-        ログアウト
-      </Button>
     </main>
   );
 }
-
 function CreateHouseholdScreen({
   onCreated,
   onNavigate
@@ -855,8 +833,8 @@ function CreateHouseholdScreen({
     event.preventDefault();
     const trimmed = name.trim();
     const nextErrors: FormErrors = {};
-    if (trimmed.length === 0 || trimmed.length > 80)
-      nextErrors.name = "家庭名は1〜80文字で入力してください。";
+    if (trimmed.length === 0 || trimmed.length > 50)
+      nextErrors.name = "家庭名は1〜50文字で入力してください。";
     setErrors(nextErrors);
     setMessage("");
     if (Object.keys(nextErrors).length > 0) return;
@@ -872,10 +850,10 @@ function CreateHouseholdScreen({
     }
   };
   return (
-    <main className="app-shell auth-layout">
-      <PageHeader title="家庭を作成" description="あとからメンバーを招待できます。" />
-      <Card>
-        <form className="stack" onSubmit={(event) => void submit(event)}>
+    <main className="app-shell entry-page">
+      <div className="entry-page__content">
+        <header className="entry-page__header"><h1>家庭を作る</h1></header>
+        <form className="entry-form" onSubmit={(event) => void submit(event)}>
           <FormField id="household-name" label="家庭名" error={errors.name}>
             <TextInput
               autoComplete="organization"
@@ -887,26 +865,28 @@ function CreateHouseholdScreen({
             />
           </FormField>
           <ErrorMessage message={message} />
-          <Button disabled={submitting} type="submit">
-            {submitting ? <InlineLoading /> : "家庭を作成"}
+          <Button className="entry-primary-action" disabled={submitting} type="submit">
+            {submitting ? <InlineLoading /> : "家庭を作る"}
           </Button>
         </form>
-      </Card>
-      <Button variant="ghost" onClick={() => onNavigate("/onboarding")}>
-        選択に戻る
-      </Button>
+        <p className="entry-link-row">招待コードをお持ちの場合は <a href="/household/join" onClick={(event) => { event.preventDefault(); onNavigate("/household/join"); }}>招待から参加</a></p>
+      </div>
     </main>
   );
 }
 
 function JoinHouseholdScreen({
   onJoined,
-  onNavigate
+  onNavigate,
+  initialCode = "",
+  onCodeConsumed
 }: {
   onJoined: (household: Household) => void;
   onNavigate: (route: StaticRoute) => void;
+  initialCode?: string;
+  onCodeConsumed?: () => void;
 }) {
-  const [code, setCode] = useState("");
+  const [code, setCode] = useState(initialCode);
   const [errors, setErrors] = useState<FormErrors>({});
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -921,41 +901,40 @@ function JoinHouseholdScreen({
     setSubmitting(true);
     try {
       const result = await joinHousehold(normalized);
+      onCodeConsumed?.();
       onJoined(result.household);
     } catch (error) {
-      setMessage(apiErrorMessage(error));
-      if (error instanceof ApiError && error.details) setErrors(error.details);
+      if (error instanceof ApiError && ["INVALID_INVITE", "INVITE_EXPIRED", "INVITE_ALREADY_USED"].includes(error.code)) {
+        setErrors({ code: "招待コードを確認してください" });
+      } else {
+        setMessage(apiErrorMessage(error));
+        if (error instanceof ApiError && error.details) setErrors(error.details);
+      }
     } finally {
       setSubmitting(false);
     }
   };
   return (
-    <main className="app-shell auth-layout">
-      <PageHeader
-        title="家庭へ参加"
-        description="共有された招待コードを入力してください。"
-      />
-      <Card>
-        <form className="stack" onSubmit={(event) => void submit(event)}>
+    <main className="app-shell entry-page">
+      <div className="entry-page__content">
+        <header className="entry-page__header"><h1>招待から参加</h1></header>
+        <form className="entry-form" onSubmit={(event) => void submit(event)}>
           <FormField id="invite-code" label="招待コード" error={errors.code}>
             <TextInput
               autoComplete="one-time-code"
               error={errors.code}
               id="invite-code"
               onChange={setCode}
-              placeholder="ABCD-EFGH-IJKL"
               value={code}
             />
           </FormField>
           <ErrorMessage message={message} />
-          <Button disabled={submitting} type="submit">
+          <Button className="entry-primary-action" disabled={submitting} type="submit">
             {submitting ? <InlineLoading /> : "参加する"}
           </Button>
         </form>
-      </Card>
-      <Button variant="ghost" onClick={() => onNavigate("/onboarding")}>
-        選択に戻る
-      </Button>
+        <p className="entry-link-row">家庭を新しく作る場合は <a href="/household/create" onClick={(event) => { event.preventDefault(); onNavigate("/household/create"); }}>家庭を作る</a></p>
+      </div>
     </main>
   );
 }
@@ -5667,65 +5646,3 @@ function ShoppingSoonScreen({
   );
 }
 
-function GuestScreen({
-  onNavigate,
-  onExit
-}: {
-  onNavigate: (route: string) => void;
-  onExit: () => void;
-}) {
-  return (
-    <main className="app-shell app-shell--with-nav">
-      <PageHeader
-        title="ゲスト"
-        description="サンプルのホームを確認できます。"
-        action={
-          <Button variant="ghost" onClick={onExit}>
-            終了
-          </Button>
-        }
-      />
-      <GuestBanner />
-      <section className="dashboard-hero">
-        <div>
-          <p>{formatDate(todayInTokyo())}</p>
-          <h2>サンプルの家庭</h2>
-          <p>たくや・さやか</p>
-        </div>
-        <div className="summary-count">
-          <span>今日の未完了</span>
-          <strong>2件</strong>
-        </div>
-      </section>
-      <Card>
-        <h2>今日のタスク</h2>
-        <div className="task-list">
-          <button className="task-card" type="button">
-            <span className="task-icon">↻</span>
-            <span className="task-card__body">
-              <strong>インコのごはんを交換</strong>
-              <small>夜 21:00 / 担当: どちらでも</small>
-            </span>
-            <StatusBadge status="pending" />
-          </button>
-          <button className="task-card" type="button">
-            <span className="task-icon">□</span>
-            <span className="task-card__body">
-              <strong>ゴミ出し</strong>
-              <small>朝 8:00 / 担当: どちらでも</small>
-            </span>
-            <StatusBadge status="completed" />
-          </button>
-        </div>
-      </Card>
-      <BottomNavigation
-        current="/home"
-        onNavigate={
-          onNavigate as (
-            path: "/home" | "/calendar" | "/tasks" | "/shopping" | "/other" | "/settings/members"
-          ) => void
-        }
-      />
-    </main>
-  );
-}

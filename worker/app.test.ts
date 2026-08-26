@@ -438,6 +438,57 @@ describe("worker app household API", () => {
     );
     expect(usedAgain.status).toBe(409);
   });
+
+  it("validates invite codes without exposing metadata or consuming the invite", async () => {
+    const app = createApp();
+    const db = new MemoryD1();
+    const env = createTestEnv(db);
+    const owner = await registerUser(env, {
+      email: "validate-owner@example.com",
+      password: "very-long-password",
+      displayName: "Owner"
+    });
+    await app.fetch(postJson("/api/households", { name: "秘密の家" }, owner.cookie), env);
+    const inviteResponse = await app.fetch(
+      postJson("/api/households/current/invites", {}, owner.cookie),
+      env
+    );
+    const inviteJson: { data: { invite: { code: string } } } = await inviteResponse.json();
+    const code = inviteJson.data.invite.code;
+
+    const valid = await app.fetch(
+      postJson("/api/households/invites/validate", { code }),
+      env
+    );
+    await expect(valid.json()).resolves.toMatchObject({ ok: true, data: { valid: true } });
+    expect(Array.from(db.invites.values())[0]?.used_at).toBeNull();
+
+    const unknown = await app.fetch(
+      postJson("/api/households/invites/validate", { code: "not-a-real-code" }),
+      env
+    );
+    const unknownText = await unknown.text();
+    expect(unknownText).toContain('"valid":false');
+    expect(unknownText).not.toContain("秘密の家");
+    expect(unknownText).not.toContain("household");
+
+    const invite = Array.from(db.invites.values())[0];
+    if (!invite) throw new Error("invite was not persisted");
+    invite.used_at = "2026-08-26T00:00:00.000Z";
+    const used = await app.fetch(
+      postJson("/api/households/invites/validate", { code }),
+      env
+    );
+    await expect(used.json()).resolves.toMatchObject({ ok: true, data: { valid: false } });
+
+    invite.used_at = null;
+    invite.expires_at = "2026-08-25T00:00:00.000Z";
+    const expired = await app.fetch(
+      postJson("/api/households/invites/validate", { code }),
+      env
+    );
+    await expect(expired.json()).resolves.toMatchObject({ ok: true, data: { valid: false } });
+  });
 });
 
 describe("worker app task API", () => {

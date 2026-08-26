@@ -10,12 +10,38 @@ HouseToDo-Mockup latest mainをdesign / interaction / motionのcanonical source 
 | M2 | Home + Task: new Home, complete/pass/undo, task add/edit/delete, previous completion, and related Motion | Done |
 | M3 | Calendar screen visual migration and Calendar interactions | Done |
 | M4 | Shopping screen visual migration and Shopping interactions | Done on `main` after PR #5 |
-| M5 | Other / Settings and formal `/other` route | In progress on `feat/production-other-settings-m5` |
-| M6 | Auth / Household Entry. Guest and onboarding are removed from the new UI direction, not visually migrated. | Planned |
+| M5 | Other / Settings and formal `/other` route | Done and merged to `main` in PR #6 |
+| M6 | Auth / Household Entry. Guest and onboarding are removed from the new UI direction, not visually migrated. | In progress on `feat/production-auth-entry-m6` |
 | M7 | Integration / Legacy UI cleanup: retire user-facing old Task list/detail/respond/templates and Shopping detail/templates routes, then verify 2-user flows, E2E, and PWA behavior | Planned |
 | M8 | Legacy backend cleanup: after the new UI is stable, safely remove unused API/DB/compatibility code in separate PRs | Planned |
 
-M1〜M4は`origin/main`で完了。M5 Other / Settingsを`feat/production-other-settings-m5`で実装する。M6には進まない。
+M5まで`origin/main`で完了。M6 Auth / Household Entryを`feat/production-auth-entry-m6`で実装中。M7には進まない。
+
+## M6 start record
+
+- Production base SHA: `ed749b70707068b1b7dfb96e055d4e06371af094` (`origin/main`, PR #6 / M5 Other Settings merge)
+- Mockup reference SHA: `db8941dc3056f07862014242a349ae366da59e9c` (`HouseToDo-Mockup` `origin/main`)
+- Branch: `feat/production-auth-entry-m6`
+- Canonical audit scope: Mockup `DESIGN.md`, `.uilab/screens.json`, `.uilab/states.json`, `.uilab/components.json`, `EntryPage.tsx`, `EntryPage.css`, and `EntryPage.test.tsx`; Production auth/household APIs, session, PBKDF2, invite persistence, permission, and route state machine.
+- M6 keeps Production backend/data semantics authoritative. The Mockup is used only for Entry layout, copy, interaction, visible errors, and the nine semantic states.
+
+## M6 implementation contract
+
+- Login, Register, Household Create, and Household Join use the shared flat mobile-first Entry foundation at 390px, with no Card shell, Bottom Navigation, Guest CTA, or Onboarding intermediate screen.
+- Auth route states are explicit: unauthenticated users may remain on `/login` or `/register`; authenticated users without a household may use `/household/create` or `/household/join`; household-ready users use app routes and redirect legacy entry routes to `/home`.
+- `/guest` and `/onboarding` are retained only as redirect addresses: unauthenticated users go to `/login`, authenticated users without a household go to `/household/create`, and household-ready users go to `/home`.
+- Added `POST /api/households/invites/validate` as an unauthenticated, origin/content-type protected, read-only contract. It normalizes and hashes only the submitted code, checks existence/expiry/used state, returns only `{ valid: boolean }`, never consumes an invite, and exposes no household metadata.
+- Register with an optional invite validates before `POST /api/auth/register`; valid registration then consumes through the existing authenticated join API. A join race keeps the authenticated session and routes to `/household/join` with an in-memory prefill; no account compensation or migration was added.
+- Cookie session, HttpOnly/Secure/SameSite/30-day behavior, hashed session storage, PBKDF2 password hashing, Origin checks, D1 persistence, permissions, and existing invite consume semantics remain unchanged.
+
+## M6 verification record
+
+- Production base SHA: `ed749b70707068b1b7dfb96e055d4e06371af094`
+- Mockup reference SHA: `db8941dc3056f07862014242a349ae366da59e9c`
+- Evidence scope: nine Production and nine Mockup 390x844 states, four actual-input/click WebM flows, four GIF previews, four labeled parity boards, and an exact eight-file `review-upload` package.
+- Quality-gate note: lint, typecheck, build, targeted M6 App tests (25/25), M6 Playwright (5/5), Worker invite-validation coverage, and semantic Evidence capture pass. Full Vitest has one pre-existing M2 Home fixture failure (36 files / 232 passed / 1 failed); the same test fails at this M6 base SHA and was not changed by M6.
+- Docker-authenticated E2E was unavailable and was not treated as passed. Home/Calendar/Shopping/Other smoke coverage was run through the existing local test fixtures; no unrelated legacy selector/fixture failures were changed.
+- No migration, remote D1 operation, staging deploy, production deploy, secrets change, Cron change, or PR merge was performed.
 
 ## M5 start record (2026-08-25)
 

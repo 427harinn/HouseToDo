@@ -46,7 +46,7 @@ test("calendar supports month navigation, selected-date sections, markers, and t
   await page.locator("#register-email").fill(user.email);
   await page.locator("#register-password").fill(password);
   await page.locator('form button[type="submit"]').click();
-  await expect(page).toHaveURL(/\/onboarding|\/home/);
+  await expect(page).toHaveURL(/\/household\/create|\/home/);
   await page.goto("/household/create");
   await page.locator("#household-name").fill(`Calendar House ${id}`);
   await page.locator('form button[type="submit"]').click();
