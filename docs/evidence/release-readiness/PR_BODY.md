@@ -81,12 +81,12 @@ No next action above was executed by this PR.
 
 ## Visual Evidence
 
-Evidence SHA: `EVIDENCE_SHA_PLACEHOLDER`
+Evidence SHA: `fa14f75`
 
-- [01-main-final-gate.png](https://github.com/427harinn/HouseToDo/blob/EVIDENCE_SHA_PLACEHOLDER/docs/evidence/release-readiness/screenshots/01-main-final-gate.png?raw=1)
-- [02-remote-readiness.png](https://github.com/427harinn/HouseToDo/blob/EVIDENCE_SHA_PLACEHOLDER/docs/evidence/release-readiness/screenshots/02-remote-readiness.png?raw=1)
-- [03-d1-migration-status.png](https://github.com/427harinn/HouseToDo/blob/EVIDENCE_SHA_PLACEHOLDER/docs/evidence/release-readiness/screenshots/03-d1-migration-status.png?raw=1)
-- [04-release-next-action.png](https://github.com/427harinn/HouseToDo/blob/EVIDENCE_SHA_PLACEHOLDER/docs/evidence/release-readiness/screenshots/04-release-next-action.png?raw=1)
+- [01-main-final-gate.png](https://github.com/427harinn/HouseToDo/blob/fa14f75/docs/evidence/release-readiness/screenshots/01-main-final-gate.png?raw=1)
+- [02-remote-readiness.png](https://github.com/427harinn/HouseToDo/blob/fa14f75/docs/evidence/release-readiness/screenshots/02-remote-readiness.png?raw=1)
+- [03-d1-migration-status.png](https://github.com/427harinn/HouseToDo/blob/fa14f75/docs/evidence/release-readiness/screenshots/03-d1-migration-status.png?raw=1)
+- [04-release-next-action.png](https://github.com/427harinn/HouseToDo/blob/fa14f75/docs/evidence/release-readiness/screenshots/04-release-next-action.png?raw=1)
 
 The review-upload directory contains exactly these four PNG files.
 
