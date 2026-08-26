@@ -1,8 +1,8 @@
-/* global document, HTMLElement, HTMLInputElement */
+/* global document, HTMLElement, HTMLInputElement, window */
 import { chromium } from "@playwright/test";
 import { Buffer } from "node:buffer";
 import { setInterval as setIntervalTimer, clearInterval as clearIntervalTimer } from "node:timers";
-import { mkdir, rm, copyFile } from "node:fs/promises";
+import { mkdir, rm, copyFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
 
@@ -16,6 +16,7 @@ const productionBase = process.env.M6_PRODUCTION_BASE_URL ?? "http://127.0.0.1:5
 const mockupBase = process.env.M6_MOCKUP_BASE_URL ?? "http://127.0.0.1:5175";
 const productionSha = process.env.M6_PRODUCTION_SHA ?? "working-tree-m6";
 const mockupSha = process.env.M6_MOCKUP_SHA ?? "db8941dc3056f07862014242a349ae366da59e9c";
+const geometryPath = path.join(root, "geometry.json");
 
 const user = { id: "m6-user", email: "m6@example.test", displayName: "M6 User" };
 const household = { id: "m6-household", name: "M6 House", timezone: "Asia/Tokyo", weekStartsOn: 1, role: "owner" };
@@ -145,7 +146,35 @@ const matrix = [
   ["login", "normal"], ["login", "error"], ["register", "normal"], ["register", "error"], ["register", "invite-code"], ["register", "invalid-invite-code"], ["household-create", "normal"], ["household-join", "normal"], ["household-join", "invalid-code"]
 ];
 
+async function captureEntryGeometry(page, source, kind, state) {
+  const geometry = await page.evaluate(() => {
+    const rect = (element) => element?.getBoundingClientRect();
+    const inputs = [...document.querySelectorAll(".entry-page input")].map((input) => {
+      const style = window.getComputedStyle(input);
+      const field = input.closest(".form-field, .form-control");
+      const marker = field?.firstElementChild;
+      const inputRect = rect(input);
+      const markerRect = rect(marker);
+      return {
+        height: inputRect?.height ?? null,
+        fontSize: style.fontSize,
+        lineHeight: style.lineHeight,
+        padding: [style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft],
+        labelToInputGap: inputRect && markerRect ? inputRect.top - markerRect.bottom : null
+      };
+    });
+    const buttonRect = rect(document.querySelector(".entry-primary-action"));
+    const linkRect = rect(document.querySelector(".entry-link-row"));
+    return {
+      inputs,
+      buttonToSecondaryLinkGap: buttonRect && linkRect ? linkRect.top - buttonRect.bottom : null
+    };
+  });
+  return { source, kind, state, ...geometry };
+}
+
 async function captureScreenshots(browser) {
+  const geometry = [];
   const production = await browser.newPage({ viewport: { width: 390, height: 844 } });
   for (const [kind, state] of matrix) {
     const auth = kind.startsWith("household") ? makeState({ authenticated: true }) : makeState();
@@ -154,6 +183,7 @@ async function captureScreenshots(browser) {
     await installProductionApi(production, auth);
     await production.goto(`${productionBase}/${kind === "household-create" ? "household/create" : kind === "household-join" ? "household/join" : kind}?m6Evidence=${state}`);
     await assertProductionState(production, kind, state);
+    geometry.push(await captureEntryGeometry(production, "production", kind, state));
     if (kind === "login" && state === "error") await clearVisualValues(production, ["login-email", "login-password"]);
     if (kind === "register" && state === "error") await clearVisualValues(production, ["register-name", "register-email", "register-password", "register-invite-code"]);
     if (kind === "register" && state === "invalid-invite-code") await clearVisualValues(production, ["register-name", "register-email", "register-password"]);
@@ -168,10 +198,22 @@ async function captureScreenshots(browser) {
     const pathName = kind === "household-create" ? "household/create" : kind === "household-join" ? "household/join" : kind;
     await mockup.goto(`${mockupBase}/#/${pathName}?uilabState=${state}`);
     await assertMockupState(mockup, kind, state);
+    geometry.push(await captureEntryGeometry(mockup, "mockup", kind, state));
     await neutralize(mockup);
     await mockup.screenshot({ path: path.join(mockupRoot, `${kind}-${state}.png`), animations: "disabled" });
   }
   await mockup.close();
+  const parity = matrix.filter(([, state]) => state === "normal").map(([kind]) => {
+    const productionGeometry = geometry.find((item) => item.source === "production" && item.kind === kind && item.state === "normal");
+    const mockupGeometry = geometry.find((item) => item.source === "mockup" && item.kind === kind && item.state === "normal");
+    const productionComparable = { inputs: productionGeometry?.inputs, buttonToSecondaryLinkGap: productionGeometry?.buttonToSecondaryLinkGap };
+    const mockupComparable = { inputs: mockupGeometry?.inputs, buttonToSecondaryLinkGap: mockupGeometry?.buttonToSecondaryLinkGap };
+    if (JSON.stringify(productionComparable) !== JSON.stringify(mockupComparable)) {
+      throw new Error(`Entry geometry parity mismatch for ${kind}: ${JSON.stringify({ production: productionComparable, mockup: mockupComparable })}`);
+    }
+    return { kind, production: productionComparable, mockup: mockupComparable, matches: true };
+  });
+  await writeFile(geometryPath, JSON.stringify({ viewport: { width: 390, height: 844 }, productionSha, mockupSha, captures: geometry, parity }, null, 2));
 }
 
 async function recordFlow(browser, name, flow) {
@@ -192,9 +234,11 @@ async function recordFlow(browser, name, flow) {
   clearIntervalTimer(frameTimer);
   await captureFrame();
   const video = page.video();
+  const videoPath = video ? await video.path() : null;
   await context.close();
-  if (!video) throw new Error(`No video recorded for ${name}`);
-  await copyFile(await video.path(), path.join(motionRoot, name));
+  if (!videoPath) throw new Error(`No video recorded for ${name}`);
+  await copyFile(videoPath, path.join(motionRoot, name));
+  await rm(videoPath, { force: true });
   await makeGif(frames, path.join(previewRoot, name.replace(/\.webm$/, ".gif")));
 }
 
@@ -225,6 +269,9 @@ async function recordFlows(browser) {
     await page.waitForTimeout(700);
     state.loginFailure = false;
     await page.getByLabel("パスワード").fill("very-long-password");
+    if (await page.getByRole("alert").filter({ hasText: "メールアドレスまたはパスワードが正しくありません" }).count() !== 0) throw new Error("login error did not clear after corrected credentials");
+    if (await page.getByLabel("パスワード").getAttribute("aria-invalid") !== "false") throw new Error("login aria-invalid did not clear after corrected credentials");
+    await page.waitForTimeout(600);
     await page.getByRole("button", { name: "ログイン" }).click();
     await page.getByRole("heading", { name: "やること" }).waitFor();
     await page.waitForTimeout(700);
@@ -234,10 +281,12 @@ async function recordFlows(browser) {
     await installProductionApi(page, state);
     await page.goto(`${productionBase}/register`);
     await fillRegister(page);
+    await page.waitForTimeout(500);
     await page.getByRole("button", { name: "新規登録" }).click();
     await page.getByRole("heading", { name: "家庭を作る" }).waitFor();
-    await page.waitForTimeout(400);
+    await page.waitForTimeout(500);
     await page.getByLabel("家庭名").fill("M6 Home");
+    await page.waitForTimeout(500);
     await page.getByRole("button", { name: "家庭を作る" }).click();
     await page.getByRole("heading", { name: "やること" }).waitFor();
     await page.waitForTimeout(700);
@@ -254,6 +303,7 @@ async function recordFlows(browser) {
     await page.getByLabel("招待コード（任意）").fill("VALID-CODE");
     if (await page.getByRole("alert").filter({ hasText: "招待コードを確認してください" }).count() !== 0) throw new Error("register invite error did not clear after input change");
     if (await page.getByLabel("招待コード（任意）").getAttribute("aria-invalid") !== "false") throw new Error("register invite aria-invalid did not clear after input change");
+    await page.waitForTimeout(600);
     await page.getByRole("button", { name: "新規登録" }).click();
     await page.getByRole("heading", { name: "やること" }).waitFor();
     await page.waitForTimeout(700);
@@ -269,6 +319,7 @@ async function recordFlows(browser) {
     await page.getByLabel("招待コード").fill("VALID-CODE");
     if (await page.getByRole("alert").filter({ hasText: "招待コードを確認してください" }).count() !== 0) throw new Error("join invite error did not clear after input change");
     if (await page.getByLabel("招待コード").getAttribute("aria-invalid") !== "false") throw new Error("join invite aria-invalid did not clear after input change");
+    await page.waitForTimeout(600);
     await page.getByRole("button", { name: "参加する" }).click();
     await page.getByRole("heading", { name: "やること" }).waitFor();
     await page.waitForTimeout(700);
