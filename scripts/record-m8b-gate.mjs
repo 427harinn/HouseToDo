@@ -10,66 +10,60 @@ const git = (...args) =>
     cwd: root,
     encoding: "utf8"
   }).trim();
-const json = async (name) => JSON.parse(await readFile(join(root, name), "utf8"));
-const vitest = await json("artifacts/m8b-vitest.json");
-const vitestAssertions = vitest.testResults.flatMap(
-  (result) => result.assertionResults ?? []
-);
-const vitestPassed = vitestAssertions.filter((test) => test.status === "passed").length;
-const chromium = await json(
-  "artifacts/playwright/m8b-final/test-results/.last-run.json"
-);
-const twoUser = await json("artifacts/playwright/m8b-real/test-results/.last-run.json");
-const schema = await json("docs/evidence/m8b/diagnostics/final-schema.json");
+const readJson = async (relativePath) =>
+  JSON.parse(await readFile(join(root, relativePath), "utf8"));
 
-const passed = (name, evidence) => ({ name, status: "PASS", evidence });
-const checks = [
-  passed("lint", "npm run lint exit 0"),
-  passed("typecheck", "npm run typecheck exit 0"),
-  passed(
-    "Vitest",
-    `${vitest.testResults.length} files / ${vitestAssertions.length} tests / ${vitestPassed} passed`
-  ),
-  passed("build", "npm run build exit 0; Vite production bundle generated"),
-  passed("migration", "npm run db:migrate:local exit 0; No migrations to apply"),
-  passed("changed-source format", "Prettier check passed for M8B source/docs"),
-  chromium.status === "passed"
-    ? passed(
-        "canonical Chromium",
-        "39 tests / 38 passed / 1 skipped; local canonical suite"
-      )
-    : {
-        name: "canonical Chromium",
-        status: "FAIL",
-        evidence: JSON.stringify(chromium)
-      },
-  twoUser.status === "passed"
-    ? passed("two-user smoke", "M7 real integration: 4 passed; local Worker + local D1")
-    : { name: "two-user smoke", status: "FAIL", evidence: JSON.stringify(twoUser) },
-  passed(
-    "scheduler",
-    "Vitest full suite passed; scheduler normalization/projection covered"
-  ),
-  passed(
-    "notification",
-    "Vitest full suite passed; notification identity/dispatch covered"
-  ),
-  passed("image safety", "Vitest + canonical Chromium image/R2-safe checks passed"),
-  passed(
-    "schema integrity",
-    "17 migrations; 65 routes; tables/columns/indexes/FK unchanged"
-  )
+const commandArtifact = await readJson("artifacts/m8b-gate-command-results.json");
+const candidateArtifact = await readJson(
+  "docs/evidence/m8b/diagnostics/final-candidate-decisions.json"
+);
+const schema = await readJson("docs/evidence/m8b/diagnostics/final-schema.json");
+const required = [
+  "lint",
+  "typecheck",
+  "Vitest",
+  "build",
+  "fresh DB migration",
+  "current local DB migration",
+  "changed-source format",
+  "canonical Chromium",
+  "two-user integration",
+  "scheduler",
+  "notification",
+  "image safety",
+  "schema integrity"
 ];
-
+const resultsByName = new Map(
+  commandArtifact.results.map((result) => [result.name, result])
+);
+const missing = required.filter((name) => !resultsByName.has(name));
+const checks = required.map((name) => {
+  const result = resultsByName.get(name);
+  return result
+    ? {
+        name,
+        status: result.status,
+        evidence: `${result.command}; exitCode=${result.exitCode}; ${result.summary}`
+      }
+    : { name, status: "FAIL", evidence: "required gate artifact is missing" };
+});
+const hasUnknown = candidateArtifact.decisions.some(
+  (decision) => decision.verdict === "KEEP_UNKNOWN"
+);
+const complete =
+  missing.length === 0 &&
+  !hasUnknown &&
+  checks.every((check) => check.status === "PASS") &&
+  schema.schemaChanges.status === "NONE";
 const finalGate = {
   generatedAt: new Date().toISOString(),
   productionBaseSha: git("rev-parse", "origin/main"),
   implementationSha: git("rev-parse", "HEAD"),
   branch: git("branch", "--show-current"),
   checks,
-  completion: checks.every((check) => ["PASS", "N/A", "SKIPPED"].includes(check.status))
-    ? "COMPLETE"
-    : "BLOCKED",
+  missingRequiredChecks: missing,
+  candidateUnknown: hasUnknown,
+  completion: complete ? "COMPLETE" : "BLOCKED",
   deployment: "NOT RUN",
   remoteMigration: "NOT RUN",
   realProductionData: "NOT TOUCHED",

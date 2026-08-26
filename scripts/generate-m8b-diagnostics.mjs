@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -28,6 +28,160 @@ const d1 = (sql) => {
   ]);
   const parsed = JSON.parse(output);
   return parsed[0]?.results ?? [];
+};
+
+const wrangler = join(root, "node_modules/wrangler/bin/wrangler.js");
+const freshMigration = async () => {
+  const artifacts = join(root, "artifacts");
+  await mkdir(artifacts, { recursive: true });
+  const persistTo = await mkdtemp(join(artifacts, "m8b-fresh-"));
+  const migration = spawnSync(
+    process.execPath,
+    [
+      wrangler,
+      "d1",
+      "migrations",
+      "apply",
+      "house-to-do",
+      "--local",
+      "--persist-to",
+      persistTo
+    ],
+    { cwd: root, encoding: "utf8" }
+  );
+  const schemaQuery = spawnSync(
+    process.execPath,
+    [
+      wrangler,
+      "d1",
+      "execute",
+      "house-to-do",
+      "--local",
+      "--persist-to",
+      persistTo,
+      "--command",
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT IN ('_cf_METADATA', 'd1_migrations') ORDER BY name",
+      "--json"
+    ],
+    { cwd: root, encoding: "utf8" }
+  );
+  const migrationState = spawnSync(
+    process.execPath,
+    [
+      wrangler,
+      "d1",
+      "execute",
+      "house-to-do",
+      "--local",
+      "--persist-to",
+      persistTo,
+      "--command",
+      "SELECT name FROM d1_migrations ORDER BY name",
+      "--json"
+    ],
+    { cwd: root, encoding: "utf8" }
+  );
+  const keyColumnQuery = spawnSync(
+    process.execPath,
+    [
+      wrangler,
+      "d1",
+      "execute",
+      "house-to-do",
+      "--local",
+      "--persist-to",
+      persistTo,
+      "--command",
+      "SELECT 'tasks' AS table_name, name FROM pragma_table_info('tasks') WHERE name IN ('recurrence_type', 'model_recurrence_type', 'weekly_target_count') UNION ALL SELECT 'task_records', name FROM pragma_table_info('task_records') WHERE name IN ('task_title_snapshot', 'assigned_user_id_snapshot', 'calendar_action_date') UNION ALL SELECT 'shopping_templates', name FROM pragma_table_info('shopping_templates') WHERE name IN ('name', 'active') ORDER BY table_name, name",
+      "--json"
+    ],
+    { cwd: root, encoding: "utf8" }
+  );
+  const parseResults = (result) => {
+    if (result.status !== 0) return [];
+    try {
+      return JSON.parse(result.stdout)[0]?.results ?? [];
+    } catch {
+      return [];
+    }
+  };
+  const tables = parseResults(schemaQuery)
+    .map((row) => row.name)
+    .sort();
+  const applied = parseResults(migrationState)
+    .map((row) => row.name)
+    .sort();
+  const keyColumns = Object.groupBy(
+    parseResults(keyColumnQuery),
+    (row) => row.table_name
+  );
+  const expectedTables = [
+    "attachments",
+    "household_image_usage",
+    "household_invites",
+    "household_members",
+    "households",
+    "image_upload_reservations",
+    "notification_deliveries",
+    "notification_logs",
+    "orphan_r2_objects",
+    "push_subscriptions",
+    "sessions",
+    "shopping_item_images",
+    "shopping_items",
+    "shopping_templates",
+    "task_records",
+    "task_templates",
+    "task_weekdays",
+    "tasks",
+    "user_notification_settings",
+    "users"
+  ];
+  const artifact = {
+    command: `node ${wrangler} d1 migrations apply house-to-do --local --persist-to ${persistTo}`,
+    exitCode: migration.status ?? 1,
+    status:
+      migration.status === 0 &&
+      applied.length === migrationNames.length &&
+      applied.every((name, index) => name === migrationNames[index]) &&
+      tables.length === expectedTables.length &&
+      expectedTables.every((name, index) => name === tables[index]) &&
+      [
+        ["tasks", ["recurrence_type", "model_recurrence_type", "weekly_target_count"]],
+        [
+          "task_records",
+          ["task_title_snapshot", "assigned_user_id_snapshot", "calendar_action_date"]
+        ],
+        ["shopping_templates", ["name", "active"]]
+      ].every(([table, names]) =>
+        names.every((name) => keyColumns[table]?.some((row) => row.name === name))
+      ),
+    appliedMigrations: applied,
+    migrationCount: applied.length,
+    expectedMigrationCount: migrationNames.length,
+    tables,
+    expectedTableCount: expectedTables.length,
+    keyColumns,
+    expectedKeyColumns: {
+      tasks: ["recurrence_type", "model_recurrence_type", "weekly_target_count"],
+      task_records: [
+        "task_title_snapshot",
+        "assigned_user_id_snapshot",
+        "calendar_action_date"
+      ],
+      shopping_templates: ["name", "active"]
+    },
+    schemaQueryExitCode: schemaQuery.status ?? 1,
+    migrationStateQueryExitCode: migrationState.status ?? 1,
+    keyColumnQueryExitCode: keyColumnQuery.status ?? 1,
+    persistenceDirectory: persistTo
+  };
+  artifact.status = artifact.status ? "PASS" : "FAIL";
+  await writeFile(
+    join(diagnostics, "fresh-db-migration.json"),
+    `${JSON.stringify(artifact, null, 2)}\n`
+  );
+  return artifact;
 };
 
 const migrationNames = (await readdir(join(root, "migrations")))
@@ -106,6 +260,16 @@ const recordNulls =
   d1(
     "SELECT COUNT(*) AS total, SUM(CASE WHEN task_title_snapshot IS NULL THEN 1 ELSE 0 END) AS null_task_title_snapshot, SUM(CASE WHEN assigned_user_id_snapshot IS NULL THEN 1 ELSE 0 END) AS null_assigned_user_snapshot, SUM(CASE WHEN calendar_action_date IS NULL THEN 1 ELSE 0 END) AS null_calendar_action_date FROM task_records"
   )[0] ?? {};
+const legacyRecurrenceRows = recurrenceDistribution
+  .filter((row) => row.model_recurrence_type === null)
+  .reduce((sum, row) => sum + Number(row.row_count), 0);
+const taskTemplateRows = Number(rowCounts.task_templates ?? 0);
+const shoppingTemplateRows = Number(rowCounts.shopping_templates ?? 0);
+const nullTaskTitleRows = Number(recordNulls.null_task_title_snapshot ?? 0);
+const nullAssignedRows = Number(recordNulls.null_assigned_user_snapshot ?? 0);
+const nullCalendarDateRows = Number(recordNulls.null_calendar_action_date ?? 0);
+
+const freshMigrationResult = await freshMigration();
 
 const common = {
   readers: [],
@@ -157,8 +321,7 @@ const decisions = [
     migrationRequirement:
       "Dropping task_templates would require a data-preserving archival/removal decision; existing rows are present and no canonical replacement reads them.",
     verdict: "KEEP_DATA_COMPAT",
-    reason:
-      "15 persisted local rows remain. The public CRUD surface is also externally reachable, and absence of external consumers cannot be proven. Keeping the table and API preserves future/legacy template data.",
+    reason: `${taskTemplateRows} persisted local rows remain. The public CRUD surface is also externally reachable, and absence of external consumers cannot be proven. Keeping the table and API preserves future/legacy template data.`,
     action:
       "Keep task_templates, its repository/service/type, and all five CRUD/list routes. Do not add a DROP TABLE migration."
   },
@@ -199,8 +362,7 @@ const decisions = [
     externalConsumerProof:
       "Canonical frontend dependency is proven for list. CRUD/add external absence is not proven; therefore those routes remain compatibility surface.",
     verdict: "KEEP_CANONICAL",
-    reason:
-      "The canonical Shopping reuse picker reads GET /api/shopping/templates, and 46 persisted rows are present. Removing CRUD/add or the table would break existing-row reuse or an unprovable external contract.",
+    reason: `The canonical Shopping reuse picker reads GET /api/shopping/templates, and ${shoppingTemplateRows} persisted rows are present. Removing CRUD/add or the table would break existing-row reuse or an unprovable external contract.`,
     action:
       "Keep the table and list route as canonical; retain CRUD/detail/add routes as compatibility APIs and cover list + reuse in contract tests."
   },
@@ -323,8 +485,7 @@ const decisions = [
     externalConsumerProof:
       "Not applicable to persisted compatibility alone; external API clients may also send legacy request fields.",
     verdict: "KEEP_DATA_COMPAT",
-    reason:
-      "The local DB contains 12 legacy weekly rows with NULL model_recurrence_type plus legacy columns used by scheduler and compatibility normalization. Converting or dropping them could change occurrence and notification semantics.",
+    reason: `The local DB contains ${legacyRecurrenceRows} legacy rows with NULL model_recurrence_type plus legacy columns used by scheduler and compatibility normalization. Converting or dropping them could change occurrence and notification semantics.`,
     action:
       "Keep legacy recurrence columns, enum values, weekdays, monthly fields, and fallback/normalization paths; do not rewrite existing task rows."
   },
@@ -364,8 +525,7 @@ const decisions = [
     externalConsumerProof:
       "Not applicable to historical data safety; old rows are local persisted compatibility data.",
     verdict: "KEEP_DATA_COMPAT",
-    reason:
-      "The populated local DB contains historical NULL snapshots and NULL calendar_action_date values. Current code intentionally falls back to current task/member data and target/action dates so Home, Calendar, actor identity, and restore remain readable.",
+    reason: `The populated local DB contains ${nullTaskTitleRows} NULL task-title snapshots, ${nullAssignedRows} NULL assignee snapshots, and ${nullCalendarDateRows} NULL calendar_action_date values. Current code intentionally falls back to current task/member data and target/action dates so Home, Calendar, actor identity, and restore remain readable.`,
     action:
       "Keep nullable columns and fallback readers; do not add NOT NULL, rewrite, or historical data migration."
   }
@@ -408,6 +568,20 @@ const contractTest = spawnSync(
     "worker/m8b-compatibility.test.ts"
   ],
   { cwd: root, stdio: "ignore" }
+);
+const contractResult = {
+  command: "npm test -- worker/m8b-compatibility.test.ts",
+  exitCode: contractTest.status ?? 1,
+  status: contractTest.status === 0 ? "PASS" : "FAIL",
+  summary: "M8B compatibility contract test"
+};
+await writeFile(
+  join(root, "artifacts/m8b-compatibility-result.json"),
+  `${JSON.stringify(contractResult, null, 2)}\n`
+);
+await writeFile(
+  join(diagnostics, "m8b-compatibility-result.json"),
+  `${JSON.stringify(contractResult, null, 2)}\n`
 );
 if (contractTest.status !== 0)
   throw new Error(
@@ -548,42 +722,42 @@ await writeFile(
             ) > 0
               ? "PASS"
               : "FAIL",
-          evidence:
-            "tasks recurrence distribution includes legacy model_recurrence_type NULL rows"
+          evidence: `${legacyRecurrenceRows} tasks with legacy model_recurrence_type NULL in local D1`
         },
         {
           name: "Old TaskRecord NULL snapshot",
           status:
             Number(recordNulls.null_task_title_snapshot ?? 0) > 0 ? "PASS" : "FAIL",
-          evidence: "task_records NULL snapshot count from local D1"
+          evidence: `${nullTaskTitleRows} task_records with NULL task_title_snapshot in local D1`
         },
         {
           name: "Calendar projection",
-          status: "PASS",
-          evidence:
-            "worker/m8b-compatibility.test.ts passed against MemoryD1 legacy fixture"
+          status: contractResult.status,
+          evidence: `${contractResult.status}: worker/m8b-compatibility.test.ts against MemoryD1 legacy fixture`
         },
         {
           name: "Restore",
-          status: "PASS",
-          evidence:
-            "worker/m8b-compatibility.test.ts passed against MemoryD1 legacy fixture"
+          status: contractResult.status,
+          evidence: `${contractResult.status}: worker/m8b-compatibility.test.ts restore assertion`
         },
         {
           name: "Shopping existing rows",
           status: Number(rowCounts.shopping_items ?? 0) > 0 ? "PASS" : "FAIL",
-          evidence: "shopping_items row count from local D1"
+          evidence: `${rowCounts.shopping_items} shopping_items rows in local D1`
         },
         {
           name: "Shopping template reuse",
-          status: Number(rowCounts.shopping_templates ?? 0) > 0 ? "PASS" : "FAIL",
-          evidence:
-            "shopping_templates row count plus passed canonical list/add contract"
+          status:
+            Number(rowCounts.shopping_templates ?? 0) > 0 &&
+            contractResult.status === "PASS"
+              ? "PASS"
+              : "FAIL",
+          evidence: `${shoppingTemplateRows} shopping_templates rows plus ${contractResult.status} canonical list/add contract`
         },
         {
           name: "Fresh DB migration",
-          status: "PASS",
-          evidence: "npm run db:migrate:local; no migrations to apply"
+          status: freshMigrationResult.status,
+          evidence: `isolated persistence ${freshMigrationResult.persistenceDirectory}; ${freshMigrationResult.migrationCount}/${freshMigrationResult.expectedMigrationCount} migrations; ${freshMigrationResult.tables.length}/${freshMigrationResult.expectedTableCount} tables`
         },
         {
           name: "Populated DB migration",
