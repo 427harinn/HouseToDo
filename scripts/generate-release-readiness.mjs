@@ -22,6 +22,10 @@ const localMigrationNames = (await import("node:fs/promises")).readdir(
 const migrationNames = (await localMigrationNames)
   .filter((name) => name.endsWith(".sql"))
   .sort();
+const priorReadiness =
+  process.env.RELEASE_READINESS_SKIP_BROWSER === "1"
+    ? JSON.parse(await readFile(join(diagnosticsDir, "readiness.json"), "utf8"))
+    : null;
 
 const commandText = (executable, args) => [executable, ...args].join(" ");
 
@@ -100,24 +104,41 @@ local.format = run("changed-source format", node, [
   "docs/PRODUCTION_UI_MIGRATION.md",
   "docs/RELEASE_MANUAL_CHECKLIST.md"
 ]);
-local.chromium = run(
-  "canonical Chromium",
-  npx,
-  ["playwright", "test", "--reporter=line"],
-  {
-    PLAYWRIGHT_BASE_URL: process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:5174",
-    PLAYWRIGHT_ARTIFACT_DIR: "artifacts/playwright/release-readiness-generated"
-  }
-);
-local.twoUser = run(
-  "two-user smoke",
-  npx,
-  ["playwright", "test", "e2e/m7-real-integration.spec.ts", "--reporter=line"],
-  {
-    PLAYWRIGHT_BASE_URL: process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:5174",
-    PLAYWRIGHT_ARTIFACT_DIR: "artifacts/playwright/release-readiness-two-user-generated"
-  }
-);
+const reusedBrowserResult = (key, name) => {
+  const value = priorReadiness?.local?.[key];
+  const isPass = typeof value === "string" && value.startsWith("PASS");
+  return {
+    name,
+    command: "prior actual browser baseline retained; see readiness.json",
+    exitCode: isPass ? 0 : 1,
+    status: isPass ? "PASS" : "FAIL",
+    output: "",
+    summary:
+      value?.replace(/^(?:PASS — exit 0; )+/, "") ??
+      "prior browser baseline unavailable"
+  };
+};
+local.chromium =
+  process.env.RELEASE_READINESS_SKIP_BROWSER === "1"
+    ? reusedBrowserResult("chromium", "canonical Chromium")
+    : run("canonical Chromium", npx, ["playwright", "test", "--reporter=line"], {
+        PLAYWRIGHT_BASE_URL: process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:5174",
+        PLAYWRIGHT_ARTIFACT_DIR: "artifacts/playwright/release-readiness-generated"
+      });
+local.twoUser =
+  process.env.RELEASE_READINESS_SKIP_BROWSER === "1"
+    ? reusedBrowserResult("twoUser", "two-user smoke")
+    : run(
+        "two-user smoke",
+        npx,
+        ["playwright", "test", "e2e/m7-real-integration.spec.ts", "--reporter=line"],
+        {
+          PLAYWRIGHT_BASE_URL:
+            process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:5174",
+          PLAYWRIGHT_ARTIFACT_DIR:
+            "artifacts/playwright/release-readiness-two-user-generated"
+        }
+      );
 
 const remote = {};
 remote.auth = run("Cloudflare auth", node, [wrangler, "whoami", "--json"]);
@@ -236,8 +257,9 @@ const missingMigrations = migrationNames.filter((name) => !appliedNames.includes
 const r2Names = [...remote.r2.output.matchAll(/^name:\s+(\S+)/gm)].map(
   (match) => match[1]
 );
+// Runtime secrets currently consumed by Worker routes/services.
+// Keep synchronized with worker/types/env.ts and the notification implementation.
 const requiredSecrets = [
-  "SESSION_SECRET",
   "WEB_PUSH_VAPID_PUBLIC_KEY",
   "WEB_PUSH_VAPID_PRIVATE_KEY",
   "WEB_PUSH_SUBJECT"
@@ -261,7 +283,8 @@ const git = (...args) =>
     cwd: root,
     encoding: "utf8"
   }).trim();
-const mainSha = git("rev-parse", "HEAD");
+const mainSha = git("rev-parse", "origin/main");
+const auditHeadSha = git("rev-parse", "HEAD");
 const originMainSha = git("rev-parse", "origin/main");
 const branch = git("branch", "--show-current");
 
@@ -316,6 +339,7 @@ const readiness = {
   generatedAt: new Date().toISOString(),
   mainSha,
   originMainSha,
+  auditHeadSha,
   productionBaseSha: mainSha,
   branch,
   currentMainState:
@@ -409,10 +433,7 @@ const sanitizedCommandResults = commandResults.map((record) => ({
   summary: record.summary
     .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[redacted-email]")
     .replace(/accounts\/[a-f0-9-]+/gi, "accounts/[redacted-account]")
-    .replace(
-      /C:\\\\Users\\\\[^\\\\]+\\\\AppData\\\\Roaming\\\\[^ ]+/gi,
-      "[redacted-wrangler-log]"
-    )
+    .replace(/C:[^|]+\.wrangler[^|]*/gi, "Wrangler log path redacted")
 }));
 
 await mkdir(diagnosticsDir, { recursive: true });

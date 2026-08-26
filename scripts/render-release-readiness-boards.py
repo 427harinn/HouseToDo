@@ -122,7 +122,7 @@ def board_remote(readiness):
         "workerState": f"{remote['workerState'].split(' — ', 1)[0]} — staging configured; latest v{worker_details['latestVersionNumber']}; default Worker deployed={details['environments']['productionWorkerDeployed']}",
         "d1MigrationState": f"{remote['d1MigrationState'].split(' — ', 1)[0]} — staging {d1_details['remoteAppliedCount']}/{d1_details['localMigrationCount']}; pending {len(d1_details['missingMigrations'])}; default D1 not found",
         "r2Binding": f"{remote['r2Binding'].split(' — ', 1)[0]} — staging ATTACHMENTS and {details['r2']['configuredStagingBucket']} present",
-        "requiredSecrets": f"{remote['requiredSecrets'].split(' — ', 1)[0]} — names {len(secret_details['stagingPresent'])}/{len(secret_details['required'])}; missing {', '.join(secret_details['stagingMissing'])}; values not read",
+        "requiredSecrets": f"{remote['requiredSecrets'].split(' — ', 1)[0]} — names {len(secret_details['stagingPresent'])}/{len(secret_details['required'])}; missing {', '.join(secret_details['stagingMissing']) or 'none'}; values not read",
         "cron": f"{remote['cron'].split(' — ', 1)[0]} — staging {', '.join(details['cron']['stagingConfigured'])}; default {', '.join(details['cron']['defaultConfigured'])}; no change",
     }
     fields = [

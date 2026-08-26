@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-26T11:49:12.325Z",
+  "generatedAt": "2026-08-26T12:23:13.196Z",
   "commandResults": [
     {
       "name": "lint",
@@ -27,7 +27,7 @@
       "command": "npm.cmd run build",
       "exitCode": 0,
       "status": "PASS",
-      "summary": "transforming... | ✓ 1839 modules transformed. | rendering chunks... | computing gzip size... | dist/client/index.html                   0.59 kB │ gzip:  0.36 kB | dist/client/assets/index-Cp0w5hjt.css   65.53 kB │ gzip: 11.32 kB | dist/client/assets/index-CNyIWL6p.js   301.79 kB │ gzip: 89.80 kB | ✓ built in 1.86s"
+      "summary": "transforming... | ✓ 1839 modules transformed. | rendering chunks... | computing gzip size... | dist/client/index.html                   0.59 kB │ gzip:  0.36 kB | dist/client/assets/index-Cp0w5hjt.css   65.53 kB │ gzip: 11.32 kB | dist/client/assets/index-CNyIWL6p.js   301.79 kB │ gzip: 89.80 kB | ✓ built in 2.24s"
     },
     {
       "name": "local migration",
@@ -45,14 +45,14 @@
     },
     {
       "name": "canonical Chromium",
-      "command": "npx.cmd playwright test --reporter=line",
+      "command": "prior actual browser baseline retained; see readiness.json",
       "exitCode": 0,
       "status": "PASS",
       "summary": "38 passed / 1 skipped"
     },
     {
       "name": "two-user smoke",
-      "command": "npx.cmd playwright test e2e/m7-real-integration.spec.ts --reporter=line",
+      "command": "prior actual browser baseline retained; see readiness.json",
       "exitCode": 0,
       "status": "PASS",
       "summary": "4 passed / 0 skipped"
@@ -69,21 +69,21 @@
       "command": "C:\\Program Files\\nodejs\\node.exe C:\\Users\\rinnr\\Documents\\GitHub\\HouseToDo\\node_modules\\wrangler\\bin\\wrangler.js versions list --name house-to-do --json",
       "exitCode": 1,
       "status": "FAIL",
-      "summary": "\u001b[31mX \u001b[41;31m[\u001b[41;97mERROR\u001b[41;31m]\u001b[0m \u001b[1mA request to the Cloudflare API (/accounts/[redacted-account]/workers/scripts/house-to-do/versions?deployable=true) failed.\u001b[0m | This Worker does not exist on your account. [code: 10007] | If you think this is a bug, please open an issue at: \u001b[4mhttps://github.com/cloudflare/workers-sdk/issues/new/choose\u001b[0m | Wrangler log path redacted"
+      "summary": "\u001b[31mX \u001b[41;31m[\u001b[41;97mERROR\u001b[41;31m]\u001b[0m \u001b[1mA request to the Cloudflare API (/accounts/[redacted-account]/workers/scripts/house-to-do/versions?deployable=true) failed.\u001b[0m | This Worker does not exist on your account. [code: 10007] | If you think this is a bug, please open an issue at: \u001b[4mhttps://github.com/cloudflare/workers-sdk/issues/new/choose\u001b[0m | 🪵  Logs were written to \"Wrangler log path redacted"
     },
     {
       "name": "default Worker deployments",
       "command": "C:\\Program Files\\nodejs\\node.exe C:\\Users\\rinnr\\Documents\\GitHub\\HouseToDo\\node_modules\\wrangler\\bin\\wrangler.js deployments list --name house-to-do --json",
       "exitCode": 1,
       "status": "FAIL",
-      "summary": "\u001b[31mX \u001b[41;31m[\u001b[41;97mERROR\u001b[41;31m]\u001b[0m \u001b[1mA request to the Cloudflare API (/accounts/[redacted-account]/workers/scripts/house-to-do/deployments) failed.\u001b[0m | This Worker does not exist on your account. [code: 10007] | Wrangler log path redacted"
+      "summary": "\u001b[31mX \u001b[41;31m[\u001b[41;97mERROR\u001b[41;31m]\u001b[0m \u001b[1mA request to the Cloudflare API (/accounts/[redacted-account]/workers/scripts/house-to-do/deployments) failed.\u001b[0m | This Worker does not exist on your account. [code: 10007] | If you think this is a bug, please open an issue at: \u001b[4mhttps://github.com/cloudflare/workers-sdk/issues/new/choose\u001b[0m | 🪵  Logs were written to \"Wrangler log path redacted"
     },
     {
       "name": "staging Worker versions",
       "command": "C:\\Program Files\\nodejs\\node.exe C:\\Users\\rinnr\\Documents\\GitHub\\HouseToDo\\node_modules\\wrangler\\bin\\wrangler.js versions list --name house-to-do-staging --json",
       "exitCode": 0,
       "status": "PASS",
-      "summary": "author_email redacted | has_preview: true | annotations: workers/triggered_by=version_upload"
+      "summary": "\"author_email\": \"[redacted-email]\", | \"has_preview\": true | }, | \"annotations\": { | \"workers/triggered_by\": \"version_upload\" | } | } | ]"
     },
     {
       "name": "staging Worker deployments",
@@ -97,7 +97,7 @@
       "command": "C:\\Program Files\\nodejs\\node.exe C:\\Users\\rinnr\\Documents\\GitHub\\HouseToDo\\node_modules\\wrangler\\bin\\wrangler.js d1 migrations list house-to-do --remote",
       "exitCode": 1,
       "status": "FAIL",
-      "summary": "Wrangler 4.114.0 | Resource location: remote | default D1 database not found [code: 7404] | account and Wrangler log path redacted"
+      "summary": "⛅️ wrangler 4.114.0 (update available 4.126.0) | ─────────────────────────────────────────────── | Resource location: remote | \u001b[31mX \u001b[41;31m[\u001b[41;97mERROR\u001b[41;31m]\u001b[0m \u001b[1mA request to the Cloudflare API (/accounts/[redacted-account]/d1/database/00000000-0000-0000-0000-000000000000/query) failed.\u001b[0m | The database 00000000-0000-0000-0000-000000000000 could not be found [code: 7404] | If you think this is a bug, please open an issue at: \u001b[4mhttps://github.com/cloudflare/workers-sdk/issues/new/choose\u001b[0m | 🪵  Logs were written to \"Wrangler log path redacted"
     },
     {
       "name": "staging D1 migration status",
@@ -125,7 +125,7 @@
       "command": "C:\\Program Files\\nodejs\\node.exe C:\\Users\\rinnr\\Documents\\GitHub\\HouseToDo\\node_modules\\wrangler\\bin\\wrangler.js secret list --name house-to-do --format json",
       "exitCode": 1,
       "status": "FAIL",
-      "summary": "Worker \"house-to-do\" not found; secret names unavailable for the absent default Worker; Wrangler log path redacted"
+      "summary": "\u001b[31mX \u001b[41;31m[\u001b[41;97mERROR\u001b[41;31m]\u001b[0m \u001b[1mWorker \"house-to-do\" not found.\u001b[0m | If this is a new Worker, run `wrangler deploy` first to create it. | Otherwise, check that the Worker name is correct and you're logged into the right account. | 🪵  Logs were written to \"Wrangler log path redacted"
     },
     {
       "name": "staging Worker secret names",

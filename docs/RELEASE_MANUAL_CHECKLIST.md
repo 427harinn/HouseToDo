@@ -60,7 +60,7 @@ This checklist is for a human on a real iPhone. Codex cannot operate the device,
 - [ ] `NOT RUN` — Verify morning and evening schedule settings.
 - [ ] `NOT RUN` — Receive a push notification and confirm the tap URL opens the intended screen.
 
-Push validation requires an authenticated, configured staging or production environment with the required VAPID secrets and an active Worker Cron. It must not be inferred from local tests or this checklist. The current release-readiness audit found staging but also found pending remote migrations and a missing `SESSION_SECRET`; no Push validation is authorized by this checklist.
+Push validation requires an authenticated, configured staging or production environment with the required VAPID secrets and an active Worker Cron. It must not be inferred from local tests or this checklist. The current release-readiness audit found staging with pending remote migrations; no Push validation is authorized by this checklist.
 
 ## Human sign-off
 

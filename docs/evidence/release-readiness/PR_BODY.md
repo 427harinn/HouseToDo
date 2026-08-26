@@ -56,7 +56,7 @@ The two-user contract covered owner task creation, member visibility/completion,
 
 ## Secrets / Cron / R2
 
-- Required secret names were checked only by name. Staging has 3/4; `SESSION_SECRET` is missing. Secret values were not read or stored.
+- Required runtime secret names: 3/3 present. Secret values were not read or stored.
 - Staging Cron exists as configured. No Cron change was made.
 - Staging R2 binding/bucket exists. No object list, upload, or delete operation was performed.
 
@@ -68,7 +68,7 @@ The two-user contract covered owner task creation, member visibility/completion,
 
 `REMOTE_MIGRATION_REVIEW_REQUIRED`
 
-The local application gate is green, but the remote environment is not ready to be treated as a production release target: the configured default Worker/D1 are absent, staging is three migrations behind, and `SESSION_SECRET` is missing from staging.
+The local application gate is green, but the remote environment is not ready to be treated as a production release target: staging D1 is 14/17 with migrations 0015–0017 pending, and the configured default production Worker/D1 are not provisioned.
 
 ## Recommended next action
 

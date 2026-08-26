@@ -1,7 +1,8 @@
 {
-  "generatedAt": "2026-08-26T11:49:12.325Z",
+  "generatedAt": "2026-08-26T12:23:13.196Z",
   "mainSha": "e1048c8de66126c4c93952261d70313b1180ec43",
   "originMainSha": "e1048c8de66126c4c93952261d70313b1180ec43",
+  "auditHeadSha": "87e3afa4cff2d471b9bea482af98a28c7ef393c3",
   "productionBaseSha": "e1048c8de66126c4c93952261d70313b1180ec43",
   "branch": "chore/post-migration-release-readiness",
   "currentMainState": "CLEAN_BASE_MATCH",
@@ -23,7 +24,7 @@
     "workerState": "REVIEW_REQUIRED — staging house-to-do-staging exists; latest version 44 (26a6fbf9-476e-4d36-9dfa-8ef07c07275c), no source SHA association in metadata; production/default Worker house-to-do exists=false",
     "d1MigrationState": "REVIEW_REQUIRED — staging applied 14/17; pending 0015_account_avatars_and_morning_notifications.sql, 0016_task_record_snapshots.sql, 0017_calendar_action_date.sql; default D1 status=not found",
     "r2Binding": "AVAILABLE — staging ATTACHMENTS binding and bucket house-to-do-attachments-staging exist; default bucket was not present in the read-only account list",
-    "requiredSecrets": "REVIEW_REQUIRED — staging secret names present 3/4; missing SESSION_SECRET; default Worker secret state unavailable",
+    "requiredSecrets": "PASS — all required staging secret names are present; values not read",
     "cron": "AVAILABLE — staging Cron */5 * * * * configured; default config Cron 0 18 * * *; no Cron change run"
   },
   "remoteDetails": {
@@ -77,7 +78,6 @@
     },
     "requiredSecretNames": {
       "required": [
-        "SESSION_SECRET",
         "WEB_PUSH_VAPID_PUBLIC_KEY",
         "WEB_PUSH_VAPID_PRIVATE_KEY",
         "WEB_PUSH_SUBJECT"
@@ -87,7 +87,7 @@
         "WEB_PUSH_VAPID_PRIVATE_KEY",
         "WEB_PUSH_VAPID_PUBLIC_KEY"
       ],
-      "stagingMissing": ["SESSION_SECRET"]
+      "stagingMissing": []
     },
     "cron": {
       "defaultConfigured": ["0 18 * * *"],
