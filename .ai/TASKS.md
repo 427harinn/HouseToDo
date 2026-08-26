@@ -1,5 +1,24 @@
 # Current milestone tasks
 
+## Production UI Migration M8B — Compatibility / Schema Finalization (current milestone)
+
+- [x] Confirm clean working tree, verify PR #9 merged, verify `origin/main` at `3c608ac07f90ca0f0d10d0e515c50b14b62ba83a`, and create `feat/backend-finalization-m8b`
+- [x] Read M8A diagnostics and freeze the six-candidate scope
+- [x] Audit code readers/writers, runtime/scheduled callers, canonical callers, tests, persisted local D1 rows, migrations, and external-consumer evidence
+- [x] Classify all six candidates with the required final verdict enum; no unsupported `UNKNOWN` or vague defer remains
+- [x] Add candidate compatibility contracts and legacy NULL/recurrence fixture coverage
+- [x] Confirm no route, response field, table, column, enum value, or migration can be removed safely in M8B; schema change is NONE
+- [x] Generate final candidate decisions, final schema snapshot, API/schema diff, legacy compatibility, and final gate diagnostics
+- [x] Run lint, typecheck, Vitest, build, local migration, changed-source format check, canonical Chromium, two-user, scheduler/notification, and image/R2-safe checks
+- [x] Generate exactly four PNG boards and four WebM motion files for `docs/evidence/m8b/review-upload/`
+- [x] Commit implementation and Evidence separately, push, and open a Draft PR; do not merge, deploy, or run remote migration
+
+## M8B final status
+
+- [x] Production UI Migration is complete after M8B implementation: all six candidates are `REMOVE_SAFE` implemented or `KEEP_*` with a recorded reason
+- [ ] Human review and merge of the M8B Draft PR
+- [ ] Deploy, remote migration, and real iPhone manual validation
+
 ## Production UI Migration M8A — Backend Reachability Audit / Non-destructive Cleanup (current milestone)
 
 - [x] Confirm clean working tree, fetch attempt, M7 PR #8 merge, and create `feat/backend-cleanup-m8a` from `origin/main` at `8e4653286d964f1ef88be6da92ad7b11e9c21ed5`

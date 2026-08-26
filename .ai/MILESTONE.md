@@ -1,4 +1,4 @@
-# Milestone: Production UI Migration M8A — Backend Reachability Audit / Non-destructive Cleanup
+# Milestone: Production UI Migration M8B — Compatibility / Schema Finalization
 
 ## Current boundary
 
@@ -8,10 +8,30 @@
 - M5 Other / Settings is complete and merged in PR #6 at base `ed749b7`.
 - M6 Auth / Household Entry is merged to `main` in PR #7 at base `d89a9d7`.
 - M7 Integration / Legacy UI Cleanup is merged to `main` in PR #8 at `8e4653286d964f1ef88be6da92ad7b11e9c21ed5`.
-- M8A Backend Reachability Audit / Non-destructive Cleanup is the current milestone on `feat/backend-cleanup-m8a`.
-- M8B destructive/schema/compatibility cleanup is pending review after M8A and has not started.
+- M8A Backend Reachability Audit / Non-destructive Cleanup is merged in PR #9 at `3c608ac07f90ca0f0d10d0e515c50b14b62ba83a`.
+- M8B Compatibility / Schema Finalization is implemented on `feat/backend-finalization-m8b`; Draft PR review/merge is pending.
+- Production UI Migration is not complete until M8B is reviewed and merged.
 - Deploy and remote migration have not been performed.
 - 詳細なM1〜M8計画は[docs/PRODUCTION_UI_MIGRATION.md](../docs/PRODUCTION_UI_MIGRATION.md)を参照。
+
+## M8B start record
+
+- Production base SHA: `3c608ac07f90ca0f0d10d0e515c50b14b62ba83a` (`origin/main`, PR #9 / M8A merge)
+- Branch: `feat/backend-finalization-m8b`
+- Migration count: 17 SQL files; schema hash is recorded in `docs/evidence/m8b/diagnostics/final-schema.json`
+- Worker public route count: 65 before / 65 final
+- Vitest baseline: 37 files / 236 tests (M8A)
+- Canonical Chromium baseline: 38 passed + 1 staging-only skip (M8A record); this environment rechecks the local canonical suite
+- `git fetch origin` was attempted but `.git/FETCH_HEAD` is read-only; existing `origin/main` is verified at the required base SHA.
+- Deploy: not performed. Remote migration: not performed. Production data: untouched.
+
+## M8B final decision
+
+- All six fixed M8A candidates are classified with the required final enum in `docs/evidence/m8b/diagnostics/final-candidate-decisions.json`.
+- No REMOVE_SAFE candidate was proven. Public API external-consumer absence is not inferred from zero frontend callers; persisted template/record data, canonical Shopping reuse, legacy recurrence readers, and public response compatibility remain protected.
+- No destructive migration, data rewrite, route removal, or response-field removal was made. Schema change is `NONE`.
+- Local D1 populated-data audit and MemoryD1 legacy fixture/contract tests pass; remote D1 and production data were not touched.
+- Production UI Migration: COMPLETE pending M8B review/merge. Pending after merge: deploy, real iPhone validation, and optional future cleanup only.
 
 ## M8A start record
 

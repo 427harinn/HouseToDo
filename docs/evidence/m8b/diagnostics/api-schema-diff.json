@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "milestone": "M8B",
+  "productionBaseSha": "3c608ac07f90ca0f0d10d0e515c50b14b62ba83a",
+  "implementationSha": "2c2e8dae0523e9992c7e75c6e592cf3bb0944f57",
+  "workerRoutes": {
+    "before": 65,
+    "after": 65,
+    "removed": []
+  },
+  "migrations": {
+    "before": 17,
+    "after": 17,
+    "added": [],
+    "removed": []
+  },
+  "tables": {
+    "before": 20,
+    "after": 20,
+    "added": [],
+    "removed": []
+  },
+  "columns": {
+    "added": [],
+    "removed": []
+  },
+  "apiRemoved": [],
+  "apiKeptIntentionally": [
+    {
+      "id": "A",
+      "name": "task_templates table and Task Template CRUD response/API surface",
+      "verdict": "KEEP_DATA_COMPAT",
+      "action": "Keep task_templates, its repository/service/type, and all five CRUD/list routes. Do not add a DROP TABLE migration."
+    },
+    {
+      "id": "B",
+      "name": "shopping_templates table and Shopping Template CRUD/add routes",
+      "verdict": "KEEP_CANONICAL",
+      "action": "Keep the table and list route as canonical; retain CRUD/detail/add routes as compatibility APIs and cover list + reuse in contract tests."
+    },
+    {
+      "id": "C",
+      "name": "dashboard legacy response fields",
+      "verdict": "KEEP_EXTERNAL_COMPAT",
+      "action": "Keep todayTasks, weeklyTasks, and summary in the Worker response and TypeScript contract; no response-field migration."
+    },
+    {
+      "id": "D",
+      "name": "calendar additive count/status compatibility fields",
+      "verdict": "KEEP_EXTERNAL_COMPAT",
+      "action": "Keep fixedCompletedCount, fixedSkippedCount, shoppingCount, purchasedShoppingCount, status, and related Calendar fields; protect with current-response contract tests."
+    },
+    {
+      "id": "E",
+      "name": "legacy task recurrence columns / enum values",
+      "verdict": "KEEP_DATA_COMPAT",
+      "action": "Keep legacy recurrence columns, enum values, weekdays, monthly fields, and fallback/normalization paths; do not rewrite existing task rows."
+    },
+    {
+      "id": "F",
+      "name": "nullable task-record snapshots / calendar_action_date",
+      "verdict": "KEEP_DATA_COMPAT",
+      "action": "Keep nullable columns and fallback readers; do not add NOT NULL, rewrite, or historical data migration."
+    }
+  ],
+  "schemaChange": "NONE"
+}

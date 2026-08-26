@@ -1,0 +1,85 @@
+{
+  "generatedAt": "2026-08-26T10:09:31.505Z",
+  "productionBaseSha": "3c608ac07f90ca0f0d10d0e515c50b14b62ba83a",
+  "implementationSha": "2c2e8dae0523e9992c7e75c6e592cf3bb0944f57",
+  "branch": "feat/backend-finalization-m8b",
+  "checks": [
+    {
+      "name": "lint",
+      "status": "PASS",
+      "evidence": "npm run lint; exitCode=0; > house-to-do@0.1.0 lint | > eslint ."
+    },
+    {
+      "name": "typecheck",
+      "status": "PASS",
+      "evidence": "npm run typecheck; exitCode=0; > house-to-do@0.1.0 typecheck | > tsc --noEmit"
+    },
+    {
+      "name": "Vitest",
+      "status": "PASS",
+      "evidence": "npm test; exitCode=0; JSON report written to C:/Users/rinnr/Documents/GitHub/HouseToDo/artifacts/m8b-vitest.json"
+    },
+    {
+      "name": "build",
+      "status": "PASS",
+      "evidence": "npm run build; exitCode=0; ✓ built in 2.17s"
+    },
+    {
+      "name": "fresh DB migration",
+      "status": "PASS",
+      "evidence": "node C:\\Users\\rinnr\\Documents\\GitHub\\HouseToDo\\node_modules\\wrangler\\bin\\wrangler.js d1 migrations apply house-to-do --local --persist-to C:\\Users\\rinnr\\Documents\\GitHub\\HouseToDo\\artifacts\\m8b-fresh-UIDPl4; exitCode=0; 17/17 migrations; 20/20 tables; key columns asserted"
+    },
+    {
+      "name": "current local DB migration",
+      "status": "PASS",
+      "evidence": "npm run db:migrate:local; exitCode=0; ✅ No migrations to apply!"
+    },
+    {
+      "name": "changed-source format",
+      "status": "PASS",
+      "evidence": "npx prettier --check <M8B source/docs>; exitCode=0; All matched files use Prettier code style!"
+    },
+    {
+      "name": "canonical Chromium",
+      "status": "PASS",
+      "evidence": "npx playwright test; exitCode=0; [9/39] [chromium] › e2e\\image-upload-ux.spec.ts:130:3 › shopping image upload UX › near limit, unknown storage, backend limit error, and replace remain understandable | 1 skipped | 38 passed (1.7m) | [console.error] Failed to load resource: the server responded with a status of 404 (Not Found) | [console.error] Failed to load resource: the server responded with a status of 404 (Not Found) | [console.error] Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "name": "two-user integration",
+      "status": "PASS",
+      "evidence": "npx playwright test e2e/m7-real-integration.spec.ts; exitCode=0; 4 passed (22.0s)"
+    },
+    {
+      "name": "scheduler",
+      "status": "PASS",
+      "evidence": "npm test (Vitest JSON assertion subset); exitCode=0; 1 matching Vitest file(s); all assertions passed=true"
+    },
+    {
+      "name": "notification",
+      "status": "PASS",
+      "evidence": "npm test (Vitest JSON assertion subset); exitCode=0; 4 matching Vitest file(s); all assertions passed=true"
+    },
+    {
+      "name": "image safety",
+      "status": "PASS",
+      "evidence": "npm test (Vitest JSON assertion subset); exitCode=0; 8 matching Vitest file(s); all assertions passed=true"
+    },
+    {
+      "name": "schema integrity",
+      "status": "PASS",
+      "evidence": "final-schema.json diff assertion; exitCode=0; migration/table/column/index/FK diffs empty=true"
+    }
+  ],
+  "missingRequiredChecks": [],
+  "candidateUnknown": false,
+  "completion": "COMPLETE",
+  "deployment": "NOT RUN",
+  "remoteMigration": "NOT RUN",
+  "realProductionData": "NOT TOUCHED",
+  "schemaChange": {
+    "status": "NONE",
+    "added": [],
+    "removed": [],
+    "dataRewrite": false
+  }
+}

@@ -1,0 +1,3960 @@
+{
+  "schemaVersion": 1,
+  "milestone": "M8B",
+  "productionBaseSha": "3c608ac07f90ca0f0d10d0e515c50b14b62ba83a",
+  "branch": "feat/backend-finalization-m8b",
+  "implementationSha": "2c2e8dae0523e9992c7e75c6e592cf3bb0944f57",
+  "sourceOfTruth": [
+    "migrations/",
+    "local D1 sqlite_master/PRAGMA snapshot",
+    "worker/app.ts",
+    "final-candidate-decisions.json"
+  ],
+  "migrationFiles": {
+    "before": [
+      "0001_initial.sql",
+      "0002_auth_foundation.sql",
+      "0003_household_foundation.sql",
+      "0004_task_foundation.sql",
+      "0005_shopping_foundation.sql",
+      "0006_shopping_item_images.sql",
+      "0007_orphan_r2_cleanup.sql",
+      "0008_image_usage_reservations.sql",
+      "0009_push_subscription_foundation.sql",
+      "0010_notification_scheduler.sql",
+      "0011_notification_delivery_claim_lease.sql",
+      "0012_task_model_foundation.sql",
+      "0013_task_templates.sql",
+      "0014_shopping_planned_purchase_date.sql",
+      "0015_account_avatars_and_morning_notifications.sql",
+      "0016_task_record_snapshots.sql",
+      "0017_calendar_action_date.sql"
+    ],
+    "after": [
+      "0001_initial.sql",
+      "0002_auth_foundation.sql",
+      "0003_household_foundation.sql",
+      "0004_task_foundation.sql",
+      "0005_shopping_foundation.sql",
+      "0006_shopping_item_images.sql",
+      "0007_orphan_r2_cleanup.sql",
+      "0008_image_usage_reservations.sql",
+      "0009_push_subscription_foundation.sql",
+      "0010_notification_scheduler.sql",
+      "0011_notification_delivery_claim_lease.sql",
+      "0012_task_model_foundation.sql",
+      "0013_task_templates.sql",
+      "0014_shopping_planned_purchase_date.sql",
+      "0015_account_avatars_and_morning_notifications.sql",
+      "0016_task_record_snapshots.sql",
+      "0017_calendar_action_date.sql"
+    ],
+    "added": [],
+    "removed": []
+  },
+  "migrationHashes": {
+    "before": {
+      "0001_initial.sql": "e8ac5d61a971a0a68800e24fd125d7c27bf3c970ed1ed8ac60325fb656d680cf",
+      "0002_auth_foundation.sql": "914483b5f86e94f9c2fdbd5c99a5eef4a78635a4c312b6005088bd4c2af351f2",
+      "0003_household_foundation.sql": "5c786e6f87190cbcea43478de5a924241cd992f3237ae2e417c0d8057672b59d",
+      "0004_task_foundation.sql": "40f294136ddfadf442827e4f377267e224f31e116255a4989335202914feed14",
+      "0005_shopping_foundation.sql": "87627dd583625d51f423043bea92374b38a8b3e164ceac591912b7ca3b519ef8",
+      "0006_shopping_item_images.sql": "4c224f676ecb4dc10c9dfa2d1dab2981d686618768af7ced8bc6fe52a3599de6",
+      "0007_orphan_r2_cleanup.sql": "357447a3fee64a035d1997a276f3a3533619dc02d408bf2ecc97427586aecd0d",
+      "0008_image_usage_reservations.sql": "90dee46d64dee5d347b9d235c2d124cab1c9b1b31ec2a893315e9099ca5a5230",
+      "0009_push_subscription_foundation.sql": "1f8c624fcb433b4df0b619f3f72d102ab41df789f42995a3c25b78040b4f077c",
+      "0010_notification_scheduler.sql": "038a515c05b5291b72aa18669de88f5bb946f4d5692af48ee59388a32ebefa1e",
+      "0011_notification_delivery_claim_lease.sql": "8c844e2254e80eee7dc90c879e0d224247a8c3963c5da6a1324002909bda4a65",
+      "0012_task_model_foundation.sql": "125c9b211bd8d37f63dc9e719c527b750c7f567fe80a2914877ac6645bbd0788",
+      "0013_task_templates.sql": "45bbbe7f875f7a4cb4de1aef75368c07b0442559c11ed12f7f49fe5bfdcc4d23",
+      "0014_shopping_planned_purchase_date.sql": "db15969525adb86bf3ebd69be2055844c7feaf616ddbecdce83959af0dde7fb2",
+      "0015_account_avatars_and_morning_notifications.sql": "9ea3ed3321b825633047ad1f621efde0bc06b45f891770ee1647bfedb746980c",
+      "0016_task_record_snapshots.sql": "19bbbaaa9b45b9c3e36e0f1ad920af24991d0c450d7f4020c83c60e91fd1c627",
+      "0017_calendar_action_date.sql": "052d274cfdd0df5dd0c1e9ab55c293b8e78a100374120834e53ff04eaeaf385a"
+    },
+    "after": {
+      "0001_initial.sql": "e8ac5d61a971a0a68800e24fd125d7c27bf3c970ed1ed8ac60325fb656d680cf",
+      "0002_auth_foundation.sql": "914483b5f86e94f9c2fdbd5c99a5eef4a78635a4c312b6005088bd4c2af351f2",
+      "0003_household_foundation.sql": "5c786e6f87190cbcea43478de5a924241cd992f3237ae2e417c0d8057672b59d",
+      "0004_task_foundation.sql": "40f294136ddfadf442827e4f377267e224f31e116255a4989335202914feed14",
+      "0005_shopping_foundation.sql": "87627dd583625d51f423043bea92374b38a8b3e164ceac591912b7ca3b519ef8",
+      "0006_shopping_item_images.sql": "4c224f676ecb4dc10c9dfa2d1dab2981d686618768af7ced8bc6fe52a3599de6",
+      "0007_orphan_r2_cleanup.sql": "357447a3fee64a035d1997a276f3a3533619dc02d408bf2ecc97427586aecd0d",
+      "0008_image_usage_reservations.sql": "90dee46d64dee5d347b9d235c2d124cab1c9b1b31ec2a893315e9099ca5a5230",
+      "0009_push_subscription_foundation.sql": "1f8c624fcb433b4df0b619f3f72d102ab41df789f42995a3c25b78040b4f077c",
+      "0010_notification_scheduler.sql": "038a515c05b5291b72aa18669de88f5bb946f4d5692af48ee59388a32ebefa1e",
+      "0011_notification_delivery_claim_lease.sql": "8c844e2254e80eee7dc90c879e0d224247a8c3963c5da6a1324002909bda4a65",
+      "0012_task_model_foundation.sql": "125c9b211bd8d37f63dc9e719c527b750c7f567fe80a2914877ac6645bbd0788",
+      "0013_task_templates.sql": "45bbbe7f875f7a4cb4de1aef75368c07b0442559c11ed12f7f49fe5bfdcc4d23",
+      "0014_shopping_planned_purchase_date.sql": "db15969525adb86bf3ebd69be2055844c7feaf616ddbecdce83959af0dde7fb2",
+      "0015_account_avatars_and_morning_notifications.sql": "9ea3ed3321b825633047ad1f621efde0bc06b45f891770ee1647bfedb746980c",
+      "0016_task_record_snapshots.sql": "19bbbaaa9b45b9c3e36e0f1ad920af24991d0c450d7f4020c83c60e91fd1c627",
+      "0017_calendar_action_date.sql": "052d274cfdd0df5dd0c1e9ab55c293b8e78a100374120834e53ff04eaeaf385a"
+    },
+    "changed": []
+  },
+  "migrationHash": {
+    "before": "945e9918a0c3b97541d61c05396ede188ee5ca73f095fddf80ad90f589f751b3",
+    "after": "945e9918a0c3b97541d61c05396ede188ee5ca73f095fddf80ad90f589f751b3",
+    "unchanged": true
+  },
+  "tables": {
+    "before": [
+      "attachments",
+      "household_image_usage",
+      "household_invites",
+      "household_members",
+      "households",
+      "image_upload_reservations",
+      "notification_deliveries",
+      "notification_logs",
+      "orphan_r2_objects",
+      "push_subscriptions",
+      "sessions",
+      "shopping_item_images",
+      "shopping_items",
+      "shopping_templates",
+      "task_records",
+      "task_templates",
+      "task_weekdays",
+      "tasks",
+      "user_notification_settings",
+      "users"
+    ],
+    "after": [
+      "attachments",
+      "household_image_usage",
+      "household_invites",
+      "household_members",
+      "households",
+      "image_upload_reservations",
+      "notification_deliveries",
+      "notification_logs",
+      "orphan_r2_objects",
+      "push_subscriptions",
+      "sessions",
+      "shopping_item_images",
+      "shopping_items",
+      "shopping_templates",
+      "task_records",
+      "task_templates",
+      "task_weekdays",
+      "tasks",
+      "user_notification_settings",
+      "users"
+    ],
+    "added": [],
+    "removed": []
+  },
+  "columns": {
+    "before": {
+      "attachments": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": true,
+          "defaultValue": null
+        },
+        {
+          "name": "household_id",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "related_type",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "related_id",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "object_key",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "mime_type",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "size_bytes",
+          "type": "INTEGER",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "uploaded_by",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "uploaded_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "expires_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        }
+      ],
+      "household_image_usage": [
+        {
+          "name": "household_id",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": true,
+          "defaultValue": null
+        },
+        {
+          "name": "active_count",
+          "type": "INTEGER",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": "0"
+        },
+        {
+          "name": "active_bytes",
+          "type": "INTEGER",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": "0"
+        },
+        {
+          "name": "reserved_count",
+          "type": "INTEGER",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": "0"
+        },
+        {
+          "name": "reserved_bytes",
+          "type": "INTEGER",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": "0"
+        },
+        {
+          "name": "pending_cleanup_bytes",
+          "type": "INTEGER",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": "0"
+        },
+        {
+          "name": "daily_upload_date",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "daily_upload_count",
+          "type": "INTEGER",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": "0"
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        }
+      ],
+      "household_invites": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": true,
+          "defaultValue": null
+        },
+        {
+          "name": "household_id",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "code_hash",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "created_by",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "expires_at",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "used_at",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "used_by",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        }
+      ],
+      "household_members": [
+        {
+          "name": "household_id",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": true,
+          "defaultValue": null
+        },
+        {
+          "name": "user_id",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "role",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": "'member'"
+        },
+        {
+          "name": "color",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "joined_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        }
+      ],
+      "households": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": true,
+          "defaultValue": null
+        },
+        {
+          "name": "name",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "timezone",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": "'Asia/Tokyo'"
+        },
+        {
+          "name": "week_starts_on",
+          "type": "INTEGER",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": "1"
+        },
+        {
+          "name": "created_by",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        }
+      ],
+      "image_upload_reservations": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": true,
+          "defaultValue": null
+        },
+        {
+          "name": "household_id",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "shopping_item_id",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "operation",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "status",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "r2_key",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "byte_size",
+          "type": "INTEGER",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "old_image_id",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "old_r2_key",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "old_size_bytes",
+          "type": "INTEGER",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "expires_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        }
+      ],
+      "notification_deliveries": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": true,
+          "defaultValue": null
+        },
+        {
+          "name": "user_id",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "household_id",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "notification_type",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "target_key",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "sent_at",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "status",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": "'pending'"
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "claimed_at",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        }
+      ],
+      "notification_logs": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": true,
+          "defaultValue": null
+        },
+        {
+          "name": "household_id",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "target_date",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "notification_slot",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "status",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "sent_at",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        }
+      ],
+      "orphan_r2_objects": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": true,
+          "defaultValue": null
+        },
+        {
+          "name": "r2_key",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "source_type",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "source_id",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "household_id",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "reason",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "status",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "attempt_count",
+          "type": "INTEGER",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": "0"
+        },
+        {
+          "name": "first_failed_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "last_attempted_at",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "next_attempt_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "last_error_code",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "last_error_message",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "byte_size",
+          "type": "INTEGER",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        }
+      ],
+      "push_subscriptions": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": true,
+          "defaultValue": null
+        },
+        {
+          "name": "household_id",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "user_id",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "endpoint",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "p256dh",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "auth",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "device_name",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "enabled",
+          "type": "INTEGER",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": "1"
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "last_success_at",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "last_failure_at",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "endpoint_hash",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "user_agent_summary",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "last_seen_at",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "disabled_at",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        }
+      ],
+      "sessions": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": true,
+          "defaultValue": null
+        },
+        {
+          "name": "user_id",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "expires_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "last_used_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "token_hash",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        }
+      ],
+      "shopping_item_images": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": true,
+          "defaultValue": null
+        },
+        {
+          "name": "shopping_item_id",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "household_id",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "r2_key",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "content_type",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "size_bytes",
+          "type": "INTEGER",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "width",
+          "type": "INTEGER",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "height",
+          "type": "INTEGER",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "created_by",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        }
+      ],
+      "shopping_items": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": true,
+          "defaultValue": null
+        },
+        {
+          "name": "household_id",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "name",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "quantity",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "note",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "status",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "added_by",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "purchased_by",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "purchased_at",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "sort_order",
+          "type": "INTEGER",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "planned_purchase_date",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        }
+      ],
+      "shopping_templates": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": true,
+          "defaultValue": null
+        },
+        {
+          "name": "household_id",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "name",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "quantity",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "note",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "active",
+          "type": "INTEGER",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "sort_order",
+          "type": "INTEGER",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "created_by",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        }
+      ],
+      "task_records": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": true,
+          "defaultValue": null
+        },
+        {
+          "name": "household_id",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "task_id",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "target_date",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "target_week",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "status",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "acted_by",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "started_at",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "completed_at",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "skipped_at",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "note",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "target_week_start",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "occurrence_key",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "period_key",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "task_title_snapshot",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "assigned_user_id_snapshot",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "assigned_user_display_name_snapshot",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "assigned_user_color_snapshot",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "assigned_user_avatar_url_snapshot",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "calendar_action_date",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        }
+      ],
+      "task_templates": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": true,
+          "defaultValue": null
+        },
+        {
+          "name": "household_id",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "title",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "description",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "model_recurrence_type",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "assignment_type",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "assigned_user_id",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "weekdays_json",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": "'[]'"
+        },
+        {
+          "name": "deadline_time",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "notification_offset_minutes",
+          "type": "INTEGER",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "weekly_deadline_weekday",
+          "type": "INTEGER",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "monthly_day_of_month",
+          "type": "INTEGER",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "monthly_deadline_type",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "active",
+          "type": "INTEGER",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": "1"
+        },
+        {
+          "name": "sort_order",
+          "type": "INTEGER",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "created_by",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        }
+      ],
+      "task_weekdays": [
+        {
+          "name": "task_id",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": true,
+          "defaultValue": null
+        },
+        {
+          "name": "weekday",
+          "type": "INTEGER",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        }
+      ],
+      "tasks": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": true,
+          "defaultValue": null
+        },
+        {
+          "name": "household_id",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "title",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "description",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "recurrence_type",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "assigned_user_id",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "assignment_type",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": "'anyone'"
+        },
+        {
+          "name": "scheduled_time",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "notification_slot",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": "'none'"
+        },
+        {
+          "name": "weekly_target_count",
+          "type": "INTEGER",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "active",
+          "type": "INTEGER",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": "1"
+        },
+        {
+          "name": "sort_order",
+          "type": "INTEGER",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": "0"
+        },
+        {
+          "name": "created_by",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "notification_time",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "model_recurrence_type",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "start_date",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "target_date",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "deadline_time",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "notification_offset_minutes",
+          "type": "INTEGER",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "weekly_deadline_weekday",
+          "type": "INTEGER",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "monthly_day_of_month",
+          "type": "INTEGER",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "monthly_deadline_type",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        }
+      ],
+      "user_notification_settings": [
+        {
+          "name": "user_id",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": true,
+          "defaultValue": null
+        },
+        {
+          "name": "household_id",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "evening_summary_enabled",
+          "type": "INTEGER",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": "0"
+        },
+        {
+          "name": "evening_summary_time",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": "'21:00'"
+        },
+        {
+          "name": "timezone",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": "'Asia/Tokyo'"
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "morning_summary_enabled",
+          "type": "INTEGER",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": "0"
+        },
+        {
+          "name": "morning_summary_time",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": "'09:00'"
+        }
+      ],
+      "users": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": true,
+          "defaultValue": null
+        },
+        {
+          "name": "email",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "password_hash",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "display_name",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "avatar_type",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "avatar_value",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "avatar_size_bytes",
+          "type": "INTEGER",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "avatar_width",
+          "type": "INTEGER",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "avatar_height",
+          "type": "INTEGER",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        }
+      ]
+    },
+    "after": {
+      "attachments": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": true,
+          "defaultValue": null
+        },
+        {
+          "name": "household_id",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "related_type",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "related_id",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "object_key",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "mime_type",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "size_bytes",
+          "type": "INTEGER",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "uploaded_by",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "uploaded_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "expires_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        }
+      ],
+      "household_image_usage": [
+        {
+          "name": "household_id",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": true,
+          "defaultValue": null
+        },
+        {
+          "name": "active_count",
+          "type": "INTEGER",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": "0"
+        },
+        {
+          "name": "active_bytes",
+          "type": "INTEGER",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": "0"
+        },
+        {
+          "name": "reserved_count",
+          "type": "INTEGER",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": "0"
+        },
+        {
+          "name": "reserved_bytes",
+          "type": "INTEGER",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": "0"
+        },
+        {
+          "name": "pending_cleanup_bytes",
+          "type": "INTEGER",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": "0"
+        },
+        {
+          "name": "daily_upload_date",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "daily_upload_count",
+          "type": "INTEGER",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": "0"
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        }
+      ],
+      "household_invites": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": true,
+          "defaultValue": null
+        },
+        {
+          "name": "household_id",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "code_hash",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "created_by",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "expires_at",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "used_at",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "used_by",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        }
+      ],
+      "household_members": [
+        {
+          "name": "household_id",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": true,
+          "defaultValue": null
+        },
+        {
+          "name": "user_id",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "role",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": "'member'"
+        },
+        {
+          "name": "color",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "joined_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        }
+      ],
+      "households": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": true,
+          "defaultValue": null
+        },
+        {
+          "name": "name",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "timezone",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": "'Asia/Tokyo'"
+        },
+        {
+          "name": "week_starts_on",
+          "type": "INTEGER",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": "1"
+        },
+        {
+          "name": "created_by",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        }
+      ],
+      "image_upload_reservations": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": true,
+          "defaultValue": null
+        },
+        {
+          "name": "household_id",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "shopping_item_id",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "operation",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "status",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "r2_key",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "byte_size",
+          "type": "INTEGER",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "old_image_id",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "old_r2_key",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "old_size_bytes",
+          "type": "INTEGER",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "expires_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        }
+      ],
+      "notification_deliveries": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": true,
+          "defaultValue": null
+        },
+        {
+          "name": "user_id",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "household_id",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "notification_type",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "target_key",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "sent_at",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "status",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": "'pending'"
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "claimed_at",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        }
+      ],
+      "notification_logs": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": true,
+          "defaultValue": null
+        },
+        {
+          "name": "household_id",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "target_date",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "notification_slot",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "status",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "sent_at",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        }
+      ],
+      "orphan_r2_objects": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": true,
+          "defaultValue": null
+        },
+        {
+          "name": "r2_key",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "source_type",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "source_id",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "household_id",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "reason",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "status",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "attempt_count",
+          "type": "INTEGER",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": "0"
+        },
+        {
+          "name": "first_failed_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "last_attempted_at",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "next_attempt_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "last_error_code",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "last_error_message",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "byte_size",
+          "type": "INTEGER",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        }
+      ],
+      "push_subscriptions": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": true,
+          "defaultValue": null
+        },
+        {
+          "name": "household_id",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "user_id",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "endpoint",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "p256dh",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "auth",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "device_name",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "enabled",
+          "type": "INTEGER",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": "1"
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "last_success_at",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "last_failure_at",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "endpoint_hash",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "user_agent_summary",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "last_seen_at",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "disabled_at",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        }
+      ],
+      "sessions": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": true,
+          "defaultValue": null
+        },
+        {
+          "name": "user_id",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "expires_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "last_used_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "token_hash",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        }
+      ],
+      "shopping_item_images": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": true,
+          "defaultValue": null
+        },
+        {
+          "name": "shopping_item_id",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "household_id",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "r2_key",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "content_type",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "size_bytes",
+          "type": "INTEGER",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "width",
+          "type": "INTEGER",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "height",
+          "type": "INTEGER",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "created_by",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        }
+      ],
+      "shopping_items": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": true,
+          "defaultValue": null
+        },
+        {
+          "name": "household_id",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "name",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "quantity",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "note",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "status",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "added_by",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "purchased_by",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "purchased_at",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "sort_order",
+          "type": "INTEGER",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "planned_purchase_date",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        }
+      ],
+      "shopping_templates": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": true,
+          "defaultValue": null
+        },
+        {
+          "name": "household_id",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "name",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "quantity",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "note",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "active",
+          "type": "INTEGER",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "sort_order",
+          "type": "INTEGER",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "created_by",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        }
+      ],
+      "task_records": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": true,
+          "defaultValue": null
+        },
+        {
+          "name": "household_id",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "task_id",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "target_date",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "target_week",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "status",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "acted_by",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "started_at",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "completed_at",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "skipped_at",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "note",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "target_week_start",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "occurrence_key",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "period_key",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "task_title_snapshot",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "assigned_user_id_snapshot",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "assigned_user_display_name_snapshot",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "assigned_user_color_snapshot",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "assigned_user_avatar_url_snapshot",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "calendar_action_date",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        }
+      ],
+      "task_templates": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": true,
+          "defaultValue": null
+        },
+        {
+          "name": "household_id",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "title",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "description",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "model_recurrence_type",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "assignment_type",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "assigned_user_id",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "weekdays_json",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": "'[]'"
+        },
+        {
+          "name": "deadline_time",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "notification_offset_minutes",
+          "type": "INTEGER",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "weekly_deadline_weekday",
+          "type": "INTEGER",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "monthly_day_of_month",
+          "type": "INTEGER",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "monthly_deadline_type",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "active",
+          "type": "INTEGER",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": "1"
+        },
+        {
+          "name": "sort_order",
+          "type": "INTEGER",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "created_by",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        }
+      ],
+      "task_weekdays": [
+        {
+          "name": "task_id",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": true,
+          "defaultValue": null
+        },
+        {
+          "name": "weekday",
+          "type": "INTEGER",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        }
+      ],
+      "tasks": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": true,
+          "defaultValue": null
+        },
+        {
+          "name": "household_id",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "title",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "description",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "recurrence_type",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "assigned_user_id",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "assignment_type",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": "'anyone'"
+        },
+        {
+          "name": "scheduled_time",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "notification_slot",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": "'none'"
+        },
+        {
+          "name": "weekly_target_count",
+          "type": "INTEGER",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "active",
+          "type": "INTEGER",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": "1"
+        },
+        {
+          "name": "sort_order",
+          "type": "INTEGER",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": "0"
+        },
+        {
+          "name": "created_by",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "notification_time",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "model_recurrence_type",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "start_date",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "target_date",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "deadline_time",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "notification_offset_minutes",
+          "type": "INTEGER",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "weekly_deadline_weekday",
+          "type": "INTEGER",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "monthly_day_of_month",
+          "type": "INTEGER",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "monthly_deadline_type",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        }
+      ],
+      "user_notification_settings": [
+        {
+          "name": "user_id",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": true,
+          "defaultValue": null
+        },
+        {
+          "name": "household_id",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "evening_summary_enabled",
+          "type": "INTEGER",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": "0"
+        },
+        {
+          "name": "evening_summary_time",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": "'21:00'"
+        },
+        {
+          "name": "timezone",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": "'Asia/Tokyo'"
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "morning_summary_enabled",
+          "type": "INTEGER",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": "0"
+        },
+        {
+          "name": "morning_summary_time",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": "'09:00'"
+        }
+      ],
+      "users": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": true,
+          "defaultValue": null
+        },
+        {
+          "name": "email",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "password_hash",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "display_name",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "avatar_type",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "avatar_value",
+          "type": "TEXT",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "notNull": true,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "avatar_size_bytes",
+          "type": "INTEGER",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "avatar_width",
+          "type": "INTEGER",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        },
+        {
+          "name": "avatar_height",
+          "type": "INTEGER",
+          "notNull": false,
+          "primaryKey": false,
+          "defaultValue": null
+        }
+      ]
+    },
+    "added": [],
+    "removed": []
+  },
+  "indexes": {
+    "before": [
+      {
+        "name": "idx_household_invites_code_hash",
+        "sql": "CREATE UNIQUE INDEX idx_household_invites_code_hash\nON household_invites(code_hash)"
+      },
+      {
+        "name": "idx_household_invites_expires_at",
+        "sql": "CREATE INDEX idx_household_invites_expires_at\nON household_invites(expires_at)"
+      },
+      {
+        "name": "idx_household_invites_household_id",
+        "sql": "CREATE INDEX idx_household_invites_household_id\nON household_invites(household_id)"
+      },
+      {
+        "name": "idx_household_members_user_id",
+        "sql": "CREATE INDEX idx_household_members_user_id\nON household_members(user_id)"
+      },
+      {
+        "name": "idx_image_upload_reservations_active_item",
+        "sql": "CREATE UNIQUE INDEX idx_image_upload_reservations_active_item\nON image_upload_reservations(shopping_item_id)\nWHERE status IN ('reserved', 'r2_written', 'cleanup_pending')"
+      },
+      {
+        "name": "idx_image_upload_reservations_expiry",
+        "sql": "CREATE INDEX idx_image_upload_reservations_expiry\nON image_upload_reservations(status, expires_at)"
+      },
+      {
+        "name": "idx_image_upload_reservations_household",
+        "sql": "CREATE INDEX idx_image_upload_reservations_household\nON image_upload_reservations(household_id, status)"
+      },
+      {
+        "name": "idx_notification_deliveries_household_date",
+        "sql": "CREATE INDEX idx_notification_deliveries_household_date\nON notification_deliveries(household_id, sent_at)"
+      },
+      {
+        "name": "idx_orphan_r2_objects_due",
+        "sql": "CREATE INDEX idx_orphan_r2_objects_due ON orphan_r2_objects(status, next_attempt_at)"
+      },
+      {
+        "name": "idx_orphan_r2_objects_household",
+        "sql": "CREATE INDEX idx_orphan_r2_objects_household ON orphan_r2_objects(household_id)"
+      },
+      {
+        "name": "idx_orphan_r2_objects_source",
+        "sql": "CREATE INDEX idx_orphan_r2_objects_source ON orphan_r2_objects(source_id)"
+      },
+      {
+        "name": "idx_push_subscriptions_endpoint_hash",
+        "sql": "CREATE UNIQUE INDEX idx_push_subscriptions_endpoint_hash\nON push_subscriptions(endpoint_hash)\nWHERE endpoint_hash IS NOT NULL"
+      },
+      {
+        "name": "idx_push_subscriptions_user_household",
+        "sql": "CREATE INDEX idx_push_subscriptions_user_household\nON push_subscriptions(user_id, household_id)"
+      },
+      {
+        "name": "idx_sessions_expires_at",
+        "sql": "CREATE INDEX idx_sessions_expires_at\nON sessions(expires_at)"
+      },
+      {
+        "name": "idx_sessions_token_hash",
+        "sql": "CREATE UNIQUE INDEX idx_sessions_token_hash\nON sessions(token_hash)\nWHERE token_hash IS NOT NULL"
+      },
+      {
+        "name": "idx_sessions_user_id",
+        "sql": "CREATE INDEX idx_sessions_user_id\nON sessions(user_id)"
+      },
+      {
+        "name": "idx_shopping_item_images_household",
+        "sql": "CREATE INDEX idx_shopping_item_images_household ON shopping_item_images(household_id)"
+      },
+      {
+        "name": "idx_shopping_item_images_item",
+        "sql": "CREATE INDEX idx_shopping_item_images_item ON shopping_item_images(shopping_item_id)"
+      },
+      {
+        "name": "idx_shopping_items_household_planned_purchase_date",
+        "sql": "CREATE INDEX idx_shopping_items_household_planned_purchase_date\nON shopping_items(household_id, planned_purchase_date)"
+      },
+      {
+        "name": "idx_shopping_items_household_purchased_at",
+        "sql": "CREATE INDEX idx_shopping_items_household_purchased_at\nON shopping_items(household_id, purchased_at)"
+      },
+      {
+        "name": "idx_shopping_items_household_sort_order",
+        "sql": "CREATE INDEX idx_shopping_items_household_sort_order\nON shopping_items(household_id, sort_order)"
+      },
+      {
+        "name": "idx_shopping_items_household_status",
+        "sql": "CREATE INDEX idx_shopping_items_household_status\nON shopping_items(household_id, status)"
+      },
+      {
+        "name": "idx_shopping_templates_household_active",
+        "sql": "CREATE INDEX idx_shopping_templates_household_active\nON shopping_templates(household_id, active)"
+      },
+      {
+        "name": "idx_shopping_templates_household_sort_order",
+        "sql": "CREATE INDEX idx_shopping_templates_household_sort_order\nON shopping_templates(household_id, sort_order)"
+      },
+      {
+        "name": "idx_task_records_daily_scope_unique",
+        "sql": "CREATE UNIQUE INDEX idx_task_records_daily_scope_unique\nON task_records(task_id, target_date)\nWHERE target_date IS NOT NULL"
+      },
+      {
+        "name": "idx_task_records_daily_unique",
+        "sql": "CREATE UNIQUE INDEX idx_task_records_daily_unique\nON task_records(task_id, target_date)\nWHERE target_date IS NOT NULL"
+      },
+      {
+        "name": "idx_task_records_household_action_date",
+        "sql": "CREATE INDEX idx_task_records_household_action_date\nON task_records(household_id, completed_at, skipped_at)"
+      },
+      {
+        "name": "idx_task_records_household_calendar_action_date",
+        "sql": "CREATE INDEX idx_task_records_household_calendar_action_date\nON task_records(household_id, calendar_action_date)"
+      },
+      {
+        "name": "idx_task_records_household_target_date",
+        "sql": "CREATE INDEX idx_task_records_household_target_date\nON task_records(household_id, target_date)"
+      },
+      {
+        "name": "idx_task_records_household_target_week_start",
+        "sql": "CREATE INDEX idx_task_records_household_target_week_start\nON task_records(household_id, target_week_start)"
+      },
+      {
+        "name": "idx_task_records_occurrence_key",
+        "sql": "CREATE INDEX idx_task_records_occurrence_key\nON task_records(task_id, occurrence_key)"
+      },
+      {
+        "name": "idx_task_records_period_key",
+        "sql": "CREATE INDEX idx_task_records_period_key\nON task_records(task_id, period_key)"
+      },
+      {
+        "name": "idx_task_records_task_target_date",
+        "sql": "CREATE INDEX idx_task_records_task_target_date\nON task_records(task_id, target_date)"
+      },
+      {
+        "name": "idx_task_records_task_target_week_start",
+        "sql": "CREATE INDEX idx_task_records_task_target_week_start\nON task_records(task_id, target_week_start)"
+      },
+      {
+        "name": "idx_task_records_weekly_open_unique",
+        "sql": "CREATE UNIQUE INDEX idx_task_records_weekly_open_unique\nON task_records(task_id, target_week_start, status)\nWHERE target_week_start IS NOT NULL AND status IN ('in_progress', 'skipped')"
+      },
+      {
+        "name": "idx_task_templates_household_active",
+        "sql": "CREATE INDEX idx_task_templates_household_active\nON task_templates(household_id, active, sort_order)"
+      },
+      {
+        "name": "idx_task_templates_household_created",
+        "sql": "CREATE INDEX idx_task_templates_household_created\nON task_templates(household_id, created_at DESC)"
+      },
+      {
+        "name": "idx_task_weekdays_task_weekday",
+        "sql": "CREATE INDEX idx_task_weekdays_task_weekday\nON task_weekdays(task_id, weekday)"
+      },
+      {
+        "name": "idx_tasks_household_active",
+        "sql": "CREATE INDEX idx_tasks_household_active\nON tasks(household_id, active)"
+      },
+      {
+        "name": "idx_tasks_household_recurrence_active",
+        "sql": "CREATE INDEX idx_tasks_household_recurrence_active\nON tasks(household_id, recurrence_type, active)"
+      },
+      {
+        "name": "idx_tasks_model_recurrence_active",
+        "sql": "CREATE INDEX idx_tasks_model_recurrence_active\nON tasks(household_id, model_recurrence_type, active)"
+      },
+      {
+        "name": "idx_tasks_start_date",
+        "sql": "CREATE INDEX idx_tasks_start_date\nON tasks(household_id, start_date, active)"
+      }
+    ],
+    "after": [
+      {
+        "name": "idx_household_invites_code_hash",
+        "sql": "CREATE UNIQUE INDEX idx_household_invites_code_hash\nON household_invites(code_hash)"
+      },
+      {
+        "name": "idx_household_invites_expires_at",
+        "sql": "CREATE INDEX idx_household_invites_expires_at\nON household_invites(expires_at)"
+      },
+      {
+        "name": "idx_household_invites_household_id",
+        "sql": "CREATE INDEX idx_household_invites_household_id\nON household_invites(household_id)"
+      },
+      {
+        "name": "idx_household_members_user_id",
+        "sql": "CREATE INDEX idx_household_members_user_id\nON household_members(user_id)"
+      },
+      {
+        "name": "idx_image_upload_reservations_active_item",
+        "sql": "CREATE UNIQUE INDEX idx_image_upload_reservations_active_item\nON image_upload_reservations(shopping_item_id)\nWHERE status IN ('reserved', 'r2_written', 'cleanup_pending')"
+      },
+      {
+        "name": "idx_image_upload_reservations_expiry",
+        "sql": "CREATE INDEX idx_image_upload_reservations_expiry\nON image_upload_reservations(status, expires_at)"
+      },
+      {
+        "name": "idx_image_upload_reservations_household",
+        "sql": "CREATE INDEX idx_image_upload_reservations_household\nON image_upload_reservations(household_id, status)"
+      },
+      {
+        "name": "idx_notification_deliveries_household_date",
+        "sql": "CREATE INDEX idx_notification_deliveries_household_date\nON notification_deliveries(household_id, sent_at)"
+      },
+      {
+        "name": "idx_orphan_r2_objects_due",
+        "sql": "CREATE INDEX idx_orphan_r2_objects_due ON orphan_r2_objects(status, next_attempt_at)"
+      },
+      {
+        "name": "idx_orphan_r2_objects_household",
+        "sql": "CREATE INDEX idx_orphan_r2_objects_household ON orphan_r2_objects(household_id)"
+      },
+      {
+        "name": "idx_orphan_r2_objects_source",
+        "sql": "CREATE INDEX idx_orphan_r2_objects_source ON orphan_r2_objects(source_id)"
+      },
+      {
+        "name": "idx_push_subscriptions_endpoint_hash",
+        "sql": "CREATE UNIQUE INDEX idx_push_subscriptions_endpoint_hash\nON push_subscriptions(endpoint_hash)\nWHERE endpoint_hash IS NOT NULL"
+      },
+      {
+        "name": "idx_push_subscriptions_user_household",
+        "sql": "CREATE INDEX idx_push_subscriptions_user_household\nON push_subscriptions(user_id, household_id)"
+      },
+      {
+        "name": "idx_sessions_expires_at",
+        "sql": "CREATE INDEX idx_sessions_expires_at\nON sessions(expires_at)"
+      },
+      {
+        "name": "idx_sessions_token_hash",
+        "sql": "CREATE UNIQUE INDEX idx_sessions_token_hash\nON sessions(token_hash)\nWHERE token_hash IS NOT NULL"
+      },
+      {
+        "name": "idx_sessions_user_id",
+        "sql": "CREATE INDEX idx_sessions_user_id\nON sessions(user_id)"
+      },
+      {
+        "name": "idx_shopping_item_images_household",
+        "sql": "CREATE INDEX idx_shopping_item_images_household ON shopping_item_images(household_id)"
+      },
+      {
+        "name": "idx_shopping_item_images_item",
+        "sql": "CREATE INDEX idx_shopping_item_images_item ON shopping_item_images(shopping_item_id)"
+      },
+      {
+        "name": "idx_shopping_items_household_planned_purchase_date",
+        "sql": "CREATE INDEX idx_shopping_items_household_planned_purchase_date\nON shopping_items(household_id, planned_purchase_date)"
+      },
+      {
+        "name": "idx_shopping_items_household_purchased_at",
+        "sql": "CREATE INDEX idx_shopping_items_household_purchased_at\nON shopping_items(household_id, purchased_at)"
+      },
+      {
+        "name": "idx_shopping_items_household_sort_order",
+        "sql": "CREATE INDEX idx_shopping_items_household_sort_order\nON shopping_items(household_id, sort_order)"
+      },
+      {
+        "name": "idx_shopping_items_household_status",
+        "sql": "CREATE INDEX idx_shopping_items_household_status\nON shopping_items(household_id, status)"
+      },
+      {
+        "name": "idx_shopping_templates_household_active",
+        "sql": "CREATE INDEX idx_shopping_templates_household_active\nON shopping_templates(household_id, active)"
+      },
+      {
+        "name": "idx_shopping_templates_household_sort_order",
+        "sql": "CREATE INDEX idx_shopping_templates_household_sort_order\nON shopping_templates(household_id, sort_order)"
+      },
+      {
+        "name": "idx_task_records_daily_scope_unique",
+        "sql": "CREATE UNIQUE INDEX idx_task_records_daily_scope_unique\nON task_records(task_id, target_date)\nWHERE target_date IS NOT NULL"
+      },
+      {
+        "name": "idx_task_records_daily_unique",
+        "sql": "CREATE UNIQUE INDEX idx_task_records_daily_unique\nON task_records(task_id, target_date)\nWHERE target_date IS NOT NULL"
+      },
+      {
+        "name": "idx_task_records_household_action_date",
+        "sql": "CREATE INDEX idx_task_records_household_action_date\nON task_records(household_id, completed_at, skipped_at)"
+      },
+      {
+        "name": "idx_task_records_household_calendar_action_date",
+        "sql": "CREATE INDEX idx_task_records_household_calendar_action_date\nON task_records(household_id, calendar_action_date)"
+      },
+      {
+        "name": "idx_task_records_household_target_date",
+        "sql": "CREATE INDEX idx_task_records_household_target_date\nON task_records(household_id, target_date)"
+      },
+      {
+        "name": "idx_task_records_household_target_week_start",
+        "sql": "CREATE INDEX idx_task_records_household_target_week_start\nON task_records(household_id, target_week_start)"
+      },
+      {
+        "name": "idx_task_records_occurrence_key",
+        "sql": "CREATE INDEX idx_task_records_occurrence_key\nON task_records(task_id, occurrence_key)"
+      },
+      {
+        "name": "idx_task_records_period_key",
+        "sql": "CREATE INDEX idx_task_records_period_key\nON task_records(task_id, period_key)"
+      },
+      {
+        "name": "idx_task_records_task_target_date",
+        "sql": "CREATE INDEX idx_task_records_task_target_date\nON task_records(task_id, target_date)"
+      },
+      {
+        "name": "idx_task_records_task_target_week_start",
+        "sql": "CREATE INDEX idx_task_records_task_target_week_start\nON task_records(task_id, target_week_start)"
+      },
+      {
+        "name": "idx_task_records_weekly_open_unique",
+        "sql": "CREATE UNIQUE INDEX idx_task_records_weekly_open_unique\nON task_records(task_id, target_week_start, status)\nWHERE target_week_start IS NOT NULL AND status IN ('in_progress', 'skipped')"
+      },
+      {
+        "name": "idx_task_templates_household_active",
+        "sql": "CREATE INDEX idx_task_templates_household_active\nON task_templates(household_id, active, sort_order)"
+      },
+      {
+        "name": "idx_task_templates_household_created",
+        "sql": "CREATE INDEX idx_task_templates_household_created\nON task_templates(household_id, created_at DESC)"
+      },
+      {
+        "name": "idx_task_weekdays_task_weekday",
+        "sql": "CREATE INDEX idx_task_weekdays_task_weekday\nON task_weekdays(task_id, weekday)"
+      },
+      {
+        "name": "idx_tasks_household_active",
+        "sql": "CREATE INDEX idx_tasks_household_active\nON tasks(household_id, active)"
+      },
+      {
+        "name": "idx_tasks_household_recurrence_active",
+        "sql": "CREATE INDEX idx_tasks_household_recurrence_active\nON tasks(household_id, recurrence_type, active)"
+      },
+      {
+        "name": "idx_tasks_model_recurrence_active",
+        "sql": "CREATE INDEX idx_tasks_model_recurrence_active\nON tasks(household_id, model_recurrence_type, active)"
+      },
+      {
+        "name": "idx_tasks_start_date",
+        "sql": "CREATE INDEX idx_tasks_start_date\nON tasks(household_id, start_date, active)"
+      }
+    ],
+    "added": [],
+    "removed": []
+  },
+  "foreignKeys": {
+    "before": {
+      "attachments": [],
+      "household_image_usage": [
+        {
+          "table": "households",
+          "from": "household_id",
+          "to": "id",
+          "onDelete": "CASCADE",
+          "onUpdate": "NO ACTION"
+        }
+      ],
+      "household_invites": [],
+      "household_members": [],
+      "households": [],
+      "image_upload_reservations": [
+        {
+          "table": "shopping_items",
+          "from": "shopping_item_id",
+          "to": "id",
+          "onDelete": "CASCADE",
+          "onUpdate": "NO ACTION"
+        },
+        {
+          "table": "households",
+          "from": "household_id",
+          "to": "id",
+          "onDelete": "CASCADE",
+          "onUpdate": "NO ACTION"
+        }
+      ],
+      "notification_deliveries": [
+        {
+          "table": "households",
+          "from": "household_id",
+          "to": "id",
+          "onDelete": "CASCADE",
+          "onUpdate": "NO ACTION"
+        },
+        {
+          "table": "users",
+          "from": "user_id",
+          "to": "id",
+          "onDelete": "CASCADE",
+          "onUpdate": "NO ACTION"
+        }
+      ],
+      "notification_logs": [],
+      "orphan_r2_objects": [],
+      "push_subscriptions": [],
+      "sessions": [],
+      "shopping_item_images": [
+        {
+          "table": "shopping_items",
+          "from": "shopping_item_id",
+          "to": "id",
+          "onDelete": "CASCADE",
+          "onUpdate": "NO ACTION"
+        }
+      ],
+      "shopping_items": [],
+      "shopping_templates": [],
+      "task_records": [],
+      "task_templates": [],
+      "task_weekdays": [],
+      "tasks": [],
+      "user_notification_settings": [
+        {
+          "table": "households",
+          "from": "household_id",
+          "to": "id",
+          "onDelete": "CASCADE",
+          "onUpdate": "NO ACTION"
+        },
+        {
+          "table": "users",
+          "from": "user_id",
+          "to": "id",
+          "onDelete": "CASCADE",
+          "onUpdate": "NO ACTION"
+        }
+      ],
+      "users": []
+    },
+    "after": {
+      "attachments": [],
+      "household_image_usage": [
+        {
+          "table": "households",
+          "from": "household_id",
+          "to": "id",
+          "onDelete": "CASCADE",
+          "onUpdate": "NO ACTION"
+        }
+      ],
+      "household_invites": [],
+      "household_members": [],
+      "households": [],
+      "image_upload_reservations": [
+        {
+          "table": "shopping_items",
+          "from": "shopping_item_id",
+          "to": "id",
+          "onDelete": "CASCADE",
+          "onUpdate": "NO ACTION"
+        },
+        {
+          "table": "households",
+          "from": "household_id",
+          "to": "id",
+          "onDelete": "CASCADE",
+          "onUpdate": "NO ACTION"
+        }
+      ],
+      "notification_deliveries": [
+        {
+          "table": "households",
+          "from": "household_id",
+          "to": "id",
+          "onDelete": "CASCADE",
+          "onUpdate": "NO ACTION"
+        },
+        {
+          "table": "users",
+          "from": "user_id",
+          "to": "id",
+          "onDelete": "CASCADE",
+          "onUpdate": "NO ACTION"
+        }
+      ],
+      "notification_logs": [],
+      "orphan_r2_objects": [],
+      "push_subscriptions": [],
+      "sessions": [],
+      "shopping_item_images": [
+        {
+          "table": "shopping_items",
+          "from": "shopping_item_id",
+          "to": "id",
+          "onDelete": "CASCADE",
+          "onUpdate": "NO ACTION"
+        }
+      ],
+      "shopping_items": [],
+      "shopping_templates": [],
+      "task_records": [],
+      "task_templates": [],
+      "task_weekdays": [],
+      "tasks": [],
+      "user_notification_settings": [
+        {
+          "table": "households",
+          "from": "household_id",
+          "to": "id",
+          "onDelete": "CASCADE",
+          "onUpdate": "NO ACTION"
+        },
+        {
+          "table": "users",
+          "from": "user_id",
+          "to": "id",
+          "onDelete": "CASCADE",
+          "onUpdate": "NO ACTION"
+        }
+      ],
+      "users": []
+    },
+    "added": [],
+    "removed": []
+  },
+  "schemaChanges": {
+    "status": "NONE",
+    "added": [],
+    "removed": [],
+    "dataRewrite": false
+  },
+  "routeCount": {
+    "before": 65,
+    "after": 65,
+    "removed": 0
+  },
+  "candidateDecisions": [
+    {
+      "id": "A",
+      "name": "task_templates table and Task Template CRUD response/API surface",
+      "verdict": "KEEP_DATA_COMPAT",
+      "action": "Keep task_templates, its repository/service/type, and all five CRUD/list routes. Do not add a DROP TABLE migration."
+    },
+    {
+      "id": "B",
+      "name": "shopping_templates table and Shopping Template CRUD/add routes",
+      "verdict": "KEEP_CANONICAL",
+      "action": "Keep the table and list route as canonical; retain CRUD/detail/add routes as compatibility APIs and cover list + reuse in contract tests."
+    },
+    {
+      "id": "C",
+      "name": "dashboard legacy response fields",
+      "verdict": "KEEP_EXTERNAL_COMPAT",
+      "action": "Keep todayTasks, weeklyTasks, and summary in the Worker response and TypeScript contract; no response-field migration."
+    },
+    {
+      "id": "D",
+      "name": "calendar additive count/status compatibility fields",
+      "verdict": "KEEP_EXTERNAL_COMPAT",
+      "action": "Keep fixedCompletedCount, fixedSkippedCount, shoppingCount, purchasedShoppingCount, status, and related Calendar fields; protect with current-response contract tests."
+    },
+    {
+      "id": "E",
+      "name": "legacy task recurrence columns / enum values",
+      "verdict": "KEEP_DATA_COMPAT",
+      "action": "Keep legacy recurrence columns, enum values, weekdays, monthly fields, and fallback/normalization paths; do not rewrite existing task rows."
+    },
+    {
+      "id": "F",
+      "name": "nullable task-record snapshots / calendar_action_date",
+      "verdict": "KEEP_DATA_COMPAT",
+      "action": "Keep nullable columns and fallback readers; do not add NOT NULL, rewrite, or historical data migration."
+    }
+  ],
+  "rowCounts": {
+    "tasks": 689,
+    "task_records": 117,
+    "task_templates": 15,
+    "shopping_items": 249,
+    "shopping_templates": 60
+  },
+  "remoteMigration": "NOT RUN",
+  "deploy": "NOT RUN",
+  "productionData": "NOT TOUCHED"
+}
