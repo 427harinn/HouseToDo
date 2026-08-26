@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import textwrap
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
@@ -35,6 +36,10 @@ def draw_text(draw, xy, value, fill="#17312f", selected=F_BODY):
     draw.text(xy, str(value), font=selected, fill=fill)
 
 
+def wrap(value, width):
+    return "\n".join(textwrap.wrap(str(value), width=width, break_long_words=False, break_on_hyphens=False))
+
+
 def board(title: str, subtitle: str, height: int = 1200):
     image = Image.new("RGB", (1800, height), "#f5f8f6")
     draw = ImageDraw.Draw(image)
@@ -60,7 +65,7 @@ gate = json.loads((DIAG / "final-gate.json").read_text(encoding="utf-8"))
 img, draw = board(
     "01 · Final Candidate Decisions",
     f"base {decisions['productionBaseSha'][:12]} · implementation {decisions['implementationSha'][:12]} · source final-candidate-decisions.json",
-    height=760,
+    height=1120,
 )
 columns = [(35, 130), (145, 460), (475, 820), (835, 1030), (1045, 1270), (1285, 1760)]
 headers = ["ID", "Candidate", "Canonical reader", "Persisted data", "Verdict", "Action"]
@@ -68,16 +73,18 @@ for (x1, x2), header in zip(columns, headers):
     draw.rectangle((x1, 122, x2, 154), fill="#d9e9e4")
     draw_text(draw, (x1 + 7, 131), header, "#17312f", F_HEAD)
 for index, item in enumerate(decisions["decisions"]):
-    y = 166 + index * 88
+    y = 166 + index * 150
+    row_bottom = y + 136
     if index % 2 == 0:
-        draw.rectangle((28, y - 6, 1770, y + 78), fill="#ffffff")
+        draw.rectangle((28, y - 6, 1770, row_bottom), fill="#ffffff")
     persisted = item["existingPersistedData"]
     persisted_value = ", ".join(f"{key}={value}" for key, value in persisted.items() if key in {"rows", "activeRows", "total", "snapshotNullRows", "calendarActionDateNullRows"}) or "projection / N/A"
     canonical = "; ".join(item["canonicalCallers"]) or "none"
     values = [item["id"], item["name"], canonical, persisted_value, item["verdict"], item["action"]]
-    for (x1, _), value in zip(columns, values):
+    widths = [4, 38, 38, 24, 24, 48]
+    for (x1, _), value, width in zip(columns, values, widths):
         color = "#19734d" if value == item["verdict"] else "#17312f"
-        draw_text(draw, (x1 + 7, y), value, color, F_SMALL)
+        draw.multiline_text((x1 + 7, y), wrap(value, width), font=F_SMALL, fill=color, spacing=3)
 save(img, "01-final-decisions.png")
 
 

@@ -1,0 +1,78 @@
+{
+  "generatedAt": "2026-08-26T09:08:48.759Z",
+  "productionBaseSha": "3c608ac07f90ca0f0d10d0e515c50b14b62ba83a",
+  "implementationSha": "fc511740f940771546c4c29dd1064c0d55828c42",
+  "branch": "feat/backend-finalization-m8b",
+  "checks": [
+    {
+      "name": "lint",
+      "status": "PASS",
+      "evidence": "npm run lint exit 0"
+    },
+    {
+      "name": "typecheck",
+      "status": "PASS",
+      "evidence": "npm run typecheck exit 0"
+    },
+    {
+      "name": "Vitest",
+      "status": "PASS",
+      "evidence": "38 files / 238 tests / 238 passed"
+    },
+    {
+      "name": "build",
+      "status": "PASS",
+      "evidence": "npm run build exit 0; Vite production bundle generated"
+    },
+    {
+      "name": "migration",
+      "status": "PASS",
+      "evidence": "npm run db:migrate:local exit 0; No migrations to apply"
+    },
+    {
+      "name": "changed-source format",
+      "status": "PASS",
+      "evidence": "Prettier check passed for M8B source/docs"
+    },
+    {
+      "name": "canonical Chromium",
+      "status": "PASS",
+      "evidence": "39 tests / 38 passed / 1 skipped; local canonical suite"
+    },
+    {
+      "name": "two-user smoke",
+      "status": "PASS",
+      "evidence": "M7 real integration: 4 passed; local Worker + local D1"
+    },
+    {
+      "name": "scheduler",
+      "status": "PASS",
+      "evidence": "Vitest full suite passed; scheduler normalization/projection covered"
+    },
+    {
+      "name": "notification",
+      "status": "PASS",
+      "evidence": "Vitest full suite passed; notification identity/dispatch covered"
+    },
+    {
+      "name": "image safety",
+      "status": "PASS",
+      "evidence": "Vitest + canonical Chromium image/R2-safe checks passed"
+    },
+    {
+      "name": "schema integrity",
+      "status": "PASS",
+      "evidence": "17 migrations; 65 routes; tables/columns/indexes/FK unchanged"
+    }
+  ],
+  "completion": "COMPLETE",
+  "deployment": "NOT RUN",
+  "remoteMigration": "NOT RUN",
+  "realProductionData": "NOT TOUCHED",
+  "schemaChange": {
+    "status": "NONE",
+    "added": [],
+    "removed": [],
+    "dataRewrite": false
+  }
+}

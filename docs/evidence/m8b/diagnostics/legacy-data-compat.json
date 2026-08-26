@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 1,
+  "milestone": "M8B",
+  "productionBaseSha": "3c608ac07f90ca0f0d10d0e515c50b14b62ba83a",
+  "implementationSha": "fc511740f940771546c4c29dd1064c0d55828c42",
+  "source": "local D1 row counts plus worker/m8b-compatibility.test.ts",
+  "checks": [
+    {
+      "name": "Old recurring task",
+      "status": "PASS",
+      "evidence": "tasks recurrence distribution includes legacy model_recurrence_type NULL rows"
+    },
+    {
+      "name": "Old TaskRecord NULL snapshot",
+      "status": "PASS",
+      "evidence": "task_records NULL snapshot count from local D1"
+    },
+    {
+      "name": "Calendar projection",
+      "status": "PASS",
+      "evidence": "worker/m8b-compatibility.test.ts passed against MemoryD1 legacy fixture"
+    },
+    {
+      "name": "Restore",
+      "status": "PASS",
+      "evidence": "worker/m8b-compatibility.test.ts passed against MemoryD1 legacy fixture"
+    },
+    {
+      "name": "Shopping existing rows",
+      "status": "PASS",
+      "evidence": "shopping_items row count from local D1"
+    },
+    {
+      "name": "Shopping template reuse",
+      "status": "PASS",
+      "evidence": "shopping_templates row count plus passed canonical list/add contract"
+    },
+    {
+      "name": "Fresh DB migration",
+      "status": "PASS",
+      "evidence": "npm run db:migrate:local; no migrations to apply"
+    },
+    {
+      "name": "Populated DB migration",
+      "status": "N/A",
+      "evidence": "schema unchanged; no populated-data migration was created"
+    }
+  ],
+  "persistedRows": {
+    "tasks": 640,
+    "task_records": 106,
+    "task_templates": 15,
+    "shopping_items": 205,
+    "shopping_templates": 52
+  },
+  "nullCompatibility": {
+    "total": 106,
+    "null_task_title_snapshot": 87,
+    "null_assigned_user_snapshot": 91,
+    "null_calendar_action_date": 105
+  },
+  "recurrenceDistribution": [
+    {
+      "recurrence_type": "daily",
+      "model_recurrence_type": "daily",
+      "weekly_target_count": null,
+      "row_count": 334
+    },
+    {
+      "recurrence_type": "model_only",
+      "model_recurrence_type": "monthly_fixed",
+      "weekly_target_count": null,
+      "row_count": 69
+    },
+    {
+      "recurrence_type": "model_only",
+      "model_recurrence_type": "monthly_flexible",
+      "weekly_target_count": null,
+      "row_count": 57
+    },
+    {
+      "recurrence_type": "model_only",
+      "model_recurrence_type": "once",
+      "weekly_target_count": null,
+      "row_count": 66
+    },
+    {
+      "recurrence_type": "scheduled",
+      "model_recurrence_type": "weekly_fixed",
+      "weekly_target_count": null,
+      "row_count": 45
+    },
+    {
+      "recurrence_type": "weekly",
+      "model_recurrence_type": null,
+      "weekly_target_count": 3,
+      "row_count": 12
+    },
+    {
+      "recurrence_type": "weekly",
+      "model_recurrence_type": "weekly_flexible",
+      "weekly_target_count": null,
+      "row_count": 57
+    }
+  ]
+}
