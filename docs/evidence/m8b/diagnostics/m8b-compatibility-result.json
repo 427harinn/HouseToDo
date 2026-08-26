@@ -1,0 +1,6 @@
+{
+  "command": "npm test -- worker/m8b-compatibility.test.ts",
+  "exitCode": 0,
+  "status": "PASS",
+  "summary": "M8B compatibility contract test"
+}

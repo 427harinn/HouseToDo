@@ -3,7 +3,7 @@
   "milestone": "M8B",
   "productionBaseSha": "3c608ac07f90ca0f0d10d0e515c50b14b62ba83a",
   "branch": "feat/backend-finalization-m8b",
-  "implementationSha": "fc511740f940771546c4c29dd1064c0d55828c42",
+  "implementationSha": "2c2e8dae0523e9992c7e75c6e592cf3bb0944f57",
   "sourceOfTruth": [
     "migrations/",
     "local D1 sqlite_master/PRAGMA snapshot",
@@ -3948,11 +3948,11 @@
     }
   ],
   "rowCounts": {
-    "tasks": 640,
-    "task_records": 106,
+    "tasks": 689,
+    "task_records": 117,
     "task_templates": 15,
-    "shopping_items": 205,
-    "shopping_templates": 52
+    "shopping_items": 249,
+    "shopping_templates": 60
   },
   "remoteMigration": "NOT RUN",
   "deploy": "NOT RUN",

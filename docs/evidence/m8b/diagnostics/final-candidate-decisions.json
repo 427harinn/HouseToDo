@@ -3,7 +3,7 @@
   "milestone": "M8B",
   "productionBaseSha": "3c608ac07f90ca0f0d10d0e515c50b14b62ba83a",
   "branch": "feat/backend-finalization-m8b",
-  "implementationSha": "fc511740f940771546c4c29dd1064c0d55828c42",
+  "implementationSha": "2c2e8dae0523e9992c7e75c6e592cf3bb0944f57",
   "scope": [
     "A",
     "B",
@@ -78,15 +78,15 @@
       ],
       "existingPersistedData": {
         "table": "shopping_templates",
-        "rows": 52,
-        "activeRows": 40,
+        "rows": 60,
+        "activeRows": 48,
         "listRouteRowsReadable": true
       },
       "migrationRequirement": "None; the canonical list and reuse flow require the table. CRUD/add removal would still need an external-consumer proof and retained-row contract.",
       "externalConsumerProof": "Canonical frontend dependency is proven for list. CRUD/add external absence is not proven; therefore those routes remain compatibility surface.",
       "serverComputationCost": "No change made; existing computation remains part of the compatibility contract.",
       "verdict": "KEEP_CANONICAL",
-      "reason": "The canonical Shopping reuse picker reads GET /api/shopping/templates, and 46 persisted rows are present. Removing CRUD/add or the table would break existing-row reuse or an unprovable external contract.",
+      "reason": "The canonical Shopping reuse picker reads GET /api/shopping/templates, and 60 persisted rows are present. Removing CRUD/add or the table would break existing-row reuse or an unprovable external contract.",
       "action": "Keep the table and list route as canonical; retain CRUD/detail/add routes as compatibility APIs and cover list + reuse in contract tests."
     },
     {
@@ -193,37 +193,43 @@
       ],
       "existingPersistedData": {
         "table": "tasks",
-        "rows": 640,
+        "rows": 689,
         "recurrenceDistribution": [
           {
             "recurrence_type": "daily",
             "model_recurrence_type": "daily",
             "weekly_target_count": null,
-            "row_count": 334
+            "row_count": 363
           },
           {
             "recurrence_type": "model_only",
             "model_recurrence_type": "monthly_fixed",
             "weekly_target_count": null,
-            "row_count": 69
+            "row_count": 72
           },
           {
             "recurrence_type": "model_only",
             "model_recurrence_type": "monthly_flexible",
             "weekly_target_count": null,
-            "row_count": 57
+            "row_count": 60
           },
           {
             "recurrence_type": "model_only",
             "model_recurrence_type": "once",
             "weekly_target_count": null,
-            "row_count": 66
+            "row_count": 69
           },
           {
             "recurrence_type": "scheduled",
             "model_recurrence_type": "weekly_fixed",
             "weekly_target_count": null,
-            "row_count": 45
+            "row_count": 48
+          },
+          {
+            "recurrence_type": "weekly",
+            "model_recurrence_type": null,
+            "weekly_target_count": 2,
+            "row_count": 5
           },
           {
             "recurrence_type": "weekly",
@@ -235,7 +241,7 @@
             "recurrence_type": "weekly",
             "model_recurrence_type": "weekly_flexible",
             "weekly_target_count": null,
-            "row_count": 57
+            "row_count": 60
           }
         ]
       },
@@ -243,7 +249,7 @@
       "externalConsumerProof": "Not applicable to persisted compatibility alone; external API clients may also send legacy request fields.",
       "serverComputationCost": "No change made; existing computation remains part of the compatibility contract.",
       "verdict": "KEEP_DATA_COMPAT",
-      "reason": "The local DB contains 12 legacy weekly rows with NULL model_recurrence_type plus legacy columns used by scheduler and compatibility normalization. Converting or dropping them could change occurrence and notification semantics.",
+      "reason": "The local DB contains 17 legacy rows with NULL model_recurrence_type plus legacy columns used by scheduler and compatibility normalization. Converting or dropping them could change occurrence and notification semantics.",
       "action": "Keep legacy recurrence columns, enum values, weekdays, monthly fields, and fallback/normalization paths; do not rewrite existing task rows."
     },
     {
@@ -273,18 +279,18 @@
       ],
       "existingPersistedData": {
         "table": "task_records",
-        "total": 106,
+        "total": 117,
         "null_task_title_snapshot": 87,
-        "null_assigned_user_snapshot": 91,
-        "null_calendar_action_date": 105,
+        "null_assigned_user_snapshot": 94,
+        "null_calendar_action_date": 116,
         "snapshotNullRows": 87,
-        "calendarActionDateNullRows": 105
+        "calendarActionDateNullRows": 116
       },
       "migrationRequirement": "Changing NULL columns to NOT NULL or rewriting history requires a lossless identity backfill for old rows and a proven safe date/completer policy; neither is available.",
       "externalConsumerProof": "Not applicable to historical data safety; old rows are local persisted compatibility data.",
       "serverComputationCost": "No change made; existing computation remains part of the compatibility contract.",
       "verdict": "KEEP_DATA_COMPAT",
-      "reason": "The populated local DB contains historical NULL snapshots and NULL calendar_action_date values. Current code intentionally falls back to current task/member data and target/action dates so Home, Calendar, actor identity, and restore remain readable.",
+      "reason": "The populated local DB contains 87 NULL task-title snapshots, 94 NULL assignee snapshots, and 116 NULL calendar_action_date values. Current code intentionally falls back to current task/member data and target/action dates so Home, Calendar, actor identity, and restore remain readable.",
       "action": "Keep nullable columns and fallback readers; do not add NOT NULL, rewrite, or historical data migration."
     }
   ]

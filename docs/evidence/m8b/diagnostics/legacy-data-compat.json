@@ -2,43 +2,43 @@
   "schemaVersion": 1,
   "milestone": "M8B",
   "productionBaseSha": "3c608ac07f90ca0f0d10d0e515c50b14b62ba83a",
-  "implementationSha": "fc511740f940771546c4c29dd1064c0d55828c42",
+  "implementationSha": "2c2e8dae0523e9992c7e75c6e592cf3bb0944f57",
   "source": "local D1 row counts plus worker/m8b-compatibility.test.ts",
   "checks": [
     {
       "name": "Old recurring task",
       "status": "PASS",
-      "evidence": "tasks recurrence distribution includes legacy model_recurrence_type NULL rows"
+      "evidence": "17 tasks with legacy model_recurrence_type NULL in local D1"
     },
     {
       "name": "Old TaskRecord NULL snapshot",
       "status": "PASS",
-      "evidence": "task_records NULL snapshot count from local D1"
+      "evidence": "87 task_records with NULL task_title_snapshot in local D1"
     },
     {
       "name": "Calendar projection",
       "status": "PASS",
-      "evidence": "worker/m8b-compatibility.test.ts passed against MemoryD1 legacy fixture"
+      "evidence": "PASS: worker/m8b-compatibility.test.ts against MemoryD1 legacy fixture"
     },
     {
       "name": "Restore",
       "status": "PASS",
-      "evidence": "worker/m8b-compatibility.test.ts passed against MemoryD1 legacy fixture"
+      "evidence": "PASS: worker/m8b-compatibility.test.ts restore assertion"
     },
     {
       "name": "Shopping existing rows",
       "status": "PASS",
-      "evidence": "shopping_items row count from local D1"
+      "evidence": "249 shopping_items rows in local D1"
     },
     {
       "name": "Shopping template reuse",
       "status": "PASS",
-      "evidence": "shopping_templates row count plus passed canonical list/add contract"
+      "evidence": "60 shopping_templates rows plus PASS canonical list/add contract"
     },
     {
       "name": "Fresh DB migration",
       "status": "PASS",
-      "evidence": "npm run db:migrate:local; no migrations to apply"
+      "evidence": "isolated persistence C:\\Users\\rinnr\\Documents\\GitHub\\HouseToDo\\artifacts\\m8b-fresh-UIDPl4; 17/17 migrations; 20/20 tables"
     },
     {
       "name": "Populated DB migration",
@@ -47,48 +47,54 @@
     }
   ],
   "persistedRows": {
-    "tasks": 640,
-    "task_records": 106,
+    "tasks": 689,
+    "task_records": 117,
     "task_templates": 15,
-    "shopping_items": 205,
-    "shopping_templates": 52
+    "shopping_items": 249,
+    "shopping_templates": 60
   },
   "nullCompatibility": {
-    "total": 106,
+    "total": 117,
     "null_task_title_snapshot": 87,
-    "null_assigned_user_snapshot": 91,
-    "null_calendar_action_date": 105
+    "null_assigned_user_snapshot": 94,
+    "null_calendar_action_date": 116
   },
   "recurrenceDistribution": [
     {
       "recurrence_type": "daily",
       "model_recurrence_type": "daily",
       "weekly_target_count": null,
-      "row_count": 334
+      "row_count": 363
     },
     {
       "recurrence_type": "model_only",
       "model_recurrence_type": "monthly_fixed",
       "weekly_target_count": null,
-      "row_count": 69
+      "row_count": 72
     },
     {
       "recurrence_type": "model_only",
       "model_recurrence_type": "monthly_flexible",
       "weekly_target_count": null,
-      "row_count": 57
+      "row_count": 60
     },
     {
       "recurrence_type": "model_only",
       "model_recurrence_type": "once",
       "weekly_target_count": null,
-      "row_count": 66
+      "row_count": 69
     },
     {
       "recurrence_type": "scheduled",
       "model_recurrence_type": "weekly_fixed",
       "weekly_target_count": null,
-      "row_count": 45
+      "row_count": 48
+    },
+    {
+      "recurrence_type": "weekly",
+      "model_recurrence_type": null,
+      "weekly_target_count": 2,
+      "row_count": 5
     },
     {
       "recurrence_type": "weekly",
@@ -100,7 +106,7 @@
       "recurrence_type": "weekly",
       "model_recurrence_type": "weekly_flexible",
       "weekly_target_count": null,
-      "row_count": 57
+      "row_count": 60
     }
   ]
 }
