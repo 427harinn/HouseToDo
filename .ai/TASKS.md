@@ -10,7 +10,7 @@
 - [x] Confirm no Worker endpoint met the REMOVE_DEAD_API threshold; removed-route contract tests are not applicable because zero routes were removed
 - [x] Verify all M8A local gates and canonical Chromium / two-user smoke with host-local Wrangler Worker+D1; Docker was unavailable
 - [x] Generate four diagnostic boards, four local regression WebM files, and exactly eight reviewer-upload files
-- [ ] Commit, push, and create Draft PR without merge, deploy, remote migration, secret/Cron changes, or M8B work
+- [x] Commit, push, and create Draft PR #9 without merge, deploy, remote migration, secret/Cron changes, or M8B work
 
 ## M8B — pending review after M8A
 
