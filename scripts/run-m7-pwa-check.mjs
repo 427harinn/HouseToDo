@@ -1,4 +1,5 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+/* eslint-disable no-undef */
+import { mkdir, writeFile } from "node:fs/promises";
 import { chromium, request, webkit } from "@playwright/test";
 const base = process.env.M7_LOCAL_BASE_URL ?? "http://127.0.0.1:8789";
 const screenshotDir = "docs/evidence/m7/screenshots";

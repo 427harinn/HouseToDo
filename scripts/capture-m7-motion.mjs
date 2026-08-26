@@ -1,3 +1,4 @@
+/* eslint-disable no-undef */
 import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { chromium, request } from "@playwright/test";
 

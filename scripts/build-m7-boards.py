@@ -116,9 +116,9 @@ def sync_board(name, title, entries, screenshot_names):
     for index in range(0, len(screenshot_names), 2):
         if screenshot_names[index] == screenshot_names[index + 1]:
             raise SystemExit(f"{name}: A/B screenshot paths must be distinct")
-    image, draw = canvas(title, f"Production render target SHA: {RENDER_SHA} • local Worker + D1 • source: e2e/m7-real-integration.spec.ts • actual A/B screenshots", 3700)
+    image, draw = canvas(title, f"Production render target SHA: {RENDER_SHA} • local Worker + D1 • source: e2e/m7-real-integration.spec.ts • actual A/B screenshots", 4000)
     for x, label in [(70, "USER A / OWNER"), (930, "USER B / MEMBER")]:
-        draw.rounded_rectangle((x, 155, x + 800, 3550), 18, fill="white", outline="#d7e7e3", width=2)
+        draw.rounded_rectangle((x, 155, x + 800, 3850), 18, fill="white", outline="#d7e7e3", width=2)
         draw.text((x + 28, 180), label, fill="#123c3a", font=font(25, True))
     y = 270
     for index, (row, a_text, b_text) in enumerate(entries):
@@ -130,7 +130,7 @@ def sync_board(name, title, entries, screenshot_names):
         paste_thumb(image, SHOT / b_shot, (960, y + 42, 1300, y + 778))
         draw.text((100, y + 790), "PASS • actual browser screenshot", fill="#15805e", font=font(16, True))
         draw.text((960, y + 790), "PASS • actual browser screenshot", fill="#15805e", font=font(16, True))
-        y += 820
+        y += 900
     image.save(OUT / name)
 
 
