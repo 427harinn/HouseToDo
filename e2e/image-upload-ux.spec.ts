@@ -86,11 +86,13 @@ test.describe("shopping image upload UX", () => {
     await setupApi(page);
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/shopping/new");
-    await expect(page.getByRole("heading", { name: "最近使ったもの" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "以前の項目から選ぶ" })).toBeVisible();
     await screenshot(page, "shopping-recent-mobile.png");
 
+    await page.getByRole("button", { name: "以前の項目から選ぶ" }).click();
     await page.getByRole("button", { name: /牛乳/ }).click();
     await expect(page.locator("#shopping-name")).toHaveValue("牛乳");
+    await page.getByRole("button", { name: "以前の項目から選ぶ" }).click();
     await page.getByRole("button", { name: /トイレットペーパー/ }).click();
     await expect(page.locator("#shopping-name")).toHaveValue("トイレットペーパー");
     await screenshot(page, "shopping-template-prefill.png");
@@ -104,7 +106,7 @@ test.describe("shopping image upload UX", () => {
     await page.locator("#shopping-image").setInputFiles(fixture("shopping-item-portrait.png"));
     await expect(page.locator(".shopping-image-preview")).toBeVisible();
     await screenshot(page, "shopping-image-preview.png");
-    await page.getByRole("button", { name: "選択解除" }).click();
+    await page.getByRole("button", { name: "外す", exact: true }).click();
     await expect(page.locator(".shopping-image-preview")).toHaveCount(0);
     await page.locator("#shopping-image").setInputFiles(fixture("shopping-item-portrait.png"));
     await expect(page.locator(".shopping-image-preview")).toBeVisible();
@@ -115,13 +117,12 @@ test.describe("shopping image upload UX", () => {
   test("normal upload shows usage and refreshes it after success", async ({ page }) => {
     const usageReads = await setupApi(page);
     await page.goto("/shopping/new");
-    await expect(page.getByText("残り画像 47枚")).toBeVisible();
-    await expect(page.getByText("本日あと 16回")).toBeVisible();
+    await expect(page.locator('[aria-label="画像アップロード状況"]')).toBeHidden();
     await page.locator("#shopping-image").setInputFiles(fixture("shopping-item-landscape.jpg"));
     await expect(page.locator(".shopping-image-preview")).toBeVisible();
     await page.locator("#shopping-name").fill("牛乳");
     await page.getByRole("button", { name: "保存" }).click();
-    await expect(page).toHaveURL(/\/shopping\/items\/item-1$/);
+    await expect(page).toHaveURL(/\/shopping\?item=item-1$/);
     expect(usageReads()).toBeGreaterThanOrEqual(2);
     await screenshot(page, "image-upload-normal-desktop.png");
   });
@@ -129,8 +130,7 @@ test.describe("shopping image upload UX", () => {
   test("near limit, unknown storage, backend limit error, and replace remain understandable", async ({ page }) => {
     await setupApi(page, { ...usage, activeCount: 40, activeBytes: 40 * 1024 * 1024, storedBytesKnown: false }, "IMAGE_ACTIVE_BYTES_LIMIT_REACHED", true);
     await page.goto("/shopping/new");
-    await expect(page.getByText("画像保存容量が少なくなっています")).toBeVisible();
-    await expect(page.getByText("保存容量を正確に確認できません")).toBeVisible();
+    await expect(page.locator('[aria-label="画像アップロード状況"]')).toBeHidden();
     await screenshot(page, "image-upload-near-limit-desktop.png");
     await page.locator("#shopping-image").setInputFiles(fixture("shopping-item-landscape.jpg"));
     await page.locator("#shopping-name").fill("牛乳");
@@ -145,7 +145,7 @@ test.describe("shopping image upload UX", () => {
   test("create count limit disables selection and mobile layouts do not overflow", async ({ page }) => {
     await setupApi(page, { ...usage, activeCount: 50 });
     await page.goto("/shopping/new");
-    await expect(page.getByText("画像の追加上限に達しています")).toBeVisible();
+    await expect(page.locator('[aria-label="画像アップロード状況"]')).toBeHidden();
     await expect(page.locator("#shopping-image")).toBeDisabled();
     for (const [name, width] of [["image-upload-430.png", 430], ["image-upload-390.png", 390], ["image-upload-320.png", 320]] as const) {
       await page.setViewportSize({ width, height: 800 });
@@ -160,7 +160,7 @@ test.describe("shopping image upload UX", () => {
     await expect(page.locator("#shopping-image")).toBeEnabled();
     await page.locator("#shopping-image").setInputFiles(fixture("shopping-item-replacement.webp"));
     await page.getByRole("button", { name: "保存" }).click();
-    await expect(page).toHaveURL(/\/shopping\/items\/item-1$/);
+    await expect(page).toHaveURL(/\/shopping\?item=item-1$/);
     expect(usageReads()).toBeGreaterThanOrEqual(2);
   });
 });

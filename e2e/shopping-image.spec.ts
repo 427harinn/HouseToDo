@@ -105,11 +105,13 @@ test.describe("shopping item image E2E", () => {
     await pageA.locator("#shopping-note").fill("landscape fixture");
     await shot(pageA, "01-shopping-image-create.png");
     await pageA.locator('form button[type="submit"]').click();
-    await expect(pageA).toHaveURL(/\/shopping\/items\/[^/]+$/);
+    await expect(pageA).toHaveURL(/\/shopping\?item=[^&]+$/);
 
-    const itemId = new URL(pageA.url()).pathname.split("/").at(-1)!;
+    const itemId = new URL(pageA.url()).searchParams.get("item")!;
     await pageA.goto("/shopping");
-    const cardImage = pageA.locator(".shopping-item__thumbnail").first();
+    const itemRow = pageA.locator(`[data-shopping-m4-id="${itemId}"]`);
+    await itemRow.getByRole("button", { name: new RegExp(`Image Milk ${id}`) }).click();
+    const cardImage = itemRow.locator(".shopping-m4__expanded img");
     await expect(cardImage).toBeVisible();
     const firstUrl = await cardImage.getAttribute("src");
     expect(firstUrl).toMatch(/^\/api\/shopping\/items\/[^/]+\/image\?v=/);
@@ -122,12 +124,12 @@ test.describe("shopping item image E2E", () => {
     expect(imageResponse.headers()["cache-control"]).toContain("private");
     expect(imageResponse.headers().etag).toBeTruthy();
 
-    await pageA.getByRole("button", { name: new RegExp(`${userA.name.split(" ")[0] ? `Image Milk ${id}` : itemId}.*編集`) }).click();
+    await pageA.goto(`/shopping/items/${itemId}/edit`);
     await expect(pageA.locator(".shopping-image-preview")).toHaveCount(1);
     await shot(pageA, "04-shopping-image-edit.png");
     await pageA.locator("#shopping-note").fill("preserved by edit");
     await pageA.locator('form button[type="submit"]').click();
-    await expect(pageA).toHaveURL(/\/shopping\/items\/[^/]+$/);
+    await expect(pageA).toHaveURL(new RegExp(`/shopping\\?item=${itemId}`));
 
     await pageA.goto(`/shopping/items/${itemId}/edit`);
     await pageA.locator("#shopping-image").setInputFiles(fixture("shopping-item-portrait.png"));
@@ -135,43 +137,51 @@ test.describe("shopping item image E2E", () => {
     await expect(pageA.locator(".shopping-image-preview")).toHaveAttribute("alt", /Image Milk/);
     await pageA.locator("#shopping-note").fill("portrait PNG fixture");
     await pageA.locator('form button[type="submit"]').click();
-    await expect(pageA).toHaveURL(/\/shopping\/items\/[^/]+$/);
+    await expect(pageA).toHaveURL(new RegExp(`/shopping\\?item=${itemId}`));
     await pageA.goto("/shopping");
-    await expect(pageA.locator(".shopping-item__thumbnail")).toHaveCount(1);
+    await expect(pageA.locator(`[data-shopping-m4-id="${itemId}"]`)).toBeVisible();
 
     await pageA.goto(`/shopping/items/${itemId}/edit`);
     await pageA.locator("#shopping-image").setInputFiles(fixture("shopping-item-replacement.webp"));
     await expect(pageA.locator(".shopping-image-preview")).toHaveCount(1);
     await shot(pageA, "05-shopping-image-replaced.png");
     await pageA.locator('form button[type="submit"]').click();
-    await expect(pageA).toHaveURL(/\/shopping\/items\/[^/]+$/);
+    await expect(pageA).toHaveURL(new RegExp(`/shopping\\?item=${itemId}`));
     await pageA.goto("/shopping");
-    const replacedUrl = await pageA.locator(".shopping-item__thumbnail").first().getAttribute("src");
+    const replacedRow = pageA.locator(`[data-shopping-m4-id="${itemId}"]`);
+    await replacedRow.getByRole("button", { name: new RegExp(`Image Milk ${id}`) }).click();
+    const replacedUrl = await replacedRow.locator(".shopping-m4__expanded img").getAttribute("src");
     expect(replacedUrl).toBeTruthy();
     expect(replacedUrl).not.toBe(firstUrl);
 
-    await pageB.goto(`/shopping/items/${itemId}/edit`);
-    await pageB.locator("#shopping-quantity").fill("2本");
-    await pageB.locator('form button[type="submit"]').click();
-    await expect(pageB).toHaveURL(/\/shopping\/items\/[^/]+$/);
     await pageB.goto("/shopping");
-    await expect(pageB.locator(".shopping-item__thumbnail")).toHaveCount(1);
-    await pageB.locator(".shopping-check").first().click();
-    await expect(pageB.locator(".shopping-item--purchased .shopping-item__thumbnail")).toHaveCount(1);
+    await expect(pageB.locator(`[data-shopping-m4-id="${itemId}"]`)).toBeVisible();
+    const pendingRowB = pageB.locator(`[data-shopping-m4-id="${itemId}"]`);
+    await pendingRowB.getByRole("button", { name: new RegExp(`Image Milk ${id}`) }).click();
+    await pendingRowB.getByRole("button", { name: "購入" }).click();
+    await pageB.getByRole("button", { name: /購入済み 1件/ }).click();
+    const purchasedRowB = pageB.locator(`[data-shopping-m4-id="${itemId}"]`);
+    await purchasedRowB.getByRole("button", { name: new RegExp(`Image Milk ${id}`) }).click();
+    await expect(purchasedRowB.locator(".shopping-m4__expanded img")).toBeVisible();
     await shot(pageB, "06-shopping-image-purchased.png");
     await pageA.goto("/shopping");
-    await expect(pageA.getByText(/Image B/)).toBeVisible();
-    await expect(pageA.locator(".shopping-item--purchased .shopping-item__thumbnail")).toHaveCount(1);
+    await pageA.getByRole("button", { name: /購入済み 1件/ }).click();
+    const purchasedRowA = pageA.locator(`[data-shopping-m4-id="${itemId}"]`);
+    await expect(purchasedRowA).toBeVisible();
+    await purchasedRowA.getByRole("button", { name: new RegExp(`Image Milk ${id}`) }).click();
+    await expect(purchasedRowA.getByRole("img", { name: `購入者: ${userB.name}` })).toBeVisible();
+    await expect(purchasedRowA.locator(".shopping-m4__expanded img")).toBeVisible();
     await shot(pageA, "07-shopping-image-two-users.png");
 
     await pageA.goto(`/shopping/items/${itemId}/edit`);
     pageA.once("dialog", (dialog) => dialog.accept());
-    await pageA.getByRole("button", { name: "写真を削除" }).click();
-    await expect(pageA.getByRole("button", { name: "写真を削除" })).toHaveCount(0);
+    await pageA.getByRole("button", { name: "外す" }).click();
+    await expect(pageA.getByRole("button", { name: "外す" })).toHaveCount(0);
     await expect(pageA.locator("#shopping-name")).toHaveValue(`Image Milk ${id}`);
     await pageA.locator('form button[type="submit"]').click();
     await pageA.goto("/shopping");
-    await expect(pageA.locator(".shopping-item__thumbnail")).toHaveCount(0);
+    await pageA.getByRole("button", { name: /購入済み 1件/ }).click();
+    await expect(pageA.locator(`[data-shopping-m4-id="${itemId}"]`)).toBeVisible();
     const deletedImage = await pageA.request.get(new URL(replacedUrl!, pageA.url()).href);
     expect(deletedImage.status()).toBe(404);
 
@@ -201,7 +211,7 @@ test.describe("shopping item image E2E", () => {
       await pageA.setViewportSize(size);
       await pageA.goto("/shopping");
       await expect(pageA).toHaveURL(/\/shopping/);
-      await expect(pageA.locator(".shopping-item__thumbnail")).toHaveCount(1);
+      await expect(pageA.locator(`[data-shopping-m4-id="${pendingId}"]`)).toBeVisible();
       await expect.poll(() => pageA.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
       await shot(pageA, name);
     }

@@ -113,7 +113,7 @@ test("planned shopping date integrates with Calendar, purchase state, reuse excl
   await page.locator('form button[type="submit"]').click();
   await expect(page).toHaveURL(/\/shopping\?item=/);
   await expect(page.getByText(itemName)).toBeVisible();
-  await page.locator("[data-shopping-m4-id]").filter({ hasText: itemName }).getByRole("button", { name: itemName }).click();
+  await expect(page.locator("[data-shopping-m4-id]").filter({ hasText: itemName })).toHaveClass(/is-expanded/);
   await expect(page.getByText("購入予定日")).toBeVisible();
 
   const unscheduledItemName = `トイレットペーパー ${id}`;

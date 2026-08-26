@@ -42,7 +42,10 @@ const createItem = async (page: Page, name: string, quantity = "", note = "") =>
   await page.locator("#shopping-name").fill(name);
   if (quantity) await page.locator("#shopping-quantity").fill(quantity);
   if (note) await page.locator("#shopping-note").fill(note);
+  const responsePromise = page.waitForResponse((response) => response.url().endsWith("/api/shopping/items") && response.request().method() === "POST");
   await page.locator('form button[type="submit"]').click();
+  const response = await responsePromise;
+  expect(response.status()).toBe(201);
   await expect(page).toHaveURL(/\/shopping\?item=/);
   await page.goto("/shopping");
   await expect(page.getByText(name, { exact: true })).toBeVisible();

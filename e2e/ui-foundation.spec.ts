@@ -122,7 +122,7 @@ test("M1 shared navigation and Add sheet work at the 390x844 review viewport", a
   const lastShoppingItem = page.getByText("長い買い物 12", { exact: true });
   await lastShoppingItem.scrollIntoViewIfNeeded();
   await expect(lastShoppingItem).toBeVisible();
-  const lastShoppingButton = page.getByRole("button", { name: "長い買い物 12を購入済みにする" });
+  const lastShoppingButton = page.locator("[data-shopping-m4-id]", { hasText: "長い買い物 12" }).getByRole("button", { name: "長い買い物 12" });
   const lastShoppingBox = await lastShoppingButton.boundingBox();
   const navBox = await page.locator(".bottom-nav").boundingBox();
   expect(lastShoppingBox).not.toBeNull();
@@ -135,6 +135,8 @@ test("M1 shared navigation and Add sheet work at the 390x844 review viewport", a
   await page.getByRole("button", { name: "追加" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "買い物" }).click();
   await expect(page).toHaveURL(/\/shopping\/new$/);
+  await page.getByRole("button", { name: "戻る" }).click();
+  await expect(page).toHaveURL(/\/shopping$/);
   await page.getByRole("button", { name: "ホーム" }).click();
   await expect(page).toHaveURL(/\/home$/);
 
