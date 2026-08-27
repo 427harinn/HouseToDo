@@ -18,14 +18,18 @@ const waitForState = async (page, pathname, heading) => {
   await expect(page.locator(".loader")).toHaveCount(0);
 };
 
-async function createAuthenticatedRecordingPage(browser, storageState) {
-  const context = await browser.newContext({ baseURL: BASE, storageState, locale: "ja-JP", timezoneId: "Asia/Tokyo", viewport: { width: 390, height: 844 } });
-  const page = await context.newPage();
+async function initializeAuthenticatedPage(page) {
   await page.goto(`${BASE}/home`, { waitUntil: "domcontentloaded" });
   await expect.poll(() => new URL(page.url()).pathname, { timeout: 30_000 }).toBe("/home");
   await expect(page.getByRole("heading", { name: "やること" })).toBeVisible();
   await expect(page.locator(".loader")).toHaveCount(0);
   await expect(page.getByRole("navigation", { name: "主要画面" })).toBeVisible();
+}
+
+async function createAuthenticatedRecordingPage(browser, storageState) {
+  const context = await browser.newContext({ baseURL: BASE, storageState, locale: "ja-JP", timezoneId: "Asia/Tokyo", viewport: { width: 390, height: 844 } });
+  const page = await context.newPage();
+  await initializeAuthenticatedPage(page);
   return { context, page };
 }
 
@@ -132,6 +136,8 @@ async function runOne(browser, index) {
     expect(members.some((entry) => entry.displayName === owner.displayName)).toBeTruthy();
     expect(members.some((entry) => entry.displayName === member.displayName)).toBeTruthy();
     await verifyNotificationSettings(pageA);
+    await initializeAuthenticatedPage(pageA);
+    await initializeAuthenticatedPage(pageB);
 
     const ownerState = await contextA.storageState();
     const memberState = await contextB.storageState();
@@ -158,7 +164,12 @@ async function runOne(browser, index) {
     await expect(pageB.getByRole("button", { name: `${taskTitle}を完了`, exact: true })).toBeVisible();
     await pageB.getByRole("button", { name: `${taskTitle}を完了`, exact: true }).click();
     await expect(pageB.getByRole("button", { name: /完了済み/ })).toBeVisible();
+    expect(new URL(pageA.url()).pathname).toBe("/home");
+    expect(new URL(pageB.url()).pathname).toBe("/home");
+    const apiHistoryBeforeUi = (await apiGet(pageA, `/api/tasks/${taskId}/history`)).records;
+    expect(apiHistoryBeforeUi.some((record) => record.status === "completed")).toBeTruthy();
     await pageA.reload();
+    await waitForState(pageA, "/home", "やること");
     await pageA.getByRole("button", { name: /完了済み/ }).click();
     const completedRow = pageA.locator(".m2-home__history-list .m2-home__row", { hasText: taskTitle });
     await expect(completedRow).toBeVisible();

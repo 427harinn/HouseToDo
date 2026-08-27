@@ -251,15 +251,19 @@ async function checkOther(page) {
   await noOverflow(page, "other");
 }
 
+async function initializeAuthenticatedPage(page) {
+  await page.goto(`${BASE}/home`, { waitUntil: "domcontentloaded" });
+  await expect.poll(() => new URL(page.url()).pathname, { timeout: 30_000 }).toBe("/home");
+  await settle(page);
+  await visible(page.getByRole("heading", { name: "やること" }), "authenticated home heading missing");
+  await visible(page.getByRole("navigation", { name: "主要画面" }), "authenticated bottom navigation missing");
+}
+
 async function createAuthenticatedRecordingPage(state, label) {
   const context = await browser.newContext({ storageState: state, baseURL: BASE, viewport: { width: 390, height: 844 }, locale: "ja-JP", timezoneId: "Asia/Tokyo", recordVideo: { dir: VIDEO_DIR, size: { width: 390, height: 844 } } });
   const page = await context.newPage();
   const attached = attachSignals(page, label);
-  await page.goto(`${BASE}/home`, { waitUntil: "domcontentloaded" });
-  await expect.poll(() => new URL(page.url()).pathname, { timeout: 30_000 }).toBe("/home");
-  await visible(page.getByRole("heading", { name: "やること" }), "recording home heading missing");
-  await expect(page.locator(".loader")).toHaveCount(0);
-  await visible(page.getByRole("navigation", { name: "主要画面" }), "recording bottom navigation missing");
+  await initializeAuthenticatedPage(page);
   return { context, page, signals: attached.signals };
 }
 
@@ -336,6 +340,8 @@ try {
   memberSmoke = await browser.newContext({ storageState: memberState, baseURL: BASE, locale: "ja-JP", timezoneId: "Asia/Tokyo", viewport: { width: 390, height: 844 } });
   owner = await ownerSmoke.newPage(); member = await memberSmoke.newPage();
   const ownerSignals = attachSignals(owner, "owner-smoke"); const memberSignals = attachSignals(member, "member-smoke");
+  await initializeAuthenticatedPage(owner);
+  await initializeAuthenticatedPage(member);
 
   videoSignals.push(await captureVideo(ownerState, "staging-core-navigation.webm", async (page) => {
     for (const [button, heading] of [["ホーム", "やること"], ["カレンダー", "カレンダー"], ["買い物", "買い物"], ["その他", "その他"], ["ホーム", "やること"]]) {

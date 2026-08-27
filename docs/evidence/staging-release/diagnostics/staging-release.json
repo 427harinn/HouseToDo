@@ -1,6 +1,6 @@
 {
   "sourceSha": "28e341a1bfab70a18e00bb39386252b113a22361",
-  "validationBranchSha": "aae8010636a0520f2938b479aeb1fb03981fc73e",
+  "validationBranchSha": "eb57f5278f328aee005661c005b3373d1065be56",
   "environment": "staging",
   "migration": { "applied": 17, "pending": 0, "additionalRun": false },
   "worker": {
@@ -8,25 +8,31 @@
     "health": "PASS",
     "unchanged": true
   },
+  "localWorkerTopology": {
+    "previousHostWrangler": "MANUAL_TERMINAL_WRANGLER",
+    "hostWranglerShutdown": "PASS",
+    "hostHouseToDoWorkerdAfterShutdown": "ABSENT",
+    "dockerWorker": "HEALTHY",
+    "portOwnershipAfterRestore": ["wslrelay", "com.docker.backend"],
+    "classification": "LOCAL_WORKER_TOPOLOGY_CONFLICT"
+  },
   "preflight": {
-    "syntheticUsers": 0,
-    "syntheticHouseholds": 0,
+    "syntheticUsersBeforeCleanup": 2,
+    "syntheticHouseholdsBeforeCleanup": 1,
     "cloudflareReadAccess": "PASS"
   },
   "runnerDiagnosis": {
-    "classification": "RUNNER_RECORDING_CONTEXT_INITIALIZATION_BUG",
-    "status": "RESOLVED",
-    "localRecordingContext": "3/3 PASS",
+    "classification": "RUNNER_OWNER_SMOKE_CONTEXT_INITIALIZATION_BUG",
+    "ownerInitialNavigationBeforeFix": "MISSING",
+    "fix": "shared authenticated /home initialization for owner and member smoke pages",
+    "localRunnerReproduction": "3/3 PASS",
     "productionRuntimeChanges": "NONE"
   },
   "notificationDiagnosis": {
     "classification": "RUNNER_NOTIFICATION_PATCH_CONTRACT_BUG",
-    "failedPatchFields": ["morningSummaryEnabled", "morningSummaryTime"],
-    "serverRequiredFields": ["eveningSummaryEnabled", "eveningSummaryTime", "morningSummaryEnabled", "morningSummaryTime", "timezone"],
-    "runnerFix": "GET full settings -> full-object PATCH -> restore original full object",
-    "localValidation": { "iterations": 3, "passed": 3, "defaults": "PASS", "temporaryPersistence": "PASS", "restore": "PASS" },
-    "serverRuntimeChanges": "NONE",
-    "remoteNotificationWrite": "NOT_RUN"
+    "localValidation": "3/3 PASS",
+    "remoteNotificationWrite": "NOT_RUN",
+    "serverRuntimeChanges": "NONE"
   },
   "authFixture": {
     "strategy": "synthetic-registration",
@@ -36,47 +42,110 @@
     "retainedAfterCleanup": false
   },
   "smoke": {
-    "home": "PASS",
-    "calendar": "PASS",
-    "shopping": "PASS",
-    "other": "PASS",
-    "taskSnapshot": "NOT_RUN",
-    "calendarActionDate": "NOT_RUN",
-    "shoppingSync": "NOT_RUN",
-    "twoUser": "NOT_RUN",
-    "isolation": "NOT_RUN",
-    "notificationSettings": "FAILED_HTTP_400"
+    "home": "NOT_RUN_AFTER_FIX",
+    "calendar": "NOT_RUN_AFTER_FIX",
+    "shopping": "NOT_RUN_AFTER_FIX",
+    "other": "NOT_RUN_AFTER_FIX",
+    "taskSnapshot": "NOT_RUN_AFTER_FIX",
+    "calendarActionDate": "NOT_RUN_AFTER_FIX",
+    "shoppingSync": "NOT_RUN_AFTER_FIX",
+    "twoUser": "NOT_RUN_AFTER_FIX",
+    "isolation": "NOT_RUN_AFTER_FIX",
+    "notificationSettings": "NOT_RUN_REMOTE"
   },
-  "failure": {
-    "verdict": "AUTHENTICATED_SMOKE_FAILED",
-    "stage": "notification-settings-temporary-change",
-    "errorCategory": "HTTP_400",
-    "taskAndShoppingFixturesCreated": false
-  },
-  "finalFixtureCleanup": {
-    "status": "PASS",
+  "cleanup": {
+    "transportFailure": "DOCKER_PRIVATE_ARTIFACT_NOT_MOUNTED",
     "recoveryBookmarkCaptured": true,
-    "expectedScopeRows": 9,
-    "deletedRows": 9,
+    "executed": true,
+    "deletedRows": 12,
     "syntheticUsers": "2 -> 0",
     "syntheticHouseholds": "1 -> 0",
     "syntheticMembers": "2 -> 0",
     "syntheticSessions": "2 -> 0",
     "syntheticInvites": "1 -> 0",
-    "syntheticTasks": "0 -> 0",
-    "syntheticTaskRecords": "0 -> 0",
+    "syntheticTasks": "1 -> 0",
+    "syntheticTaskRecords": "1 -> 0",
     "syntheticShopping": "0 -> 0"
   },
   "criticalData": {
-    "tasksBefore": 62,
+    "tasksBefore": 63,
     "tasksAfter": 62,
-    "taskRecordsBefore": 28,
+    "taskRecordsBefore": 29,
     "taskRecordsAfter": 28,
     "shoppingItemsBefore": 28,
     "shoppingItemsAfter": 28,
     "shoppingTemplatesBefore": 3,
     "shoppingTemplatesAfter": 3,
     "preserved": true
+  },
+  "relatedChromium": {
+    "total": 10,
+    "initialPassed": 4,
+    "initialFailed": 6,
+    "stabilityRuns": [
+      { "passed": 5, "failed": 5 },
+      { "passed": 5, "failed": 5 }
+    ],
+    "finalPassed": 5,
+    "finalFailed": 5,
+    "status": "FAILED",
+    "automaticRetry": false,
+    "failureClassification": "TEST_ENVIRONMENT_DRIFT",
+    "localWorkerHealth": "PASS_BEFORE_SUITE",
+    "localD1MigrationStateBeforeThisTurn": "0009-0017 PENDING",
+    "localD1PendingMigrations": [],
+    "localD1MigrationAppliedThisTurn": true,
+    "localD1MigrationFinal": "0017 APPLIED; PENDING 0",
+    "previousFiveAfterSchemaRecovery": { "passed": 5, "failed": 0 },
+    "postRecoveryStabilityRuns": [
+      { "passed": 10, "failed": 0 },
+      { "passed": 10, "failed": 0 }
+    ],
+    "normalizedTopologyStabilityRuns": [
+      { "passed": 10, "failed": 0, "workerAliveAfterRun": true, "hostWorkerdAbsent": true },
+      { "passed": 10, "failed": 0, "workerAliveAfterRun": true, "hostWorkerdAbsent": true }
+    ],
+    "normalizedTopologyStatus": "PASS",
+    "hostRunConfigurationMismatch": "ERR_NAME_NOT_RESOLVED app:5173; excluded from stability result",
+    "latestFinalCodeRun": {
+      "passed": 6,
+      "failed": 4,
+      "failedTests": [
+        "M7 real two-user Task sync",
+        "M7 real two-user Shopping sync",
+        "M7 real Task Pass sync",
+        "M7 Other household permission, member sync, and logout isolation"
+      ],
+      "failureClassification": "TEST_ENVIRONMENT_DRIFT",
+      "workerExitCode": 1,
+      "workerOomKilled": false,
+      "internalHealthAfterExit": "FAILED"
+    },
+    "latestM7TaskIsolatedRun": "PASS",
+    "localWorkerLifecycleDiagnosis": "UNKNOWN",
+    "localWorkerExitCode": 1,
+    "localWorkerOomKilled": false,
+    "idleWorkerStability": { "samples": 10, "running": 10, "health200": 10 },
+    "dockerEvents": "NO_EVENTS_RETURNED",
+    "safeLogClassification": {
+      "tailLines": 300,
+      "portConflict": 0,
+      "d1StateOrSqlite": 0,
+      "ioOrResource": 0,
+      "oom": 0,
+      "terminationSignal": 0,
+      "runtimeFatal": 0,
+      "genericErrorLines": 2
+    }
+  },
+  "localGates": {
+    "lint": "PASS",
+    "typecheck": "PASS",
+    "vitest": "38 files / 238 tests PASS",
+    "build": "PASS",
+    "localRunner": "3/3 PASS",
+    "relatedChromiumAfterTopologyNormalization": "10/10 PASS x2",
+    "gitDiffCheck": "PASS"
   },
   "operations": {
     "registration": "NOT_RUN_THIS_TURN",
@@ -86,5 +155,5 @@
     "timeTravelRestore": "NOT_RUN",
     "production": "NOT_TOUCHED"
   },
-  "verdict": "READY_FOR_FINAL_SYNTHETIC_VALIDATION_RETRY_2"
+  "verdict": "READY_FOR_FINAL_SYNTHETIC_VALIDATION_RETRY_3"
 }

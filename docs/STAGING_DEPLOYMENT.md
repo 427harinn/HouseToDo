@@ -177,3 +177,38 @@ Push購読後、staging/development/testでのみ利用できる `POST /api/noti
 ## 復旧と停止条件
 
 対象environment、D1、R2、migration、originが一致しない場合は停止します。secret値・API token・ユーザーパスワード・実データを記録しません。migration失敗時に既存SQLを書き換えず、適用状況とエラーだけを報告します。
+
+## 2026-08-27 Retained fixture cleanup / task history runner diagnosis
+
+- Final retry 2 は `AUTHENTICATED_SMOKE_FAILED`（Task completed-history locator timeout）で停止した。Task/Shoppingのstaging smoke再試行は行っていない。
+- 前回cleanupのtransport failureは `DOCKER_PRIVATE_ARTIFACT_NOT_MOUNTED`。private SQLを一時的にapp containerへコピーして、fresh recovery bookmark取得後、固定ID scopeのtargeted cleanupを1回実行した。実削除は12行、users 2 → 0、households 1 → 0、Task 1 → 0、TaskRecord 1 → 0。Shoppingは0のまま。
+- cleanup前後のcritical rowsは tasks 63 → 62、task_records 29 → 28、shopping_items 28 → 28、shopping_templates 3 → 3。今回fixture以外のデータ減少は確認されなかった。
+- Task history diagnosis は `RUNNER_OWNER_SMOKE_CONTEXT_INITIALIZATION_BUG`。owner/member smoke pageへ共有のauthenticated `/home` initializationを追加し、local runner reproductionは3/3 PASS。production runtime変更はない。
+- Notification local flowは3/3 PASS。lint、typecheck、Vitest 38 files / 238 tests、buildもPASS。
+- 関連Chromium suiteは10 tests中4 PASS / 6 FAILED。baseline悪化として自動retryせず停止した。staging registration、migration、deploy、production操作は行っていない。
+- recovery bookmark本体、ID、credentials、email、invite codeは記録・commitしていない。Verdict: `LOCAL_RELATED_CHROMIUM_FAILED`。追加registrationとstaging smoke retryは保留。
+
+## 2026-08-27 Related Chromium diagnosis
+
+- 同じlocal-only related Chromium 10件を3回確認した結果は、初回 4/10、2回目 5/10、3回目 5/10。自動snapshot更新、staging操作、production操作は行っていない。
+- 再現した5件（Calendar 1件、M7 Task/Shopping/Task Pass/Other 4件）は登録後の `POST /api/auth/register` HTTP 500。画面は `/register` に留まり、alertはサーバー内部エラーだった。workerの安全な診断ログは `user-lookup-start`、`SQLITE_ERROR` / `no such column`。
+- local D1のread-only migration listで `0009`〜`0017` が未適用と確認した。production codeの `users` lookupが0015追加列を参照するため、失敗分類は `TEST_ENVIRONMENT_DRIFT`。local D1 migrationは今回のmigration禁止条件により適用していない。
+- 初回のみ失敗したM6 guest-route mocked testは、2回目・3回目に再現せず、`TEST_ENVIRONMENT_DRIFT` の一過性結果として記録した。runner/production runtimeの追加変更はない。
+- local worker healthはHTTP 200。既存runner reproductionは3/3 PASS、Vitest 38 files / 238 tests、lint/typecheck/buildはPASS。Related Chromiumは未復旧のため、commit/pushは保留。Verdict: `LOCAL_RELATED_CHROMIUM_FAILED`。
+
+## 2026-08-27 Local D1 schema recovery / Chromium recheck
+
+- Related Chromiumの5件（Calendar、M7 Task sync、M7 Shopping sync、M7 Task Pass、M7 Other/isolation）は、local D1の`0009`〜`0017`未適用による`POST /api/auth/register` HTTP 500（`SQLITE_ERROR` / `no such column`）として`TEST_ENVIRONMENT_DRIFT`に分類した。M6の一過性failureを含む6件も同じlocal environment driftの履歴として扱った。
+- local D1へ`0009`〜`0017`を順当に適用し、local migration listは0017まで適用・pending 0となった。local worker restart後、local auth registration smokeは成功し、既知の5件は5/5 PASS。production runtimeは変更していない。
+- 関連10件はschema recovery後に10/10 PASSを2回確認した。その後の最終コード再確認では、worker containerが`ExitCode=1`・`OOMKilled=false`で停止し、Calendar/M6の6件はPASS、M7の4件はworker health待ちまたは停止に伴う共有反映待ちでFAILEDとなった。これは`TEST_ENVIRONMENT_DRIFT`（local worker lifecycle drift）であり、production app regressionとは判定していない。
+- worker再起動後のM7 Task単体はPASS、local runner reproductionは3/3 PASS、Vitest 38 files / 238 tests、lint/typecheck/buildはPASS。snapshot更新、staging/production操作、remote writeは行っていない。Verdict: `LOCAL_RELATED_CHROMIUM_FAILED`。commit/pushは保留。
+- 追加診断では、Chromiumなしのidle worker healthを10回確認して10/10がrunning・HTTP 200。同じworkerでrelated 10件を実行すると6/10 PASS・4/10 FAILとなり、workerは`ExitCode=1`・`OOMKilled=false`で停止した。Docker eventは該当イベントなし、ログの安全な分類でもport conflict、D1/state lock、I/O、OOM、signal、fatalの根因シグネチャは確認できなかったため、root-cause分類は`UNKNOWN`。自動restart設定やproduction runtime変更は行わず、commit/pushは保留。
+
+## 2026-08-27 Normalized local worker topology stability
+
+- host側のHouseToDo Wranglerは`MANUAL_TERMINAL_WRANGLER`と特定した。親Wrangler PIDへforceなしの停止要求を行い、host `workerd.exe`は終了、8787の再生成はなく、Docker workerのみの構成へ正規化した。
+- Docker workerは`Up (healthy)`を維持し、`/api/health`はHTTP 200、`db=true`、`r2=true`。復旧後の8787 ownerはDocker Desktop系の`wslrelay.exe` / `com.docker.backend`で、host HouseToDo `workerd.exe`は不在だった。
+- host実行時のRelated Chromium 10件は、`e2e/calendar-ui.spec.ts`（1件）、`e2e/m6-auth-entry.spec.ts`（5件）、`e2e/m7-real-integration.spec.ts`（4件）を、`PLAYWRIGHT_BASE_URL=http://127.0.0.1:5174`、`--workers=1 --reporter=line`で実行した。Run 1は10/10 PASS、Run 2も10/10 PASSで、各run後worker healthy・health PASS・host workerd不在を確認した。
+- 最初にbaseURL未指定で実行した試行は、hostからcontainer名`app`を解決できない`ERR_NAME_NOT_RESOLVED`で10/10失敗したため、stability結果には算入していない。これはtest environment configuration mismatchであり、worker exitではない。
+- local runner reproductionは3/3 PASS。Task history、Notification、Recording context、Task assignee、Calendar semantic locator、Redirect settledを含む既存flowも各回通過した。Vitestは38 files / 238 tests、lint、typecheck、build、git diff --checkもPASS。local D1は0017適用・pending 0のまま。
+- このlocal環境ではhost Wrangler/workerdとDocker workerが同時に存在していた履歴があり、Docker workerのみへ正規化後にRelated Chromiumが2回連続安定した。分類は`LOCAL_WORKER_TOPOLOGY_CONFLICT`とし、host processが過去のworker exitを直接引き起こしたとは断定しない。staging/production操作、remote write、migration、deployは行っていない。Verdict: `READY_FOR_FINAL_SYNTHETIC_VALIDATION_RETRY_3`。
