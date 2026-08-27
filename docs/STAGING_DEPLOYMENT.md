@@ -1,5 +1,12 @@
 # Staging runbook
 
+## 2026-08-27 M8B compatibility fixture date regression
+
+- The local baseline stopped because the compatibility fixture requested fixed date `2026-08-26`, while the production action timestamp used wall-clock time. On 2026-08-27 JST, the completed record therefore fell outside the household-local date-filtered history. Diagnosis: `TEST_TIME_DEPENDENCY`.
+- The target test now pins Date-only fake time to `2026-08-26T03:00:00.000Z` (2026-08-26 JST), asserts the action timestamps and fixture date, and always restores real timers. Product runtime change: `NONE`.
+- M8B targeted test passed 3/3; Vitest passed 38 files / 238 tests; lint, typecheck, build, related local Chromium (10/10), and local runner reproduction (3/3) passed. Staging was not written; registration, migration, deploy, production operations, and Evidence finalization were not run.
+- Verdict: `LOCAL_BASELINE_RESTORED`. Final synthetic validation remains paused pending approval.
+
 ## 2026-08-26 Staging smoke recovery / cleanup dry-run
 
 - Source SHA: `28e341a1bfab70a18e00bb39386252b113a22361`. This recovery turn used no migration, deploy, registration, or production operation.
