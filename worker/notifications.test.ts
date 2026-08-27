@@ -66,6 +66,26 @@ describe("notification subscription API", () => {
         eveningSummaryTime: "21:00"
       }
     });
+    const partial = await app.fetch(
+      request("/api/notifications/settings", {
+        method: "PATCH",
+        headers: { cookie },
+        body: JSON.stringify({ morningSummaryEnabled: true })
+      }),
+      env
+    );
+    expect(partial.status).toBe(400);
+    await expect(partial.json()).resolves.toMatchObject({
+      error: {
+        code: "VALIDATION_ERROR",
+        details: {
+          eveningSummaryEnabled: "must be boolean",
+          eveningSummaryTime: "must be HH:mm",
+          morningSummaryTime: "must be HH:mm",
+          timezone: "must be a valid IANA timezone"
+        }
+      }
+    });
     const saved = await app.fetch(
       request("/api/notifications/settings", {
         method: "PATCH",

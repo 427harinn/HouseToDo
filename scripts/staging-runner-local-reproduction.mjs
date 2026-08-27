@@ -90,6 +90,24 @@ async function createAssignedTask(page, title, memberDisplayName) {
   return (await apiGet(page, "/api/tasks")).tasks.find((entry) => entry.title === title);
 }
 
+async function verifyNotificationSettings(page) {
+  const original = await apiGet(page, "/api/notifications/settings");
+  expect(original).toMatchObject({
+    eveningSummaryEnabled: false,
+    eveningSummaryTime: "21:00",
+    morningSummaryEnabled: false,
+    morningSummaryTime: "09:00",
+    timezone: expect.any(String)
+  });
+  const temporary = { ...original, morningSummaryEnabled: true, morningSummaryTime: "09:15" };
+  const saved = await apiMutate(page, "PATCH", "/api/notifications/settings", temporary);
+  expect(saved).toEqual(temporary);
+  expect(await apiGet(page, "/api/notifications/settings")).toEqual(temporary);
+  const restored = await apiMutate(page, "PATCH", "/api/notifications/settings", original);
+  expect(restored).toEqual(original);
+  expect(await apiGet(page, "/api/notifications/settings")).toEqual(original);
+}
+
 async function runOne(browser, index) {
   const suffix = `${Date.now()}-${index}-${randomBytes(4).toString("hex")}`;
   const owner = { displayName: `LOCAL-A-${index}`, email: `local-a-${suffix}@example.test`, password: `LocalA!${randomBytes(24).toString("base64url")}` };
@@ -113,6 +131,7 @@ async function runOne(browser, index) {
     expect(members).toHaveLength(2);
     expect(members.some((entry) => entry.displayName === owner.displayName)).toBeTruthy();
     expect(members.some((entry) => entry.displayName === member.displayName)).toBeTruthy();
+    await verifyNotificationSettings(pageA);
 
     const ownerState = await contextA.storageState();
     const memberState = await contextB.storageState();

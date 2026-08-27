@@ -30,6 +30,7 @@ const result = {
   runnerDiagnosis: { taskAssignee: "NOT_RUN", apiMemberPresent: false, dialogMemberPresent: false, oldLocator: "FAILED" },
   authFixture: { strategy: "synthetic-registration", usersCreated: 0, householdCreated: 0, credentialsPersisted: false, fixtureRetained: false },
   smoke: { home: "NOT_RUN", calendar: "NOT_RUN", shopping: "NOT_RUN", other: "NOT_RUN", taskSnapshot: "NOT_RUN", calendarActionDate: "NOT_RUN", shoppingSync: "NOT_RUN", twoUser: "NOT_RUN", isolation: "NOT_RUN", notificationSettings: "NOT_RUN" },
+  notificationPatchFailure: null,
   cleanup: { task: "NOT_RUN", shopping: "NOT_RUN", invite: "retained by dedicated fixture", usersHousehold: "retained" },
   browserSignals: { consoleErrors: 0, pageErrors: 0, requestFailures: 0, crossOriginRequests: 0 },
   production: { deploy: "NOT_RUN", migration: "NOT_RUN", dataAccess: "NONE", dataWrite: "NONE" },
@@ -38,11 +39,26 @@ const result = {
 
 const assert = (condition, message) => { if (!condition) throw new Error(message); };
 const json = async (response) => {
-  assert(response.ok(), `HTTP ${response.status()} for ${response.url()}`);
+  if (!response.ok()) {
+    const body = await response.json().catch(() => ({}));
+    const error = body?.error ?? {};
+    const details = error?.details && typeof error.details === "object" ? Object.keys(error.details).sort() : [];
+    throw new Error(`HTTP ${response.status()} for ${response.url()} code=${typeof error.code === "string" ? error.code : "UNKNOWN"} fields=${details.join(",") || "none"}`);
+  }
   return response.json();
 };
 const apiGet = async (page, route) => (await json(await page.request.get(route))).data;
-const apiMutate = async (page, method, route, data = {}) => (await json(await page.request.fetch(route, { method, data, headers: { origin: BASE } }))).data;
+const apiMutate = async (page, method, route, data = {}) => {
+  const response = await page.request.fetch(route, { method, data, headers: { origin: BASE } });
+  const body = await response.json().catch(() => ({}));
+  const error = body?.error ?? {};
+  const details = error?.details && typeof error.details === "object" ? Object.keys(error.details).sort() : [];
+  if (!response.ok() && route === "/api/notifications/settings") {
+    result.notificationPatchFailure = { status: response.status(), code: typeof error.code === "string" ? error.code : "UNKNOWN", validationDetailFields: details };
+  }
+  if (!response.ok()) throw new Error(`HTTP ${response.status()} for ${response.url()} code=${typeof error.code === "string" ? error.code : "UNKNOWN"} fields=${details.join(",") || "none"}`);
+  return body.data;
+};
 const settle = async (page) => {
   await expect(page.locator(".loader")).toHaveCount(0, { timeout: 30_000 });
 };
@@ -330,12 +346,13 @@ try {
   await checkOther(owner); result.smoke.other = "PASS";
   const notification = await apiGet(owner, "/api/notifications/settings");
   assert(notification.morningSummaryEnabled === false && notification.morningSummaryTime === "09:00", "0015 notification default contract failed");
-  await apiMutate(owner, "PATCH", "/api/notifications/settings", { morningSummaryEnabled: true, morningSummaryTime: "08:15" });
+  const temporaryNotification = { ...notification, morningSummaryEnabled: true, morningSummaryTime: "09:15" };
+  await apiMutate(owner, "PATCH", "/api/notifications/settings", temporaryNotification);
   const changedNotification = await apiGet(owner, "/api/notifications/settings");
-  assert(changedNotification.morningSummaryEnabled === true && changedNotification.morningSummaryTime === "08:15", "notification temporary change failed");
-  await apiMutate(owner, "PATCH", "/api/notifications/settings", { morningSummaryEnabled: false, morningSummaryTime: "09:00" });
+  assert(changedNotification.morningSummaryEnabled === true && changedNotification.morningSummaryTime === "09:15" && changedNotification.eveningSummaryEnabled === notification.eveningSummaryEnabled && changedNotification.eveningSummaryTime === notification.eveningSummaryTime && changedNotification.timezone === notification.timezone, "notification temporary change failed");
+  await apiMutate(owner, "PATCH", "/api/notifications/settings", notification);
   const restoredNotification = await apiGet(owner, "/api/notifications/settings");
-  assert(restoredNotification.morningSummaryEnabled === false && restoredNotification.morningSummaryTime === "09:00", "notification restore failed");
+  assert(JSON.stringify(restoredNotification) === JSON.stringify(notification), "notification restore failed");
   result.smoke.notificationSettings = "PASS";
 
   videoSignals.push(await captureVideo(ownerState, "staging-task-calendar.webm", async (page) => {

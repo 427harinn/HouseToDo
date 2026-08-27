@@ -1,56 +1,71 @@
 {
   "sourceSha": "28e341a1bfab70a18e00bb39386252b113a22361",
+  "validationBranchSha": "aae8010636a0520f2938b479aeb1fb03981fc73e",
   "environment": "staging",
-  "migration": { "before": 14, "after": 17, "pending": 0, "recoveryBookmarkCaptured": true },
-  "deploy": {
-    "previousVersion": "26a6fbf9-476e-4d36-9dfa-8ef07c07275c",
-    "currentVersion": "6ee2b2d8-13a8-4ab0-a01c-740af3b4e78c",
+  "migration": { "applied": 17, "pending": 0, "additionalRun": false },
+  "worker": {
+    "version": "6ee2b2d8-13a8-4ab0-a01c-740af3b4e78c",
     "health": "PASS",
-    "additionalDeploy": "NOT_RUN"
+    "unchanged": true
   },
-  "previousFixture": { "status": "RETAINED", "users": 2, "households": 1 },
+  "preflight": {
+    "syntheticUsers": 0,
+    "syntheticHouseholds": 0,
+    "cloudflareReadAccess": "PASS"
+  },
   "runnerDiagnosis": {
     "classification": "RUNNER_RECORDING_CONTEXT_INITIALIZATION_BUG",
-    "recordingContextInitialNavigation": "FIXED",
-    "explicitHomeNavigation": "PASS",
-    "localReproduction": "3/3 PASS",
-    "taskAssignee": "PASS",
-    "calendarLocator": "PASS",
-    "redirectSettled": "PASS",
+    "status": "RESOLVED",
+    "localRecordingContext": "3/3 PASS",
     "productionRuntimeChanges": "NONE"
+  },
+  "notificationDiagnosis": {
+    "classification": "RUNNER_NOTIFICATION_PATCH_CONTRACT_BUG",
+    "failedPatchFields": ["morningSummaryEnabled", "morningSummaryTime"],
+    "serverRequiredFields": ["eveningSummaryEnabled", "eveningSummaryTime", "morningSummaryEnabled", "morningSummaryTime", "timezone"],
+    "runnerFix": "GET full settings -> full-object PATCH -> restore original full object",
+    "localValidation": { "iterations": 3, "passed": 3, "defaults": "PASS", "temporaryPersistence": "PASS", "restore": "PASS" },
+    "serverRuntimeChanges": "NONE",
+    "remoteNotificationWrite": "NOT_RUN"
   },
   "authFixture": {
     "strategy": "synthetic-registration",
     "usersCreated": 2,
     "householdCreated": 1,
     "credentialsPersisted": false,
-    "fixtureRetained": false,
-    "cleanup": "PASS"
+    "retainedAfterCleanup": false
   },
   "smoke": {
-    "home": "NOT_RUN",
-    "calendar": "NOT_RUN",
-    "shopping": "NOT_RUN",
-    "other": "NOT_RUN",
+    "home": "PASS",
+    "calendar": "PASS",
+    "shopping": "PASS",
+    "other": "PASS",
     "taskSnapshot": "NOT_RUN",
     "calendarActionDate": "NOT_RUN",
     "shoppingSync": "NOT_RUN",
     "twoUser": "NOT_RUN",
     "isolation": "NOT_RUN",
-    "notificationSettings": "NOT_RUN"
+    "notificationSettings": "FAILED_HTTP_400"
   },
-  "cleanup": {
+  "failure": {
+    "verdict": "AUTHENTICATED_SMOKE_FAILED",
+    "stage": "notification-settings-temporary-change",
+    "errorCategory": "HTTP_400",
+    "taskAndShoppingFixturesCreated": false
+  },
+  "finalFixtureCleanup": {
     "status": "PASS",
     "recoveryBookmarkCaptured": true,
-    "expectedScope": { "users": 2, "households": 1, "members": 2, "tasks": 0, "taskRecords": 0, "shoppingItems": 0 },
-    "deletedRows": 8,
-    "users": "2 -> 0",
-    "households": "1 -> 0",
-    "members": "2 -> 0",
-    "sessions": "2 -> 0",
-    "invites": "1 -> 0",
-    "taskRows": "0 -> 0",
-    "shoppingRows": "0 -> 0"
+    "expectedScopeRows": 9,
+    "deletedRows": 9,
+    "syntheticUsers": "2 -> 0",
+    "syntheticHouseholds": "1 -> 0",
+    "syntheticMembers": "2 -> 0",
+    "syntheticSessions": "2 -> 0",
+    "syntheticInvites": "1 -> 0",
+    "syntheticTasks": "0 -> 0",
+    "syntheticTaskRecords": "0 -> 0",
+    "syntheticShopping": "0 -> 0"
   },
   "criticalData": {
     "tasksBefore": 62,
@@ -63,9 +78,13 @@
     "shoppingTemplatesAfter": 3,
     "preserved": true
   },
-  "browserSignals": { "consoleErrors": 0, "pageErrors": 0, "requestFailures": 0, "crossOriginRequests": 0 },
-  "remoteAccess": "RESTORED",
-  "operations": { "registration": "NOT_RUN_THIS_TURN", "migration": "NOT_RUN", "deploy": "NOT_RUN", "timeTravelRestore": "NOT_RUN" },
-  "production": { "deploy": "NOT_RUN", "migration": "NOT_RUN", "dataAccess": "NONE", "dataWrite": "NONE" },
-  "verdict": "READY_FOR_FINAL_SYNTHETIC_VALIDATION_RETRY"
+  "operations": {
+    "registration": "NOT_RUN_THIS_TURN",
+    "notificationPatch": "NOT_RUN_THIS_TURN",
+    "migration": "NOT_RUN",
+    "deploy": "NOT_RUN",
+    "timeTravelRestore": "NOT_RUN",
+    "production": "NOT_TOUCHED"
+  },
+  "verdict": "READY_FOR_FINAL_SYNTHETIC_VALIDATION_RETRY_2"
 }

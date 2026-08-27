@@ -7,6 +7,15 @@
 - M8B targeted test passed 3/3; Vitest passed 38 files / 238 tests; lint, typecheck, build, related local Chromium (10/10), and local runner reproduction (3/3) passed. Staging was not written; registration, migration, deploy, production operations, and Evidence finalization were not run.
 - Verdict: `LOCAL_BASELINE_RESTORED`. Final synthetic validation remains paused pending approval.
 
+## 2026-08-27 Notification settings HTTP 400 diagnosis
+
+- The failed runner PATCH sent only `morningSummaryEnabled` and `morningSummaryTime`. The staging smoke was not retried and no remote notification PATCH was made during this diagnosis.
+- The server contract requires the full notification settings object: `eveningSummaryEnabled`, `eveningSummaryTime`, `morningSummaryEnabled`, `morningSummaryTime`, and `timezone`. Diagnosis: `RUNNER_NOTIFICATION_PATCH_CONTRACT_BUG`.
+- The runner now performs GET current settings, sends a full-object temporary PATCH while preserving the other fields, verifies persistence, and restores the original full object. Production runtime change: `NONE`.
+- Local isolated notification settings flow passed `3/3`: defaults, temporary full PATCH persistence, and restore. The partial PATCH `400` contract is covered by the worker test; full PATCH remains covered by the existing `200` test.
+- Lint, typecheck, Vitest (38 files / 238 tests), build, and local runner reproduction (3/3) passed. Staging registration, notification PATCH, migration, deploy, production operations, Evidence finalization, and PR creation were not run.
+- Verdict: `READY_FOR_FINAL_SYNTHETIC_VALIDATION_RETRY_2`. Staging smoke retry and real iPhone validation remain paused pending approval.
+
 ## 2026-08-26 Staging smoke recovery / cleanup dry-run
 
 - Source SHA: `28e341a1bfab70a18e00bb39386252b113a22361`. This recovery turn used no migration, deploy, registration, or production operation.
@@ -90,6 +99,15 @@
 - The repository staging validator now expects the configured `*/5 * * * *` Cron. Production resources, migrations, deploys, Cron, and secrets were untouched; no git push was performed.
 
 > stagingへの安全な確認・デプロイ手順です。productionのresource、secret、migration、deployは対象外で、明示承認なしに操作しません。
+
+## 2026-08-27 Final synthetic validation retry result
+
+- Preflight、local gate、recording context local reproduction 3/3、Cloudflare Docker read access、staging D1 17/17、health PASSを確認した。
+- Synthetic A/B registration、dedicated household作成、invite/join、core Home / Calendar / Shopping / Other navigationまでは成功した。Notificationsのtemporary setting changeでHTTP 400が発生し、`AUTHENTICATED_SMOKE_FAILED` として停止した。Task snapshot、Calendar action date、Shopping sync、two-user、isolationのfinal smokeは未実行で、成功扱いにしていない。
+- 失敗後の追加registrationは行わず、今回作成したfixtureだけをfresh recovery bookmark取得・fixed-ID scope確認後にtargeted cleanupした。users 2 → 0、households 1 → 0、実削除9行。Task/TaskRecord/Shopping fixtureは作成されていない。
+- Cleanup後のcritical rowsは tasks 62、task_records 28、shopping_items 28、shopping_templates 3 で保持された。Workerはunchanged、migration/deployはNOT RUN、productionはNOT TOUCHED。
+- credentials、ID、invite code、bookmark本体は保存・記録していない。Evidence finalization、PR作成、real iPhone validationは実行していない。
+- Verdict: `AUTHENTICATED_SMOKE_FAILED`。Notifications HTTP 400の原因調査と別途承認後の再試行が必要。追加registrationは禁止。
 
 ## 2026-08-27 Recording context recovery / retained fixture cleanup
 
