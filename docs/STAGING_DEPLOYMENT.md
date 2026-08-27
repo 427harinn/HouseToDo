@@ -11,6 +11,15 @@
 - Staging D1 remains 17/17 with no pending migrations. Worker `6ee2b2d8-13a8-4ab0-a01c-740af3b4e78c` and `/api/health` remained unchanged and healthy. Cron, R2, and secrets were unchanged; production was untouched.
 - Final recovery verdict: `READY_FOR_TARGETED_STAGING_FIXTURE_CLEANUP`. This does not advance the release to real iPhone validation.
 
+## 2026-08-27 Targeted staging synthetic fixture cleanup
+
+- The retained failed synthetic fixtures were cleaned up once from the explicit staging D1 using the pre-resolved fixed-ID manifest. Six users, three households, six sessions, six household members, three household invites, and one household image-usage row were deleted: 25 rows total, matching the expected count.
+- Pre-cleanup recovery bookmark was captured: `YES`. The bookmark itself remains private and is not recorded here. No non-synthetic member or cross-household reference was affected.
+- Critical application aggregates were preserved: tasks `62 -> 62`, task records `28 -> 28`, Shopping items `28 -> 28`, and Shopping templates `3 -> 3`. Total users changed `16 -> 10`, households `10 -> 7`, and sessions `75 -> 69` as expected.
+- Staging D1 remains `17/17` with no pending migrations. Worker `6ee2b2d8-13a8-4ab0-a01c-740af3b4e78c` was unchanged; `/api/health` remained HTTP 200 with `db: true` and `r2: true`. Cron and R2 remained unchanged, and secrets were unchanged.
+- Migration, deploy, registration, Time Travel restore, and production operations were not run. The cleanup SQL and recovery bookmark remain ignored private artifacts; no private IDs or credentials were committed.
+- Cleanup verdict: `READY_FOR_FINAL_SYNTHETIC_VALIDATION`. New registration is not authorized by this step; the next boundary requires separate approval.
+
 ## 2026-08-18 Shopping planned purchase date / Calendar staging verification
 
 - Implementation commit `ef5a89bf0ff8c3789fc0702670b2c5c77a32582e` passed lint, typecheck, 201 tests, build, local migration, staging-config validation, and diff-check. Docker was unavailable, so the documented host gates were used.

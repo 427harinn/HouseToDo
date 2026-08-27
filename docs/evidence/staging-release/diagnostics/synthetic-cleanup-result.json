@@ -1,0 +1,63 @@
+{
+  "sourceSha": "28e341a1bfab70a18e00bb39386252b113a22361",
+  "environment": "staging",
+  "targetedCleanup": {
+    "recoveryBookmarkCaptured": true,
+    "expectedAffectedRows": 25,
+    "actualDeletedRows": 25,
+    "executed": true,
+    "syntheticUsersBefore": 6,
+    "syntheticUsersAfter": 0,
+    "syntheticHouseholdsBefore": 3,
+    "syntheticHouseholdsAfter": 0,
+    "tableRowsDeleted": {
+      "users": 6,
+      "sessions": 6,
+      "household_members": 6,
+      "household_invites": 3,
+      "households": 3,
+      "household_image_usage": 1
+    },
+    "nonSyntheticMembersAffected": 0,
+    "crossHouseholdReferencesAffected": 0
+  },
+  "criticalData": {
+    "tasksBefore": 62,
+    "tasksAfter": 62,
+    "taskRecordsBefore": 28,
+    "taskRecordsAfter": 28,
+    "shoppingItemsBefore": 28,
+    "shoppingItemsAfter": 28,
+    "shoppingTemplatesBefore": 3,
+    "shoppingTemplatesAfter": 3,
+    "tasksPreserved": true,
+    "taskRecordsPreserved": true,
+    "shoppingItemsPreserved": true,
+    "shoppingTemplatesPreserved": true
+  },
+  "totals": {
+    "usersBefore": 16,
+    "usersAfter": 10,
+    "householdsBefore": 10,
+    "householdsAfter": 7,
+    "sessionsBefore": 75,
+    "sessionsAfter": 69
+  },
+  "remote": {
+    "migration": "17/17",
+    "pending": 0,
+    "workerVersion": "6ee2b2d8-13a8-4ab0-a01c-740af3b4e78c",
+    "health": "HTTP 200; db=true; r2=true",
+    "cron": "UNCHANGED",
+    "r2": "UNCHANGED",
+    "secrets": "UNCHANGED"
+  },
+  "operations": {
+    "migration": "NOT_RUN",
+    "deploy": "NOT_RUN",
+    "registration": "NOT_RUN",
+    "production": "NOT_TOUCHED",
+    "timeTravelRestore": "NOT_RUN"
+  },
+  "verdict": "READY_FOR_FINAL_SYNTHETIC_VALIDATION"
+}
