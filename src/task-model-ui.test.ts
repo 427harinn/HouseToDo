@@ -49,10 +49,33 @@ describe("task model form mapping", () => {
   it("validates recurrence-specific fields near the form", () => {
     expect(validateTaskFormState({ ...defaultTaskForm(), recurrence: "once" })).toMatchObject({
       title: "タスク名を入力してください。",
-      targetDate: "実施日を選択してください。"
+      startDate: "開始日を選択してください。"
     });
     expect(validateTaskFormState({ ...defaultTaskForm(), title: "曜日", recurrence: "weekly_fixed" })).toHaveProperty("weekdays");
     expect(validateTaskFormState({ ...defaultTaskForm(), title: "月", recurrence: "monthly_fixed", monthlyDayOfMonth: 32 })).toHaveProperty("monthlyDayOfMonth");
+  });
+
+  it("canonicalizes once dates from either the new start date or a legacy target date", () => {
+    const legacy = {
+      id: "once-legacy", title: "一度だけ", description: null, recurrenceType: "model_only", modelRecurrenceType: "once",
+      assignmentType: "anyone", assignedUserId: null, assignment: { type: "anyone", user: null }, scheduledTime: null,
+      notificationSlot: "none", notificationTime: null, weekdays: [], weeklyTargetCount: null, startDate: null,
+      targetDate: "2026-08-17", deadlineTime: null, notificationOffsetMinutes: null, active: true, sortOrder: 1,
+      createdBy: "user", createdAt: "2026-08-01", updatedAt: "2026-08-01"
+    } satisfies Task;
+    const form = taskToFormState(legacy);
+    expect(form).toMatchObject({ recurrence: "once", startDate: "2026-08-17", targetDate: "2026-08-17" });
+    expect(taskFormToPayload({ ...form, startDate: "2026-08-20", targetDate: "2026-08-17" })).toMatchObject({ startDate: "2026-08-20", targetDate: "2026-08-20" });
+  });
+
+  it("keeps recurring startDate and never sends a recurring targetDate", () => {
+    const form = { ...defaultTaskForm(), title: "毎日", recurrence: "daily" as const, startDate: "2026-08-20", targetDate: "2026-08-21" };
+    expect(taskFormToPayload(form)).toMatchObject({ startDate: "2026-08-20", targetDate: null });
+  });
+
+  it("clears notification state for all-day tasks and preserves time notification relation", () => {
+    expect(taskFormToPayload({ ...defaultTaskForm(), title: "終日", deadlineTime: "", notificationOffsetMinutes: 30 })).toMatchObject({ deadlineTime: null, notificationOffsetMinutes: null });
+    expect(taskFormToPayload({ ...defaultTaskForm(), title: "時刻あり", deadlineTime: "09:30", notificationOffsetMinutes: 10 })).toMatchObject({ deadlineTime: "09:30", notificationOffsetMinutes: 10 });
   });
 
   it("keeps legacy weekly target counts in the compatibility form", () => {
@@ -91,8 +114,8 @@ describe("task model form mapping", () => {
       active: true, sortOrder: 1, createdBy: "user", createdAt: "2026-01-01", updatedAt: "2026-01-01"
     });
     expect(form).toMatchObject({ targetDate: "", startDate: "", recurrence: "once" });
-    expect(validateTaskFormState(form)).toHaveProperty("targetDate");
-    expect(validateTaskFormState(form, { template: true })).not.toHaveProperty("targetDate");
+    expect(validateTaskFormState(form)).toHaveProperty("startDate");
+    expect(validateTaskFormState(form, { template: true })).not.toHaveProperty("startDate");
     expect(taskFormToTemplatePayload(form)).toMatchObject({ modelRecurrenceType: "once" });
   });
 });

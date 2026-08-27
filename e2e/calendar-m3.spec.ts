@@ -1,6 +1,9 @@
 import { expect, test } from "@playwright/test";
 
 const response = (data: unknown) => ({ ok: true, data, requestId: "e2e-m3" });
+const expectNoHorizontalScroll = async (page: import("@playwright/test").Page) => {
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
+};
 
 function calendarData(selectedDate: string, completed = false, passed = false) {
   const dates: Record<string, unknown> = {};
@@ -57,14 +60,18 @@ test.describe("Calendar M3", () => {
   });
 
   test("opens Date Sheet and completes the selected task", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/calendar?date=2026-08-20");
     await expect(page.getByRole("dialog")).toBeVisible();
     await expect(page.locator(".bottom-nav")).toBeVisible();
     await page.waitForTimeout(300);
     const dialogBox = await page.getByRole("dialog").boundingBox();
+    const layerBox = await page.locator(".calendar-date-layer").boundingBox();
     const navBox = await page.locator(".bottom-nav").boundingBox();
-    if (!dialogBox || !navBox) throw new Error("Calendar Date Sheet or Bottom Navigation is not measurable.");
-    expect(dialogBox.y + dialogBox.height).toBeLessThanOrEqual(navBox.y + 1);
+    if (!dialogBox || !layerBox || !navBox) throw new Error("Calendar Date Sheet or Bottom Navigation is not measurable.");
+    expect(layerBox.y).toBe(0);
+    expect(layerBox.height).toBeGreaterThanOrEqual(844);
+    expect(dialogBox.y + dialogBox.height).toBeGreaterThanOrEqual(navBox.y + navBox.height - 1);
     await expect(page.getByRole("heading", { name: "8月20日 木曜日" })).toBeVisible();
     await expect(page.getByText("この日")).toBeVisible();
     await page.locator(".calendar-detail-task__main").click();
@@ -111,5 +118,46 @@ test.describe("Calendar M3", () => {
     await expect(page.getByRole("dialog")).toBeVisible();
     await expect(page.locator(".calendar-detail-task__main")).toBeVisible();
     await expect(page.getByRole("button", { name: /完了済み/ })).toHaveCount(0);
+  });
+
+  test("axis-locks month swipes and suppresses accidental grid opens", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/calendar");
+    const grid = page.locator(".calendar-month-grid");
+    const box = await grid.boundingBox();
+    if (!box) throw new Error("Calendar grid is not measurable.");
+    await page.mouse.move(box.x + 180, box.y + 180);
+    await page.mouse.down();
+    await page.mouse.move(box.x + 70, box.y + 180, { steps: 6 });
+    await page.mouse.up();
+    await expect(page.getByRole("heading", { name: "2026年9月" })).toBeVisible();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expectNoHorizontalScroll(page);
+  });
+
+  test("dismisses Date Sheet only after the downward swipe threshold and blocks the footer", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/calendar?date=2026-08-20");
+    const dialog = page.getByRole("dialog");
+    const box = await dialog.boundingBox();
+    if (!box) throw new Error("Calendar Date Sheet is not measurable.");
+    await page.mouse.move(box.x + 180, box.y + 24);
+    await page.mouse.down();
+    await page.mouse.move(box.x + 180, box.y + 80, { steps: 4 });
+    await page.mouse.up();
+    await expect(dialog).toBeVisible();
+
+    const footerBox = await page.locator(".bottom-nav__button").first().boundingBox();
+    if (!footerBox) throw new Error("Bottom Navigation is not measurable.");
+    const footerHit = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest(".calendar-date-layer")?.className ?? "", { x: footerBox.x + footerBox.width / 2, y: footerBox.y + footerBox.height / 2 });
+    expect(footerHit).toBe("calendar-date-layer");
+    await expect(page).toHaveURL(/\/calendar\?date=2026-08-20/);
+
+    await page.mouse.move(box.x + 180, box.y + 24);
+    await page.mouse.down();
+    await page.mouse.move(box.x + 180, box.y + 150, { steps: 6 });
+    await page.mouse.up();
+    await expect(page.getByRole("dialog")).toHaveCount(0, { timeout: 2_000 });
+    await expect(page.locator(".calendar-date-layer")).toHaveCount(0);
   });
 });

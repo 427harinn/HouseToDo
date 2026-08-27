@@ -120,6 +120,11 @@ test("M2 Home visual states and swipe actions at 390x844", async ({ page }) => {
   await expect(page.locator(".m2-home__task-title", { hasText: "期限超過の家事" })).toHaveCount(0);
   await expect(page.getByText("今日中の家事")).toBeVisible();
   await expect(page.getByText("買い物 2件")).toBeVisible();
+  const navBeforeScroll = await page.locator(".bottom-nav").boundingBox();
+  if (!navBeforeScroll) throw new Error("Bottom Navigation is not measurable.");
+  await page.locator(".app-shell__viewport").evaluate((element) => element.scrollTo({ top: 300 }));
+  await expect.poll(async () => (await page.locator(".bottom-nav").boundingBox())?.y ?? -1).toBe(navBeforeScroll.y);
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
   await neutralize(page);
   await screenshot(page, "01-home-normal-390x844.png");
   state.overdue = true;
@@ -159,6 +164,19 @@ test("M2 Home visual states and swipe actions at 390x844", async ({ page }) => {
   await expect(swipeRow.getByRole("button", { name: "パス" })).toBeVisible();
   await neutralize(page);
   await screenshot(page, "06-home-swipe-actions-390x844.png");
+
+  await expect(swipeRow).toHaveClass(/is-actions-open/);
+  await page.getByRole("button", { name: /完了済み 1/ }).click();
+  await page.locator(".m2-home__history-list .m2-home__row").first().waitFor();
+  const historyRow = page.locator(".m2-home__history-list .m2-home__row").first();
+  const historyBox = await historyRow.boundingBox();
+  expect(historyBox).not.toBeNull();
+  await page.mouse.move(historyBox!.x + 180, historyBox!.y + 30);
+  await page.mouse.down();
+  await page.mouse.move(historyBox!.x + 70, historyBox!.y + 30, { steps: 5 });
+  await page.mouse.up();
+  await expect(historyRow).toHaveClass(/is-actions-open/);
+  await expect(swipeRow).not.toHaveClass(/is-actions-open/);
 });
 
 test("M2 Task add/reuse/edit/delete evidence", async ({ page }) => {
@@ -167,6 +185,13 @@ test("M2 Task add/reuse/edit/delete evidence", async ({ page }) => {
   await page.goto("/tasks/new");
   await expect(page.getByRole("heading", { name: "家事を追加" })).toBeVisible();
   await expect(page.locator(".bottom-nav")).toHaveCount(0);
+  await expect(page.locator("input[type=\"date\"]")).toHaveCount(1);
+  await expect(page.locator("#m2-task-start-date")).toBeVisible();
+  await expect(page.locator("#m2-task-date")).toHaveCount(0);
+  await expect(page.locator("#m2-task-time")).toHaveCount(0);
+  await page.getByRole("checkbox", { name: "終日" }).click();
+  await expect(page.locator("#m2-task-time")).toBeVisible();
+  await expect(page.locator("#m2-task-date")).toHaveCount(0);
   await screenshot(page, "08-task-add-390x844.png");
   await page.locator(".m2-task-form__actions").scrollIntoViewIfNeeded();
   await page.waitForTimeout(240);

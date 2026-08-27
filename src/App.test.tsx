@@ -347,6 +347,22 @@ describe("App task form payload", () => {
     await waitFor(() => expect(patchPayloads).toHaveLength(1));
     expect(patchPayloads[0]).toMatchObject({ deadlineTime: null, notificationOffsetMinutes: null });
   }, 15000);
+
+  it("renders one canonical start date and only shows time when all-day is off", async () => {
+    mockFetch();
+    window.history.replaceState({}, "", "/tasks/new");
+    const { container } = render(<App />);
+    await waitFor(() => expect(screen.getByRole("checkbox", { name: "終日" })).toBeInTheDocument());
+    expect(container.querySelectorAll("input[type=\"date\"]")).toHaveLength(1);
+    expect(container.querySelector("#m2-task-start-date")).toBeInTheDocument();
+    expect(container.querySelector("#m2-task-date")).not.toBeInTheDocument();
+    expect(container.querySelector("#m2-task-time")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "終日" }));
+    await waitFor(() => expect(container.querySelector("#m2-task-time")).toBeInTheDocument());
+    expect(container.querySelectorAll("input[type=\"date\"]")).toHaveLength(1);
+    expect(container.querySelector("#m2-task-date")).not.toBeInTheDocument();
+  });
 });
 
 describe("M5 Other / Settings routes", () => {
@@ -652,6 +668,37 @@ describe("M2 Home", () => {
     fireEvent.click(await screen.findByRole("button", { name: /完了済み 1/ }));
     expect(screen.getByRole("button", { name: "戻す" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "編集" })).not.toBeInTheDocument();
+  });
+
+  it("keeps only one Home swipe row open at a time", async () => {
+    const secondTask = { ...task, id: "home-task-2", title: "床そうじ", overdue: false };
+    const dashboard = {
+      ...baseDashboard,
+      todayTasks: [task, secondTask],
+      homeTasks: [task, secondTask],
+      summary: { ...baseDashboard.summary, total: 2, pending: 2 },
+      completedRecords: [{ id: "record-1", taskId: "history-task", status: "completed", title: "洗濯", taskActive: true, actualCompleter: { userId: user.id, displayName: user.displayName, avatarUrl: null }, assignedUser: null }]
+    };
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.endsWith("/api/auth/me")) return Promise.resolve(ok({ user }));
+      if (url.endsWith("/api/households/current")) return Promise.resolve(ok({ household }));
+      if (url.endsWith("/api/households/current/image-usage")) return Promise.resolve(ok(imageUsage));
+      if (url.endsWith("/api/dashboard/today")) return Promise.resolve(ok(dashboard));
+      return Promise.resolve(failure("NOT_FOUND", 404));
+    });
+    window.history.replaceState({}, "", "/home");
+    const { container } = render(<App />);
+    await screen.findByRole("button", { name: "ゴミ出しを完了" });
+    const rows = () => Array.from(container.querySelectorAll<HTMLElement>(".m2-home__task-list .m2-home__row"));
+    const openWithActionButton = (row: HTMLElement) => {
+      fireEvent.click(row.querySelector<HTMLButtonElement>(".m2-home__more")!);
+    };
+    openWithActionButton(rows()[0]);
+    await waitFor(() => expect(rows()[0]).toHaveClass("is-actions-open"));
+    openWithActionButton(rows()[1]);
+    await waitFor(() => expect(rows()[1]).toHaveClass("is-actions-open"));
+    await waitFor(() => expect(rows()[0]).not.toHaveClass("is-actions-open"));
   });
 
   it("formats today, week, month, and dated time deadlines without merging date and time", async () => {
