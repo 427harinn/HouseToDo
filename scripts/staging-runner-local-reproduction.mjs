@@ -18,6 +18,28 @@ const waitForState = async (page, pathname, heading) => {
   await expect(page.locator(".loader")).toHaveCount(0);
 };
 
+async function createAuthenticatedRecordingPage(browser, storageState) {
+  const context = await browser.newContext({ baseURL: BASE, storageState, locale: "ja-JP", timezoneId: "Asia/Tokyo", viewport: { width: 390, height: 844 } });
+  const page = await context.newPage();
+  await page.goto(`${BASE}/home`, { waitUntil: "domcontentloaded" });
+  await expect.poll(() => new URL(page.url()).pathname, { timeout: 30_000 }).toBe("/home");
+  await expect(page.getByRole("heading", { name: "やること" })).toBeVisible();
+  await expect(page.locator(".loader")).toHaveCount(0);
+  await expect(page.getByRole("navigation", { name: "主要画面" })).toBeVisible();
+  return { context, page };
+}
+
+async function navigateBottom(page, label, pathname, heading) {
+  const navigation = page.getByRole("navigation", { name: "主要画面" });
+  await navigation.getByRole("button", { name: label, exact: true }).click();
+  await expect.poll(() => new URL(page.url()).pathname, { timeout: 30_000 }).toBe(pathname);
+  await expect(page.locator(".loader")).toHaveCount(0);
+  if (label === "カレンダー") await expect(page.getByRole("grid", { name: /カレンダー/ })).toBeVisible();
+  else await expect(page.getByRole("heading", { name: heading })).toBeVisible();
+  const overflow = await page.evaluate(() => globalThis.document.documentElement.scrollWidth > globalThis.document.documentElement.clientWidth + 1);
+  expect(overflow).toBeFalsy();
+}
+
 async function register(page, user, inviteCode = "") {
   await page.goto(`${BASE}/register`, { waitUntil: "domcontentloaded" });
   await page.locator("#register-name").fill(user.displayName);
@@ -91,6 +113,24 @@ async function runOne(browser, index) {
     expect(members).toHaveLength(2);
     expect(members.some((entry) => entry.displayName === owner.displayName)).toBeTruthy();
     expect(members.some((entry) => entry.displayName === member.displayName)).toBeTruthy();
+
+    const ownerState = await contextA.storageState();
+    const memberState = await contextB.storageState();
+    const recordingPages = await Promise.all([
+      createAuthenticatedRecordingPage(browser, ownerState),
+      createAuthenticatedRecordingPage(browser, memberState)
+    ]);
+    try {
+      for (const { page } of recordingPages) {
+        await navigateBottom(page, "ホーム", "/home", "やること");
+        await navigateBottom(page, "カレンダー", "/calendar", "カレンダー");
+        await navigateBottom(page, "買い物", "/shopping", "買い物");
+        await navigateBottom(page, "その他", "/other", "その他");
+        await navigateBottom(page, "ホーム", "/home", "やること");
+      }
+    } finally {
+      await Promise.all(recordingPages.map(({ context }) => context.close()));
+    }
 
     const task = await createAssignedTask(pageA, taskTitle, member.displayName);
     expect(task).toBeTruthy();

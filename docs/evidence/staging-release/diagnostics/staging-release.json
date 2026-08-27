@@ -1,62 +1,71 @@
 {
   "sourceSha": "28e341a1bfab70a18e00bb39386252b113a22361",
   "environment": "staging",
-  "migration": {
-    "before": 14,
-    "after": 17,
-    "pending": 0,
-    "recoveryBookmarkCaptured": true
-  },
+  "migration": { "before": 14, "after": 17, "pending": 0, "recoveryBookmarkCaptured": true },
   "deploy": {
     "previousVersion": "26a6fbf9-476e-4d36-9dfa-8ef07c07275c",
     "currentVersion": "6ee2b2d8-13a8-4ab0-a01c-740af3b4e78c",
-    "health": "PASS"
+    "health": "PASS",
+    "additionalDeploy": "NOT_RUN"
   },
-  "previousFixture": {
-    "status": "RETAINED",
-    "users": 4,
-    "households": 2
-  },
+  "previousFixture": { "status": "RETAINED", "users": 2, "households": 1 },
   "runnerDiagnosis": {
-    "classification": "RUNNER_LOCATOR_BUG",
-    "apiMemberPresent": true,
-    "dialogMemberPresent": true,
-    "oldLocator": "FAILED"
+    "classification": "RUNNER_RECORDING_CONTEXT_INITIALIZATION_BUG",
+    "recordingContextInitialNavigation": "FIXED",
+    "explicitHomeNavigation": "PASS",
+    "localReproduction": "3/3 PASS",
+    "taskAssignee": "PASS",
+    "calendarLocator": "PASS",
+    "redirectSettled": "PASS",
+    "productionRuntimeChanges": "NONE"
   },
   "authFixture": {
     "strategy": "synthetic-registration",
     "usersCreated": 2,
     "householdCreated": 1,
     "credentialsPersisted": false,
-    "fixtureRetained": true
+    "fixtureRetained": false,
+    "cleanup": "PASS"
   },
   "smoke": {
-    "home": "PASS",
-    "calendar": "PASS",
-    "shopping": "PASS",
-    "other": "PASS",
+    "home": "NOT_RUN",
+    "calendar": "NOT_RUN",
+    "shopping": "NOT_RUN",
+    "other": "NOT_RUN",
     "taskSnapshot": "NOT_RUN",
     "calendarActionDate": "NOT_RUN",
+    "shoppingSync": "NOT_RUN",
     "twoUser": "NOT_RUN",
-    "isolation": "PASS"
+    "isolation": "NOT_RUN",
+    "notificationSettings": "NOT_RUN"
   },
   "cleanup": {
-    "task": "NOT_RUN",
-    "shopping": "NOT_RUN",
-    "invite": "retained by dedicated fixture",
-    "usersHousehold": "retained"
+    "status": "PASS",
+    "recoveryBookmarkCaptured": true,
+    "expectedScope": { "users": 2, "households": 1, "members": 2, "tasks": 0, "taskRecords": 0, "shoppingItems": 0 },
+    "deletedRows": 8,
+    "users": "2 -> 0",
+    "households": "1 -> 0",
+    "members": "2 -> 0",
+    "sessions": "2 -> 0",
+    "invites": "1 -> 0",
+    "taskRows": "0 -> 0",
+    "shoppingRows": "0 -> 0"
   },
-  "browserSignals": {
-    "consoleErrors": 0,
-    "pageErrors": 0,
-    "requestFailures": 0,
-    "crossOriginRequests": 0
+  "criticalData": {
+    "tasksBefore": 62,
+    "tasksAfter": 62,
+    "taskRecordsBefore": 28,
+    "taskRecordsAfter": 28,
+    "shoppingItemsBefore": 28,
+    "shoppingItemsAfter": 28,
+    "shoppingTemplatesBefore": 3,
+    "shoppingTemplatesAfter": 3,
+    "preserved": true
   },
-  "production": {
-    "deploy": "NOT_RUN",
-    "migration": "NOT_RUN",
-    "dataAccess": "NONE",
-    "dataWrite": "NONE"
-  },
-  "verdict": "AUTHENTICATED_SMOKE_FAILED"
+  "browserSignals": { "consoleErrors": 0, "pageErrors": 0, "requestFailures": 0, "crossOriginRequests": 0 },
+  "remoteAccess": "RESTORED",
+  "operations": { "registration": "NOT_RUN_THIS_TURN", "migration": "NOT_RUN", "deploy": "NOT_RUN", "timeTravelRestore": "NOT_RUN" },
+  "production": { "deploy": "NOT_RUN", "migration": "NOT_RUN", "dataAccess": "NONE", "dataWrite": "NONE" },
+  "verdict": "READY_FOR_FINAL_SYNTHETIC_VALIDATION_RETRY"
 }

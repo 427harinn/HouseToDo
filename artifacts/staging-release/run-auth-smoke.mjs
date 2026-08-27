@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 import { mkdir, readdir, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-const BASE = "https://house-to-do-staging.427harinn.workers.dev";
+const BASE = process.env.STAGING_SMOKE_BASE_URL ?? "https://house-to-do-staging.427harinn.workers.dev";
 const ROOT = process.cwd();
 const VIDEO_DIR = path.join(ROOT, "artifacts/staging-release/raw-video");
 const REVIEW_DIR = path.join(ROOT, "docs/evidence/staging-release/review-upload");
@@ -29,7 +29,7 @@ const result = {
   previousFixture: { status: "RETAINED", users: 4, households: 2 },
   runnerDiagnosis: { taskAssignee: "NOT_RUN", apiMemberPresent: false, dialogMemberPresent: false, oldLocator: "FAILED" },
   authFixture: { strategy: "synthetic-registration", usersCreated: 0, householdCreated: 0, credentialsPersisted: false, fixtureRetained: false },
-  smoke: { home: "NOT_RUN", calendar: "NOT_RUN", shopping: "NOT_RUN", other: "NOT_RUN", taskSnapshot: "NOT_RUN", calendarActionDate: "NOT_RUN", twoUser: "NOT_RUN", isolation: "NOT_RUN" },
+  smoke: { home: "NOT_RUN", calendar: "NOT_RUN", shopping: "NOT_RUN", other: "NOT_RUN", taskSnapshot: "NOT_RUN", calendarActionDate: "NOT_RUN", shoppingSync: "NOT_RUN", twoUser: "NOT_RUN", isolation: "NOT_RUN", notificationSettings: "NOT_RUN" },
   cleanup: { task: "NOT_RUN", shopping: "NOT_RUN", invite: "retained by dedicated fixture", usersHousehold: "retained" },
   browserSignals: { consoleErrors: 0, pageErrors: 0, requestFailures: 0, crossOriginRequests: 0 },
   production: { deploy: "NOT_RUN", migration: "NOT_RUN", dataAccess: "NONE", dataWrite: "NONE" },
@@ -161,9 +161,22 @@ async function completeCalendarViaUi(page, title) {
   await cell.click();
   const dateSheet = page.getByRole("dialog");
   await visible(dateSheet, "calendar date sheet missing");
-  await visible(dateSheet.locator(".calendar-detail-task__main").filter({ hasText: title }), "calendar task missing");
-  await dateSheet.locator(".calendar-detail-task__main").filter({ hasText: title }).click();
+  const calendarTask = dateSheet.locator(".calendar-detail-task__main").filter({ hasText: title });
+  await expect(calendarTask).toHaveCount(1);
+  const completeResponse = page.waitForResponse((response) => response.url().includes(`/api/tasks/`) && response.url().endsWith("/complete") && response.request().method() === "POST");
+  await calendarTask.click();
+  await completeResponse;
   await settle(page);
+}
+
+async function navigateBottom(page, label, expectedHeading) {
+  const navigation = page.getByRole("navigation", { name: "主要画面" });
+  await navigation.getByRole("button", { name: label, exact: true }).click();
+  await expect.poll(() => new URL(page.url()).pathname, { timeout: 30_000 }).toBe({ "ホーム": "/home", "カレンダー": "/calendar", "買い物": "/shopping", "その他": "/other" }[label]);
+  await settle(page);
+  if (label === "カレンダー") await visible(page.getByRole("grid", { name: /カレンダー/ }), `${label} grid missing`);
+  else await visible(page.getByRole("heading", { name: expectedHeading }), `${label} heading missing`);
+  await noOverflow(page, label);
 }
 
 async function createShoppingViaUi(page) {
@@ -222,10 +235,20 @@ async function checkOther(page) {
   await noOverflow(page, "other");
 }
 
-async function captureVideo(state, filename, flow) {
-  const context = await browser.newContext({ storageState: state, viewport: { width: 390, height: 844 }, locale: "ja-JP", timezoneId: "Asia/Tokyo", recordVideo: { dir: VIDEO_DIR, size: { width: 390, height: 844 } } });
+async function createAuthenticatedRecordingPage(state, label) {
+  const context = await browser.newContext({ storageState: state, baseURL: BASE, viewport: { width: 390, height: 844 }, locale: "ja-JP", timezoneId: "Asia/Tokyo", recordVideo: { dir: VIDEO_DIR, size: { width: 390, height: 844 } } });
   const page = await context.newPage();
-  const attached = attachSignals(page, filename);
+  const attached = attachSignals(page, label);
+  await page.goto(`${BASE}/home`, { waitUntil: "domcontentloaded" });
+  await expect.poll(() => new URL(page.url()).pathname, { timeout: 30_000 }).toBe("/home");
+  await visible(page.getByRole("heading", { name: "やること" }), "recording home heading missing");
+  await expect(page.locator(".loader")).toHaveCount(0);
+  await visible(page.getByRole("navigation", { name: "主要画面" }), "recording bottom navigation missing");
+  return { context, page, signals: attached.signals };
+}
+
+async function captureVideo(state, filename, flow) {
+  const { context, page, signals } = await createAuthenticatedRecordingPage(state, filename);
   await flow(page);
   await page.waitForTimeout(800);
   const video = page.video();
@@ -233,7 +256,7 @@ async function captureVideo(state, filename, flow) {
   const source = video && await video.path();
   assert(source, `video missing: ${filename}`);
   await rename(source, path.join(REVIEW_DIR, filename));
-  return attached.signals;
+  return signals;
 }
 
 async function boardScreenshot(filename, title, lines) {
@@ -261,6 +284,7 @@ let calendarRecordId;
 let owner;
 let member;
 let memberDisplayName;
+let memberUserId;
 const videoSignals = [];
 
 try {
@@ -285,7 +309,9 @@ try {
   const members = (await apiGet(ownerPage, "/api/households/current/members")).members;
   assert(members.length === 2 && members.some((m) => m.displayName === credentials.owner.displayName) && members.some((m) => m.displayName === credentials.member.displayName), "dedicated household member contract failed");
   memberDisplayName = members.find((entry) => entry.displayName === credentials.member.displayName)?.displayName;
+  memberUserId = members.find((entry) => entry.displayName === credentials.member.displayName)?.userId;
   assert(memberDisplayName, "dedicated household member display name missing");
+  assert(memberUserId, "dedicated household member id missing");
   result.authFixture.usersCreated = 2; result.authFixture.householdCreated = 1; result.authFixture.fixtureRetained = true;
   result.smoke.isolation = "PASS";
   ownerState = await ownerSetup.storageState(); memberState = await memberSetup.storageState();
@@ -296,17 +322,21 @@ try {
   const ownerSignals = attachSignals(owner, "owner-smoke"); const memberSignals = attachSignals(member, "member-smoke");
 
   videoSignals.push(await captureVideo(ownerState, "staging-core-navigation.webm", async (page) => {
-    for (const [button, heading] of [["ホーム", "やること"], ["カレンダー", "カレンダー"], ["買い物", "買い物"], ["その他", "その他"]]) {
-      await page.goto(`${BASE}/${button === "ホーム" ? "home" : button === "カレンダー" ? "calendar" : button === "買い物" ? "shopping" : "other"}`, { waitUntil: "domcontentloaded" }); await settle(page);
-      if (button === "カレンダー") await visible(page.getByRole("grid", { name: /カレンダー/ }), `${button} grid missing`);
-      else await visible(page.getByRole("heading", { name: heading }), `${button} heading missing`);
-      await noOverflow(page, button);
+    for (const [button, heading] of [["ホーム", "やること"], ["カレンダー", "カレンダー"], ["買い物", "買い物"], ["その他", "その他"], ["ホーム", "やること"]]) {
+      await navigateBottom(page, button, heading);
       result.smoke[{ "ホーム": "home", "カレンダー": "calendar", "買い物": "shopping", "その他": "other" }[button]] = "PASS";
     }
   }));
   await checkOther(owner); result.smoke.other = "PASS";
   const notification = await apiGet(owner, "/api/notifications/settings");
   assert(notification.morningSummaryEnabled === false && notification.morningSummaryTime === "09:00", "0015 notification default contract failed");
+  await apiMutate(owner, "PATCH", "/api/notifications/settings", { morningSummaryEnabled: true, morningSummaryTime: "08:15" });
+  const changedNotification = await apiGet(owner, "/api/notifications/settings");
+  assert(changedNotification.morningSummaryEnabled === true && changedNotification.morningSummaryTime === "08:15", "notification temporary change failed");
+  await apiMutate(owner, "PATCH", "/api/notifications/settings", { morningSummaryEnabled: false, morningSummaryTime: "09:00" });
+  const restoredNotification = await apiGet(owner, "/api/notifications/settings");
+  assert(restoredNotification.morningSummaryEnabled === false && restoredNotification.morningSummaryTime === "09:00", "notification restore failed");
+  result.smoke.notificationSettings = "PASS";
 
   videoSignals.push(await captureVideo(ownerState, "staging-task-calendar.webm", async (page) => {
     await createTaskViaUi(page, taskTitle, memberDisplayName);
@@ -315,7 +345,7 @@ try {
     await owner.reload(); await settle(owner);
     await owner.getByRole("button", { name: /完了済み/ }).click(); await visible(owner.getByText(taskTitle), "completed task history missing"); await visible(owner.getByText(memberDisplayName, { exact: true }), "completed actor missing");
     const history = (await apiGet(owner, `/api/tasks/${taskId}/history`)).records; const record = history.find((entry) => entry.status === "completed");
-    assert(record?.taskTitleSnapshot === taskTitle && record.assignedUserDisplayNameSnapshot === memberDisplayName, "0016 snapshot contract failed"); taskRecordId = record.id; result.smoke.taskSnapshot = "PASS";
+    assert(record?.taskTitleSnapshot === taskTitle && record.assignedUserIdSnapshot === memberUserId && record.assignedUserDisplayNameSnapshot === memberDisplayName, "0016 snapshot contract failed"); taskRecordId = record.id; result.smoke.taskSnapshot = "PASS";
     await apiMutate(owner, "POST", `/api/tasks/${taskId}/restore`, { recordId: taskRecordId }); await member.reload(); await settle(member); await visible(member.getByText(taskTitle), "restored active task missing");
     await createCalendarTaskViaUi(page, calendarTitle); const calendarTask = await findTask(page, calendarTitle); calendarTaskId = calendarTask.id;
     await completeCalendarViaUi(page, calendarTitle);
@@ -331,6 +361,7 @@ try {
     await page.goto(`${BASE}/shopping/new`, { waitUntil: "domcontentloaded" }); await settle(page); await page.getByRole("button", { name: "以前の項目から選ぶ" }).click(); await visible(page.getByRole("button", { name: shoppingName, exact: true }), "shopping recent candidate missing"); await page.getByRole("button", { name: shoppingName, exact: true }).click(); await assert(page.getByLabel("商品名").getAttribute("value") === shoppingName, "shopping reuse did not populate form");
   }));
   result.smoke.shopping = "PASS";
+  result.smoke.shoppingSync = "PASS";
 
   videoSignals.push(await captureVideo(ownerState, "staging-two-user.webm", async (page) => {
     await page.goto(`${BASE}/other/members`, { waitUntil: "domcontentloaded" }); await settle(page); await visible(page.getByRole("heading", { name: "メンバー" }), "members heading missing"); await visible(page.getByText(credentials.owner.displayName, { exact: true }), "owner fixture member missing"); await visible(page.getByText(memberDisplayName, { exact: true }), "member fixture member missing");

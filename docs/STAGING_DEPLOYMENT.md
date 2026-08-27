@@ -91,6 +91,16 @@
 
 > stagingへの安全な確認・デプロイ手順です。productionのresource、secret、migration、deployは対象外で、明示承認なしに操作しません。
 
+## 2026-08-27 Recording context recovery / retained fixture cleanup
+
+- Authenticated validation attempt は、録画用context作成後の初期遷移不足により停止した。診断は `RUNNER_RECORDING_CONTEXT_INITIALIZATION_BUG`。recording context helperにstaging `/home`への明示遷移、auth/household bootstrap settled、Home heading、loader消失、Bottom Navigation確認を追加した。production runtime変更はない。
+- local Worker/D1でA/Bのin-memory storageStateを新しいrecording contextへ渡し、両contextの `/home` 初期遷移と Home → Calendar → Shopping → Other → Home を3/3 PASS。Task assignee、Calendar semantic locator、redirect settledもPASS。
+- Docker app serviceのWrangler OAuth read accessを復旧し、staging D1 read-only確認は `house-to-do-staging`、migration 17/17 / pending 0、health `db: true` / `r2: true`。
+- retained failed synthetic fixtureのみを、read-only scope再解決・fresh Time Travel recovery bookmark取得・fixed-ID SQL preflight後にtargeted cleanupした。users 2 → 0、households 1 → 0、members 2 → 0、sessions 2 → 0、invites 1 → 0、実削除8行。Task/TaskRecord/Shopping fixtureは作成されておらず、既存critical rowsは tasks 62、task_records 28、shopping_items 28、shopping_templates 3 のまま保持された。
+- Task/Shopping fixtureはNOT CREATED。credentials、ID、invite code、bookmark本体は保存・記録していない。今回のcleanup後にsynthetic fixtureは0 users / 0 households。
+- Worker `6ee2b2d8-13a8-4ab0-a01c-740af3b4e78c` はunchanged。migration、deploy、registrationは今回実行していない。Cron、R2、secrets、productionはNOT TOUCHED。
+- Verdict: `READY_FOR_FINAL_SYNTHETIC_VALIDATION_RETRY`。次工程の承認までは新規registration、authenticated smoke、cleanup retryを実行しない。
+
 ## 現在の構成
 
 | 項目 | staging |
