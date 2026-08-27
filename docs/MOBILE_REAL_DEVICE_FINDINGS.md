@@ -16,6 +16,7 @@ This note records the iPhone findings that motivated the mobile interaction fixe
 Playwright can cover the gesture and layout contracts, but it cannot fully reproduce iOS keyboard zoom. Verify on a real iPhone before staging validation:
 
 - [ ] Focusing a text input does not zoom the page.
+- [ ] Button text remains at its intended visual size and is not globally enlarged.
 - [ ] The focused input remains visible while the keyboard is open.
 - [ ] Bottom Navigation does not move vertically while scrolling or opening the keyboard.
 - [ ] The page cannot scroll sideways.
