@@ -2076,10 +2076,12 @@ function ShoppingM4Row({
   };
   const purchaserName = item.purchasedBy?.displayName ?? memberName(members, item.purchasedBy?.userId) ?? "メンバー";
   const imageSrc = item.image ? getShoppingItemImageUrl(item.id, item.image.updatedAt) : null;
+  const canExpand = !purchased || Boolean(item.note || imageSrc);
+  const isExpanded = canExpand && expanded;
   return (
-    <article className={`shopping-m4__row${expanded ? " is-expanded" : ""}${actionsOpen ? " is-actions-open" : ""}${dragging ? " is-dragging" : ""}${dragOver ? " is-drag-over" : ""}${swiping ? " is-swiping" : ""}`} data-shopping-m4-id={item.id} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={(event) => { clearLongPress(); globalDragCleanup.current?.(); globalDragCleanup.current = null; if (capturedPointerId.current !== null && event.currentTarget.hasPointerCapture?.(capturedPointerId.current)) event.currentTarget.releasePointerCapture(capturedPointerId.current); capturedPointerId.current = null; capturedRow.current = null; start.current = null; if (dragStarted.current) onDragEnd(); dragStarted.current = false; setSwiping(false); }} onClickCapture={handleClickCapture}>
+    <article className={`shopping-m4__row${isExpanded ? " is-expanded" : ""}${actionsOpen ? " is-actions-open" : ""}${dragging ? " is-dragging" : ""}${dragOver ? " is-drag-over" : ""}${swiping ? " is-swiping" : ""}`} data-shopping-m4-id={item.id} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={(event) => { clearLongPress(); globalDragCleanup.current?.(); globalDragCleanup.current = null; if (capturedPointerId.current !== null && event.currentTarget.hasPointerCapture?.(capturedPointerId.current)) event.currentTarget.releasePointerCapture(capturedPointerId.current); capturedPointerId.current = null; capturedRow.current = null; start.current = null; if (dragStarted.current) onDragEnd(); dragStarted.current = false; setSwiping(false); }} onClickCapture={handleClickCapture}>
       <div className="shopping-m4__row-content" style={{ "--shopping-m4-swipe": `${swipeOffset}px` } as CSSProperties}>
-        <button type="button" className="shopping-m4__row-main" aria-expanded={expanded} onClick={onToggle}>
+        <button type="button" className="shopping-m4__row-main" aria-expanded={isExpanded} onClick={canExpand ? onToggle : undefined}>
           <span className="shopping-m4__row-details">
             <span className="shopping-m4__name">{item.name}</span>
             {purchased ? <span className="shopping-m4__purchase-meta">{item.purchasedAt ? shoppingPurchaseDateTime(item.purchasedAt, timezone) : "購入済み"}</span> : item.plannedPurchaseDate ? <span className="shopping-m4__planned">{formatShoppingPlannedDate(item.plannedPurchaseDate)}予定</span> : null}
@@ -2091,7 +2093,7 @@ function ShoppingM4Row({
         </button>
       </div>
       {actionsOpen ? <div className="shopping-m4__actions" aria-label={`${item.name}の操作メニュー`}><button type="button" onPointerDown={(event) => event.stopPropagation()} onClick={purchased ? onRestore : onEdit}>{purchased ? "戻す" : "編集"}</button></div> : null}
-      {expanded ? <div className="shopping-m4__expanded">
+      {isExpanded ? <div className="shopping-m4__expanded">
         {!purchased ? <button type="button" className="shopping-m4__primary" disabled={busy} onClick={onPurchase}>{busy ? "購入中…" : "購入"}</button> : null}
         {item.note ? <div className="shopping-m4__detail"><span>メモ</span><p>{item.note}</p></div> : null}
         {imageSrc ? <div className="shopping-m4__detail"><span>写真</span><img src={imageSrc} alt={`${item.name}の写真`} onError={(event) => { event.currentTarget.hidden = true; }} /></div> : null}

@@ -99,6 +99,7 @@ test.describe("shopping UI M4", () => {
     const purchasedRow = pageA.locator("[data-shopping-m4-id]").filter({ hasText: `牛乳 ${id}` });
     await purchasedRow.getByRole("button", { name: /牛乳/ }).click();
     await expect(purchasedRow.getByRole("button", { name: "戻す" })).toHaveCount(0);
+    await expect(purchasedRow.locator(".shopping-m4__detail")).toContainText("低脂肪ではないもの");
     await expect(purchasedRow.locator(`[aria-label="購入者: ${userA.name}"]`)).toBeVisible();
     await pointerSwipeLeft(pageA, purchasedRow);
     await expect(purchasedRow.getByRole("button", { name: "戻す" })).toBeVisible();

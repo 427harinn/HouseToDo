@@ -45,7 +45,7 @@ test("purchased Shopping restore is swipe-only and exclusive across sections", a
     purchasedAt: "2026-08-24T01:32:00Z"
   };
   let purchasedVisible = true;
-  await page.route("**/api/**", async (route) => {
+  await page.route((url) => new URL(url).pathname.startsWith("/api/"), async (route) => {
     const url = new URL(route.request().url());
     const method = route.request().method();
     if (url.pathname === "/api/auth/me") return route.fulfill(ok({ user: { id: "user-1", email: "e2e@example.test", displayName: "はる" } }));
@@ -67,7 +67,12 @@ test("purchased Shopping restore is swipe-only and exclusive across sections", a
 
   const purchasedRow = page.locator('[data-shopping-m4-id="purchased-1"]');
   const pendingRow = page.locator('[data-shopping-m4-id="pending-1"]');
+  const heightBeforeTap = (await purchasedRow.boundingBox())?.height;
   await purchasedRow.locator(".shopping-m4__row-main").click();
+  await expect(purchasedRow.locator(".shopping-m4__row-main")).toHaveAttribute("aria-expanded", "false");
+  await expect(purchasedRow.locator(".shopping-m4__expanded")).toHaveCount(0);
+  const heightAfterTap = (await purchasedRow.boundingBox())?.height;
+  expect(heightAfterTap).toBe(heightBeforeTap);
   await expect(purchasedRow.getByRole("button", { name: "戻す", exact: true })).toHaveCount(0);
 
   await swipe(page, purchasedRow, 0.8, 0.35);
