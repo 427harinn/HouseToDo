@@ -1,6 +1,6 @@
 -- Extend shopping item image metadata to support the actual JPEG fallback
 -- emitted by browsers whose canvas cannot encode WebP.
-PRAGMA foreign_keys = OFF;
+PRAGMA defer_foreign_keys = ON;
 
 CREATE TABLE shopping_item_images_new (
   id TEXT PRIMARY KEY,
@@ -50,4 +50,4 @@ ALTER TABLE shopping_item_images_new RENAME TO shopping_item_images;
 CREATE INDEX idx_shopping_item_images_household ON shopping_item_images(household_id);
 CREATE INDEX idx_shopping_item_images_item ON shopping_item_images(shopping_item_id);
 
-PRAGMA foreign_keys = ON;
+PRAGMA defer_foreign_keys = OFF;

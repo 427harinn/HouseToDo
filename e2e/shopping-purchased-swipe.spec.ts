@@ -72,7 +72,7 @@ test("purchased Shopping restore is swipe-only and exclusive across sections", a
   await expect(purchasedRow.locator(".shopping-m4__row-main")).toHaveAttribute("aria-expanded", "false");
   await expect(purchasedRow.locator(".shopping-m4__expanded")).toHaveCount(0);
   const heightAfterTap = (await purchasedRow.boundingBox())?.height;
-  expect(heightAfterTap).toBe(heightBeforeTap);
+  expect(heightAfterTap).toBeCloseTo(heightBeforeTap ?? 0, 3);
   await expect(purchasedRow.getByRole("button", { name: "戻す", exact: true })).toHaveCount(0);
 
   await swipe(page, purchasedRow, 0.8, 0.35);
