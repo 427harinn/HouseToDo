@@ -1008,6 +1008,60 @@ describe("redesigned task model API", () => {
   });
 });
 
+describe("lean Home API", () => {
+  it("returns the Home contract, preserves history/member data, and isolates households", async () => {
+    const app = createApp();
+    const db = new MemoryD1();
+    const env = createTestEnv(db);
+    const owner = await registerUser(env, { email: "lean-home-owner@example.com", password: "very-long-password", displayName: "Lean Owner" });
+    const other = await registerUser(env, { email: "lean-home-other@example.com", password: "very-long-password", displayName: "Other Owner" });
+    await app.fetch(postJson("/api/households", { name: "Lean Home" }, owner.cookie), env);
+    await app.fetch(postJson("/api/households", { name: "Other Home" }, other.cookie), env);
+    const ownerId = Array.from(db.users.values()).find((user) => user.email === "lean-home-owner@example.com")?.id;
+    if (!ownerId) throw new Error("owner was not created");
+    const today = getLocalDate(new Date(), "Asia/Tokyo");
+    const createTask = async (title: string) => {
+      const response = await app.fetch(postJson("/api/tasks", {
+        title,
+        modelRecurrenceType: "daily",
+        assignmentType: "specific",
+        assignedUserId: ownerId,
+        startDate: today,
+        notificationSlot: "none"
+      }, owner.cookie), env);
+      const body: { data: { task: { id: string } } } = await response.json();
+      return body.data.task.id;
+    };
+    const completedTaskId = await createTask("Lean completed");
+    const passedTaskId = await createTask("Lean passed");
+    await app.fetch(postJson("/api/tasks/" + completedTaskId + "/complete", { targetDate: today }, owner.cookie), env);
+    await app.fetch(postJson("/api/tasks/" + passedTaskId + "/skip", { targetDate: today }, owner.cookie), env);
+    await app.fetch(postJson("/api/shopping/items", { name: "Lean shopping" }, owner.cookie), env);
+
+    const response = await app.fetch(new Request(`https://example.test/api/home/today?date=${today}`, { headers: { cookie: owner.cookie } }), env);
+    expect(response.status).toBe(200);
+    const body: { data: { date: string; homeTasks: unknown[]; completedRecords: unknown[]; passedRecords: unknown[]; shopping: Record<string, unknown>; members: unknown[] } } = await response.json();
+    expect(body.data).toMatchObject({
+      date: today,
+      shopping: { pendingCount: 1 },
+      members: [{ userId: ownerId, displayName: "Lean Owner", role: "owner" }]
+    });
+    expect(body.data.homeTasks).toEqual([]);
+    expect(body.data.completedRecords).toEqual(expect.arrayContaining([expect.objectContaining({ title: "Lean completed", taskActive: true })]));
+    expect(body.data.passedRecords).toEqual(expect.arrayContaining([expect.objectContaining({ title: "Lean passed", taskActive: true })]));
+    expect(body.data).not.toHaveProperty("todayTasks");
+    expect(body.data).not.toHaveProperty("weeklyTasks");
+    expect(body.data).not.toHaveProperty("summary");
+    expect(body.data.shopping).not.toHaveProperty("previewItems");
+
+    const otherHome = await app.fetch(new Request(`https://example.test/api/home/today?date=${today}`, { headers: { cookie: other.cookie } }), env);
+    const otherBody: unknown = await otherHome.json();
+    const otherPayload = otherBody as { data?: { completedRecords?: Array<{ title?: string }> } };
+    expect(otherPayload.data?.completedRecords?.some((record) => record.title === "Lean completed")).toBe(false);
+    await expect(app.fetch(new Request("https://example.test/api/home/today"), env)).resolves.toMatchObject({ status: 401 });
+  });
+});
+
 describe("worker app shopping API", () => {
   it("shares shopping items, preserves purchaser, clears purchased, and uses templates", async () => {
     const app = createApp();

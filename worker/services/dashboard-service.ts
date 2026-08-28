@@ -1,50 +1,8 @@
 import { HouseholdMemberRepository } from "../repositories/household-member-repository";
 import { ShoppingItemRepository } from "../repositories/shopping-item-repository";
 import { HouseholdService } from "./household-service";
-import { TaskService, type HomeHistoryRecord } from "./task-service";
-import type { HouseholdMemberProfile } from "../types/domain";
-
-const memberAvatarUrl = (member: HouseholdMemberProfile | undefined): string | null =>
-  member?.avatar
-    ? `/api/users/${encodeURIComponent(member.userId)}/avatar?v=${encodeURIComponent(member.avatarUpdatedAt ?? "")}`
-    : null;
-
-const homeRecordResponse = (entry: HomeHistoryRecord, members: HouseholdMemberProfile[]) => {
-  const record = entry.record;
-  const task = entry.task;
-  const byId = new Map(members.map((member) => [member.userId, member]));
-  const assignedUserId = record.assignedUserIdSnapshot ?? task?.assignedUserId ?? null;
-  const assignedMember = assignedUserId ? byId.get(assignedUserId) : undefined;
-  const completer = byId.get(record.actedBy);
-  return {
-    id: record.id,
-    taskId: record.taskId,
-    targetDate: record.targetDate,
-    targetWeekStart: record.targetWeekStart,
-    occurrenceKey: record.occurrenceKey,
-    periodKey: record.periodKey,
-    status: record.status,
-    title: record.taskTitleSnapshot ?? task?.title ?? "家事",
-    taskActive: entry.taskActive,
-    actualCompleter: {
-      userId: record.actedBy,
-      displayName: record.actedByDisplayName,
-      avatarUrl: memberAvatarUrl(completer)
-    },
-    assignedUser: assignedUserId
-      ? {
-          userId: assignedUserId,
-          displayName: record.assignedUserDisplayNameSnapshot ?? assignedMember?.displayName ?? null,
-          color: record.assignedUserColorSnapshot ?? assignedMember?.color ?? null,
-          avatarUrl: record.assignedUserAvatarUrlSnapshot ?? memberAvatarUrl(assignedMember)
-        }
-      : null,
-    completedAt: record.completedAt,
-    skippedAt: record.skippedAt,
-    createdAt: record.createdAt,
-    updatedAt: record.updatedAt
-  };
-};
+import { TaskService } from "./task-service";
+import { homeRecordResponse } from "./home-service";
 
 export class DashboardService {
   private readonly households: HouseholdService;

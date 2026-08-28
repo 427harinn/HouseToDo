@@ -134,7 +134,8 @@ const endpointOptions = { cookie: cookieHeader };
 const api = {
   authMe: await measured("/api/auth/me", endpointOptions),
   household: await measured("/api/households/current", endpointOptions),
-  dashboard: await measured("/api/dashboard/today", endpointOptions)
+  dashboard: await measured("/api/dashboard/today", endpointOptions),
+  home: await measured("/api/home/today", endpointOptions)
 };
 
 const canonicalWeeklyFlexibleSeeded = weeklySeeded.filter((task) => task.modelRecurrenceType === "weekly_flexible").length;
@@ -144,10 +145,11 @@ if (canonicalWeeklyFlexibleSeeded !== 3 || legacyWeeklyAmongSeeded !== 0) {
 }
 
 const freshDashboard = await request("/api/dashboard/today", endpointOptions);
+const freshHome = await request("/api/home/today", endpointOptions);
 
 const completeSamples = [];
-const postCompleteDashboardSamples = [];
-let lastDashboard;
+const postCompleteHomeSamples = [];
+let lastHome;
 for (const taskId of activeTaskIds.slice(0, 10)) {
   const complete = await request(`/api/tasks/${taskId}/complete`, {
     method: "POST",
@@ -155,18 +157,23 @@ for (const taskId of activeTaskIds.slice(0, 10)) {
     body: {}
   });
   completeSamples.push(complete.durationMs);
-  const refreshed = await request("/api/dashboard/today", endpointOptions);
-  postCompleteDashboardSamples.push(refreshed.durationMs);
-  lastDashboard = refreshed;
+  const refreshed = await request("/api/home/today", endpointOptions);
+  postCompleteHomeSamples.push(refreshed.durationMs);
+  lastHome = refreshed;
 }
 api.completePost = summary(completeSamples);
-api.postCompleteDashboard = summary(postCompleteDashboardSamples);
+api.postCompleteHome = summary(postCompleteHomeSamples);
 
-const dashboardData = lastDashboard?.data ?? (await request("/api/dashboard/today", endpointOptions)).data;
-const freshDashboardData = freshDashboard.data;
-const sectionBytes = {};
+const dashboardData = freshDashboard.data;
+const homeData = freshHome.data;
+const postHomeData = lastHome?.data ?? (await request("/api/home/today", endpointOptions)).data;
+const dashboardSectionBytes = {};
 for (const key of ["homeTasks", "todayTasks", "weeklyTasks", "completedRecords", "passedRecords", "shopping", "members"]) {
-  sectionBytes[key] = Buffer.byteLength(JSON.stringify(dashboardData[key]));
+  dashboardSectionBytes[key] = Buffer.byteLength(JSON.stringify(dashboardData[key]));
+}
+const homeSectionBytes = {};
+for (const key of ["homeTasks", "completedRecords", "passedRecords", "shopping", "members"]) {
+  homeSectionBytes[key] = Buffer.byteLength(JSON.stringify(homeData[key]));
 }
 
 console.log(JSON.stringify({
@@ -178,10 +185,11 @@ console.log(JSON.stringify({
   weeklySeedVerification: { canonicalWeeklyFlexibleSeeded, legacyWeeklyAmongSeeded },
   api,
   freshDashboardResponseBytes: freshDashboard.rawBytes,
-  postCompletionDashboardResponseBytes: lastDashboard?.rawBytes ?? null,
-  dashboardResponseBytes: lastDashboard?.rawBytes ?? null,
-  freshDashboardSectionBytes: Object.fromEntries(Object.keys(sectionBytes).map((key) => [key, Buffer.byteLength(JSON.stringify(freshDashboardData[key]))])),
-  dashboardSectionBytes: sectionBytes,
-  completedRows: dashboardData.completedRecords?.length ?? null,
-  activeRows: dashboardData.homeTasks?.length ?? null
+  dashboardSectionBytes,
+  freshHomeResponseBytes: freshHome.rawBytes,
+  homeSectionBytes,
+  postCompletionHomeResponseBytes: lastHome?.rawBytes ?? null,
+  postCompletionHomeSectionBytes: Object.fromEntries(Object.keys(homeSectionBytes).map((key) => [key, Buffer.byteLength(JSON.stringify(postHomeData[key]))])),
+  homeCompletedRows: postHomeData.completedRecords?.length ?? null,
+  homeActiveRows: postHomeData.homeTasks?.length ?? null
 }, null, 2));

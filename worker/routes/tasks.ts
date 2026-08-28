@@ -99,7 +99,7 @@ const recordResponse = (record: TaskRecord) => ({
 });
 
 
-const taskWithStatusResponse = (task: Awaited<ReturnType<TaskService["listToday"]>>["tasks"][number]) => ({
+export const taskWithStatusResponse = (task: Awaited<ReturnType<TaskService["listToday"]>>["tasks"][number]) => ({
   ...taskResponse(task),
   status: task.status,
   actedBy: task.actedBy,

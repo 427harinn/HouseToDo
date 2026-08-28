@@ -37,16 +37,12 @@ const historyRecord = (id: string, taskId: string, status: "completed" | "skippe
   assignedUser: { userId: "user-2", displayName: "たくや", color: "#e4eef8", avatarUrl: null }
 });
 
-const dashboard = (state: HomeState) => ({
+const homeData = (state: HomeState) => ({
   date: today,
-  household: { id: "household-1", name: "わが家", timezone: "Asia/Tokyo" },
-  summary: { total: (state.empty ? 0 : homeTasks(state).length) + (state.completed ? 1 : 0) + (state.passed ? 1 : 0), pending: state.empty ? 0 : homeTasks(state).length, inProgress: 0, completed: state.completed ? 1 : 0, skipped: state.passed ? 1 : 0 },
-  todayTasks: state.empty ? [] : homeTasks(state),
   homeTasks: state.empty ? [] : homeTasks(state),
-  weeklyTasks: [],
   completedRecords: state.completed ? [historyRecord("record-completed", state.completedTaskId ?? "m2-task-1", "completed", state.completedTitle ?? "ゴミ出し", state.deleted)] : [],
   passedRecords: state.passed ? [historyRecord("record-passed", state.passedTaskId ?? "m2-task-1", "skipped", state.passedTitle ?? "窓ふき", false)] : [],
-  shopping: { pendingCount: 2, previewItems: [] },
+  shopping: { pendingCount: 2 },
   members: [{ userId: "user-1", displayName: "さや", role: "owner", color: "#d9f2eb", avatarUrl: null }, { userId: "user-2", displayName: "たくや", role: "member", color: "#e4eef8", avatarUrl: null }]
 });
 
@@ -73,9 +69,9 @@ const installRoutes = async (page: Page, state: HomeState) => {
     if (!url.pathname.startsWith("/api/")) return route.continue();
     if (url.pathname === "/api/auth/me") return json({ user: { id: "user-1", email: "e2e@example.test", displayName: "さや" } });
     if (url.pathname === "/api/households/current") return json({ household: { id: "household-1", name: "わが家", timezone: "Asia/Tokyo", weekStartsOn: 1, role: "owner" } });
-    if (url.pathname === "/api/households/current/members") return json({ members: dashboard(state).members });
+    if (url.pathname === "/api/households/current/members") return json({ members: homeData(state).members });
     if (url.pathname === "/api/households/current/image-usage") return json({ activeCount: 0, activeBytes: 0, reservedCount: 0, reservedBytes: 0, pendingCleanupBytes: 0, pendingCleanupUnknownCount: 0, storedBytes: 0, storedBytesKnown: true, activeCountLimit: 50, activeBytesLimit: 52428800, storedBytesLimit: 78643200, dailyUploadLimit: 20 });
-    if (url.pathname === "/api/dashboard/today") return json(dashboard(state));
+    if (url.pathname === "/api/home/today") return json(homeData(state));
     const actionMatch = url.pathname.match(/^\/api\/tasks\/([^/]+)\/(complete|skip|restore)$/);
     if (actionMatch && request.method() === "POST") {
       const [, actionTaskId, action] = actionMatch;

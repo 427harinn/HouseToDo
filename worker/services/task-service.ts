@@ -210,6 +210,15 @@ export class TaskService {
     passed: HomeHistoryRecord[];
   }> {
     const household = await this.households.requireCurrentHousehold(userId);
+    return this.listHomeForHousehold(household, date);
+  }
+
+  async listHomeForHousehold(household: HouseholdWithRole, date?: string | null): Promise<{
+    date: string;
+    tasks: TaskWithStatus[];
+    completed: HomeHistoryRecord[];
+    passed: HomeHistoryRecord[];
+  }> {
     const targetDate = date ?? getLocalDate(new Date(), household.timezone);
     const allTasks = await this.tasks.listByHouseholdId(household.id, { includeInactive: true });
     const activeTasks = allTasks.filter((task) => task.active);
