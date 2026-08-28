@@ -6,7 +6,7 @@ export type ProcessedImage = {
   blob: Blob;
   width: number;
   height: number;
-  contentType: "image/webp";
+  contentType: "image/webp" | "image/jpeg";
   size: number;
 };
 
@@ -34,9 +34,17 @@ const loadBitmap = async (file: File): Promise<ImageBitmap | HTMLImageElement> =
   }
 };
 
-const canvasBlob = (canvas: HTMLCanvasElement, quality: number): Promise<Blob> => new Promise((resolve, reject) => {
-  canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("webp-conversion-failed")), "image/webp", quality);
+const canvasBlob = (canvas: HTMLCanvasElement, type: "image/webp" | "image/jpeg", quality: number): Promise<Blob> => new Promise((resolve, reject) => {
+  canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("image-conversion-failed")), type, quality);
 });
+
+const encodeCanvas = async (canvas: HTMLCanvasElement, quality: number): Promise<Blob> => {
+  const webp = await canvasBlob(canvas, "image/webp", quality);
+  if (webp.type.toLowerCase() === "image/webp") return webp;
+  const jpeg = await canvasBlob(canvas, "image/jpeg", quality);
+  if (jpeg.type.toLowerCase() !== "image/jpeg") throw new Error("image-conversion-failed");
+  return jpeg;
+};
 
 export async function processShoppingImage(file: File): Promise<ProcessedImage> {
   if (!supportedTypes.has(file.type.toLowerCase())) throw new Error("unsupported-image-type");
@@ -53,13 +61,15 @@ export async function processShoppingImage(file: File): Promise<ProcessedImage> 
     canvas.width = width;
     canvas.height = height;
     const context = canvas.getContext("2d");
-    if (!context) throw new Error("webp-conversion-failed");
+    if (!context) throw new Error("image-conversion-failed");
     context.drawImage(bitmap, 0, 0, width, height);
     const quality = attempt === 0 ? 0.82 : attempt === 1 ? 0.72 : 0.62;
-    const blob = await canvasBlob(canvas, quality);
+    const blob = await encodeCanvas(canvas, quality);
     if (blob.size <= MAX_PROCESSED_IMAGE_BYTES) {
       if ("close" in bitmap && typeof bitmap.close === "function") bitmap.close();
-      return { blob, width, height, contentType: "image/webp", size: blob.size };
+      const contentType = blob.type.toLowerCase();
+      if (contentType !== "image/webp" && contentType !== "image/jpeg") throw new Error("image-conversion-failed");
+      return { blob, width, height, contentType, size: blob.size };
     }
     if (attempt >= 2) scale *= 0.8;
   }

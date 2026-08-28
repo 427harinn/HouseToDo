@@ -1,7 +1,7 @@
 import { FormEvent, useCallback, useEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
 import type { ChangeEvent } from "react";
 import type { ReactNode } from "react";
-import { Check, ChevronLeft, ChevronRight, Ellipsis, House, Image as ImageIcon, MessageCircle, ShoppingCart, Undo2, X } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Ellipsis, House, Image as ImageIcon, MessageCircle, ShoppingCart, X } from "lucide-react";
 import { login, logout, me, register } from "./api/auth";
 import { ApiError, apiMessage } from "./api/client";
 import { getDashboardToday, type DashboardToday } from "./api/dashboard";
@@ -919,6 +919,17 @@ function CalendarScreen({ household, onNavigate }: { household: Household; user:
     catch (error) { if (!(error instanceof DOMException && error.name === "AbortError")) setMessage(apiErrorMessage(error)); }
     finally { if (!signal?.aborted) setLoading(false); }
   }, [gridStart, gridEnd, requestedDate]);
+  useEffect(() => {
+    document.documentElement.classList.add("calendar-view-locked");
+    document.body.classList.add("calendar-view-locked");
+    const viewport = document.querySelector<HTMLElement>(".app-shell__viewport");
+    viewport?.classList.add("calendar-view-locked");
+    return () => {
+      document.documentElement.classList.remove("calendar-view-locked");
+      document.body.classList.remove("calendar-view-locked");
+      viewport?.classList.remove("calendar-view-locked");
+    };
+  }, []);
   useEffect(() => { const controller = new AbortController(); void refresh(controller.signal); return () => controller.abort(); }, [refresh]);
   const moveMonth = (amount: number) => {
     const next = new Date(`${visibleMonth}T00:00:00Z`);
@@ -952,6 +963,8 @@ function CalendarScreen({ household, onNavigate }: { household: Household; user:
     if (gesture.axis === "horizontal") {
       event.preventDefault();
       setMonthOffset(Math.max(-96, Math.min(96, dx)));
+    } else if (gesture.axis === "vertical") {
+      event.preventDefault();
     }
   };
   const pointerUp = (event: ReactPointerEvent<HTMLElement>) => {
@@ -1901,7 +1914,7 @@ function ShoppingM4ListScreen({
               timezone={household.timezone}
               purchased
               expanded={expandedId === item.id}
-              actionsOpen={false}
+              actionsOpen={actionsOpenId === item.id}
               dragging={false}
               dragOver={false}
               busy={busyItem === item.id}
@@ -1909,8 +1922,8 @@ function ShoppingM4ListScreen({
               onPurchase={() => void runPurchase(item, "purchase")}
               onRestore={() => void runPurchase(item, "unpurchase")}
               onEdit={() => undefined}
-              onActionsOpen={() => undefined}
-              onActionsClose={() => undefined}
+              onActionsOpen={() => { setActionsOpenId(item.id); setExpandedId(null); }}
+              onActionsClose={() => setActionsOpenId(null)}
               onDragStart={() => undefined}
               onDragOver={() => undefined}
               onDragEnd={() => undefined}
@@ -2033,7 +2046,7 @@ function ShoppingM4Row({
     const dy = event.clientY - origin.y;
     if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy)) { gesture.current = "swipe"; clearLongPress(); }
     if (Math.abs(dy) > 8 && Math.abs(dy) > Math.abs(dx)) { gesture.current = "vertical"; clearLongPress(); setSwiping(false); setSwipeOffset(actionsOpen ? -80 : 0); return; }
-    if (!purchased && gesture.current === "swipe") { setSwiping(true); setSwipeOffset(Math.max(-80, Math.min(0, dx))); }
+    if (gesture.current === "swipe") { setSwiping(true); setSwipeOffset(Math.max(-80, Math.min(0, dx))); }
     if (Math.abs(dx) > 12 || Math.abs(dy) > 12) clearLongPress();
   };
   const handlePointerUp = (event: ReactPointerEvent<HTMLElement>) => {
@@ -2052,8 +2065,8 @@ function ShoppingM4Row({
     const currentGesture = gesture.current;
     gesture.current = null;
     if (!origin || currentGesture === "vertical") { setSwipeOffset(actionsOpen ? -80 : 0); return; }
-    if (!purchased && origin.x - event.clientX > 48) { suppressClick.current = true; setSwipeOffset(-80); onActionsOpen(); }
-    else if (!purchased && event.clientX - origin.x > 24 && actionsOpen) { suppressClick.current = true; setSwipeOffset(0); onActionsClose(); }
+    if (origin.x - event.clientX > 48) { suppressClick.current = true; setSwipeOffset(-80); onActionsOpen(); }
+    else if (event.clientX - origin.x > 24 && actionsOpen) { suppressClick.current = true; setSwipeOffset(0); onActionsClose(); }
     else setSwipeOffset(actionsOpen ? -80 : 0);
   };
   const handleClickCapture = (event: ReactMouseEvent<HTMLElement>) => {
@@ -2077,9 +2090,9 @@ function ShoppingM4Row({
           {purchased ? <span className="shopping-m4__avatar" role="img" aria-label={`購入者: ${purchaserName}`}>{purchaserName.charAt(0) || "?"}</span> : null}
         </button>
       </div>
-      {!purchased && actionsOpen ? <div className="shopping-m4__actions" aria-label={`${item.name}の操作メニュー`}><button type="button" onPointerDown={(event) => event.stopPropagation()} onClick={onEdit}>編集</button></div> : null}
+      {actionsOpen ? <div className="shopping-m4__actions" aria-label={`${item.name}の操作メニュー`}><button type="button" onPointerDown={(event) => event.stopPropagation()} onClick={purchased ? onRestore : onEdit}>{purchased ? "戻す" : "編集"}</button></div> : null}
       {expanded ? <div className="shopping-m4__expanded">
-        <button type="button" className="shopping-m4__primary" disabled={busy} onClick={purchased ? onRestore : onPurchase}>{purchased ? <Undo2 aria-hidden="true" /> : null}{purchased ? "戻す" : busy ? "購入中…" : "購入"}</button>
+        {!purchased ? <button type="button" className="shopping-m4__primary" disabled={busy} onClick={onPurchase}>{busy ? "購入中…" : "購入"}</button> : null}
         {item.note ? <div className="shopping-m4__detail"><span>メモ</span><p>{item.note}</p></div> : null}
         {imageSrc ? <div className="shopping-m4__detail"><span>写真</span><img src={imageSrc} alt={`${item.name}の写真`} onError={(event) => { event.currentTarget.hidden = true; }} /></div> : null}
         {!purchased && item.plannedPurchaseDate ? <div className="shopping-m4__planned-detail">購入予定日 {formatShoppingPlannedDate(item.plannedPurchaseDate)}</div> : null}
@@ -2151,6 +2164,8 @@ function ShoppingItemFormScreen({
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
+  const [persistedItemId, setPersistedItemId] = useState<string | null>(mode === "edit" ? itemId ?? null : null);
   const [existingImage, setExistingImage] = useState<ShoppingItem["image"]>(null);
   const [selectedImage, setSelectedImage] = useState<ProcessedImage | null>(null);
   const [previewUrl, setPreviewUrl] = useState("");
@@ -2250,7 +2265,7 @@ function ShoppingItemFormScreen({
           "写真のサイズが大きすぎます。10MB以下の写真を選択してください。",
         "processed-image-too-large": "画像サイズを1MB以下にしてください",
         "image-load-failed": "画像を処理できませんでした。別の画像を選択してください",
-        "webp-conversion-failed":
+        "image-conversion-failed":
           "画像を処理できませんでした。別の画像を選択してください"
       };
       setImageMessage(
@@ -2292,24 +2307,30 @@ function ShoppingItemFormScreen({
   };
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    if (submittingRef.current) return;
     const nextErrors = validateShoppingForm(form);
     setErrors(nextErrors);
     setMessage("");
     if (Object.keys(nextErrors).length > 0) return;
+    submittingRef.current = true;
     setSubmitting(true);
     try {
       const payload = normalizeShoppingForm(form) as UpdateShoppingItemInput;
-      const result =
-        mode === "edit" && itemId
-          ? await updateShoppingItem(itemId, payload)
-          : await createShoppingItem(payload as CreateShoppingItemInput);
+      const existingItemId = persistedItemId ?? (mode === "edit" ? itemId : null);
+      const result = existingItemId
+        ? await updateShoppingItem(existingItemId, payload)
+        : await createShoppingItem(payload as CreateShoppingItemInput);
+      setPersistedItemId(result.item.id);
       if (selectedImage) {
         setImageStatus("uploading");
         try {
           await uploadShoppingItemImage(result.item.id, selectedImage);
           await refreshImageUsage();
         } catch (error) {
-          setMessage(shoppingErrorMessage(error));
+          setMessage(
+            imageUploadErrorMessage(error) ??
+              "買い物は登録されましたが、画像の保存に失敗しました。画像を確認してもう一度保存してください。"
+          );
           setImageStatus("idle");
           return;
         }
@@ -2320,6 +2341,7 @@ function ShoppingItemFormScreen({
       setMessage(shoppingErrorMessage(error));
       if (error instanceof ApiError && error.details) setErrors(error.details);
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };

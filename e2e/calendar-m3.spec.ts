@@ -1,4 +1,8 @@
 import { expect, test } from "@playwright/test";
+import path from "node:path";
+import { mkdir } from "node:fs/promises";
+
+const artifactRoot = process.env.PLAYWRIGHT_ARTIFACT_DIR ?? "artifacts/playwright/calendar-m3";
 
 const response = (data: unknown) => ({ ok: true, data, requestId: "e2e-m3" });
 const expectNoHorizontalScroll = async (page: import("@playwright/test").Page) => {
@@ -205,6 +209,33 @@ test.describe("Calendar M3", () => {
     await expect(page.getByRole("heading", { name: "2026年9月" })).toBeVisible();
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expectNoHorizontalScroll(page);
+  });
+
+  test("locks the Calendar viewport vertically while preserving date opens and Today", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/calendar");
+    const viewport = page.locator(".app-shell__viewport");
+    const initialScrollTop = await viewport.evaluate((element) => element.scrollTop);
+    const grid = page.locator(".calendar-month-grid");
+    const box = await grid.boundingBox();
+    if (!box) throw new Error("Calendar grid is not measurable.");
+    await page.mouse.move(box.x + 180, box.y + 150);
+    await page.mouse.down();
+    await page.mouse.move(box.x + 180, box.y + 360, { steps: 8 });
+    await page.mouse.up();
+    expect(await viewport.evaluate((element) => element.scrollTop)).toBe(initialScrollTop);
+    expect(await page.locator("html").evaluate((element) => element.classList.contains("calendar-view-locked"))).toBe(true);
+    await expect(page.getByRole("heading", { name: "2026年8月" })).toBeVisible();
+
+    await page.locator('.calendar-day-cell[aria-label^="8月20日"]').click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await page.getByRole("button", { name: "閉じる", exact: true }).click();
+    const task = page.locator(".calendar-day-task").first();
+    if (await task.count()) expect(await task.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe("rgba(0, 0, 0, 0)");
+    await page.getByRole("button", { name: "今日", exact: true }).click();
+    expect(await page.getByRole("button", { name: "今日", exact: true }).evaluate((element) => getComputedStyle(element).backgroundColor)).toBe("rgba(0, 0, 0, 0)");
+    await mkdir(artifactRoot, { recursive: true });
+    await page.screenshot({ path: path.resolve(artifactRoot, "calendar-vertical-lock-touch-state.png"), fullPage: true });
   });
 
   test("dismisses Date Sheet only after the downward swipe threshold and blocks the footer", async ({ page }) => {

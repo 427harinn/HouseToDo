@@ -2,6 +2,9 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
+import { processShoppingImage } from "./lib/image-processing";
+
+vi.mock("./lib/image-processing", () => ({ processShoppingImage: vi.fn() }));
 
 const user = {
   id: "user-1",
@@ -728,5 +731,66 @@ describe("M2 Home", () => {
     expect(screen.getByText("8/31まで")).toBeInTheDocument();
     expect(screen.getByText("8/24 09:00まで")).toBeInTheDocument();
     expect(screen.getByText("締切なし")).toBeInTheDocument();
+  });
+});
+
+describe("Shopping image persistence", () => {
+  it("keeps one persisted item while retrying a failed image upload", async () => {
+    const item = { ...shoppingItem, id: "persisted-shop-1", name: "牛乳", image: null };
+    vi.mocked(processShoppingImage).mockResolvedValue({
+      blob: new Blob(["jpeg"], { type: "image/jpeg" }),
+      width: 80,
+      height: 60,
+      contentType: "image/jpeg",
+      size: 4
+    });
+    Object.defineProperty(URL, "createObjectURL", { configurable: true, value: () => "blob:test" });
+    Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: () => undefined });
+    let createCalls = 0;
+    let updateCalls = 0;
+    let uploadCalls = 0;
+    vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      const method = init?.method ?? "GET";
+      if (url.endsWith("/api/auth/me")) return Promise.resolve(ok({ user }));
+      if (url.endsWith("/api/households/current")) return Promise.resolve(ok({ household }));
+      if (url.endsWith("/api/households/current/members")) return Promise.resolve(ok({ members }));
+      if (url.endsWith("/api/households/current/image-usage")) return Promise.resolve(ok(imageUsage));
+      if (url.startsWith("/api/shopping/recent")) return Promise.resolve(ok({ items: [] }));
+      if (url.endsWith("/api/shopping/templates")) return Promise.resolve(ok({ templates: [] }));
+      if (url.endsWith("/api/shopping/items") && method === "POST") { createCalls += 1; return Promise.resolve(ok({ item }, 201)); }
+      if (url.endsWith(`/api/shopping/items/${item.id}`) && method === "PATCH") { updateCalls += 1; return Promise.resolve(ok({ item })); }
+      if (url.endsWith(`/api/shopping/items/${item.id}/image`) && method === "PUT") { uploadCalls += 1; return Promise.resolve(failure("VALIDATION_ERROR", 400)); }
+      return Promise.resolve(failure("NOT_FOUND", 404));
+    });
+    window.history.replaceState({}, "", "/shopping/new");
+    render(<App />);
+
+    await screen.findByRole("heading", { name: "買い物を追加" });
+    fireEvent.change(screen.getByLabelText("商品名"), { target: { value: "牛乳" } });
+    fireEvent.change(screen.getByLabelText("写真ファイルを選択"), { target: { files: [new File(["source"], "milk.jpg", { type: "image/jpeg" })] } });
+    await waitFor(() => expect(screen.getByAltText("牛乳写真のプレビュー")).toBeInTheDocument());
+
+    const save = screen.getByRole("button", { name: "保存" });
+    fireEvent.click(save);
+    await waitFor(() => expect(uploadCalls).toBe(1));
+    expect(createCalls).toBe(1);
+    expect(screen.getByText("買い物は登録されましたが、画像の保存に失敗しました。画像を確認してもう一度保存してください。")).toBeInTheDocument();
+
+    fireEvent.click(save);
+    await waitFor(() => expect(uploadCalls).toBe(2));
+    expect(createCalls).toBe(1);
+    expect(updateCalls).toBe(1);
+
+    fireEvent.click(save);
+    await waitFor(() => expect(uploadCalls).toBe(3));
+    expect(createCalls).toBe(1);
+    expect(updateCalls).toBe(2);
+
+    fireEvent.click(screen.getByRole("button", { name: "外す" }));
+    fireEvent.click(save);
+    await waitFor(() => expect(updateCalls).toBe(3));
+    expect(createCalls).toBe(1);
+    expect(uploadCalls).toBe(3);
   });
 });
