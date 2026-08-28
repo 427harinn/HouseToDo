@@ -46,6 +46,7 @@ test.describe("Calendar M3", () => {
     let completed = false;
     let passed = false;
     let delayedCalendarRefresh = false;
+    let persistActiveAfterComplete = false;
     await page.route("**/api/**", async (route) => {
       const url = new URL(route.request().url());
       if (!url.pathname.startsWith("/api/")) return route.continue();
@@ -54,8 +55,8 @@ test.describe("Calendar M3", () => {
       if (url.pathname === "/api/households/current/members") return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(response({ members: [] })) });
       if (url.pathname === "/api/tasks/task-1" && route.request().method() === "GET") return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(response({ task: { id: "task-1", title: "朝食の片付け", description: null, recurrenceType: "model_only", modelRecurrenceType: "once", assignmentType: "anyone", assignedUserId: null, startDate: "2026-08-20", targetDate: "2026-08-20", deadlineTime: null, notificationOffsetMinutes: null, weekdays: [], weeklyTargetCount: null, active: true } })) });
       if (url.pathname === "/api/tasks/task-1/history") return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(response({ records: [] })) });
-      if (url.pathname === "/api/tasks/calendar") { if (delayedCalendarRefresh) { delayedCalendarRefresh = false; await new Promise((resolve) => setTimeout(resolve, 300)); } return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(response(calendarData(url.searchParams.get("selectedDate") ?? "2026-08-20", completed, passed, url.searchParams.get("multi") === "1"))) }); }
-      if (url.pathname.endsWith("/complete")) { completed = true; delayedCalendarRefresh = true; return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(response({ result: {} })) }); }
+      if (url.pathname === "/api/tasks/calendar") { persistActiveAfterComplete ||= url.searchParams.get("persist") === "1"; if (delayedCalendarRefresh) { delayedCalendarRefresh = false; await new Promise((resolve) => setTimeout(resolve, 300)); } return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(response(calendarData(url.searchParams.get("selectedDate") ?? "2026-08-20", completed, passed, url.searchParams.get("multi") === "1"))) }); }
+      if (url.pathname.endsWith("/complete")) { if (!persistActiveAfterComplete) completed = true; delayedCalendarRefresh = true; return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(response({ result: {} })) }); }
       if (url.pathname.endsWith("/skip")) { passed = true; return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(response({ result: {} })) }); }
       if (url.pathname.endsWith("/calendar-restore")) { completed = false; return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(response({ result: { reset: true } })) }); }
       throw new Error(`Unexpected Calendar API request: ${route.request().method()} ${url.pathname}`);
@@ -187,6 +188,29 @@ test.describe("Calendar M3", () => {
     await expect(rows.nth(1)).toHaveClass(/is-expanded/);
     await expect(rows.nth(1).getByRole("button", { name: "完了" })).toBeVisible();
     await expect(rows.nth(1).getByText("メモ", { exact: true })).toHaveCount(0);
+  });
+
+  test("resets Calendar detail when moving to another date with the same task id", async ({ page }) => {
+    await page.goto("/calendar?date=2026-08-20");
+    const task = page.locator(".calendar-detail-task").first();
+    await task.locator(".calendar-detail-task__main").click();
+    await expect(task).toHaveClass(/is-expanded/);
+    await page.getByRole("button", { name: "次の日" }).click();
+    await expect(page.getByRole("heading", { name: "8月21日 金曜日" })).toBeVisible();
+    const nextTask = page.locator(".calendar-detail-task").first();
+    await expect(nextTask).not.toHaveClass(/is-expanded/);
+    await expect(nextTask.locator(".m2-home__primary")).toHaveCount(0);
+    await expect(nextTask.locator(".calendar-detail-task__main")).toHaveAttribute("aria-expanded", "false");
+  });
+
+  test("closes Calendar detail when completion starts even if the active row remains", async ({ page }) => {
+    await page.goto("/calendar?date=2026-08-20&persist=1");
+    const task = page.locator(".calendar-detail-task").first();
+    await task.locator(".calendar-detail-task__main").click();
+    await task.getByRole("button", { name: "完了" }).click();
+    await expect(task).not.toHaveClass(/is-expanded/);
+    await expect(task.locator(".m2-home__primary")).toHaveCount(0);
+    await expect(task.locator(".calendar-detail-task__main")).toHaveAttribute("aria-expanded", "false");
   });
 
   test("keeps the completing state until the refreshed server state settles", async ({ page }) => {

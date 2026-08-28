@@ -676,6 +676,33 @@ describe("M2 Home", () => {
     expect(screen.queryByText("メモ")).not.toBeInTheDocument();
   });
 
+  it("closes Home detail when completion starts even if the active row remains", async () => {
+    let completeCalls = 0;
+    let resolveComplete: ((response: Response) => void) | undefined;
+    const completeResponse = new Promise<Response>((resolve) => { resolveComplete = resolve; });
+    vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.endsWith("/api/auth/me")) return Promise.resolve(ok({ user }));
+      if (url.endsWith("/api/households/current")) return Promise.resolve(ok({ household }));
+      if (url.endsWith("/api/households/current/image-usage")) return Promise.resolve(ok(imageUsage));
+      if (url.endsWith("/api/dashboard/today")) return Promise.resolve(ok(baseDashboard));
+      if (url.endsWith(`/api/tasks/${task.id}/complete`) && init?.method === "POST") {
+        completeCalls += 1;
+        return completeResponse;
+      }
+      return Promise.resolve(failure("NOT_FOUND", 404));
+    });
+    window.history.replaceState({}, "", "/home");
+    render(<App />);
+    const row = await screen.findByRole("button", { name: "ゴミ出しの詳細" });
+    fireEvent.click(row);
+    fireEvent.click(screen.getByRole("button", { name: "完了" }));
+    await waitFor(() => expect(completeCalls).toBe(1));
+    expect(screen.queryByRole("button", { name: "完了" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "ゴミ出しの詳細" })).toHaveAttribute("aria-expanded", "false");
+    resolveComplete?.(ok({ task: { ...task, status: "completed" } }));
+  });
+
   it("expands only one Home task detail at a time", async () => {
     const secondTask = { ...task, id: "home-task-2", title: "床そうじ", description: "廊下" };
     const dashboard = { ...baseDashboard, todayTasks: [task, secondTask], homeTasks: [task, secondTask], summary: { ...baseDashboard.summary, total: 2, pending: 2 } };

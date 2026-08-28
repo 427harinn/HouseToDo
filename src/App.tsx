@@ -1014,6 +1014,7 @@ function CalendarDateSheet({ household, date, data, loading, onClose, onNavigate
   useEffect(() => {
     setCompletedOpen(false);
     setOpenRowId(null);
+    setExpandedTaskId(null);
     setOffset(0);
     setDragOffsetY(0);
     setIsDismissing(false);
@@ -1032,7 +1033,7 @@ function CalendarDateSheet({ household, date, data, loading, onClose, onNavigate
   }, []);
   const wait = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, reducedMotion ? 0 : ms));
   const moveDate = (amount: number) => { setDirection(amount > 0 ? "next" : "previous"); window.setTimeout(() => setDirection(null), reducedMotion ? 0 : MOTION_MS.large); onNavigateDate(addDays(date, amount)); };
-  const complete = async (task: TodayTask) => { if (completingIds.has(task.id) || passingIds.has(task.id) || restoringIds.has(task.id)) return; setOpenRowId(null); setCompletingIds((ids) => new Set(ids).add(task.id)); try { await changeTaskState(task.id, "complete", calendarTaskActionScope(task, date)); await wait(MOTION_MS.completion); await onRefresh(); } catch (error) { setStatusMessage(apiErrorMessage(error)); await onRefresh(); } finally { setCompletingIds((ids) => { const next = new Set(ids); next.delete(task.id); return next; }); } };
+  const complete = async (task: TodayTask) => { if (completingIds.has(task.id) || passingIds.has(task.id) || restoringIds.has(task.id)) return; setOpenRowId(null); setExpandedTaskId(null); setCompletingIds((ids) => new Set(ids).add(task.id)); try { await changeTaskState(task.id, "complete", calendarTaskActionScope(task, date)); await wait(MOTION_MS.completion); await onRefresh(); } catch (error) { setStatusMessage(apiErrorMessage(error)); await onRefresh(); } finally { setCompletingIds((ids) => { const next = new Set(ids); next.delete(task.id); return next; }); } };
   const pass = async (task: TodayTask) => { if (completingIds.has(task.id) || passingIds.has(task.id) || restoringIds.has(task.id)) return; setOpenRowId(null); setPassingIds((ids) => new Set(ids).add(task.id)); try { await changeTaskState(task.id, "skip", calendarTaskActionScope(task, date)); await wait(MOTION_MS.pass); await onRefresh(); } catch (error) { setStatusMessage(apiErrorMessage(error)); await onRefresh(); } finally { setPassingIds((ids) => { const next = new Set(ids); next.delete(task.id); return next; }); } };
   const restore = async (record: CalendarCompletedRecord) => { if (completingIds.has(record.taskId) || passingIds.has(record.taskId) || restoringIds.has(record.taskId)) return; setOpenRowId(null); setRestoringIds((ids) => new Set(ids).add(record.taskId)); try { await restoreCalendarTaskRecord(record.taskId, record.id, date); await wait(MOTION_MS.restore); await onRefresh(); } catch (error) { setStatusMessage(apiErrorMessage(error)); await onRefresh(); } finally { setRestoringIds((ids) => { const next = new Set(ids); next.delete(record.taskId); return next; }); } };
   const openRowAction = (rowId: string | null) => {
@@ -1250,6 +1251,7 @@ function HomeScreen({
   const complete = async (task: TodayTask) => {
     if (isBusy(task.id)) return;
     setOpenRowId(null);
+    setExpandedTaskId(null);
     setActionId(setCompletingIds, task.id, true);
     setStatusMessage("");
     const request = changeTaskState(task.id, "complete", homeTaskActionScope(task, household));
