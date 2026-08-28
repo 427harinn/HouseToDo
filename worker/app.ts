@@ -5,6 +5,7 @@ import { createRequestContext } from "./middleware/request-context";
 import { withStateChangingRequestProtection } from "./middleware/security";
 import { loginRoute, logoutRoute, meRoute, registerRoute } from "./routes/auth";
 import { healthRoute } from "./routes/health";
+import { homeTodayRoute } from "./routes/home";
 import { currentHouseholdImageUsageRoute } from "./routes/household-image-usage";
 import {
   createHouseholdInviteRoute,
@@ -243,6 +244,8 @@ const routeApi = withErrorHandling(
         return createTaskTemplateRoute(context);
       case "GET /api/dashboard/today":
         return dashboardTodayRoute(context);
+      case "GET /api/home/today":
+        return homeTodayRoute(context);
       case "GET /api/shopping/items":
         return listShoppingItemsRoute(context);
       case "GET /api/shopping/recent":

@@ -66,16 +66,12 @@ const completedRecord = {
   updatedAt: "2026-08-28T00:00:00.000Z"
 };
 
-const dashboard = (completed) => ({
+const homeData = (completed) => ({
   date: "2026-08-28",
-  household: { id: "household-1", name: "Performance House", timezone: "Asia/Tokyo" },
-  summary: { total: completed ? 1 : 1, pending: completed ? 0 : 1, inProgress: 0, completed: completed ? 1 : 0, skipped: 0 },
-  todayTasks: completed ? [{ ...task, status: "completed" }] : [task],
   homeTasks: completed ? [] : [task],
-  weeklyTasks: [],
   completedRecords: completed ? [completedRecord] : [],
   passedRecords: [],
-  shopping: { pendingCount: 0, previewItems: [] },
+  shopping: { pendingCount: 0 },
   members: []
 });
 
@@ -116,9 +112,9 @@ const createMockPage = async (browser) => {
     } else if (path === "/api/households/current") {
       delay = 30;
       data = { household: { id: "household-1", name: "Performance House", timezone: "Asia/Tokyo", weekStartsOn: 1, role: "owner" } };
-    } else if (path === "/api/dashboard/today") {
+    } else if (path === "/api/home/today") {
       delay = 60;
-      data = dashboard(completed);
+      data = homeData(completed);
     } else if (path === "/api/tasks/task-1/complete" && method === "POST") {
       delay = 45;
       completed = true;
@@ -180,18 +176,18 @@ for (let index = 0; index < 10; index += 1) {
   const authResponse = eventAt(events, "response", "/api/auth/me");
   const householdStart = eventAt(events, "request", "/api/households/current");
   const householdResponse = eventAt(events, "response", "/api/households/current");
-  const dashboardStart = eventAt(events, "request", "/api/dashboard/today");
+  const homeStart = eventAt(events, "request", "/api/home/today");
   fresh.push({
-    navigationToDashboardStart: diff(navigationStart, dashboardStart.at),
+    navigationToHomeStart: diff(navigationStart, homeStart.at),
     authToResponse: diff(authStart.at, authResponse.at),
     householdWaitAfterAuth: diff(authResponse.at, householdStart.at),
     householdToResponse: diff(householdStart.at, householdResponse.at),
-    dashboardToResponse: diff(
-      pageMarks.find((mark) => mark.kind === "fetch-start" && mark.path === "/api/dashboard/today").at,
-      pageMarks.find((mark) => mark.kind === "fetch-response" && mark.path === "/api/dashboard/today").at
+    homeToResponse: diff(
+      pageMarks.find((mark) => mark.kind === "fetch-start" && mark.path === "/api/home/today").at,
+      pageMarks.find((mark) => mark.kind === "fetch-response" && mark.path === "/api/home/today").at
     ),
-    responseToTaskVisible: diff(
-      pageMarks.find((mark) => mark.kind === "fetch-response" && mark.path === "/api/dashboard/today").at,
+    homeResponseToTaskVisible: diff(
+      pageMarks.find((mark) => mark.kind === "fetch-response" && mark.path === "/api/home/today").at,
       pageMarks.find((mark) => mark.kind === "dom-task-visible").at
     ),
     navigationToTaskVisible: diff(navigationStart, taskVisible)
@@ -217,8 +213,8 @@ for (let index = 0; index < 10; index += 1) {
   const completeClickMark = completeMarks.find((mark) => mark.kind === "complete-click");
   const completeStartMark = completeMarks.find((mark) => mark.kind === "fetch-start" && mark.path === "/api/tasks/task-1/complete");
   const completeResponseMark = completeMarks.find((mark) => mark.kind === "fetch-response" && mark.path === "/api/tasks/task-1/complete");
-  const refreshStartMark = completeMarks.filter((mark) => mark.kind === "fetch-start" && mark.path === "/api/dashboard/today")[1];
-  const refreshResponseMark = completeMarks.filter((mark) => mark.kind === "fetch-response" && mark.path === "/api/dashboard/today")[1];
+  const refreshStartMark = completeMarks.filter((mark) => mark.kind === "fetch-start" && mark.path === "/api/home/today")[1];
+  const refreshResponseMark = completeMarks.filter((mark) => mark.kind === "fetch-response" && mark.path === "/api/home/today")[1];
   const completedDomMark = completeMarks.find((mark) => mark.kind === "dom-completed-visible");
   completionSamples.push({
     clickToPostStart: diff(completeClickMark.at, completeStartMark.at),
@@ -246,7 +242,7 @@ await navigationPage.page.locator(".shopping-m4").waitFor({ state: "visible" });
 await navigationPage.page.waitForFunction(() => ["/api/shopping/items", "/api/shopping/templates", "/api/households/current/members"].every((path) => window.__performanceBaseline.some((mark) => mark.kind === "fetch-response" && mark.path === path)));
 await navigationPage.page.getByRole("button", { name: "ホーム" }).click();
 await navigationPage.page.getByRole("button", { name: "Performance taskの詳細" }).waitFor({ state: "visible" });
-const requestCounts = Object.fromEntries(["/api/auth/me", "/api/households/current", "/api/dashboard/today", "/api/tasks/calendar", "/api/shopping/items", "/api/shopping/templates", "/api/households/current/members"].map((path) => [path, navigationEvents.filter((event) => event.type === "request" && event.path === path).length]));
+const requestCounts = Object.fromEntries(["/api/auth/me", "/api/households/current", "/api/home/today", "/api/tasks/calendar", "/api/shopping/items", "/api/shopping/templates", "/api/households/current/members"].map((path) => [path, navigationEvents.filter((event) => event.type === "request" && event.path === path).length]));
 const requestDurations = Object.fromEntries(Object.keys(requestCounts).map((path) => {
   const starts = navigationEvents.filter((event) => event.type === "request" && event.path === path);
   const responses = navigationEvents.filter((event) => event.type === "response" && event.path === path);
@@ -254,12 +250,12 @@ const requestDurations = Object.fromEntries(Object.keys(requestCounts).map((path
 }));
 
 console.log(JSON.stringify({
-  controlledDelaysMs: { auth: 25, household: 30, dashboard: 60, completePost: 45 },
+  controlledDelaysMs: { auth: 25, household: 30, home: 60, completePost: 45 },
   freshLoad: { samples: fresh.length, phases: Object.fromEntries(Object.keys(fresh[0]).map((key) => [key, aggregate(fresh, key)])) },
   completion,
   navigationRequestCounts: requestCounts,
   navigationRequestDurationsMs: requestDurations,
-  note: "Response-to-DOM excludes CSS animation duration; completion includes the existing Promise.all wait before refresh starts."
+  note: "Response-to-DOM excludes CSS animation duration; completion includes the existing motion gate while the Home refresh is overlapped after POST success."
 }, null, 2));
 
 await navigationPage.page.close();

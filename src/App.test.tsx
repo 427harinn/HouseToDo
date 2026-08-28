@@ -103,14 +103,13 @@ const mockFetch = (
     if (url.endsWith("/api/shopping/items")) return Promise.resolve(ok({ pending: [shoppingItem], purchased: [purchasedItem] }));
     if (url.startsWith("/api/shopping/recent")) return Promise.resolve(ok({ items: [{ name: "牛乳", quantity: "2本", note: "低脂肪ではないもの", createdAt: "2026-08-02T00:00:00Z" }] }));
     if (url.endsWith("/api/shopping/templates")) return Promise.resolve(ok({ templates: [template] }));
-    if (url.endsWith("/api/dashboard/today")) {
+    if (url.endsWith("/api/home/today")) {
       return Promise.resolve(ok({
         date: "2026-08-01",
-        household: { id: household.id, name: household.name },
-        summary: { total: 0, pending: 0, inProgress: 0, completed: 0, skipped: 0 },
-        todayTasks: [],
-        weeklyTasks: [],
-        shopping: { pendingCount: 1, previewItems: [{ id: "shop-1", name: "牛乳", quantity: "1本" }] },
+        homeTasks: [],
+        completedRecords: [],
+        passedRecords: [],
+        shopping: { pendingCount: 1 },
         members
       }));
     }
@@ -602,7 +601,7 @@ describe("M2 Home", () => {
       if (url.endsWith("/api/auth/me")) return Promise.resolve(ok({ user }));
       if (url.endsWith("/api/households/current")) return Promise.resolve(ok({ household }));
       if (url.endsWith("/api/households/current/image-usage")) return Promise.resolve(ok(imageUsage));
-      if (url.endsWith("/api/dashboard/today")) return Promise.resolve(ok(dashboard));
+      if (url.endsWith("/api/home/today")) return Promise.resolve(ok(dashboard));
       return Promise.resolve(failure("NOT_FOUND", 404));
     });
     window.history.replaceState({}, "", "/home");
@@ -624,7 +623,7 @@ describe("M2 Home", () => {
       if (url.endsWith("/api/auth/me")) return Promise.resolve(ok({ user }));
       if (url.endsWith("/api/households/current")) return Promise.resolve(ok({ household }));
       if (url.endsWith("/api/households/current/image-usage")) return Promise.resolve(ok(imageUsage));
-      if (url.endsWith("/api/dashboard/today")) {
+      if (url.endsWith("/api/home/today")) {
         return Promise.resolve(ok(completed ? {
           ...baseDashboard,
           todayTasks: [],
@@ -666,7 +665,7 @@ describe("M2 Home", () => {
       if (url.endsWith("/api/auth/me")) return Promise.resolve(ok({ user }));
       if (url.endsWith("/api/households/current")) return Promise.resolve(ok({ household }));
       if (url.endsWith("/api/households/current/image-usage")) return Promise.resolve(ok(imageUsage));
-      if (url.endsWith("/api/dashboard/today")) return Promise.resolve(ok(dashboard));
+      if (url.endsWith("/api/home/today")) return Promise.resolve(ok(dashboard));
       return Promise.resolve(failure("NOT_FOUND", 404));
     });
     window.history.replaceState({}, "", "/home");
@@ -678,6 +677,8 @@ describe("M2 Home", () => {
 
   it("closes Home detail when completion starts even if the active row remains", async () => {
     let completeCalls = 0;
+    let homeCalls = 0;
+    let completed = false;
     let resolveComplete: ((response: Response) => void) | undefined;
     const completeResponse = new Promise<Response>((resolve) => { resolveComplete = resolve; });
     vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
@@ -685,7 +686,14 @@ describe("M2 Home", () => {
       if (url.endsWith("/api/auth/me")) return Promise.resolve(ok({ user }));
       if (url.endsWith("/api/households/current")) return Promise.resolve(ok({ household }));
       if (url.endsWith("/api/households/current/image-usage")) return Promise.resolve(ok(imageUsage));
-      if (url.endsWith("/api/dashboard/today")) return Promise.resolve(ok(baseDashboard));
+      if (url.endsWith("/api/home/today")) {
+        homeCalls += 1;
+        return Promise.resolve(ok(completed ? {
+          ...baseDashboard,
+          homeTasks: [],
+          completedRecords: [{ id: "record-1", taskId: task.id, status: "completed", title: "ゴミ出し", taskActive: true, actualCompleter: { userId: user.id, displayName: user.displayName, avatarUrl: null }, assignedUser: null }]
+        } : baseDashboard));
+      }
       if (url.endsWith(`/api/tasks/${task.id}/complete`) && init?.method === "POST") {
         completeCalls += 1;
         return completeResponse;
@@ -700,7 +708,11 @@ describe("M2 Home", () => {
     await waitFor(() => expect(completeCalls).toBe(1));
     expect(screen.queryByRole("button", { name: "完了" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "ゴミ出しの詳細" })).toHaveAttribute("aria-expanded", "false");
+    completed = true;
     resolveComplete?.(ok({ task: { ...task, status: "completed" } }));
+    await waitFor(() => expect(homeCalls).toBe(2));
+    expect(screen.queryByText("完了済み 1")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("完了済み 1")).toBeInTheDocument(), { timeout: 2000 });
   });
 
   it("expands only one Home task detail at a time", async () => {
@@ -711,7 +723,7 @@ describe("M2 Home", () => {
       if (url.endsWith("/api/auth/me")) return Promise.resolve(ok({ user }));
       if (url.endsWith("/api/households/current")) return Promise.resolve(ok({ household }));
       if (url.endsWith("/api/households/current/image-usage")) return Promise.resolve(ok(imageUsage));
-      if (url.endsWith("/api/dashboard/today")) return Promise.resolve(ok(dashboard));
+      if (url.endsWith("/api/home/today")) return Promise.resolve(ok(dashboard));
       return Promise.resolve(failure("NOT_FOUND", 404));
     });
     window.history.replaceState({}, "", "/home");
@@ -737,7 +749,7 @@ describe("M2 Home", () => {
       if (url.endsWith("/api/auth/me")) return Promise.resolve(ok({ user }));
       if (url.endsWith("/api/households/current")) return Promise.resolve(ok({ household }));
       if (url.endsWith("/api/households/current/image-usage")) return Promise.resolve(ok(imageUsage));
-      if (url.endsWith("/api/dashboard/today")) return Promise.resolve(ok(dashboard));
+      if (url.endsWith("/api/home/today")) return Promise.resolve(ok(dashboard));
       return Promise.resolve(failure("NOT_FOUND", 404));
     });
     window.history.replaceState({}, "", "/home");
@@ -746,6 +758,35 @@ describe("M2 Home", () => {
     expect(screen.getByRole("button", { name: "戻す" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "編集" })).not.toBeInTheDocument();
   });
+
+  it("reconciles pass and restore through the lean Home endpoint", async () => {
+    let phase: "initial" | "passed" | "restored" = "initial";
+    let skipCalls = 0;
+    let restoreCalls = 0;
+    const passedRecord = { id: "record-pass", taskId: task.id, status: "skipped", title: "ゴミ出し", taskActive: true, actualCompleter: { userId: user.id, displayName: user.displayName, avatarUrl: null }, assignedUser: null };
+    vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.endsWith("/api/auth/me")) return Promise.resolve(ok({ user }));
+      if (url.endsWith("/api/households/current")) return Promise.resolve(ok({ household }));
+      if (url.endsWith("/api/households/current/image-usage")) return Promise.resolve(ok(imageUsage));
+      if (url.endsWith("/api/home/today")) return Promise.resolve(ok(phase === "initial" ? baseDashboard : phase === "passed" ? { ...baseDashboard, homeTasks: [], completedRecords: [], passedRecords: [passedRecord] } : baseDashboard));
+      if (url.endsWith(`/api/tasks/${task.id}/skip`) && init?.method === "POST") { skipCalls += 1; phase = "passed"; return Promise.resolve(ok({ result: { ...task, status: "skipped" } })); }
+      if (url.endsWith(`/api/tasks/${task.id}/restore`) && init?.method === "POST") { restoreCalls += 1; phase = "restored"; return Promise.resolve(ok({ result: { reset: true } })); }
+      return Promise.resolve(failure("NOT_FOUND", 404));
+    });
+    window.history.replaceState({}, "", "/home");
+    render(<App />);
+    const row = await screen.findByRole("button", { name: "ゴミ出しの詳細" });
+    fireEvent.click(row.parentElement?.parentElement?.querySelector<HTMLButtonElement>(".m2-home__more") ?? row);
+    fireEvent.click(screen.getByRole("button", { name: "パス" }));
+    await waitFor(() => expect(skipCalls).toBe(1), { timeout: 1000 });
+    await waitFor(() => expect(screen.getByText("パス済み 1")).toBeInTheDocument(), { timeout: 2000 });
+    fireEvent.click(screen.getByRole("button", { name: /パス済み 1/ }));
+    fireEvent.click(screen.getByRole("button", { name: "操作" }));
+    fireEvent.click(screen.getByRole("button", { name: "戻す" }));
+    await waitFor(() => expect(restoreCalls).toBe(1), { timeout: 1000 });
+    await waitFor(() => expect(screen.getByRole("button", { name: "ゴミ出しの詳細" })).toBeInTheDocument(), { timeout: 2000 });
+  }, 10000);
 
   it("keeps only one Home swipe row open at a time", async () => {
     const secondTask = { ...task, id: "home-task-2", title: "床そうじ", overdue: false };
@@ -761,7 +802,7 @@ describe("M2 Home", () => {
       if (url.endsWith("/api/auth/me")) return Promise.resolve(ok({ user }));
       if (url.endsWith("/api/households/current")) return Promise.resolve(ok({ household }));
       if (url.endsWith("/api/households/current/image-usage")) return Promise.resolve(ok(imageUsage));
-      if (url.endsWith("/api/dashboard/today")) return Promise.resolve(ok(dashboard));
+      if (url.endsWith("/api/home/today")) return Promise.resolve(ok(dashboard));
       return Promise.resolve(failure("NOT_FOUND", 404));
     });
     window.history.replaceState({}, "", "/home");
@@ -793,7 +834,7 @@ describe("M2 Home", () => {
       if (url.endsWith("/api/auth/me")) return Promise.resolve(ok({ user }));
       if (url.endsWith("/api/households/current")) return Promise.resolve(ok({ household }));
       if (url.endsWith("/api/households/current/image-usage")) return Promise.resolve(ok(imageUsage));
-      if (url.endsWith("/api/dashboard/today")) return Promise.resolve(ok(dashboard));
+      if (url.endsWith("/api/home/today")) return Promise.resolve(ok(dashboard));
       return Promise.resolve(failure("NOT_FOUND", 404));
     });
     window.history.replaceState({}, "", "/home");

@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { Check, ChevronLeft, ChevronRight, Ellipsis, House, Image as ImageIcon, MessageCircle, ShoppingCart, X } from "lucide-react";
 import { login, logout, me, register } from "./api/auth";
 import { ApiError, apiMessage } from "./api/client";
-import { getDashboardToday, type DashboardToday } from "./api/dashboard";
+import { getHomeToday, type HomeToday } from "./api/home";
 import { imageUploadErrorMessage } from "./api/image-errors";
 import { getCurrentImageUsage, type ImageUsage } from "./api/image-usage";
 import {
@@ -1185,15 +1185,15 @@ function CalendarShoppingSection({
   );
 }
 
-function useDashboardData() {
-  const [data, setData] = useState<DashboardToday | null>(null);
+function useHomeData() {
+  const [data, setData] = useState<HomeToday | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const refresh = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     setMessage("");
     try {
-      setData(await getDashboardToday(undefined, signal));
+      setData(await getHomeToday(undefined, signal));
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
       setMessage(apiErrorMessage(error));
@@ -1213,7 +1213,11 @@ function useDashboardData() {
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, [refresh]);
-  return { data, loading, message, refresh };
+  const apply = useCallback((nextData: HomeToday) => {
+    setData(nextData);
+    setLoading(false);
+  }, []);
+  return { data, loading, message, refresh, apply };
 }
 
 function HomeScreen({
@@ -1225,7 +1229,7 @@ function HomeScreen({
   onNavigate: (route: NavigationPath) => void;
   onLogout: () => void;
 }) {
-  const { data, loading, message, refresh } = useDashboardData();
+  const { data, loading, message, refresh, apply } = useHomeData();
   const prefersReducedMotion = usePrefersReducedMotion();
   const [completedOpen, setCompletedOpen] = useState(false);
   const [passedOpen, setPassedOpen] = useState(false);
@@ -1236,7 +1240,7 @@ function HomeScreen({
   const [restoringIds, setRestoringIds] = useState<Set<string>>(new Set());
   const [statusMessage, setStatusMessage] = useState("");
   const today = data?.date ?? todayInTimezone(household.timezone);
-  const activeTasks = (data?.homeTasks ?? data?.todayTasks ?? []).filter(
+  const activeTasks = (data?.homeTasks ?? []).filter(
     (task) => task.status === "pending" || task.status === "in_progress"
   );
   const completed = data?.completedRecords ?? [];
@@ -1248,6 +1252,18 @@ function HomeScreen({
     return next;
   });
   const isBusy = (id: string) => completingIds.has(id) || passingIds.has(id) || restoringIds.has(id);
+  const reconcile = async (mutation: Promise<unknown>, motionMs: number) => {
+    const motionPromise = wait(motionMs);
+    try {
+      await mutation;
+      const nextHomePromise = getHomeToday();
+      const [nextHome] = await Promise.all([nextHomePromise, motionPromise]);
+      apply(nextHome);
+    } catch (error) {
+      await motionPromise;
+      throw error;
+    }
+  };
   const complete = async (task: TodayTask) => {
     if (isBusy(task.id)) return;
     setOpenRowId(null);
@@ -1256,8 +1272,7 @@ function HomeScreen({
     setStatusMessage("");
     const request = changeTaskState(task.id, "complete", homeTaskActionScope(task, household));
     try {
-      await Promise.all([request, wait(MOTION_MS.completion)]);
-      await refresh();
+      await reconcile(request, MOTION_MS.completion);
     } catch (error) {
       setStatusMessage(apiErrorMessage(error));
       await refresh();
@@ -1271,11 +1286,7 @@ function HomeScreen({
     setActionId(setPassingIds, task.id, true);
     setStatusMessage(`「${task.title}」をパスしました`);
     try {
-      await Promise.all([
-        changeTaskState(task.id, "skip", homeTaskActionScope(task, household)),
-        wait(MOTION_MS.pass)
-      ]);
-      await refresh();
+      await reconcile(changeTaskState(task.id, "skip", homeTaskActionScope(task, household)), MOTION_MS.pass);
     } catch (error) {
       setStatusMessage(apiErrorMessage(error));
       await refresh();
@@ -1283,14 +1294,13 @@ function HomeScreen({
       setActionId(setPassingIds, task.id, false);
     }
   };
-  const restore = async (record: DashboardToday["completedRecords"][number]) => {
+  const restore = async (record: HomeToday["completedRecords"][number]) => {
     if (isBusy(record.taskId)) return;
     setOpenRowId(null);
     setActionId(setRestoringIds, record.taskId, true);
     try {
-      await Promise.all([restoreTaskRecord(record.taskId, record.id), wait(MOTION_MS.restore)]);
+      await reconcile(restoreTaskRecord(record.taskId, record.id), MOTION_MS.restore);
       setStatusMessage(`「${record.title}」を戻しました`);
-      await refresh();
     } catch (error) {
       setStatusMessage(apiErrorMessage(error));
       await refresh();
@@ -1298,7 +1308,7 @@ function HomeScreen({
       setActionId(setRestoringIds, record.taskId, false);
     }
   };
-  const editRecord = (record: DashboardToday["completedRecords"][number]) => onNavigate(`/tasks/${record.taskId}/edit`);
+  const editRecord = (record: HomeToday["completedRecords"][number]) => onNavigate(`/tasks/${record.taskId}/edit`);
   const openRowAction = (rowId: string | null) => {
     setOpenRowId(rowId);
     if (rowId) setExpandedTaskId(null);
@@ -1413,7 +1423,7 @@ function formatHomeDeadline(task: TodayTask, today: string) {
   return `${dateLabel}${time ? (dateLabel ? ` ${time}` : time) : ""}まで`;
 }
 
-function homeMemberForTask(task: TodayTask, members: DashboardToday["members"]) {
+function homeMemberForTask(task: TodayTask, members: HomeToday["members"]) {
   return task.assignedUserId ? members.find((member) => member.userId === task.assignedUserId) ?? null : null;
 }
 
@@ -1422,7 +1432,7 @@ function HomeAvatar({ member, label }: { member: { displayName: string | null; c
   return <span className="m2-home__avatar" role="img" aria-label={`${label}: ${name}`}>{member.avatarUrl ? <img src={member.avatarUrl} alt="" /> : name.slice(0, 1)}</span>;
 }
 
-function TaskInlineDetail({ task, today, members, busy, onComplete }: { task: TodayTask; today: string; members?: DashboardToday["members"]; busy: boolean; onComplete: () => void }) {
+function TaskInlineDetail({ task, today, members, busy, onComplete }: { task: TodayTask; today: string; members?: HomeToday["members"]; busy: boolean; onComplete: () => void }) {
   const description = task.description?.trim();
   const assignee = members ? homeMemberForTask(task, members) : null;
   const hasDateOrTime = Boolean(task.deadlineDate ?? (task.modelRecurrenceType === "once" ? task.targetDate : null) ?? task.deadlineTime ?? task.scheduledTime);
@@ -1493,7 +1503,7 @@ function HomeSwipeRow({ children, rowId, openRowId, onOpenRow, busy, onEdit, onS
   </div>;
 }
 
-function HomeHistoryRow({ record, busy, onEdit, onRestore, passed = false, openRowId, onOpenRow }: { record: DashboardToday["completedRecords"][number]; busy: boolean; onEdit: () => void; onRestore: () => void; passed?: boolean; openRowId: string | null; onOpenRow: (rowId: string | null) => void }) {
+function HomeHistoryRow({ record, busy, onEdit, onRestore, passed = false, openRowId, onOpenRow }: { record: HomeToday["completedRecords"][number]; busy: boolean; onEdit: () => void; onRestore: () => void; passed?: boolean; openRowId: string | null; onOpenRow: (rowId: string | null) => void }) {
   const deleted = !record.taskActive;
   const member = passed ? record.assignedUser : record.actualCompleter;
   return <HomeSwipeRow rowId={`history-${record.id}`} openRowId={openRowId} onOpenRow={onOpenRow} busy={busy} onEdit={deleted ? undefined : onEdit} onSecondary={onRestore} secondaryLabel="戻す" restoreOnly={deleted} rowClassName={busy ? "is-restoring-row" : ""}>
