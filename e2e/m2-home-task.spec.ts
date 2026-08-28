@@ -4,16 +4,17 @@ import path from "node:path";
 
 const evidenceDir = path.resolve(process.env.PLAYWRIGHT_ARTIFACT_DIR ?? "artifacts/playwright/m2-home-task");
 const today = "2026-08-25";
-type HomeState = { completed: boolean; passed: boolean; deleted: boolean; empty?: boolean; overdue?: boolean; completedTaskId?: string; completedTitle?: string; passedTaskId?: string; passedTitle?: string };
+type HomeState = { completed: boolean; passed: boolean; deleted: boolean; completeCalls?: number; empty?: boolean; overdue?: boolean; completedTaskId?: string; completedTitle?: string; passedTaskId?: string; passedTitle?: string };
 
 test.use({
   viewport: { width: 390, height: 844 },
   video: { mode: "on", size: { width: 390, height: 844 } }
 });
 
-const task = (id: string, title: string, scope: "date" | "date-all-day" | "week" | "month" | "none" | "overdue", assignedUserId: string | null = null) => ({
+const task = (id: string, title: string, scope: "date" | "date-all-day" | "week" | "month" | "none" | "overdue", assignedUserId: string | null = null, description = "") => ({
   id,
   title,
+  description,
   recurrenceType: scope === "week" ? "weekly" : "daily",
   modelRecurrenceType: scope === "week" ? "weekly_flexible" : scope === "month" ? "monthly_flexible" : scope === "none" ? "daily" : "daily",
   assignmentType: assignedUserId ? "specific" : "anyone",
@@ -52,7 +53,7 @@ const dashboard = (state: HomeState) => ({
 const homeTasks = (state: HomeState) => {
   const allTasks = [
     ...(state.overdue ? [task("m2-overdue", "期限超過の家事", "overdue")] : []),
-    task("m2-date", "朝の片付け", "date"),
+    task("m2-date", "朝の片付け", "date", null, "朝のメモ"),
     task("m2-date-all-day", "今日中の家事", "date-all-day"),
     task("m2-week", "週の家事", "week"),
     task("m2-month", "月の家事", "month"),
@@ -80,7 +81,7 @@ const installRoutes = async (page: Page, state: HomeState) => {
       const [, actionTaskId, action] = actionMatch;
       const titles: Record<string, string> = { "m2-overdue": "期限超過の家事", "m2-date": "朝の片付け", "m2-date-all-day": "今日中の家事", "m2-week": "週の家事", "m2-month": "月の家事", "m2-none": "期限なし" };
       if (!titles[actionTaskId] && actionTaskId !== "m2-task-1") throw new Error(`Unexpected M2 action task: ${actionTaskId}`);
-      if (action === "complete") { state.completed = true; state.completedTaskId = actionTaskId; state.completedTitle = titles[actionTaskId] ?? "ゴミ出し"; }
+      if (action === "complete") { state.completeCalls = (state.completeCalls ?? 0) + 1; state.completed = true; state.completedTaskId = actionTaskId; state.completedTitle = titles[actionTaskId] ?? "ゴミ出し"; }
       if (action === "skip") { state.passed = true; state.passedTaskId = actionTaskId; state.passedTitle = titles[actionTaskId] ?? "窓ふき"; }
       if (action === "restore") { state.completed = false; state.passed = false; state.deleted = false; }
       return json({ result: action === "restore" ? { reset: true } : { status: action === "skip" ? "skipped" : "completed" } });
@@ -179,6 +180,38 @@ test("M2 Home visual states and swipe actions at 390x844", async ({ page }) => {
   await expect(swipeRow).not.toHaveClass(/is-actions-open/);
 });
 
+test("M2 active task opens inline detail, keeps memo below Complete, and completes only from Complete", async ({ page }) => {
+  const state: HomeState = { completed: false, passed: false, deleted: false };
+  await installRoutes(page, state);
+  await page.goto("/home");
+  const memoRow = page.locator(".m2-home__row").filter({ hasText: "朝の片付け" });
+  await memoRow.locator(".m2-home__row-main").click();
+  await expect(memoRow).toHaveClass(/is-expanded/);
+  await expect(memoRow.locator(".m2-home__primary")).toBeVisible();
+  await expect(memoRow.getByText("朝のメモ")).toBeVisible();
+  expect(await memoRow.locator(".m2-home__primary").evaluate((button) => button.parentElement?.firstElementChild === button)).toBe(true);
+  expect(state.completeCalls ?? 0).toBe(0);
+  const memoBox = await memoRow.boundingBox();
+  if (!memoBox) throw new Error("Home memo row is not measurable.");
+  await page.mouse.move(memoBox.x + 190, memoBox.y + 30);
+  await page.mouse.down();
+  await page.mouse.move(memoBox.x + 70, memoBox.y + 30, { steps: 8 });
+  await page.mouse.up();
+  await expect(memoRow).toHaveClass(/is-actions-open/);
+  await expect(memoRow).not.toHaveClass(/is-expanded/);
+  await expect(memoRow.getByRole("button", { name: "パス" })).toBeVisible();
+  await memoRow.locator(".m2-home__row-main").click();
+  await expect(memoRow).toHaveClass(/is-expanded/);
+  await expect(memoRow).not.toHaveClass(/is-actions-open/);
+  const noMemoRow = page.locator(".m2-home__row").filter({ hasText: "今日中の家事" });
+  await memoRow.locator(".m2-home__row-main").click();
+  await noMemoRow.locator(".m2-home__row-main").click();
+  await expect(noMemoRow.locator(".m2-home__primary")).toBeVisible();
+  await expect(noMemoRow.getByText("メモ", { exact: true })).toHaveCount(0);
+  await noMemoRow.locator(".m2-home__primary").click();
+  await expect.poll(() => state.completeCalls ?? 0).toBe(1);
+});
+
 test("M2 Task add/reuse/edit/delete evidence", async ({ page }) => {
   const state: HomeState = { completed: false, passed: false, deleted: false };
   await installRoutes(page, state);
@@ -237,7 +270,9 @@ test("records task-complete.webm", async ({ browser }) => {
   await installRoutes(page, state);
   await page.goto("/home");
   await page.waitForTimeout(500);
-  await page.getByRole("button", { name: "期限超過の家事を完了" }).click();
+  const taskRow = page.locator(".m2-home__row").first();
+  await taskRow.getByRole("button", { name: "期限超過の家事の詳細" }).click();
+  await taskRow.getByRole("button", { name: "完了" }).click();
   await page.waitForTimeout(550);
   await expect(page.getByText("期限超過の家事")).toHaveCount(0);
   await expect(page.getByRole("button", { name: /完了済み 1/ })).toBeVisible();
@@ -282,7 +317,7 @@ test("records task-undo.webm", async ({ browser }) => {
   await page.mouse.up();
   await page.getByRole("button", { name: "戻す" }).click();
   await page.waitForTimeout(350);
-  await expect(page.getByRole("button", { name: "期限超過の家事を完了" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "期限超過の家事の詳細" })).toBeVisible();
   await expect(page.getByRole("button", { name: /完了済み/ })).toHaveCount(0);
   await copyVideo(page, "task-undo.webm");
 });

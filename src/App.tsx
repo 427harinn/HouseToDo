@@ -1000,6 +1000,7 @@ function CalendarDateSheet({ household, date, data, loading, onClose, onNavigate
   const [isDismissing, setIsDismissing] = useState(false);
   const [completedOpen, setCompletedOpen] = useState(false);
   const [openRowId, setOpenRowId] = useState<string | null>(null);
+  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const [completingIds, setCompletingIds] = useState<Set<string>>(new Set());
   const [passingIds, setPassingIds] = useState<Set<string>>(new Set());
   const [restoringIds, setRestoringIds] = useState<Set<string>>(new Set());
@@ -1034,6 +1035,14 @@ function CalendarDateSheet({ household, date, data, loading, onClose, onNavigate
   const complete = async (task: TodayTask) => { if (completingIds.has(task.id) || passingIds.has(task.id) || restoringIds.has(task.id)) return; setOpenRowId(null); setCompletingIds((ids) => new Set(ids).add(task.id)); try { await changeTaskState(task.id, "complete", calendarTaskActionScope(task, date)); await wait(MOTION_MS.completion); await onRefresh(); } catch (error) { setStatusMessage(apiErrorMessage(error)); await onRefresh(); } finally { setCompletingIds((ids) => { const next = new Set(ids); next.delete(task.id); return next; }); } };
   const pass = async (task: TodayTask) => { if (completingIds.has(task.id) || passingIds.has(task.id) || restoringIds.has(task.id)) return; setOpenRowId(null); setPassingIds((ids) => new Set(ids).add(task.id)); try { await changeTaskState(task.id, "skip", calendarTaskActionScope(task, date)); await wait(MOTION_MS.pass); await onRefresh(); } catch (error) { setStatusMessage(apiErrorMessage(error)); await onRefresh(); } finally { setPassingIds((ids) => { const next = new Set(ids); next.delete(task.id); return next; }); } };
   const restore = async (record: CalendarCompletedRecord) => { if (completingIds.has(record.taskId) || passingIds.has(record.taskId) || restoringIds.has(record.taskId)) return; setOpenRowId(null); setRestoringIds((ids) => new Set(ids).add(record.taskId)); try { await restoreCalendarTaskRecord(record.taskId, record.id, date); await wait(MOTION_MS.restore); await onRefresh(); } catch (error) { setStatusMessage(apiErrorMessage(error)); await onRefresh(); } finally { setRestoringIds((ids) => { const next = new Set(ids); next.delete(record.taskId); return next; }); } };
+  const openRowAction = (rowId: string | null) => {
+    setOpenRowId(rowId);
+    if (rowId) setExpandedTaskId(null);
+  };
+  const toggleTaskDetail = (taskId: string) => {
+    setOpenRowId(null);
+    setExpandedTaskId((current) => current === taskId ? null : taskId);
+  };
   const pointerDown = (event: ReactPointerEvent<HTMLElement>) => {
     const inContent = contentRef.current?.contains(event.target as Node) ?? false;
     start.current = { x: event.clientX, y: event.clientY, axis: "pending", canDismiss: !inContent || (contentRef.current?.scrollTop ?? 0) <= 0 };
@@ -1100,15 +1109,16 @@ function CalendarDateSheet({ household, date, data, loading, onClose, onNavigate
     setDragOffsetY(0);
   };
   const direct = data?.selected.fixed ?? []; const period = [...(data?.selected.weeklyFlexible ?? []), ...(data?.selected.monthlyFlexible ?? [])].sort((a, b) => (a.deadlineDate ?? "").localeCompare(b.deadlineDate ?? "")); const completed = data?.selected.completed ?? [];
-  return <div className="calendar-date-layer"><button type="button" className="calendar-date-backdrop" aria-label="背景を閉じる" onClick={onClose} /><section ref={sheetRef} role="dialog" aria-modal="true" aria-labelledby="calendar-date-sheet-title" className={`calendar-date-sheet${dragging ? " is-swipe-dragging" : ""}${isDismissing ? " is-dismissing" : ""}${direction ? ` is-date-transitioning-${direction}` : ""}`} style={{ "--date-sheet-drag-offset": `${dragOffsetY}px` } as CSSProperties} onPointerDown={(event) => { event.stopPropagation(); pointerDown(event); }} onPointerMove={(event) => { event.stopPropagation(); pointerMove(event); }} onPointerUp={(event) => { event.stopPropagation(); pointerUp(event); }} onPointerCancel={(event) => { event.stopPropagation(); pointerCancel(event); }} onClickCapture={(event) => { if (!suppressClick.current) return; event.preventDefault(); event.stopPropagation(); suppressClick.current = false; }}><div className="calendar-date-sheet__handle" aria-hidden="true" /><header className="calendar-date-sheet__header"><button type="button" className="calendar-date-sheet__close" onClick={onClose}><X /><span>閉じる</span></button><div className="calendar-date-sheet__nav" aria-label="日付を移動"><button type="button" aria-label="前の日" onClick={() => moveDate(-1)}><ChevronLeft /></button><button type="button" aria-label="次の日" onClick={() => moveDate(1)}><ChevronRight /></button></div></header><div ref={contentRef} className="calendar-date-sheet__content" style={{ "--date-swipe-offset": `${offset}px` } as CSSProperties}><h2 id="calendar-date-sheet-title">{formatCalendarDateLong(date)}</h2><CalendarDateSection title="この日" tasks={direct} openRowId={openRowId} onOpenRow={setOpenRowId} completingIds={completingIds} passingIds={passingIds} restoringIds={restoringIds} onComplete={complete} onEdit={(task) => onNavigate(`/tasks/${task.id}/edit?origin=calendar&calendarDate=${date}`)} onPass={pass} /><CalendarDateSection title="期間中" tasks={period} openRowId={openRowId} onOpenRow={setOpenRowId} completingIds={completingIds} passingIds={passingIds} restoringIds={restoringIds} onComplete={complete} onEdit={(task) => onNavigate(`/tasks/${task.id}/edit?origin=calendar&calendarDate=${date}`)} onPass={pass} />{completed.length ? <section className="home-completed calendar-completed-section"><button className="home-completed__history-toggle" type="button" aria-expanded={completedOpen} onClick={() => setCompletedOpen((open) => !open)}><span>完了済み {completed.length}</span><ChevronRight className={completedOpen ? "is-open" : ""} /></button>{completedOpen ? <div className="home-history__list home-completed__list">{completed.map((record) => <CalendarHistoryRow key={record.id} record={record} busy={restoringIds.has(record.taskId)} openRowId={openRowId} onOpenRow={setOpenRowId} onEdit={() => onNavigate(`/tasks/${record.taskId}/edit?origin=calendar&calendarDate=${date}`)} onRestore={() => void restore(record)} />)}</div> : null}</section> : null}{data?.selected.shopping.length ? <section className="calendar-shopping-section"><h3>買うもの</h3><div className="calendar-shopping-list">{data.selected.shopping.map((item) => <button key={item.id} type="button" className="calendar-shopping-row" aria-label={`${item.name}${item.quantity ? ` ${item.quantity}` : ""}`} onClick={() => onNavigate(`/shopping?item=${item.id}`)}><span>{item.name}</span>{item.quantity ? <span>{item.quantity}</span> : null}</button>)}</div></section> : null}<p className="calendar-status" role="status" aria-live="polite">{statusMessage}{loading && data ? "読み込み中" : ""}</p></div></section></div>;
+  return <div className="calendar-date-layer"><button type="button" className="calendar-date-backdrop" aria-label="背景を閉じる" onClick={onClose} /><section ref={sheetRef} role="dialog" aria-modal="true" aria-labelledby="calendar-date-sheet-title" className={`calendar-date-sheet${dragging ? " is-swipe-dragging" : ""}${isDismissing ? " is-dismissing" : ""}${direction ? ` is-date-transitioning-${direction}` : ""}`} style={{ "--date-sheet-drag-offset": `${dragOffsetY}px` } as CSSProperties} onPointerDown={(event) => { event.stopPropagation(); pointerDown(event); }} onPointerMove={(event) => { event.stopPropagation(); pointerMove(event); }} onPointerUp={(event) => { event.stopPropagation(); pointerUp(event); }} onPointerCancel={(event) => { event.stopPropagation(); pointerCancel(event); }} onClickCapture={(event) => { if (!suppressClick.current) return; event.preventDefault(); event.stopPropagation(); suppressClick.current = false; }}><div className="calendar-date-sheet__handle" aria-hidden="true" /><header className="calendar-date-sheet__header"><button type="button" className="calendar-date-sheet__close" onClick={onClose}><X /><span>閉じる</span></button><div className="calendar-date-sheet__nav" aria-label="日付を移動"><button type="button" aria-label="前の日" onClick={() => moveDate(-1)}><ChevronLeft /></button><button type="button" aria-label="次の日" onClick={() => moveDate(1)}><ChevronRight /></button></div></header><div ref={contentRef} className="calendar-date-sheet__content" style={{ "--date-swipe-offset": `${offset}px` } as CSSProperties}><h2 id="calendar-date-sheet-title">{formatCalendarDateLong(date)}</h2><CalendarDateSection title="この日" tasks={direct} expandedTaskId={expandedTaskId} onToggleTask={toggleTaskDetail} openRowId={openRowId} onOpenRow={openRowAction} date={date} completingIds={completingIds} passingIds={passingIds} restoringIds={restoringIds} onComplete={complete} onEdit={(task) => onNavigate(`/tasks/${task.id}/edit?origin=calendar&calendarDate=${date}`)} onPass={pass} /><CalendarDateSection title="期間中" tasks={period} expandedTaskId={expandedTaskId} onToggleTask={toggleTaskDetail} openRowId={openRowId} onOpenRow={openRowAction} date={date} completingIds={completingIds} passingIds={passingIds} restoringIds={restoringIds} onComplete={complete} onEdit={(task) => onNavigate(`/tasks/${task.id}/edit?origin=calendar&calendarDate=${date}`)} onPass={pass} />{completed.length ? <section className="home-completed calendar-completed-section"><button className="home-completed__history-toggle" type="button" aria-expanded={completedOpen} onClick={() => setCompletedOpen((open) => !open)}><span>完了済み {completed.length}</span><ChevronRight className={completedOpen ? "is-open" : ""} /></button>{completedOpen ? <div className="home-history__list home-completed__list">{completed.map((record) => <CalendarHistoryRow key={record.id} record={record} busy={restoringIds.has(record.taskId)} openRowId={openRowId} onOpenRow={openRowAction} onEdit={() => onNavigate(`/tasks/${record.taskId}/edit?origin=calendar&calendarDate=${date}`)} onRestore={() => void restore(record)} />)}</div> : null}</section> : null}{data?.selected.shopping.length ? <section className="calendar-shopping-section"><h3>買うもの</h3><div className="calendar-shopping-list">{data.selected.shopping.map((item) => <button key={item.id} type="button" className="calendar-shopping-row" aria-label={`${item.name}${item.quantity ? ` ${item.quantity}` : ""}`} onClick={() => onNavigate(`/shopping?item=${item.id}`)}><span>{item.name}</span>{item.quantity ? <span>{item.quantity}</span> : null}</button>)}</div></section> : null}<p className="calendar-status" role="status" aria-live="polite">{statusMessage}{loading && data ? "読み込み中" : ""}</p></div></section></div>;
 }
 
 /* eslint-enable @typescript-eslint/no-misused-promises */
-function CalendarDateSection({ title, tasks, openRowId, onOpenRow, completingIds, passingIds, restoringIds, onComplete, onEdit, onPass }: { title: string; tasks: TodayTask[]; openRowId: string | null; onOpenRow: (rowId: string | null) => void; completingIds: Set<string>; passingIds: Set<string>; restoringIds: Set<string>; onComplete: (task: TodayTask) => void; onEdit: (task: TodayTask) => void; onPass: (task: TodayTask) => void }) { return <section className="calendar-date-section"><h3>{title}</h3>{tasks.length ? <div className="calendar-detail-task-list">{tasks.map((task) => <CalendarDetailTask key={task.id} task={task} rowId={`${title}-${task.id}`} openRowId={openRowId} onOpenRow={onOpenRow} completing={completingIds.has(task.id)} passing={passingIds.has(task.id)} restoring={restoringIds.has(task.id)} onComplete={() => onComplete(task)} onEdit={() => onEdit(task)} onPass={() => onPass(task)} />)}</div> : <p className="calendar-date-section__empty">なし</p>}</section>; }
-function CalendarDetailTask({ task, rowId, openRowId, onOpenRow, completing, passing, restoring, onComplete, onEdit, onPass }: { task: TodayTask; rowId: string; openRowId: string | null; onOpenRow: (rowId: string | null) => void; completing: boolean; passing: boolean; restoring: boolean; onComplete: () => void; onEdit: () => void; onPass: () => void }) {
+function CalendarDateSection({ title, tasks, expandedTaskId, onToggleTask, openRowId, onOpenRow, date, completingIds, passingIds, restoringIds, onComplete, onEdit, onPass }: { title: string; tasks: TodayTask[]; expandedTaskId: string | null; onToggleTask: (taskId: string) => void; openRowId: string | null; onOpenRow: (rowId: string | null) => void; date: string; completingIds: Set<string>; passingIds: Set<string>; restoringIds: Set<string>; onComplete: (task: TodayTask) => void; onEdit: (task: TodayTask) => void; onPass: (task: TodayTask) => void }) { return <section className="calendar-date-section"><h3>{title}</h3>{tasks.length ? <div className="calendar-detail-task-list">{tasks.map((task) => <CalendarDetailTask key={task.id} task={task} rowId={`calendar-active-${task.id}`} expanded={expandedTaskId === task.id} onToggle={() => onToggleTask(task.id)} date={date} openRowId={openRowId} onOpenRow={onOpenRow} completing={completingIds.has(task.id)} passing={passingIds.has(task.id)} restoring={restoringIds.has(task.id)} onComplete={() => onComplete(task)} onEdit={() => onEdit(task)} onPass={() => onPass(task)} />)}</div> : <p className="calendar-date-section__empty">なし</p>}</section>; }
+function CalendarDetailTask({ task, rowId, expanded, onToggle, date, openRowId, onOpenRow, completing, passing, restoring, onComplete, onEdit, onPass }: { task: TodayTask; rowId: string; expanded: boolean; onToggle: () => void; date: string; openRowId: string | null; onOpenRow: (rowId: string | null) => void; completing: boolean; passing: boolean; restoring: boolean; onComplete: () => void; onEdit: () => void; onPass: () => void }) {
   const busy = completing || passing || restoring;
-  return <HomeSwipeRow rowId={rowId} openRowId={openRowId} onOpenRow={onOpenRow} busy={busy} onEdit={onEdit} onSecondary={onPass} secondaryLabel="パス" rowClassName={`calendar-detail-task${completing ? " is-completing" : ""}${passing ? " is-passing" : ""}${restoring ? " is-restoring" : ""}`}>
-    <button type="button" className="m2-home__row-main calendar-detail-task__main" disabled={busy} onClick={onComplete} aria-label={`${task.title}を完了`}>
+  const expandedContent = expanded ? <div className="m2-home__expanded" id={`calendar-task-detail-${task.id}`}><button type="button" className="m2-home__primary" disabled={busy} onClick={onComplete}>{busy ? "完了中…" : "完了"}</button>{task.description?.trim() ? <div className="m2-home__detail"><span>メモ</span><p>{task.description.trim()}</p></div> : null}{task.deadlineDate || task.targetDate || task.deadlineTime || task.scheduledTime ? <div className="m2-home__detail"><span>日付 / 時間</span><p>{formatHomeDeadline(task, date)}</p></div> : null}{task.modelRecurrenceType || task.recurrenceType ? <div className="m2-home__detail"><span>繰り返し</span><p>{recurrenceDescription(task)}</p></div> : null}</div> : null;
+  return <HomeSwipeRow rowId={rowId} openRowId={openRowId} onOpenRow={onOpenRow} busy={busy} onEdit={onEdit} onSecondary={onPass} secondaryLabel="パス" expanded={expanded} expandedContent={expandedContent} rowClassName={`calendar-detail-task${completing ? " is-completing" : ""}${passing ? " is-passing" : ""}${restoring ? " is-restoring" : ""}`}>
+    <button type="button" className="m2-home__row-main calendar-detail-task__main" disabled={busy} onClick={onToggle} aria-label={`${task.title}の詳細`} aria-expanded={expanded} aria-controls={`calendar-task-detail-${task.id}`}>
       <span className={`calendar-detail-task__check${completing ? " is-completing" : ""}`} aria-hidden="true">{completing ? <Check /> : null}</span>
       <span>{task.title}</span>
     </button>
@@ -1219,6 +1229,7 @@ function HomeScreen({
   const [completedOpen, setCompletedOpen] = useState(false);
   const [passedOpen, setPassedOpen] = useState(false);
   const [openRowId, setOpenRowId] = useState<string | null>(null);
+  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const [completingIds, setCompletingIds] = useState<Set<string>>(new Set());
   const [passingIds, setPassingIds] = useState<Set<string>>(new Set());
   const [restoringIds, setRestoringIds] = useState<Set<string>>(new Set());
@@ -1286,6 +1297,14 @@ function HomeScreen({
     }
   };
   const editRecord = (record: DashboardToday["completedRecords"][number]) => onNavigate(`/tasks/${record.taskId}/edit`);
+  const openRowAction = (rowId: string | null) => {
+    setOpenRowId(rowId);
+    if (rowId) setExpandedTaskId(null);
+  };
+  const toggleTaskDetail = (taskId: string) => {
+    setOpenRowId(null);
+    setExpandedTaskId((current) => current === taskId ? null : taskId);
+  };
   return (
     <AppFrame current="/home" onNavigate={onNavigate}>
       <main className="m2-home" aria-busy={loading}>
@@ -1301,14 +1320,16 @@ function HomeScreen({
                 key={task.id}
                 rowId={`active-${task.id}`}
                 openRowId={openRowId}
-                onOpenRow={setOpenRowId}
+                onOpenRow={openRowAction}
                 busy={isBusy(task.id)}
                 onEdit={() => onNavigate(`/tasks/${task.id}/edit`)}
                 onSecondary={() => void pass(task)}
                 secondaryLabel="パス"
+                expanded={expandedTaskId === task.id}
+                expandedContent={<TaskInlineDetail task={task} today={today} members={data?.members ?? []} busy={isBusy(task.id)} onComplete={() => void complete(task)} />}
                 rowClassName={restoringIds.has(task.id) ? "is-restoring-row" : completingIds.has(task.id) ? "is-completing-row" : passingIds.has(task.id) ? "is-passing-row" : ""}
               >
-                <button className="m2-home__row-main" type="button" disabled={isBusy(task.id)} onClick={() => void complete(task)} aria-label={`${task.title}を完了`}>
+                <button className="m2-home__row-main" type="button" disabled={isBusy(task.id)} onClick={() => toggleTaskDetail(task.id)} aria-label={`${task.title}の詳細`} aria-expanded={expandedTaskId === task.id} aria-controls={`home-task-detail-${task.id}`}>
                   <span className={`m2-home__check m2-home__check--${homeTaskScope(task)}${completingIds.has(task.id) ? " is-completing" : ""}`} aria-hidden="true">
                     {completingIds.has(task.id) ? <Check /> : null}
                   </span>
@@ -1399,7 +1420,20 @@ function HomeAvatar({ member, label }: { member: { displayName: string | null; c
   return <span className="m2-home__avatar" role="img" aria-label={`${label}: ${name}`}>{member.avatarUrl ? <img src={member.avatarUrl} alt="" /> : name.slice(0, 1)}</span>;
 }
 
-function HomeSwipeRow({ children, rowId, openRowId, onOpenRow, busy, onEdit, onSecondary, secondaryLabel, rowClassName = "", restoreOnly = false }: { children: ReactNode; rowId: string; openRowId: string | null; onOpenRow: (rowId: string | null) => void; busy: boolean; onEdit?: () => void; onSecondary: () => void; secondaryLabel: string; rowClassName?: string; restoreOnly?: boolean }) {
+function TaskInlineDetail({ task, today, members, busy, onComplete }: { task: TodayTask; today: string; members?: DashboardToday["members"]; busy: boolean; onComplete: () => void }) {
+  const description = task.description?.trim();
+  const assignee = members ? homeMemberForTask(task, members) : null;
+  const hasDateOrTime = Boolean(task.deadlineDate ?? (task.modelRecurrenceType === "once" ? task.targetDate : null) ?? task.deadlineTime ?? task.scheduledTime);
+  return <div className="m2-home__expanded" id={`home-task-detail-${task.id}`}>
+    <button type="button" className="m2-home__primary" disabled={busy} onClick={onComplete}>{busy ? "完了中…" : "完了"}</button>
+    {description ? <div className="m2-home__detail"><span>メモ</span><p>{description}</p></div> : null}
+    {assignee ? <div className="m2-home__detail"><span>担当</span><p>{assignee.displayName ?? "メンバー"}</p></div> : null}
+    {hasDateOrTime ? <div className="m2-home__detail"><span>日付 / 時間</span><p>{formatHomeDeadline(task, today)}</p></div> : null}
+    {task.modelRecurrenceType || task.recurrenceType ? <div className="m2-home__detail"><span>繰り返し</span><p>{recurrenceDescription(task)}</p></div> : null}
+  </div>;
+}
+
+function HomeSwipeRow({ children, rowId, openRowId, onOpenRow, busy, onEdit, onSecondary, secondaryLabel, expanded = false, expandedContent, rowClassName = "", restoreOnly = false }: { children: ReactNode; rowId: string; openRowId: string | null; onOpenRow: (rowId: string | null) => void; busy: boolean; onEdit?: () => void; onSecondary: () => void; secondaryLabel: string; expanded?: boolean; expandedContent?: ReactNode; rowClassName?: string; restoreOnly?: boolean }) {
   const actionWidth = restoreOnly ? 72 : 136;
   const actionsOpen = openRowId === rowId;
   const [offset, setOffset] = useState(actionsOpen ? -actionWidth : 0);
@@ -1437,7 +1471,7 @@ function HomeSwipeRow({ children, rowId, openRowId, onOpenRow, busy, onEdit, onS
     vertical.current = false;
     horizontal.current = false;
     setDragging(false);
-    if (wasVertical) { setOffset(actionsOpen ? -actionWidth : 0); return; }
+    if (wasVertical) { suppressClick.current = true; setOffset(actionsOpen ? -actionWidth : 0); return; }
     if (-dx > 48) { suppressClick.current = true; onOpenRow(rowId); setOffset(-actionWidth); }
     else if (dx > 24 && actionsOpen) { suppressClick.current = true; onOpenRow(null); setOffset(0); }
     else setOffset(actionsOpen ? -actionWidth : 0);
@@ -1447,12 +1481,13 @@ function HomeSwipeRow({ children, rowId, openRowId, onOpenRow, busy, onEdit, onS
     if (event.target instanceof Element && event.target.closest(".m2-home__actions")) { suppressClick.current = false; return; }
     event.preventDefault(); event.stopPropagation(); suppressClick.current = false;
   };
-  return <div className={`m2-home__row ${actionsOpen ? "is-actions-open" : ""} ${dragging ? "is-dragging" : ""} ${rowClassName}`} onPointerDown={(event) => { event.stopPropagation(); start.current = { x: event.clientX, y: event.clientY }; setDragging(false); }} onPointerMove={(event) => { event.stopPropagation(); move(event); }} onPointerUp={(event) => { event.stopPropagation(); end(event); }} onPointerCancel={(event) => { event.stopPropagation(); start.current = null; vertical.current = false; horizontal.current = false; setDragging(false); setOffset(actionsOpen ? -actionWidth : 0); }} onClickCapture={clickCapture}>
+  return <div className={`m2-home__row ${expanded ? "is-expanded" : ""} ${actionsOpen ? "is-actions-open" : ""} ${dragging ? "is-dragging" : ""} ${rowClassName}`} onPointerDown={(event) => { event.stopPropagation(); start.current = { x: event.clientX, y: event.clientY }; setDragging(false); }} onPointerMove={(event) => { event.stopPropagation(); move(event); }} onPointerUp={(event) => { event.stopPropagation(); end(event); }} onPointerCancel={(event) => { event.stopPropagation(); start.current = null; vertical.current = false; horizontal.current = false; setDragging(false); setOffset(actionsOpen ? -actionWidth : 0); }} onClickCapture={clickCapture}>
     <div className="m2-home__row-content" style={{ "--m2-swipe-offset": `${offset}px` } as CSSProperties}>
       {children}
       <button type="button" className="m2-home__more" aria-label="操作" aria-expanded={actionsOpen} onClick={() => { const next = !actionsOpen; onOpenRow(next ? rowId : null); setOffset(next ? -actionWidth : 0); }}><Ellipsis aria-hidden="true" /></button>
     </div>
     <div className={`m2-home__actions ${restoreOnly ? "is-restore-only" : ""}`} aria-label="操作メニュー"><span aria-hidden="true" />{!restoreOnly && onEdit ? <button type="button" onClick={onEdit}>編集</button> : null}<button type="button" className="is-secondary" disabled={busy} onClick={onSecondary}>{secondaryLabel}</button></div>
+    {expanded ? expandedContent : null}
   </div>;
 }
 
