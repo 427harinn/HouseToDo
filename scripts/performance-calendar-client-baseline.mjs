@@ -125,6 +125,9 @@ const createMockPage = async (browser) => {
       if (document.querySelector(".calendar-day-task") && !window.__calendarBaseline.some((item) => item.kind === "month-data-visible")) {
         window.__calendarBaseline.push({ kind: "month-data-visible", at: performance.now() });
       }
+      if (document.querySelector('.calendar-day-task[title="Calendar task 2026-09-15"]') && !window.__calendarBaseline.some((item) => item.kind === "next-month-data-visible")) {
+        window.__calendarBaseline.push({ kind: "next-month-data-visible", at: performance.now() });
+      }
       if (document.querySelector(".calendar-completed-section") && !window.__calendarBaseline.some((item) => item.kind === "completed-visible")) {
         window.__calendarBaseline.push({ kind: "completed-visible", at: performance.now() });
       }
@@ -187,7 +190,6 @@ const aggregate = (rows, key) => {
   const values = rows.map((row) => row[key]).sort((a, b) => a - b);
   return { min: values[0], p50: values[Math.floor(values.length * 0.5)], p95: values[Math.min(values.length - 1, Math.ceil(values.length * 0.95) - 1)], max: values.at(-1) };
 };
-const latestEvent = (events, type, path, method = "GET") => [...events].reverse().find((event) => event.type === type && event.path === path && event.method === method);
 const pageMark = (marks, kind, path, occurrence = 0) => marks.filter((mark) => mark.kind === kind && mark.path === path)[occurrence];
 
 const browser = await chromium.launch({ headless: true });
@@ -258,19 +260,28 @@ for (let index = 0; index < 10; index += 1) {
   const events = collectEvents(page);
   await page.goto(`${baseUrl}/calendar`);
   await page.locator('.calendar-day-task[title="Calendar task 2026-08-28"]').waitFor({ state: "visible" });
-  const tapAt = performance.now();
-  await page.locator('.calendar-day-cell[aria-label^="8月29日"]').click();
+  const dateCell = page.locator('.calendar-day-cell[aria-label^="8月29日"]');
+  await dateCell.evaluate((button) => {
+    button.addEventListener("click", () => {
+      window.__calendarBaseline.push({ kind: "date-tap-click", at: performance.now() });
+    }, { capture: true, once: true });
+  });
+  await dateCell.click();
   await page.waitForResponse((response) => pathOf(response.url()) === "/api/tasks/calendar");
   await page.locator(".calendar-date-sheet .calendar-detail-task").first().waitFor({ state: "visible" });
-  const selectedVisible = performance.now();
-  const request = latestEvent(events, "request", "/api/tasks/calendar");
-  const response = latestEvent(events, "response", "/api/tasks/calendar");
+  await page.evaluate(() => window.__calendarBaseline.push({ kind: "date-sheet-task-visible", at: performance.now() }));
+  const marks = await page.evaluate(() => window.__calendarBaseline);
+  const clickMark = pageMark(marks, "date-tap-click");
+  const request = pageMark(marks, "fetch-start", "/api/tasks/calendar", 1);
+  const response = pageMark(marks, "fetch-response", "/api/tasks/calendar", 1);
+  const selectedVisible = pageMark(marks, "date-sheet-task-visible");
   requestCounts.dateTap.push(events.filter((event) => event.type === "request" && event.path === "/api/tasks/calendar").length - 1);
+  if (!clickMark || !request || !response || !selectedVisible) throw new Error(JSON.stringify({ marks, events }));
   dateTapSamples.push({
-    tapToRequestStart: diff(tapAt, request.at),
+    actualClickToRequestStart: diff(clickMark.at, request.at),
     requestToResponse: diff(request.at, response.at),
-    responseToDateSheetTaskVisible: diff(response.at, selectedVisible),
-    tapToDateSheetTaskVisible: diff(tapAt, selectedVisible)
+    responseToDateSheetTaskVisible: diff(response.at, selectedVisible.at),
+    actualClickToDateSheetTaskVisible: diff(clickMark.at, selectedVisible.at)
   });
   await page.close();
 }
@@ -281,19 +292,27 @@ for (let index = 0; index < 10; index += 1) {
   const events = collectEvents(page);
   await page.goto(`${baseUrl}/calendar`);
   await page.locator('.calendar-day-task[title="Calendar task 2026-08-28"]').waitFor({ state: "visible" });
-  const clickAt = performance.now();
-  await page.getByRole("button", { name: "次の月" }).click();
+  const nextMonthButton = page.getByRole("button", { name: "次の月" });
+  await nextMonthButton.evaluate((button) => {
+    button.addEventListener("click", () => {
+      window.__calendarBaseline.push({ kind: "month-next-click", at: performance.now() });
+    }, { capture: true, once: true });
+  });
+  await nextMonthButton.click();
   await page.waitForResponse((response) => pathOf(response.url()) === "/api/tasks/calendar");
   await page.locator('.calendar-day-task[title="Calendar task 2026-09-15"]').waitFor({ state: "visible" });
-  const newMonthVisible = performance.now();
-  const request = latestEvent(events, "request", "/api/tasks/calendar");
-  const response = latestEvent(events, "response", "/api/tasks/calendar");
+  const marks = await page.evaluate(() => window.__calendarBaseline);
+  const clickMark = pageMark(marks, "month-next-click");
+  const request = pageMark(marks, "fetch-start", "/api/tasks/calendar", 1);
+  const response = pageMark(marks, "fetch-response", "/api/tasks/calendar", 1);
+  const newMonthVisible = pageMark(marks, "next-month-data-visible");
   requestCounts.monthChange.push(events.filter((event) => event.type === "request" && event.path === "/api/tasks/calendar").length - 1);
+  if (!clickMark || !request || !response || !newMonthVisible) throw new Error(JSON.stringify({ marks, events }));
   monthChangeSamples.push({
-    clickToRequestStart: diff(clickAt, request.at),
+    actualClickToRequestStart: diff(clickMark.at, request.at),
     requestToResponse: diff(request.at, response.at),
-    responseToNewMonthVisible: diff(response.at, newMonthVisible),
-    clickToNewMonthVisible: diff(clickAt, newMonthVisible)
+    responseToNewMonthVisible: diff(response.at, newMonthVisible.at),
+    actualClickToNewMonthVisible: diff(clickMark.at, newMonthVisible.at)
   });
   await page.close();
 }

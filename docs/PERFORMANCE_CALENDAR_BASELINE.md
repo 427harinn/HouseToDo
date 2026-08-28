@@ -196,12 +196,12 @@ The same-month tap changed the selected date from `2026-08-28` to `2026-08-29`.
 
 | Phase | p50 | p95 |
 | --- | ---: | ---: |
-| Date tap → request start | 43.42ms | 46.45ms |
-| Request → response | 64.49ms | 77.04ms |
-| Response → Date Sheet task visible | 3.66ms | 5.11ms |
-| Date tap → current Date Sheet task visible | 111.93ms | 127.14ms |
+| Actual date-cell click event → Calendar request start | 3.40ms | 3.80ms |
+| Request → response | 84.40ms | 94.40ms |
+| Response → Date Sheet task visible | 5.00ms | 5.40ms |
+| Actual date-cell click event → current Date Sheet task visible | 92.50ms | 103.40ms |
 
-Each tap produced exactly 1 additional full Calendar request. The total was measured directly from the browser tap timestamp to the visible task timestamp for each sample; it was not derived by adding phase medians. The Date Sheet shell itself opens before the response, but current selected-date content waits for the new response.
+Each date-cell click produced exactly 1 additional full Calendar request. The total was measured directly from the browser's actual date-cell click event timestamp to the visible task timestamp for each sample; it was not derived by adding phase medians. The Date Sheet shell itself opens before the response, but current selected-date content waits for the new response.
 
 ## Month Change Timing
 
@@ -209,10 +209,10 @@ The controlled harness measured the next-month button; the swipe path calls the 
 
 | Phase | p50 | p95 |
 | --- | ---: | ---: |
-| Month button → request start | 25.56ms | 30.76ms |
-| Request → response | 68.04ms | 73.78ms |
-| Response → new month data visible | 3.14ms | 4.37ms |
-| Month button → new month data visible | 94.93ms | 97.41ms |
+| Actual month-button click event → Calendar request start | 2.40ms | 2.50ms |
+| Request → response | 69.20ms | 76.30ms |
+| Response → new month data visible | 1.40ms | 2.00ms |
+| Actual month-button click event → new month data visible | 73.00ms | 80.60ms |
 
 Each month change produced exactly 1 additional full Calendar request. Previous data remained in state while the request was pending.
 
