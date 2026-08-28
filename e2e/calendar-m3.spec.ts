@@ -9,8 +9,8 @@ const expectNoHorizontalScroll = async (page: import("@playwright/test").Page) =
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
 };
 
-function calendarTask(id: string, title: string, selectedDate: string) {
-  return { id, title, description: null, recurrenceType: "model_only", modelRecurrenceType: "once", assignmentType: "anyone", assignedUserId: null, assignment: { type: "anyone", user: null }, scheduledTime: null, notificationSlot: "none", weekdays: [], weeklyTargetCount: null, targetDate: selectedDate, active: true, sortOrder: 1, createdBy: "user-1", createdAt: "2026-08-01", updatedAt: "2026-08-01", status: "pending", actedBy: null, startedAt: null, completedAt: null, skippedAt: null, note: null, scopeKind: "occurrence", occurrenceKey: `occurrence:${id}:${selectedDate}`, periodKey: null, periodStart: selectedDate, periodEnd: selectedDate, deadlineDate: selectedDate, overdue: false };
+function calendarTask(id: string, title: string, selectedDate: string, description: string | null = null) {
+  return { id, title, description, recurrenceType: "model_only", modelRecurrenceType: "once", assignmentType: "anyone", assignedUserId: null, assignment: { type: "anyone", user: null }, scheduledTime: null, notificationSlot: "none", weekdays: [], weeklyTargetCount: null, targetDate: selectedDate, active: true, sortOrder: 1, createdBy: "user-1", createdAt: "2026-08-01", updatedAt: "2026-08-01", status: "pending", actedBy: null, startedAt: null, completedAt: null, skippedAt: null, note: null, scopeKind: "occurrence", occurrenceKey: `occurrence:${id}:${selectedDate}`, periodKey: null, periodStart: selectedDate, periodEnd: selectedDate, deadlineDate: selectedDate, overdue: false };
 }
 
 function calendarData(selectedDate: string, completed = false, passed = false, multi = false) {
@@ -33,7 +33,7 @@ function calendarData(selectedDate: string, completed = false, passed = false, m
   return {
     from: "2026-07-26", to: "2026-09-05", today: "2026-08-20", timezone: "Asia/Tokyo", selectedDate, dates,
     selected: {
-      fixed: completed || passed ? [] : [calendarTask("task-1", "朝食の片付け", selectedDate), ...(hasMultiple ? [calendarTask("task-2", "夕食の片付け", selectedDate)] : [])],
+      fixed: completed || passed ? [] : [calendarTask("task-1", "朝食の片付け", selectedDate, "朝食後に確認"), ...(hasMultiple ? [calendarTask("task-2", "夕食の片付け", selectedDate)] : [])],
       weeklyFlexible: [], monthlyFlexible: [],
       completed: completed ? [{ id: "record-1", taskId: "task-1", title: "朝食の片付け", taskActive: true, selectedDate, actualCompleter: { userId: "user-1", displayName: "はる", avatarUrl: null }, targetDate: selectedDate, targetWeekStart: null, status: "completed" }] : [],
       shopping: [{ id: "shopping-1", name: "牛乳", quantity: "2本", note: "hidden", status: "pending", plannedPurchaseDate: selectedDate, purchasedAt: null, purchasedBy: null }]
@@ -46,6 +46,7 @@ test.describe("Calendar M3", () => {
     let completed = false;
     let passed = false;
     let delayedCalendarRefresh = false;
+    let persistActiveAfterComplete = false;
     await page.route("**/api/**", async (route) => {
       const url = new URL(route.request().url());
       if (!url.pathname.startsWith("/api/")) return route.continue();
@@ -54,8 +55,8 @@ test.describe("Calendar M3", () => {
       if (url.pathname === "/api/households/current/members") return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(response({ members: [] })) });
       if (url.pathname === "/api/tasks/task-1" && route.request().method() === "GET") return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(response({ task: { id: "task-1", title: "朝食の片付け", description: null, recurrenceType: "model_only", modelRecurrenceType: "once", assignmentType: "anyone", assignedUserId: null, startDate: "2026-08-20", targetDate: "2026-08-20", deadlineTime: null, notificationOffsetMinutes: null, weekdays: [], weeklyTargetCount: null, active: true } })) });
       if (url.pathname === "/api/tasks/task-1/history") return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(response({ records: [] })) });
-      if (url.pathname === "/api/tasks/calendar") { if (delayedCalendarRefresh) { delayedCalendarRefresh = false; await new Promise((resolve) => setTimeout(resolve, 300)); } return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(response(calendarData(url.searchParams.get("selectedDate") ?? "2026-08-20", completed, passed, url.searchParams.get("multi") === "1"))) }); }
-      if (url.pathname.endsWith("/complete")) { completed = true; delayedCalendarRefresh = true; return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(response({ result: {} })) }); }
+      if (url.pathname === "/api/tasks/calendar") { persistActiveAfterComplete ||= url.searchParams.get("persist") === "1"; if (delayedCalendarRefresh) { delayedCalendarRefresh = false; await new Promise((resolve) => setTimeout(resolve, 300)); } return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(response(calendarData(url.searchParams.get("selectedDate") ?? "2026-08-20", completed, passed, url.searchParams.get("multi") === "1"))) }); }
+      if (url.pathname.endsWith("/complete")) { if (!persistActiveAfterComplete) completed = true; delayedCalendarRefresh = true; return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(response({ result: {} })) }); }
       if (url.pathname.endsWith("/skip")) { passed = true; return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(response({ result: {} })) }); }
       if (url.pathname.endsWith("/calendar-restore")) { completed = false; return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(response({ result: { reset: true } })) }); }
       throw new Error(`Unexpected Calendar API request: ${route.request().method()} ${url.pathname}`);
@@ -86,7 +87,13 @@ test.describe("Calendar M3", () => {
     expect(dialogBox.y + dialogBox.height).toBeGreaterThanOrEqual(navBox.y + navBox.height - 1);
     await expect(page.getByRole("heading", { name: "8月20日 木曜日" })).toBeVisible();
     await expect(page.getByText("この日")).toBeVisible();
-    await page.locator(".calendar-detail-task__main").click();
+    const task = page.locator(".calendar-detail-task").first();
+    await task.locator(".calendar-detail-task__main").click();
+    await expect(task).toHaveClass(/is-expanded/);
+    await expect(task.locator(".m2-home__primary")).toBeVisible();
+    await expect(task.getByText("朝食後に確認")).toBeVisible();
+    expect(await task.locator(".m2-home__primary").evaluate((button) => button.parentElement?.firstElementChild === button)).toBe(true);
+    await task.getByRole("button", { name: "完了" }).click();
     await expect(page.getByRole("button", { name: /完了済み 1/ })).toBeVisible({ timeout: 2_000 });
   });
 
@@ -168,10 +175,49 @@ test.describe("Calendar M3", () => {
     await expect(rows.nth(1)).not.toHaveClass(/is-actions-open/);
   });
 
+  test("keeps only one Calendar task detail open and expands no-memo tasks", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/calendar?date=2026-08-21");
+    const rows = page.locator(".calendar-detail-task");
+    await expect(rows).toHaveCount(2);
+    await rows.nth(0).locator(".calendar-detail-task__main").click();
+    await expect(rows.nth(0)).toHaveClass(/is-expanded/);
+    await expect(rows.nth(0).getByText("朝食後に確認")).toBeVisible();
+    await rows.nth(1).locator(".calendar-detail-task__main").click();
+    await expect(rows.nth(0)).not.toHaveClass(/is-expanded/);
+    await expect(rows.nth(1)).toHaveClass(/is-expanded/);
+    await expect(rows.nth(1).getByRole("button", { name: "完了" })).toBeVisible();
+    await expect(rows.nth(1).getByText("メモ", { exact: true })).toHaveCount(0);
+  });
+
+  test("resets Calendar detail when moving to another date with the same task id", async ({ page }) => {
+    await page.goto("/calendar?date=2026-08-20");
+    const task = page.locator(".calendar-detail-task").first();
+    await task.locator(".calendar-detail-task__main").click();
+    await expect(task).toHaveClass(/is-expanded/);
+    await page.getByRole("button", { name: "次の日" }).click();
+    await expect(page.getByRole("heading", { name: "8月21日 金曜日" })).toBeVisible();
+    const nextTask = page.locator(".calendar-detail-task").first();
+    await expect(nextTask).not.toHaveClass(/is-expanded/);
+    await expect(nextTask.locator(".m2-home__primary")).toHaveCount(0);
+    await expect(nextTask.locator(".calendar-detail-task__main")).toHaveAttribute("aria-expanded", "false");
+  });
+
+  test("closes Calendar detail when completion starts even if the active row remains", async ({ page }) => {
+    await page.goto("/calendar?date=2026-08-20&persist=1");
+    const task = page.locator(".calendar-detail-task").first();
+    await task.locator(".calendar-detail-task__main").click();
+    await task.getByRole("button", { name: "完了" }).click();
+    await expect(task).not.toHaveClass(/is-expanded/);
+    await expect(task.locator(".m2-home__primary")).toHaveCount(0);
+    await expect(task.locator(".calendar-detail-task__main")).toHaveAttribute("aria-expanded", "false");
+  });
+
   test("keeps the completing state until the refreshed server state settles", async ({ page }) => {
     await page.goto("/calendar?date=2026-08-20");
     const task = page.locator(".calendar-detail-task");
     await task.locator(".calendar-detail-task__main").click();
+    await task.getByRole("button", { name: "完了" }).click();
     await page.waitForTimeout(450);
     await expect(task).toHaveClass(/is-completing/);
     await expect(task).toHaveCount(0, { timeout: 2_000 });
@@ -180,6 +226,7 @@ test.describe("Calendar M3", () => {
   test("restores a completed task and keeps the Date Sheet open", async ({ page }) => {
     await page.goto("/calendar?date=2026-08-20");
     await page.locator(".calendar-detail-task__main").click();
+    await page.getByRole("button", { name: "完了" }).click();
     await expect(page.getByRole("button", { name: /完了済み 1/ })).toBeVisible({ timeout: 2_000 });
     await page.getByRole("button", { name: /完了済み 1/ }).click();
     const row = page.locator(".calendar-history-row");

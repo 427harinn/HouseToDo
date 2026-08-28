@@ -574,6 +574,7 @@ describe("M2 Home", () => {
     modelRecurrenceType: "daily",
     assignmentType: "specific",
     assignedUserId: "user-2",
+    description: "玄関前に出す",
     deadlineDate: "2026-08-25",
     deadlineTime: "09:00",
     scheduledTime: null,
@@ -615,7 +616,7 @@ describe("M2 Home", () => {
     expect(screen.getByText("ゴミ出し").closest("button")).toBeInTheDocument();
   });
 
-  it("completes by tapping the row and keeps history collapsed by default", async () => {
+  it("opens inline details without completing, then completes exactly once from the primary action", async () => {
     let completeCalls = 0;
     let completed = false;
     vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
@@ -641,8 +642,14 @@ describe("M2 Home", () => {
     });
     window.history.replaceState({}, "", "/home");
     render(<App />);
-    const row = await screen.findByRole("button", { name: "ゴミ出しを完了" });
+    const row = await screen.findByRole("button", { name: "ゴミ出しの詳細" });
     fireEvent.click(row);
+    expect(completeCalls).toBe(0);
+    expect(screen.getByRole("button", { name: "完了" })).toBeInTheDocument();
+    expect(screen.getByText("玄関前に出す")).toBeInTheDocument();
+    const expanded = screen.getByRole("button", { name: "完了" }).parentElement!;
+    expect(expanded.firstElementChild).toBe(screen.getByRole("button", { name: "完了" }));
+    fireEvent.click(screen.getByRole("button", { name: "完了" }));
     await waitFor(() => expect(completeCalls).toBe(1), { timeout: 1000 });
     await waitFor(() => expect(screen.getByText("完了済み 1")).toBeInTheDocument(), { timeout: 2000 });
     expect(screen.queryByRole("button", { name: "ゴミ出しを完了" })).not.toBeInTheDocument();
@@ -650,6 +657,73 @@ describe("M2 Home", () => {
     fireEvent.click(screen.getByRole("button", { name: /完了済み 1/ }));
     expect(screen.getByText("ゴミ出し")).toBeInTheDocument();
   }, 10000);
+
+  it("keeps a no-memo task expandable without rendering an empty memo block", async () => {
+    const noMemoTask = { ...task, id: "home-task-no-memo", title: "水やり", description: "   ", overdue: false };
+    const dashboard = { ...baseDashboard, todayTasks: [noMemoTask], homeTasks: [noMemoTask] };
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.endsWith("/api/auth/me")) return Promise.resolve(ok({ user }));
+      if (url.endsWith("/api/households/current")) return Promise.resolve(ok({ household }));
+      if (url.endsWith("/api/households/current/image-usage")) return Promise.resolve(ok(imageUsage));
+      if (url.endsWith("/api/dashboard/today")) return Promise.resolve(ok(dashboard));
+      return Promise.resolve(failure("NOT_FOUND", 404));
+    });
+    window.history.replaceState({}, "", "/home");
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "水やりの詳細" }));
+    expect(screen.getByRole("button", { name: "完了" })).toBeInTheDocument();
+    expect(screen.queryByText("メモ")).not.toBeInTheDocument();
+  });
+
+  it("closes Home detail when completion starts even if the active row remains", async () => {
+    let completeCalls = 0;
+    let resolveComplete: ((response: Response) => void) | undefined;
+    const completeResponse = new Promise<Response>((resolve) => { resolveComplete = resolve; });
+    vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.endsWith("/api/auth/me")) return Promise.resolve(ok({ user }));
+      if (url.endsWith("/api/households/current")) return Promise.resolve(ok({ household }));
+      if (url.endsWith("/api/households/current/image-usage")) return Promise.resolve(ok(imageUsage));
+      if (url.endsWith("/api/dashboard/today")) return Promise.resolve(ok(baseDashboard));
+      if (url.endsWith(`/api/tasks/${task.id}/complete`) && init?.method === "POST") {
+        completeCalls += 1;
+        return completeResponse;
+      }
+      return Promise.resolve(failure("NOT_FOUND", 404));
+    });
+    window.history.replaceState({}, "", "/home");
+    render(<App />);
+    const row = await screen.findByRole("button", { name: "ゴミ出しの詳細" });
+    fireEvent.click(row);
+    fireEvent.click(screen.getByRole("button", { name: "完了" }));
+    await waitFor(() => expect(completeCalls).toBe(1));
+    expect(screen.queryByRole("button", { name: "完了" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "ゴミ出しの詳細" })).toHaveAttribute("aria-expanded", "false");
+    resolveComplete?.(ok({ task: { ...task, status: "completed" } }));
+  });
+
+  it("expands only one Home task detail at a time", async () => {
+    const secondTask = { ...task, id: "home-task-2", title: "床そうじ", description: "廊下" };
+    const dashboard = { ...baseDashboard, todayTasks: [task, secondTask], homeTasks: [task, secondTask], summary: { ...baseDashboard.summary, total: 2, pending: 2 } };
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.endsWith("/api/auth/me")) return Promise.resolve(ok({ user }));
+      if (url.endsWith("/api/households/current")) return Promise.resolve(ok({ household }));
+      if (url.endsWith("/api/households/current/image-usage")) return Promise.resolve(ok(imageUsage));
+      if (url.endsWith("/api/dashboard/today")) return Promise.resolve(ok(dashboard));
+      return Promise.resolve(failure("NOT_FOUND", 404));
+    });
+    window.history.replaceState({}, "", "/home");
+    const { container } = render(<App />);
+    await screen.findByRole("button", { name: "ゴミ出しの詳細" });
+    const rows = container.querySelectorAll(".m2-home__task-list .m2-home__row");
+    fireEvent.click(screen.getByRole("button", { name: "ゴミ出しの詳細" }));
+    expect(rows[0]).toHaveClass("is-expanded");
+    fireEvent.click(screen.getByRole("button", { name: "床そうじの詳細" }));
+    expect(rows[0]).not.toHaveClass("is-expanded");
+    expect(rows[1]).toHaveClass("is-expanded");
+  });
 
   it("shows restore-only actions for inactive records", async () => {
     const dashboard = {
@@ -692,7 +766,7 @@ describe("M2 Home", () => {
     });
     window.history.replaceState({}, "", "/home");
     const { container } = render(<App />);
-    await screen.findByRole("button", { name: "ゴミ出しを完了" });
+    await screen.findByRole("button", { name: "ゴミ出しの詳細" });
     const rows = () => Array.from(container.querySelectorAll<HTMLElement>(".m2-home__task-list .m2-home__row"));
     const openWithActionButton = (row: HTMLElement) => {
       fireEvent.click(row.querySelector<HTMLButtonElement>(".m2-home__more")!);

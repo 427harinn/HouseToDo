@@ -105,14 +105,15 @@ test("M7 real two-user Task sync uses separate sessions and canonical UI actions
   expect(memberB).toBeTruthy();
   const title = `M7 shared task ${id}`;
   const taskId = await createTask(pageA, title, nameB);
-  await expect(pageA.getByRole("button", { name: `${title}を完了` })).toBeVisible();
+  await expect(pageA.getByRole("button", { name: `${title}の詳細` })).toBeVisible();
   await pageA.screenshot({ path: "docs/evidence/m7/screenshots/task-user-a-created.png" });
 
   await pageB.goto("/home");
-  await expect(pageB.getByRole("button", { name: `${title}を完了` })).toBeVisible();
+  await expect(pageB.getByRole("button", { name: `${title}の詳細` })).toBeVisible();
   await expect(pageB.getByRole("img", { name: `担当: ${nameB}` })).toBeVisible();
   await pageB.screenshot({ path: "docs/evidence/m7/screenshots/task-user-b-created.png" });
-  await pageB.getByRole("button", { name: `${title}を完了` }).click();
+  await pageB.getByRole("button", { name: `${title}の詳細` }).click();
+  await pageB.getByRole("button", { name: "完了" }).click();
   await expect(pageB.getByRole("button", { name: /完了済み 1/ })).toBeVisible();
   await pageB.screenshot({ path: "docs/evidence/m7/screenshots/task-user-b-completed.png" });
 
@@ -126,11 +127,11 @@ test("M7 real two-user Task sync uses separate sessions and canonical UI actions
   expect(completedBox).not.toBeNull();
   await swipeLeft(pageA, completedRow);
   await completedRow.getByRole("button", { name: "戻す" }).click();
-  await expect(pageA.getByRole("button", { name: `${title}を完了` })).toBeVisible();
+  await expect(pageA.getByRole("button", { name: `${title}の詳細` })).toBeVisible();
   await pageA.screenshot({ path: "docs/evidence/m7/screenshots/task-user-a-restored.png" });
 
   await pageB.reload();
-  await expect(pageB.getByRole("button", { name: `${title}を完了` })).toBeVisible();
+  await expect(pageB.getByRole("button", { name: `${title}の詳細` })).toBeVisible();
   await pageB.screenshot({ path: "docs/evidence/m7/screenshots/task-user-b-restored.png" });
 
   await pageA.goto(`/tasks/${taskId}/edit`);
