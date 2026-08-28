@@ -84,20 +84,32 @@ Authorization still comes from the authenticated session and the server-side cur
 
 This is a `STATIC QUERY COUNT ESTIMATE`, derived from the current repository source and the Phase 1 representative seed: 12 daily tasks, 3 canonical `weekly_flexible` tasks, 1 scheduled task, 5 pending shopping items, and 16 active tasks.
 
-| Operation | Phase 1 Dashboard | Phase 2A Home |
-| --- | ---: | ---: |
-| requireAuth | 2 | 2 |
-| Initial current-household resolution | 2 | 2 |
-| Home task projection | 21 | 21 |
-| `listToday` | 7 | 0 |
-| `listWeek` | 22 | 0 |
-| Members | 1 | 1 |
-| Shopping pending count | 1 | 1 |
-| Shopping preview | 2 | 0 |
-| Other Dashboard summary/overlap work | 17 | 0 |
-| **Total** | **74** | **27** |
+Phase 1 Dashboard exact breakdown:
 
-The Home projection estimate is `1` task-list query + `16` per-task `task_weekdays` lookups + `4` record queries. The new endpoint removes the Dashboard-only Today, weekly, summary, and preview work and reuses the already-authorized household context instead of resolving it again inside `TaskService.listHome`.
+| Operation | Statements |
+| --- | ---: |
+| requireAuth | 2 |
+| Initial current-household resolution | 2 |
+| `listHome` | 23 |
+| `listToday` | 21 |
+| `listWeek` | 23 |
+| Members | 1 |
+| Shopping count | 1 |
+| Shopping preview | 1 |
+| **Total** | **74** |
+
+Phase 2A Home exact breakdown:
+
+| Operation | Statements |
+| --- | ---: |
+| requireAuth | 2 |
+| Current-household resolution | 2 |
+| Home projection | 21 |
+| Members | 1 |
+| Shopping pending count | 1 |
+| **Total** | **27** |
+
+The Home projection estimate is `1` task-list query + `16` per-task `task_weekdays` lookups + `4` record queries. Compared with the legacy Dashboard, the new endpoint does not execute `listToday`, `listWeek`, or shopping preview work, and it reuses the already-authorized household context instead of resolving it again inside `TaskService.listHome`. No additional summary or overlap bucket is included in either breakdown.
 
 The remaining `task_weekdays` per-task pattern is not fixed in Phase 2A. No query instrumentation was added to production runtime code, and no index or migration was added.
 
