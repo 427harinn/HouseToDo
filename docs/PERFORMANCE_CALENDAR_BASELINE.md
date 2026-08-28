@@ -164,18 +164,31 @@ Measured against a fresh loopback Wrangler Worker and local D1. Each case used 3
 
 The full 15-sample results are preserved by the diagnostic script output; the table reports the requested summary statistics.
 
-## Initial Calendar Timing
+## Cold direct Calendar Timing
 
-The controlled client harness used the build-served loopback Worker, 10 samples, and a 60ms mocked Calendar response delay. Browser Performance marks were used for response-to-DOM timing.
+The direct `/calendar` navigation case is reported as a cold direct Calendar load. It used the build-served loopback Worker, 10 samples, and a 60ms mocked Calendar response delay. Browser Performance marks were used for response-to-DOM timing.
 
 | Phase | p50 | p95 |
 | --- | ---: | ---: |
-| Navigation → Calendar request start | 108.93ms | 127.64ms |
-| Calendar request → response | 66.58ms | 76.19ms |
-| Response → usable month grid | 2.20ms | 2.60ms |
-| Navigation → usable month grid | 278.60ms | 298.55ms |
+| Navigation → Calendar request start | 106.99ms | 138.65ms |
+| Calendar request → response | 67.88ms | 75.72ms |
+| Response → usable month grid | 2.30ms | 2.70ms |
+| Navigation → usable month grid | 281.44ms | 315.42ms |
 
-Initial Calendar request count was exactly 1 in all 10 controlled samples.
+Cold direct Calendar request count was exactly 1 in all 10 controlled samples.
+
+## In-app Home → Calendar Timing
+
+This controlled case first opened authenticated Home, waited for a Home task row to become visible, and then navigated using the actual bottom-navigation `カレンダー` button without reloading the page. It used 10 samples and the same 60ms mocked Calendar response delay.
+
+| Phase | p50 | p95 |
+| --- | ---: | ---: |
+| Navigation click → Calendar request start | 4.20ms | 4.30ms |
+| Calendar request → response | 82.30ms | 91.60ms |
+| Response → usable Calendar DOM | 2.00ms | 2.30ms |
+| Navigation click → usable Calendar | 88.30ms | 98.10ms |
+
+All 10 samples issued exactly 1 Calendar request. Additional `/api/auth/me` requests: 0. Additional `/api/households/current` requests: 0.
 
 ## Date Tap Timing
 
@@ -183,12 +196,12 @@ The same-month tap changed the selected date from `2026-08-28` to `2026-08-29`.
 
 | Phase | p50 | p95 |
 | --- | ---: | ---: |
-| Date tap → request start | 46.88ms | 55.20ms |
-| Request → response | 73.74ms | 77.77ms |
-| Response → Date Sheet task visible | 4.51ms | 5.93ms |
-| Date tap → current Date Sheet task visible | 78.46ms | 82.20ms |
+| Date tap → request start | 43.42ms | 46.45ms |
+| Request → response | 64.49ms | 77.04ms |
+| Response → Date Sheet task visible | 3.66ms | 5.11ms |
+| Date tap → current Date Sheet task visible | 111.93ms | 127.14ms |
 
-Each tap produced exactly 1 additional full Calendar request. The Date Sheet shell itself opens before the response, but current selected-date content waits for the new response.
+Each tap produced exactly 1 additional full Calendar request. The total was measured directly from the browser tap timestamp to the visible task timestamp for each sample; it was not derived by adding phase medians. The Date Sheet shell itself opens before the response, but current selected-date content waits for the new response.
 
 ## Month Change Timing
 
@@ -196,10 +209,10 @@ The controlled harness measured the next-month button; the swipe path calls the 
 
 | Phase | p50 | p95 |
 | --- | ---: | ---: |
-| Month button → request start | 29.25ms | 34.01ms |
-| Request → response | 74.23ms | 77.18ms |
-| Response → new month data visible | 3.15ms | 4.02ms |
-| Month button → new month data visible | 96.30ms | 114.86ms |
+| Month button → request start | 25.56ms | 30.76ms |
+| Request → response | 68.04ms | 73.78ms |
+| Response → new month data visible | 3.14ms | 4.37ms |
+| Month button → new month data visible | 94.93ms | 97.41ms |
 
 Each month change produced exactly 1 additional full Calendar request. Previous data remained in state while the request was pending.
 
@@ -209,14 +222,14 @@ The controlled harness used 10 complete samples with a 45ms mocked POST and a 60
 
 | Phase | p50 | p95 |
 | --- | ---: | ---: |
-| Complete click → POST start | 257.70ms | 259.70ms |
-| Complete click → POST response | 310.40ms | 322.00ms |
-| POST response → Calendar refresh start | 355.80ms | 359.30ms |
-| Calendar refresh → response | 63.70ms | 77.40ms |
-| Refresh response → completed state visible | 1.70ms | 2.10ms |
-| Complete click → completed state visible | 731.00ms | 746.10ms |
+| Actual Complete click event → POST start | 0.20ms | 0.30ms |
+| Actual Complete click event → POST response | 60.10ms | 64.20ms |
+| POST response → Calendar refresh start | 356.90ms | 359.20ms |
+| Calendar refresh → response | 63.90ms | 68.70ms |
+| Refresh response → completed state visible | 1.90ms | 2.40ms |
+| Actual Complete click event → completed state visible | 483.40ms | 488.30ms |
 
-Each complete produced 1 Calendar refresh request. The p50 POST-response-to-refresh-start of 355.80ms is consistent with the existing motion gate being awaited before refresh. The final response-to-DOM phase was 1.70ms, so the long action path is dominated by pre-response waiting rather than React state application.
+Each complete produced 1 Calendar refresh request. The browser-side capture listener recorded the actual Complete button click event before the normal Playwright click returned, so actionability/stability wait is not included in the click timestamp. The p50 POST-response-to-refresh-start of 356.90ms is consistent with the existing motion gate being awaited before refresh. The final response-to-DOM phase was 1.90ms, so the long action path is dominated by pre-response waiting rather than React state application.
 
 Restore uses `POST /api/tasks/:id/calendar-restore` and the same full-range refresh-after-motion pattern. Restore was covered by the existing M3 suite but was not included as a separate controlled timing sample.
 
@@ -284,7 +297,7 @@ Recommended Phase 2B-2 change: pass an already-authorized household context to t
 
 ### P2 — Action refresh begins only after the existing motion gate
 
-Evidence: controlled POST-response-to-refresh-start p50 was 355.80ms; the refresh itself was about 63.70ms p50 and response-to-DOM was 1.70ms.
+Evidence: controlled POST-response-to-refresh-start p50 was 356.90ms; the refresh itself was about 63.90ms p50 and response-to-DOM was 1.90ms.
 
 User impact: completion state cannot be server-reflected until the motion gate has elapsed, even though the mutation has already succeeded.
 
@@ -306,7 +319,7 @@ No candidate above was implemented in Phase 2B-1.
 
 ## Explicit Non-Findings
 
-- React rendering is not the primary bottleneck in the controlled measurements: initial response → usable grid was p50 2.20ms, date response → Date Sheet task was p50 4.51ms, month response → new month data was p50 3.15ms, and action refresh response → completed state was p50 1.70ms.
+- React rendering is not the primary bottleneck in the controlled measurements: cold direct response → usable grid was p50 2.30ms, in-app response → usable Calendar DOM was p50 2.00ms, date response → Date Sheet task was p50 3.66ms, month response → new month data was p50 3.14ms, and action refresh response → completed state was p50 1.90ms.
 - Worker projection CPU was not isolated enough to call it primary or secondary with confidence.
 - A missing index was not established; existing filter indexes were observed, with temporary sort B-trees as candidates for separate investigation.
 - Animation performance was not investigated by design. Existing motion gates were observed for ordering only; no duration or CSS behavior was changed.
@@ -314,7 +327,7 @@ No candidate above was implemented in Phase 2B-1.
 ## Validation and Safety
 
 - Diagnostic API harness: 3 warm-up + 15 measured samples per case.
-- Controlled client harness: 10 initial, 10 date-tap, 10 month-change, and 10 action samples.
+- Controlled client harness: 10 cold direct, 10 in-app Home → Calendar, 10 date-tap, 10 month-change, and 10 action samples.
 - Vitest: 39 test files passed, 252 tests passed.
 - Calendar M3 Playwright: 13 tests passed.
 - Lint: passed.
