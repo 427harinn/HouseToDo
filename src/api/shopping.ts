@@ -116,7 +116,8 @@ export const listShoppingTemplates = (signal?: AbortSignal) =>
 
 export const uploadShoppingItemImage = (itemId: string, image: ProcessedImage, signal?: AbortSignal) => {
   const body = new FormData();
-  body.append("image", image.blob, "shopping-item.webp");
+  const extension = image.contentType === "image/jpeg" ? "jpg" : "webp";
+  body.append("image", image.blob, `shopping-item.${extension}`);
   body.append("width", String(image.width));
   body.append("height", String(image.height));
   return apiRequest<{ item: ShoppingItem }>(`/api/shopping/items/${itemId}/image`, { method: "PUT", body, signal });

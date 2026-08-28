@@ -22,7 +22,7 @@ routeのsource of truthは `worker/app.ts` と `worker/routes/`です。認証�
 
 ## Images / R2
 
-画像はbrowser processing後にR2へ保存し、D1 metadataをtransaction境界に含めます。upload reservation、active usage、daily upload、pending cleanup、orphan queueをserviceとrepositoryで管理します。参照中のblobは削除せず、R2削除失敗はorphan queueへ送ります。
+画像はbrowser processing後にR2へ保存し、WebPまたはJPEGの実際のcontent typeとmagic bytesを検証してD1 metadataをtransaction境界に含めます。upload reservation、active usage、daily upload、pending cleanup、orphan queueをserviceとrepositoryで管理します。参照中のblobは削除せず、R2削除失敗はorphan queueへ送ります。
 
 ## PWA / Push
 

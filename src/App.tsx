@@ -1,7 +1,7 @@
 import { FormEvent, useCallback, useEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
 import type { ChangeEvent } from "react";
 import type { ReactNode } from "react";
-import { Check, ChevronLeft, ChevronRight, Ellipsis, House, Image as ImageIcon, MessageCircle, ShoppingCart, Undo2, X } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Ellipsis, House, Image as ImageIcon, MessageCircle, ShoppingCart, X } from "lucide-react";
 import { login, logout, me, register } from "./api/auth";
 import { ApiError, apiMessage } from "./api/client";
 import { getDashboardToday, type DashboardToday } from "./api/dashboard";
@@ -904,7 +904,7 @@ function CalendarScreen({ household, onNavigate }: { household: Household; user:
   const [message, setMessage] = useState("");
   const [monthOffset, setMonthOffset] = useState(0);
   const [monthDragging, setMonthDragging] = useState(false);
-  const monthStart = useRef<{ x: number; y: number } | null>(null);
+  const monthGesture = useRef<{ x: number; y: number; axis: "pending" | "horizontal" | "vertical" } | null>(null);
   const suppressMonthClick = useRef(false);
   const [monthDirection, setMonthDirection] = useState<"next" | "previous" | null>(null);
   const reducedMotion = usePrefersReducedMotion();
@@ -919,6 +919,17 @@ function CalendarScreen({ household, onNavigate }: { household: Household; user:
     catch (error) { if (!(error instanceof DOMException && error.name === "AbortError")) setMessage(apiErrorMessage(error)); }
     finally { if (!signal?.aborted) setLoading(false); }
   }, [gridStart, gridEnd, requestedDate]);
+  useEffect(() => {
+    document.documentElement.classList.add("calendar-view-locked");
+    document.body.classList.add("calendar-view-locked");
+    const viewport = document.querySelector<HTMLElement>(".app-shell__viewport");
+    viewport?.classList.add("calendar-view-locked");
+    return () => {
+      document.documentElement.classList.remove("calendar-view-locked");
+      document.body.classList.remove("calendar-view-locked");
+      viewport?.classList.remove("calendar-view-locked");
+    };
+  }, []);
   useEffect(() => { const controller = new AbortController(); void refresh(controller.signal); return () => controller.abort(); }, [refresh]);
   const moveMonth = (amount: number) => {
     const next = new Date(`${visibleMonth}T00:00:00Z`);
@@ -929,11 +940,50 @@ function CalendarScreen({ household, onNavigate }: { household: Household; user:
   };
   const openDate = (date: string) => { setSelectedDate(date); onNavigate(`/calendar?date=${encodeURIComponent(date)}`); };
   const goToday = () => setVisibleMonth(`${(data?.today ?? today).slice(0, 7)}-01`);
-  const pointerDown = (event: ReactPointerEvent<HTMLElement>) => { monthStart.current = { x: event.clientX, y: event.clientY }; suppressMonthClick.current = false; setMonthDragging(true); };
-  const pointerMove = (event: ReactPointerEvent<HTMLElement>) => { if (!monthStart.current) return; const dx = event.clientX - monthStart.current.x; const dy = event.clientY - monthStart.current.y; if (Math.abs(dx) > Math.abs(dy)) setMonthOffset(Math.max(-96, Math.min(96, dx))); };
-  const pointerUp = (event: ReactPointerEvent<HTMLElement>) => { if (!monthStart.current) return; const dx = event.clientX - monthStart.current.x; const dy = event.clientY - monthStart.current.y; monthStart.current = null; setMonthDragging(false); setMonthOffset(0); if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy)) { suppressMonthClick.current = true; moveMonth(dx < 0 ? 1 : -1); } };
+  const pointerDown = (event: ReactPointerEvent<HTMLElement>) => {
+    monthGesture.current = { x: event.clientX, y: event.clientY, axis: "pending" };
+    suppressMonthClick.current = false;
+  };
+  const pointerMove = (event: ReactPointerEvent<HTMLElement>) => {
+    const gesture = monthGesture.current;
+    if (!gesture) return;
+    const dx = event.clientX - gesture.x;
+    const dy = event.clientY - gesture.y;
+    if (gesture.axis === "pending") {
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < 10) return;
+      if (Math.abs(dx) <= Math.abs(dy) + 4) {
+        gesture.axis = "vertical";
+        setMonthDragging(false);
+        return;
+      }
+      gesture.axis = "horizontal";
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+      setMonthDragging(true);
+    }
+    if (gesture.axis === "horizontal") {
+      event.preventDefault();
+      setMonthOffset(Math.max(-96, Math.min(96, dx)));
+    } else if (gesture.axis === "vertical") {
+      event.preventDefault();
+    }
+  };
+  const pointerUp = (event: ReactPointerEvent<HTMLElement>) => {
+    const gesture = monthGesture.current;
+    if (!gesture) return;
+    const dx = event.clientX - gesture.x;
+    const dy = event.clientY - gesture.y;
+    if (gesture.axis === "horizontal") {
+      event.preventDefault();
+      suppressMonthClick.current = true;
+      if (Math.abs(dx) >= 56 && Math.abs(dx) > Math.abs(dy)) moveMonth(dx < 0 ? 1 : -1);
+      event.currentTarget.releasePointerCapture?.(event.pointerId);
+    }
+    monthGesture.current = null;
+    setMonthDragging(false);
+    setMonthOffset(0);
+  };
   const marker = (date: string) => data?.dates[date] ?? { fixedCount: 0, fixedCompletedCount: 0, fixedSkippedCount: 0, shoppingCount: 0, purchasedShoppingCount: 0, tasks: [] };
-  return <AppFrame current="/calendar" onNavigate={onNavigate}><ErrorMessage message={message ? `Calendarを取得できませんでした。${message}` : ""} /><main className="calendar-page" aria-busy={loading}><header className="calendar-header"><div className="calendar-header__title-row"><button type="button" className="calendar-icon-button" aria-label="前の月" onClick={() => moveMonth(-1)}><ChevronLeft /></button><h1>{formatCalendarMonth(visibleMonth)}</h1><button type="button" className="calendar-icon-button" aria-label="次の月" onClick={() => moveMonth(1)}><ChevronRight /></button></div><div className="calendar-header__today-row"><button type="button" className="calendar-today-button" onClick={goToday}>今日</button></div></header><section className={`calendar-month-grid${monthDirection ? ` is-month-transitioning-${monthDirection}` : ""}`} role="grid" aria-label={`${formatCalendarMonth(visibleMonth)}のカレンダー`} data-swipe-dragging={monthDragging ? "true" : "false"} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={() => { monthStart.current = null; setMonthDragging(false); setMonthOffset(0); }} onClickCapture={(event) => { if (!suppressMonthClick.current) return; event.preventDefault(); event.stopPropagation(); suppressMonthClick.current = false; }} style={{ "--month-swipe-offset": `${monthOffset}px` } as CSSProperties}><div className="calendar-weekday-row" aria-hidden="true">{["日", "月", "火", "水", "木", "金", "土"].map((label, index) => <span key={label} className={index === 0 ? "is-sunday" : index === 6 ? "is-saturday" : ""}>{label}</span>)}</div><div className="calendar-grid-body">{gridDates.map((date) => { const item = marker(date); const inMonth = date.slice(0, 7) === visibleMonth.slice(0, 7); const day = new Date(`${date}T00:00:00Z`).getUTCDay(); const names = item.tasks.slice(0, 2); const more = Math.max(0, item.tasks.length - names.length); return <div key={date} className={`calendar-day-cell${inMonth ? "" : " is-outside-month"}${item.shoppingCount ? " has-shopping" : ""}`} role="gridcell" tabIndex={0} aria-label={`${formatCalendarDateLong(date)}${item.tasks.length ? `、タスク${item.tasks.length}件` : ""}${item.shoppingCount ? `、買い物${item.shoppingCount}件` : ""}`} onClick={() => openDate(date)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openDate(date); } }}><span className={`calendar-day-number calendar-day-number--${day}${date === (data?.today ?? today) ? " is-today" : ""}`}>{Number(date.slice(8, 10))}</span><div className="calendar-day-tasks">{names.map((task) => <button type="button" key={task.id} className={`calendar-day-task${task.deadline ? " is-deadline" : ""}`} title={task.title} onClick={(event) => { event.stopPropagation(); openDate(date); }}>{task.title}</button>)}{more ? <button type="button" className="calendar-day-more" onClick={(event) => { event.stopPropagation(); openDate(date); }}>+{more}</button> : null}</div>{item.shoppingCount ? <span className="calendar-day-shopping" aria-hidden="true"><ShoppingCart /><span>{item.shoppingCount}</span></span> : null}</div>; })}</div></section><p className="calendar-status" role="status" aria-live="polite">{loading && !data ? "カレンダーを読み込んでいます。" : ""}</p></main>{selectedDate ? <CalendarDateSheet household={household} date={selectedDate} data={data} loading={loading} onClose={() => { setSelectedDate(null); onNavigate("/calendar"); }} onNavigateDate={(next) => { setSelectedDate(next); onNavigate(`/calendar?date=${encodeURIComponent(next)}`); }} onRefresh={refresh} onNavigate={onNavigate} /> : null}</AppFrame>;
+  return <AppFrame current="/calendar" onNavigate={onNavigate}><ErrorMessage message={message ? `Calendarを取得できませんでした。${message}` : ""} /><main className="calendar-page" aria-busy={loading}><header className="calendar-header"><div className="calendar-header__title-row"><button type="button" className="calendar-icon-button" aria-label="前の月" onClick={() => moveMonth(-1)}><ChevronLeft /></button><h1>{formatCalendarMonth(visibleMonth)}</h1><button type="button" className="calendar-icon-button" aria-label="次の月" onClick={() => moveMonth(1)}><ChevronRight /></button></div><div className="calendar-header__today-row"><button type="button" className="calendar-today-button" onClick={goToday}>今日</button></div></header><section className={`calendar-month-grid${monthDirection ? ` is-month-transitioning-${monthDirection}` : ""}`} role="grid" aria-label={`${formatCalendarMonth(visibleMonth)}のカレンダー`} data-swipe-dragging={monthDragging ? "true" : "false"} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={() => { monthGesture.current = null; setMonthDragging(false); setMonthOffset(0); }} onClickCapture={(event) => { if (!suppressMonthClick.current) return; event.preventDefault(); event.stopPropagation(); suppressMonthClick.current = false; }} style={{ "--month-swipe-offset": `${monthOffset}px` } as CSSProperties}><div className="calendar-weekday-row" aria-hidden="true">{["日", "月", "火", "水", "木", "金", "土"].map((label, index) => <span key={label} className={index === 0 ? "is-sunday" : index === 6 ? "is-saturday" : ""}>{label}</span>)}</div><div className="calendar-grid-body">{gridDates.map((date) => { const item = marker(date); const inMonth = date.slice(0, 7) === visibleMonth.slice(0, 7); const day = new Date(`${date}T00:00:00Z`).getUTCDay(); const names = item.tasks.slice(0, 2); const more = Math.max(0, item.tasks.length - names.length); return <div key={date} className={`calendar-day-cell${inMonth ? "" : " is-outside-month"}${item.shoppingCount ? " has-shopping" : ""}`} role="gridcell" tabIndex={0} aria-label={`${formatCalendarDateLong(date)}${item.tasks.length ? `、タスク${item.tasks.length}件` : ""}${item.shoppingCount ? `、買い物${item.shoppingCount}件` : ""}`} onClick={() => openDate(date)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openDate(date); } }}><span className={`calendar-day-number calendar-day-number--${day}${date === (data?.today ?? today) ? " is-today" : ""}`}>{Number(date.slice(8, 10))}</span><div className="calendar-day-tasks">{names.map((task) => <button type="button" key={task.id} className={`calendar-day-task${task.deadline ? " is-deadline" : ""}`} title={task.title} onClick={(event) => { event.stopPropagation(); openDate(date); }}>{task.title}</button>)}{more ? <button type="button" className="calendar-day-more" onClick={(event) => { event.stopPropagation(); openDate(date); }}>+{more}</button> : null}</div>{item.shoppingCount ? <span className="calendar-day-shopping" aria-hidden="true"><ShoppingCart /><span>{item.shoppingCount}</span></span> : null}</div>; })}</div></section><p className="calendar-status" role="status" aria-live="polite">{loading && !data ? "カレンダーを読み込んでいます。" : ""}</p></main>{selectedDate ? <CalendarDateSheet household={household} date={selectedDate} data={data} loading={loading} onClose={() => { setSelectedDate(null); onNavigate("/calendar"); }} onNavigateDate={(next) => { setSelectedDate(next); onNavigate(`/calendar?date=${encodeURIComponent(next)}`); }} onRefresh={refresh} onNavigate={onNavigate} /> : null}</AppFrame>;
 }
 
 const calendarWeekdays = ["日", "月", "火", "水", "木", "金", "土"] as const;
@@ -944,21 +994,127 @@ function calendarTaskActionScope(task: TodayTask, date: string) { return task.mo
 function CalendarDateSheet({ household, date, data, loading, onClose, onNavigateDate, onRefresh, onNavigate }: { household: Household; date: string; data: Awaited<ReturnType<typeof listCalendarTasks>> | null; loading: boolean; onClose: () => void; onNavigateDate: (date: string) => void; onRefresh: () => Promise<void>; onNavigate: (route: NavigationPath) => void }) {
   void household;
   const reducedMotion = usePrefersReducedMotion();
-  const [offset, setOffset] = useState(0); const [dragging, setDragging] = useState(false); const [completedOpen, setCompletedOpen] = useState(false); const [completingIds, setCompletingIds] = useState<Set<string>>(new Set()); const [passingIds, setPassingIds] = useState<Set<string>>(new Set()); const [restoringIds, setRestoringIds] = useState<Set<string>>(new Set()); const [direction, setDirection] = useState<"next" | "previous" | null>(null); const [statusMessage, setStatusMessage] = useState(""); const start = useRef<{ x: number; y: number } | null>(null); const suppressClick = useRef(false);
-  useEffect(() => { setCompletedOpen(false); }, [date]);
+  const [offset, setOffset] = useState(0);
+  const [dragOffsetY, setDragOffsetY] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const [isDismissing, setIsDismissing] = useState(false);
+  const [completedOpen, setCompletedOpen] = useState(false);
+  const [openRowId, setOpenRowId] = useState<string | null>(null);
+  const [completingIds, setCompletingIds] = useState<Set<string>>(new Set());
+  const [passingIds, setPassingIds] = useState<Set<string>>(new Set());
+  const [restoringIds, setRestoringIds] = useState<Set<string>>(new Set());
+  const [direction, setDirection] = useState<"next" | "previous" | null>(null);
+  const [statusMessage, setStatusMessage] = useState("");
+  const dismissTimer = useRef<number | null>(null);
+  const sheetRef = useRef<HTMLElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const start = useRef<{ x: number; y: number; axis: "pending" | "horizontal" | "vertical"; canDismiss: boolean } | null>(null);
+  const suppressClick = useRef(false);
+  useEffect(() => {
+    setCompletedOpen(false);
+    setOpenRowId(null);
+    setOffset(0);
+    setDragOffsetY(0);
+    setIsDismissing(false);
+  }, [date]);
+  useEffect(() => {
+    document.documentElement.classList.add("modal-open");
+    document.body.classList.add("modal-open");
+    const viewports = Array.from(document.querySelectorAll<HTMLElement>(".app-shell__viewport"));
+    viewports.forEach((viewport) => viewport.classList.add("modal-open"));
+    return () => {
+      document.documentElement.classList.remove("modal-open");
+      document.body.classList.remove("modal-open");
+      viewports.forEach((viewport) => viewport.classList.remove("modal-open"));
+      if (dismissTimer.current !== null) window.clearTimeout(dismissTimer.current);
+    };
+  }, []);
   const wait = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, reducedMotion ? 0 : ms));
   const moveDate = (amount: number) => { setDirection(amount > 0 ? "next" : "previous"); window.setTimeout(() => setDirection(null), reducedMotion ? 0 : MOTION_MS.large); onNavigateDate(addDays(date, amount)); };
-  const complete = async (task: TodayTask) => { if (completingIds.has(task.id) || passingIds.has(task.id) || restoringIds.has(task.id)) return; setCompletingIds((ids) => new Set(ids).add(task.id)); try { await changeTaskState(task.id, "complete", calendarTaskActionScope(task, date)); await wait(MOTION_MS.completion); await onRefresh(); } catch (error) { setStatusMessage(apiErrorMessage(error)); await onRefresh(); } finally { setCompletingIds((ids) => { const next = new Set(ids); next.delete(task.id); return next; }); } };
-  const pass = async (task: TodayTask) => { if (completingIds.has(task.id) || passingIds.has(task.id) || restoringIds.has(task.id)) return; setPassingIds((ids) => new Set(ids).add(task.id)); try { await changeTaskState(task.id, "skip", calendarTaskActionScope(task, date)); await wait(MOTION_MS.pass); await onRefresh(); } catch (error) { setStatusMessage(apiErrorMessage(error)); await onRefresh(); } finally { setPassingIds((ids) => { const next = new Set(ids); next.delete(task.id); return next; }); } };
-  const restore = async (record: CalendarCompletedRecord) => { if (completingIds.has(record.taskId) || passingIds.has(record.taskId) || restoringIds.has(record.taskId)) return; setRestoringIds((ids) => new Set(ids).add(record.taskId)); try { await restoreCalendarTaskRecord(record.taskId, record.id, date); await wait(MOTION_MS.restore); await onRefresh(); } catch (error) { setStatusMessage(apiErrorMessage(error)); await onRefresh(); } finally { setRestoringIds((ids) => { const next = new Set(ids); next.delete(record.taskId); return next; }); } };
+  const complete = async (task: TodayTask) => { if (completingIds.has(task.id) || passingIds.has(task.id) || restoringIds.has(task.id)) return; setOpenRowId(null); setCompletingIds((ids) => new Set(ids).add(task.id)); try { await changeTaskState(task.id, "complete", calendarTaskActionScope(task, date)); await wait(MOTION_MS.completion); await onRefresh(); } catch (error) { setStatusMessage(apiErrorMessage(error)); await onRefresh(); } finally { setCompletingIds((ids) => { const next = new Set(ids); next.delete(task.id); return next; }); } };
+  const pass = async (task: TodayTask) => { if (completingIds.has(task.id) || passingIds.has(task.id) || restoringIds.has(task.id)) return; setOpenRowId(null); setPassingIds((ids) => new Set(ids).add(task.id)); try { await changeTaskState(task.id, "skip", calendarTaskActionScope(task, date)); await wait(MOTION_MS.pass); await onRefresh(); } catch (error) { setStatusMessage(apiErrorMessage(error)); await onRefresh(); } finally { setPassingIds((ids) => { const next = new Set(ids); next.delete(task.id); return next; }); } };
+  const restore = async (record: CalendarCompletedRecord) => { if (completingIds.has(record.taskId) || passingIds.has(record.taskId) || restoringIds.has(record.taskId)) return; setOpenRowId(null); setRestoringIds((ids) => new Set(ids).add(record.taskId)); try { await restoreCalendarTaskRecord(record.taskId, record.id, date); await wait(MOTION_MS.restore); await onRefresh(); } catch (error) { setStatusMessage(apiErrorMessage(error)); await onRefresh(); } finally { setRestoringIds((ids) => { const next = new Set(ids); next.delete(record.taskId); return next; }); } };
+  const pointerDown = (event: ReactPointerEvent<HTMLElement>) => {
+    const inContent = contentRef.current?.contains(event.target as Node) ?? false;
+    start.current = { x: event.clientX, y: event.clientY, axis: "pending", canDismiss: !inContent || (contentRef.current?.scrollTop ?? 0) <= 0 };
+    suppressClick.current = false;
+  };
+  const pointerMove = (event: ReactPointerEvent<HTMLElement>) => {
+    const gesture = start.current;
+    if (!gesture) return;
+    const dx = event.clientX - gesture.x;
+    const dy = event.clientY - gesture.y;
+    if (gesture.axis === "pending") {
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < 10) return;
+      if (Math.abs(dx) > Math.abs(dy) + 4) {
+        gesture.axis = "horizontal";
+        event.currentTarget.setPointerCapture?.(event.pointerId);
+        setDragging(true);
+      } else if (dy > 0 && gesture.canDismiss) {
+        gesture.axis = "vertical";
+        event.currentTarget.setPointerCapture?.(event.pointerId);
+        setDragging(true);
+      } else {
+        gesture.axis = "vertical";
+      }
+    }
+    if (gesture.axis === "horizontal") {
+      event.preventDefault();
+      setOffset(Math.max(-88, Math.min(88, dx)));
+    } else if (gesture.axis === "vertical" && gesture.canDismiss && dy > 0) {
+      event.preventDefault();
+      setDragOffsetY(Math.min(260, dy));
+    }
+  };
+  const pointerUp = (event: ReactPointerEvent<HTMLElement>) => {
+    const gesture = start.current;
+    if (!gesture) return;
+    const dx = event.clientX - gesture.x;
+    const dy = event.clientY - gesture.y;
+    const consumed = gesture.axis !== "pending" && Math.max(Math.abs(dx), Math.abs(dy)) >= 10;
+    if (gesture.axis === "horizontal") {
+      event.preventDefault();
+      suppressClick.current = true;
+      if (Math.abs(dx) >= 56 && Math.abs(dx) > Math.abs(dy)) moveDate(dx < 0 ? 1 : -1);
+    } else if (gesture.axis === "vertical" && gesture.canDismiss && dy > 0) {
+      event.preventDefault();
+      suppressClick.current = consumed;
+      if (dy >= 96) {
+        setIsDismissing(true);
+        setDragOffsetY(window.innerHeight);
+        dismissTimer.current = window.setTimeout(onClose, reducedMotion ? 0 : MOTION_MS.sheet);
+      } else {
+        setDragOffsetY(0);
+      }
+    }
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+    start.current = null;
+    setDragging(false);
+    setOffset(0);
+  };
+  const pointerCancel = (event: ReactPointerEvent<HTMLElement>) => {
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+    start.current = null;
+    setDragging(false);
+    setOffset(0);
+    setDragOffsetY(0);
+  };
   const direct = data?.selected.fixed ?? []; const period = [...(data?.selected.weeklyFlexible ?? []), ...(data?.selected.monthlyFlexible ?? [])].sort((a, b) => (a.deadlineDate ?? "").localeCompare(b.deadlineDate ?? "")); const completed = data?.selected.completed ?? [];
-  return <div className="calendar-date-layer"><button type="button" className="calendar-date-backdrop" aria-label="背景を閉じる" onClick={onClose} /><section role="dialog" aria-modal="true" aria-labelledby="calendar-date-sheet-title" className={`calendar-date-sheet${dragging ? " is-swipe-dragging" : ""}${direction ? ` is-date-transitioning-${direction}` : ""}`} onPointerDown={(event) => { event.stopPropagation(); start.current = { x: event.clientX, y: event.clientY }; setDragging(true); }} onPointerMove={(event) => { if (!start.current) return; const dx = event.clientX - start.current.x; const dy = event.clientY - start.current.y; if (Math.abs(dx) > Math.abs(dy)) setOffset(Math.max(-88, Math.min(88, dx))); }} onPointerUp={(event) => { if (!start.current) return; const dx = event.clientX - start.current.x; const dy = event.clientY - start.current.y; start.current = null; setDragging(false); setOffset(0); if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy)) { suppressClick.current = true; moveDate(dx < 0 ? 1 : -1); } }} onPointerCancel={() => { start.current = null; setDragging(false); setOffset(0); }} onClickCapture={(event) => { if (!suppressClick.current) return; event.preventDefault(); event.stopPropagation(); suppressClick.current = false; }}><div className="calendar-date-sheet__handle" aria-hidden="true" /><header className="calendar-date-sheet__header"><button type="button" className="calendar-date-sheet__close" onClick={onClose}><X /><span>閉じる</span></button><div className="calendar-date-sheet__nav" aria-label="日付を移動"><button type="button" aria-label="前の日" onClick={() => moveDate(-1)}><ChevronLeft /></button><button type="button" aria-label="次の日" onClick={() => moveDate(1)}><ChevronRight /></button></div></header><div className="calendar-date-sheet__content" style={{ "--date-swipe-offset": `${offset}px` } as CSSProperties}><h2 id="calendar-date-sheet-title">{formatCalendarDateLong(date)}</h2><CalendarDateSection title="この日" tasks={direct} completingIds={completingIds} passingIds={passingIds} restoringIds={restoringIds} onComplete={complete} onEdit={(task) => onNavigate(`/tasks/${task.id}/edit?origin=calendar&calendarDate=${date}`)} onPass={pass} /><CalendarDateSection title="期間中" tasks={period} completingIds={completingIds} passingIds={passingIds} restoringIds={restoringIds} onComplete={complete} onEdit={(task) => onNavigate(`/tasks/${task.id}/edit?origin=calendar&calendarDate=${date}`)} onPass={pass} />{completed.length ? <section className="home-completed calendar-completed-section"><button className="home-completed__history-toggle" type="button" aria-expanded={completedOpen} onClick={() => setCompletedOpen((open) => !open)}><span>完了済み {completed.length}</span><ChevronRight className={completedOpen ? "is-open" : ""} /></button>{completedOpen ? <div className="home-history__list home-completed__list">{completed.map((record) => <CalendarHistoryRow key={record.id} record={record} busy={restoringIds.has(record.taskId)} onEdit={() => onNavigate(`/tasks/${record.taskId}/edit?origin=calendar&calendarDate=${date}`)} onRestore={() => void restore(record)} />)}</div> : null}</section> : null}{data?.selected.shopping.length ? <section className="calendar-shopping-section"><h3>買うもの</h3><div className="calendar-shopping-list">{data.selected.shopping.map((item) => <button key={item.id} type="button" className="calendar-shopping-row" aria-label={`${item.name}${item.quantity ? ` ${item.quantity}` : ""}`} onClick={() => onNavigate(`/shopping?item=${item.id}`)}><span>{item.name}</span>{item.quantity ? <span>{item.quantity}</span> : null}</button>)}</div></section> : null}<p className="calendar-status" role="status" aria-live="polite">{statusMessage}{loading && data ? "読み込み中" : ""}</p></div></section></div>;
+  return <div className="calendar-date-layer"><button type="button" className="calendar-date-backdrop" aria-label="背景を閉じる" onClick={onClose} /><section ref={sheetRef} role="dialog" aria-modal="true" aria-labelledby="calendar-date-sheet-title" className={`calendar-date-sheet${dragging ? " is-swipe-dragging" : ""}${isDismissing ? " is-dismissing" : ""}${direction ? ` is-date-transitioning-${direction}` : ""}`} style={{ "--date-sheet-drag-offset": `${dragOffsetY}px` } as CSSProperties} onPointerDown={(event) => { event.stopPropagation(); pointerDown(event); }} onPointerMove={(event) => { event.stopPropagation(); pointerMove(event); }} onPointerUp={(event) => { event.stopPropagation(); pointerUp(event); }} onPointerCancel={(event) => { event.stopPropagation(); pointerCancel(event); }} onClickCapture={(event) => { if (!suppressClick.current) return; event.preventDefault(); event.stopPropagation(); suppressClick.current = false; }}><div className="calendar-date-sheet__handle" aria-hidden="true" /><header className="calendar-date-sheet__header"><button type="button" className="calendar-date-sheet__close" onClick={onClose}><X /><span>閉じる</span></button><div className="calendar-date-sheet__nav" aria-label="日付を移動"><button type="button" aria-label="前の日" onClick={() => moveDate(-1)}><ChevronLeft /></button><button type="button" aria-label="次の日" onClick={() => moveDate(1)}><ChevronRight /></button></div></header><div ref={contentRef} className="calendar-date-sheet__content" style={{ "--date-swipe-offset": `${offset}px` } as CSSProperties}><h2 id="calendar-date-sheet-title">{formatCalendarDateLong(date)}</h2><CalendarDateSection title="この日" tasks={direct} openRowId={openRowId} onOpenRow={setOpenRowId} completingIds={completingIds} passingIds={passingIds} restoringIds={restoringIds} onComplete={complete} onEdit={(task) => onNavigate(`/tasks/${task.id}/edit?origin=calendar&calendarDate=${date}`)} onPass={pass} /><CalendarDateSection title="期間中" tasks={period} openRowId={openRowId} onOpenRow={setOpenRowId} completingIds={completingIds} passingIds={passingIds} restoringIds={restoringIds} onComplete={complete} onEdit={(task) => onNavigate(`/tasks/${task.id}/edit?origin=calendar&calendarDate=${date}`)} onPass={pass} />{completed.length ? <section className="home-completed calendar-completed-section"><button className="home-completed__history-toggle" type="button" aria-expanded={completedOpen} onClick={() => setCompletedOpen((open) => !open)}><span>完了済み {completed.length}</span><ChevronRight className={completedOpen ? "is-open" : ""} /></button>{completedOpen ? <div className="home-history__list home-completed__list">{completed.map((record) => <CalendarHistoryRow key={record.id} record={record} busy={restoringIds.has(record.taskId)} openRowId={openRowId} onOpenRow={setOpenRowId} onEdit={() => onNavigate(`/tasks/${record.taskId}/edit?origin=calendar&calendarDate=${date}`)} onRestore={() => void restore(record)} />)}</div> : null}</section> : null}{data?.selected.shopping.length ? <section className="calendar-shopping-section"><h3>買うもの</h3><div className="calendar-shopping-list">{data.selected.shopping.map((item) => <button key={item.id} type="button" className="calendar-shopping-row" aria-label={`${item.name}${item.quantity ? ` ${item.quantity}` : ""}`} onClick={() => onNavigate(`/shopping?item=${item.id}`)}><span>{item.name}</span>{item.quantity ? <span>{item.quantity}</span> : null}</button>)}</div></section> : null}<p className="calendar-status" role="status" aria-live="polite">{statusMessage}{loading && data ? "読み込み中" : ""}</p></div></section></div>;
 }
 
 /* eslint-enable @typescript-eslint/no-misused-promises */
-function CalendarDateSection({ title, tasks, completingIds, passingIds, restoringIds, onComplete, onEdit, onPass }: { title: string; tasks: TodayTask[]; completingIds: Set<string>; passingIds: Set<string>; restoringIds: Set<string>; onComplete: (task: TodayTask) => void; onEdit: (task: TodayTask) => void; onPass: (task: TodayTask) => void }) { return <section className="calendar-date-section"><h3>{title}</h3>{tasks.length ? <div className="calendar-detail-task-list">{tasks.map((task) => <CalendarDetailTask key={task.id} task={task} completing={completingIds.has(task.id)} passing={passingIds.has(task.id)} restoring={restoringIds.has(task.id)} onComplete={() => onComplete(task)} onEdit={() => onEdit(task)} onPass={() => onPass(task)} />)}</div> : <p className="calendar-date-section__empty">なし</p>}</section>; }
-function CalendarDetailTask({ task, completing, passing, restoring, onComplete, onEdit, onPass }: { task: TodayTask; completing: boolean; passing: boolean; restoring: boolean; onComplete: () => void; onEdit: () => void; onPass: () => void }) { const [actionsOpen, setActionsOpen] = useState(false); const start = useRef<{ x: number; y: number } | null>(null); const suppress = useRef(false); const busy = completing || passing || restoring; return <div className={`calendar-detail-task${actionsOpen ? " is-actions-open" : ""}${completing ? " is-completing" : ""}${passing ? " is-passing" : ""}${restoring ? " is-restoring" : ""}`} onPointerDown={(event) => { event.stopPropagation(); start.current = { x: event.clientX, y: event.clientY }; }} onPointerUp={(event) => { event.stopPropagation(); if (!start.current) return; const dx = event.clientX - start.current.x; const dy = event.clientY - start.current.y; start.current = null; if (dx < -48 && Math.abs(dx) > Math.abs(dy)) { suppress.current = true; setActionsOpen(true); } }} onPointerCancel={(event) => { event.stopPropagation(); start.current = null; }} onClickCapture={(event) => { if (!suppress.current) return; if ((event.target as Element).closest(".calendar-detail-task__actions")) { suppress.current = false; return; } event.preventDefault(); event.stopPropagation(); suppress.current = false; }}><button type="button" className="calendar-detail-task__main" disabled={busy} onClick={onComplete}><span className={`calendar-detail-task__check${completing ? " is-completing" : ""}`} aria-hidden="true">{completing ? <Check /> : null}</span><span>{task.title}</span></button><button type="button" className="calendar-detail-task__more" aria-label={`${task.title}の操作`} aria-expanded={actionsOpen} hidden={actionsOpen} onClick={() => setActionsOpen((open) => !open)}><Ellipsis /></button>{actionsOpen ? <div className="calendar-detail-task__actions"><button type="button" onClick={onEdit}>編集</button><button type="button" className="is-pass" onClick={onPass}>パス</button></div> : null}</div>; }
-function CalendarHistoryRow({ record, busy, onEdit, onRestore }: { record: CalendarCompletedRecord; busy: boolean; onEdit: () => void; onRestore: () => void }) { const avatar = record.actualCompleter; return <HomeSwipeRow actionsOpenInitially={false} busy={busy} onEdit={record.taskActive ? onEdit : undefined} onSecondary={onRestore} secondaryLabel="戻す" restoreOnly={!record.taskActive} rowClassName="calendar-history-row"><div className="m2-home__row-main m2-home__history-main"><span className="m2-home__row-details"><span className="m2-home__task-title">{record.title}</span></span>{avatar.displayName ? <HomeAvatar member={avatar} label="完了者" /> : null}</div></HomeSwipeRow>; }
+function CalendarDateSection({ title, tasks, openRowId, onOpenRow, completingIds, passingIds, restoringIds, onComplete, onEdit, onPass }: { title: string; tasks: TodayTask[]; openRowId: string | null; onOpenRow: (rowId: string | null) => void; completingIds: Set<string>; passingIds: Set<string>; restoringIds: Set<string>; onComplete: (task: TodayTask) => void; onEdit: (task: TodayTask) => void; onPass: (task: TodayTask) => void }) { return <section className="calendar-date-section"><h3>{title}</h3>{tasks.length ? <div className="calendar-detail-task-list">{tasks.map((task) => <CalendarDetailTask key={task.id} task={task} rowId={`${title}-${task.id}`} openRowId={openRowId} onOpenRow={onOpenRow} completing={completingIds.has(task.id)} passing={passingIds.has(task.id)} restoring={restoringIds.has(task.id)} onComplete={() => onComplete(task)} onEdit={() => onEdit(task)} onPass={() => onPass(task)} />)}</div> : <p className="calendar-date-section__empty">なし</p>}</section>; }
+function CalendarDetailTask({ task, rowId, openRowId, onOpenRow, completing, passing, restoring, onComplete, onEdit, onPass }: { task: TodayTask; rowId: string; openRowId: string | null; onOpenRow: (rowId: string | null) => void; completing: boolean; passing: boolean; restoring: boolean; onComplete: () => void; onEdit: () => void; onPass: () => void }) {
+  const busy = completing || passing || restoring;
+  return <HomeSwipeRow rowId={rowId} openRowId={openRowId} onOpenRow={onOpenRow} busy={busy} onEdit={onEdit} onSecondary={onPass} secondaryLabel="パス" rowClassName={`calendar-detail-task${completing ? " is-completing" : ""}${passing ? " is-passing" : ""}${restoring ? " is-restoring" : ""}`}>
+    <button type="button" className="m2-home__row-main calendar-detail-task__main" disabled={busy} onClick={onComplete} aria-label={`${task.title}を完了`}>
+      <span className={`calendar-detail-task__check${completing ? " is-completing" : ""}`} aria-hidden="true">{completing ? <Check /> : null}</span>
+      <span>{task.title}</span>
+    </button>
+  </HomeSwipeRow>;
+}
+function CalendarHistoryRow({ record, busy, openRowId, onOpenRow, onEdit, onRestore }: { record: CalendarCompletedRecord; busy: boolean; openRowId: string | null; onOpenRow: (rowId: string | null) => void; onEdit: () => void; onRestore: () => void }) { const avatar = record.actualCompleter; return <HomeSwipeRow rowId={`calendar-history-${record.id}`} openRowId={openRowId} onOpenRow={onOpenRow} busy={busy} onEdit={record.taskActive ? onEdit : undefined} onSecondary={onRestore} secondaryLabel="戻す" restoreOnly={!record.taskActive} rowClassName="calendar-history-row"><div className="m2-home__row-main m2-home__history-main"><span className="m2-home__row-details"><span className="m2-home__task-title">{record.title}</span></span>{avatar.displayName ? <HomeAvatar member={avatar} label="完了者" /> : null}</div></HomeSwipeRow>; }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 function CalendarShoppingSection({
@@ -1062,6 +1218,7 @@ function HomeScreen({
   const prefersReducedMotion = usePrefersReducedMotion();
   const [completedOpen, setCompletedOpen] = useState(false);
   const [passedOpen, setPassedOpen] = useState(false);
+  const [openRowId, setOpenRowId] = useState<string | null>(null);
   const [completingIds, setCompletingIds] = useState<Set<string>>(new Set());
   const [passingIds, setPassingIds] = useState<Set<string>>(new Set());
   const [restoringIds, setRestoringIds] = useState<Set<string>>(new Set());
@@ -1081,6 +1238,7 @@ function HomeScreen({
   const isBusy = (id: string) => completingIds.has(id) || passingIds.has(id) || restoringIds.has(id);
   const complete = async (task: TodayTask) => {
     if (isBusy(task.id)) return;
+    setOpenRowId(null);
     setActionId(setCompletingIds, task.id, true);
     setStatusMessage("");
     const request = changeTaskState(task.id, "complete", homeTaskActionScope(task, household));
@@ -1096,6 +1254,7 @@ function HomeScreen({
   };
   const pass = async (task: TodayTask) => {
     if (isBusy(task.id)) return;
+    setOpenRowId(null);
     setActionId(setPassingIds, task.id, true);
     setStatusMessage(`「${task.title}」をパスしました`);
     try {
@@ -1113,6 +1272,7 @@ function HomeScreen({
   };
   const restore = async (record: DashboardToday["completedRecords"][number]) => {
     if (isBusy(record.taskId)) return;
+    setOpenRowId(null);
     setActionId(setRestoringIds, record.taskId, true);
     try {
       await Promise.all([restoreTaskRecord(record.taskId, record.id), wait(MOTION_MS.restore)]);
@@ -1139,7 +1299,9 @@ function HomeScreen({
             {activeTasks.map((task) => (
               <HomeSwipeRow
                 key={task.id}
-                actionsOpenInitially={false}
+                rowId={`active-${task.id}`}
+                openRowId={openRowId}
+                onOpenRow={setOpenRowId}
                 busy={isBusy(task.id)}
                 onEdit={() => onNavigate(`/tasks/${task.id}/edit`)}
                 onSecondary={() => void pass(task)}
@@ -1170,7 +1332,7 @@ function HomeScreen({
             <button className="m2-home__history-toggle" type="button" aria-expanded={completedOpen} onClick={() => setCompletedOpen((open) => !open)}>
               <span>完了済み {completed.length}</span><ChevronRight aria-hidden="true" className={completedOpen ? "is-open" : ""} />
             </button>
-            {completedOpen ? <div className="m2-home__history-list">{completed.map((record) => <HomeHistoryRow key={record.id} record={record} busy={restoringIds.has(record.taskId)} onEdit={() => editRecord(record)} onRestore={() => void restore(record)} />)}</div> : null}
+            {completedOpen ? <div className="m2-home__history-list">{completed.map((record) => <HomeHistoryRow key={record.id} record={record} busy={restoringIds.has(record.taskId)} onEdit={() => editRecord(record)} onRestore={() => void restore(record)} openRowId={openRowId} onOpenRow={setOpenRowId} />)}</div> : null}
           </section>
         ) : null}
         {passed.length > 0 ? (
@@ -1178,7 +1340,7 @@ function HomeScreen({
             <button className="m2-home__history-toggle" type="button" aria-expanded={passedOpen} onClick={() => setPassedOpen((open) => !open)}>
               <span>パス済み {passed.length}</span><ChevronRight aria-hidden="true" className={passedOpen ? "is-open" : ""} />
             </button>
-            {passedOpen ? <div className="m2-home__history-list">{passed.map((record) => <HomeHistoryRow key={record.id} record={record} busy={restoringIds.has(record.taskId)} onEdit={() => editRecord(record)} onRestore={() => void restore(record)} passed />)}</div> : null}
+            {passedOpen ? <div className="m2-home__history-list">{passed.map((record) => <HomeHistoryRow key={record.id} record={record} busy={restoringIds.has(record.taskId)} onEdit={() => editRecord(record)} onRestore={() => void restore(record)} passed openRowId={openRowId} onOpenRow={setOpenRowId} />)}</div> : null}
           </section>
         ) : null}
         <button className="m2-home__shopping" type="button" onClick={() => onNavigate("/shopping")}>
@@ -1237,15 +1399,18 @@ function HomeAvatar({ member, label }: { member: { displayName: string | null; c
   return <span className="m2-home__avatar" role="img" aria-label={`${label}: ${name}`}>{member.avatarUrl ? <img src={member.avatarUrl} alt="" /> : name.slice(0, 1)}</span>;
 }
 
-function HomeSwipeRow({ children, actionsOpenInitially, busy, onEdit, onSecondary, secondaryLabel, rowClassName = "", restoreOnly = false }: { children: ReactNode; actionsOpenInitially: boolean; busy: boolean; onEdit?: () => void; onSecondary: () => void; secondaryLabel: string; rowClassName?: string; restoreOnly?: boolean }) {
+function HomeSwipeRow({ children, rowId, openRowId, onOpenRow, busy, onEdit, onSecondary, secondaryLabel, rowClassName = "", restoreOnly = false }: { children: ReactNode; rowId: string; openRowId: string | null; onOpenRow: (rowId: string | null) => void; busy: boolean; onEdit?: () => void; onSecondary: () => void; secondaryLabel: string; rowClassName?: string; restoreOnly?: boolean }) {
   const actionWidth = restoreOnly ? 72 : 136;
-  const [actionsOpen, setActionsOpen] = useState(actionsOpenInitially);
-  const [offset, setOffset] = useState(actionsOpenInitially ? -actionWidth : 0);
+  const actionsOpen = openRowId === rowId;
+  const [offset, setOffset] = useState(actionsOpen ? -actionWidth : 0);
   const [dragging, setDragging] = useState(false);
   const start = useRef<{ x: number; y: number } | null>(null);
   const vertical = useRef(false);
   const horizontal = useRef(false);
   const suppressClick = useRef(false);
+  useEffect(() => {
+    if (!dragging) setOffset(actionsOpen ? -actionWidth : 0);
+  }, [actionWidth, actionsOpen, dragging]);
   const move = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!start.current || vertical.current) return;
     const dx = event.clientX - start.current.x;
@@ -1273,8 +1438,8 @@ function HomeSwipeRow({ children, actionsOpenInitially, busy, onEdit, onSecondar
     horizontal.current = false;
     setDragging(false);
     if (wasVertical) { setOffset(actionsOpen ? -actionWidth : 0); return; }
-    if (-dx > 48) { suppressClick.current = true; setActionsOpen(true); setOffset(-actionWidth); }
-    else if (dx > 24 && actionsOpen) { suppressClick.current = true; setActionsOpen(false); setOffset(0); }
+    if (-dx > 48) { suppressClick.current = true; onOpenRow(rowId); setOffset(-actionWidth); }
+    else if (dx > 24 && actionsOpen) { suppressClick.current = true; onOpenRow(null); setOffset(0); }
     else setOffset(actionsOpen ? -actionWidth : 0);
   };
   const clickCapture = (event: ReactMouseEvent<HTMLDivElement>) => {
@@ -1285,16 +1450,16 @@ function HomeSwipeRow({ children, actionsOpenInitially, busy, onEdit, onSecondar
   return <div className={`m2-home__row ${actionsOpen ? "is-actions-open" : ""} ${dragging ? "is-dragging" : ""} ${rowClassName}`} onPointerDown={(event) => { event.stopPropagation(); start.current = { x: event.clientX, y: event.clientY }; setDragging(false); }} onPointerMove={(event) => { event.stopPropagation(); move(event); }} onPointerUp={(event) => { event.stopPropagation(); end(event); }} onPointerCancel={(event) => { event.stopPropagation(); start.current = null; vertical.current = false; horizontal.current = false; setDragging(false); setOffset(actionsOpen ? -actionWidth : 0); }} onClickCapture={clickCapture}>
     <div className="m2-home__row-content" style={{ "--m2-swipe-offset": `${offset}px` } as CSSProperties}>
       {children}
-      <button type="button" className="m2-home__more" aria-label="操作" aria-expanded={actionsOpen} onClick={() => { const next = !actionsOpen; setActionsOpen(next); setOffset(next ? -actionWidth : 0); }}><Ellipsis aria-hidden="true" /></button>
+      <button type="button" className="m2-home__more" aria-label="操作" aria-expanded={actionsOpen} onClick={() => { const next = !actionsOpen; onOpenRow(next ? rowId : null); setOffset(next ? -actionWidth : 0); }}><Ellipsis aria-hidden="true" /></button>
     </div>
     <div className={`m2-home__actions ${restoreOnly ? "is-restore-only" : ""}`} aria-label="操作メニュー"><span aria-hidden="true" />{!restoreOnly && onEdit ? <button type="button" onClick={onEdit}>編集</button> : null}<button type="button" className="is-secondary" disabled={busy} onClick={onSecondary}>{secondaryLabel}</button></div>
   </div>;
 }
 
-function HomeHistoryRow({ record, busy, onEdit, onRestore, passed = false }: { record: DashboardToday["completedRecords"][number]; busy: boolean; onEdit: () => void; onRestore: () => void; passed?: boolean }) {
+function HomeHistoryRow({ record, busy, onEdit, onRestore, passed = false, openRowId, onOpenRow }: { record: DashboardToday["completedRecords"][number]; busy: boolean; onEdit: () => void; onRestore: () => void; passed?: boolean; openRowId: string | null; onOpenRow: (rowId: string | null) => void }) {
   const deleted = !record.taskActive;
   const member = passed ? record.assignedUser : record.actualCompleter;
-  return <HomeSwipeRow actionsOpenInitially={false} busy={busy} onEdit={deleted ? undefined : onEdit} onSecondary={onRestore} secondaryLabel="戻す" restoreOnly={deleted} rowClassName={busy ? "is-restoring-row" : ""}>
+  return <HomeSwipeRow rowId={`history-${record.id}`} openRowId={openRowId} onOpenRow={onOpenRow} busy={busy} onEdit={deleted ? undefined : onEdit} onSecondary={onRestore} secondaryLabel="戻す" restoreOnly={deleted} rowClassName={busy ? "is-restoring-row" : ""}>
     <div className="m2-home__row-main m2-home__history-main"><span className="m2-home__row-details"><span className="m2-home__task-title">{record.title}</span></span>{member?.displayName ? <HomeAvatar member={member} label={passed ? "担当" : "完了者"} /> : null}</div>
   </HomeSwipeRow>;
 }
@@ -1395,10 +1560,9 @@ function M2TaskFormScreen({ household, mode, taskId, onNavigate }: { household: 
     setForm((current) => normalizeTaskForm({ ...current, [key]: value }));
     setErrors((current) => ({ ...current, [key]: undefined }));
   };
-  const dateValue = form.recurrence === "once" ? form.targetDate : form.startDate;
-  const updateDate = (value: string) => {
-    if (form.recurrence === "once") setForm((current) => ({ ...current, startDate: value, targetDate: value }));
-    else setField("startDate", value);
+  const updateStartDate = (value: string) => {
+    setForm((current) => normalizeTaskForm({ ...current, startDate: value, targetDate: current.recurrence === "once" ? value : current.targetDate }));
+    setErrors((current) => ({ ...current, startDate: undefined }));
   };
   const chooseRepeat = (value: TaskFormRecurrence) => {
     setForm((current) => changeTaskFormRecurrence(current, value));
@@ -1463,12 +1627,9 @@ function M2TaskFormScreen({ household, mode, taskId, onNavigate }: { household: 
           <FormField id="m2-task-title" label="家事名" error={errors.title}><TextInput id="m2-task-title" value={form.title} error={errors.title} onChange={(value) => setField("title", value)} placeholder="家事名を入力" /></FormField>
           <button className="m2-task-form__row m2-task-form__row--button" type="button" aria-label={`繰り返し: ${m2RepeatLabel(form)}`} onClick={() => setSheet("repeat")}><span>繰り返し</span><span className="m2-task-form__row-current"><span>{m2RepeatLabel(form)}</span><ChevronRight aria-hidden="true" /></span></button>
           {form.recurrence === "legacy_weekly" ? <div className="legacy-task-notice" role="note"><strong>週に{form.weeklyTargetCount}回（旧形式）</strong><span>回数の意味を変えずに編集します。新しい繰り返しへ自動変換しません。</span></div> : null}
-          <FormField id="m2-task-start-date" label="開始日" error={errors.startDate}><input id="m2-task-start-date" type="date" value={form.startDate || today} onChange={(event) => setField("startDate", event.target.value)} aria-invalid={errors.startDate ? "true" : "false"} /></FormField>
+          <FormField id="m2-task-start-date" label="開始日" error={errors.startDate}><input id="m2-task-start-date" type="date" value={form.startDate || today} onChange={(event) => updateStartDate(event.target.value)} aria-invalid={errors.startDate ? "true" : "false"} /></FormField>
           <label className="m2-task-form__toggle"><span>終日</span><span className="m2-task-form__toggle-current">{form.deadlineTime ? "オフ" : "オン"}</span><span className={`m2-task-form__switch${!form.deadlineTime ? " is-on" : ""}`}><input className="m2-task-form__switch-input" type="checkbox" checked={!form.deadlineTime} aria-label="終日" onChange={(event) => setField("deadlineTime", event.target.checked ? "" : "09:00")} /><span className="m2-task-form__switch-track" aria-hidden="true"><span /></span></span></label>
-          <div className={`m2-task-form__date-grid${!form.deadlineTime ? " m2-task-form__date-grid--all-day" : ""}`}>
-            <FormField id="m2-task-date" label="日付" error={errors.targetDate}><input id="m2-task-date" type="date" value={dateValue || today} onChange={(event) => updateDate(event.target.value)} aria-invalid={errors.targetDate ? "true" : "false"} /></FormField>
-            {form.deadlineTime ? <FormField id="m2-task-time" label="時刻" error={errors.deadlineTime}><input id="m2-task-time" type="time" value={form.deadlineTime} onChange={(event) => setField("deadlineTime", event.target.value)} /></FormField> : null}
-          </div>
+          {form.deadlineTime ? <FormField id="m2-task-time" label="時間" error={errors.deadlineTime}><input id="m2-task-time" type="time" value={form.deadlineTime} onChange={(event) => setField("deadlineTime", event.target.value)} /></FormField> : null}
           {form.deadlineTime ? <div className="m2-task-form__compact-field"><label htmlFor="m2-task-notification">通知</label><select id="m2-task-notification" value={form.notificationOffsetMinutes === null ? "none" : String(form.notificationOffsetMinutes)} aria-invalid={errors.notificationOffsetMinutes ? "true" : "false"} aria-describedby={errors.notificationOffsetMinutes ? "m2-task-notification-error" : undefined} onChange={(event) => setField("notificationOffsetMinutes", event.target.value === "none" ? null : Number(event.target.value))}><option value="none">通知なし</option><option value="0">時刻ちょうど</option><option value="5">5分前</option><option value="10">10分前</option><option value="30">30分前</option><option value="60">1時間前</option><option value="120">2時間前</option></select>{errors.notificationOffsetMinutes ? <p className="field-error" id="m2-task-notification-error">{errors.notificationOffsetMinutes}</p> : null}</div> : null}
           <button type="button" className="m2-task-form__row" aria-label={`担当: ${selectedMember?.displayName ?? "誰でも"}`} onClick={() => setSheet("assignee")}><span>担当</span><span className="m2-task-form__row-current"><strong className="m2-task-form__assignee">{selectedMember ? <>{selectedMember.avatarUrl ? <img src={selectedMember.avatarUrl} alt="" /> : <span>{selectedMember.displayName.slice(0, 1)}</span>}{selectedMember.displayName}</> : "誰でも"}</strong><ChevronRight aria-hidden="true" /></span></button>
           <FormField id="m2-task-description" label="メモ" error={errors.description}><textarea id="m2-task-description" rows={2} value={form.description} onChange={(event) => setField("description", event.target.value)} placeholder="メモを入力" /></FormField>
@@ -1753,7 +1914,7 @@ function ShoppingM4ListScreen({
               timezone={household.timezone}
               purchased
               expanded={expandedId === item.id}
-              actionsOpen={false}
+              actionsOpen={actionsOpenId === item.id}
               dragging={false}
               dragOver={false}
               busy={busyItem === item.id}
@@ -1761,8 +1922,8 @@ function ShoppingM4ListScreen({
               onPurchase={() => void runPurchase(item, "purchase")}
               onRestore={() => void runPurchase(item, "unpurchase")}
               onEdit={() => undefined}
-              onActionsOpen={() => undefined}
-              onActionsClose={() => undefined}
+              onActionsOpen={() => { setActionsOpenId(item.id); setExpandedId(null); }}
+              onActionsClose={() => setActionsOpenId(null)}
               onDragStart={() => undefined}
               onDragOver={() => undefined}
               onDragEnd={() => undefined}
@@ -1885,7 +2046,7 @@ function ShoppingM4Row({
     const dy = event.clientY - origin.y;
     if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy)) { gesture.current = "swipe"; clearLongPress(); }
     if (Math.abs(dy) > 8 && Math.abs(dy) > Math.abs(dx)) { gesture.current = "vertical"; clearLongPress(); setSwiping(false); setSwipeOffset(actionsOpen ? -80 : 0); return; }
-    if (!purchased && gesture.current === "swipe") { setSwiping(true); setSwipeOffset(Math.max(-80, Math.min(0, dx))); }
+    if (gesture.current === "swipe") { setSwiping(true); setSwipeOffset(Math.max(-80, Math.min(0, dx))); }
     if (Math.abs(dx) > 12 || Math.abs(dy) > 12) clearLongPress();
   };
   const handlePointerUp = (event: ReactPointerEvent<HTMLElement>) => {
@@ -1904,8 +2065,8 @@ function ShoppingM4Row({
     const currentGesture = gesture.current;
     gesture.current = null;
     if (!origin || currentGesture === "vertical") { setSwipeOffset(actionsOpen ? -80 : 0); return; }
-    if (!purchased && origin.x - event.clientX > 48) { suppressClick.current = true; setSwipeOffset(-80); onActionsOpen(); }
-    else if (!purchased && event.clientX - origin.x > 24 && actionsOpen) { suppressClick.current = true; setSwipeOffset(0); onActionsClose(); }
+    if (origin.x - event.clientX > 48) { suppressClick.current = true; setSwipeOffset(-80); onActionsOpen(); }
+    else if (event.clientX - origin.x > 24 && actionsOpen) { suppressClick.current = true; setSwipeOffset(0); onActionsClose(); }
     else setSwipeOffset(actionsOpen ? -80 : 0);
   };
   const handleClickCapture = (event: ReactMouseEvent<HTMLElement>) => {
@@ -1915,10 +2076,12 @@ function ShoppingM4Row({
   };
   const purchaserName = item.purchasedBy?.displayName ?? memberName(members, item.purchasedBy?.userId) ?? "メンバー";
   const imageSrc = item.image ? getShoppingItemImageUrl(item.id, item.image.updatedAt) : null;
+  const canExpand = !purchased || Boolean(item.note || imageSrc);
+  const isExpanded = canExpand && expanded;
   return (
-    <article className={`shopping-m4__row${expanded ? " is-expanded" : ""}${actionsOpen ? " is-actions-open" : ""}${dragging ? " is-dragging" : ""}${dragOver ? " is-drag-over" : ""}${swiping ? " is-swiping" : ""}`} data-shopping-m4-id={item.id} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={(event) => { clearLongPress(); globalDragCleanup.current?.(); globalDragCleanup.current = null; if (capturedPointerId.current !== null && event.currentTarget.hasPointerCapture?.(capturedPointerId.current)) event.currentTarget.releasePointerCapture(capturedPointerId.current); capturedPointerId.current = null; capturedRow.current = null; start.current = null; if (dragStarted.current) onDragEnd(); dragStarted.current = false; setSwiping(false); }} onClickCapture={handleClickCapture}>
+    <article className={`shopping-m4__row${isExpanded ? " is-expanded" : ""}${actionsOpen ? " is-actions-open" : ""}${dragging ? " is-dragging" : ""}${dragOver ? " is-drag-over" : ""}${swiping ? " is-swiping" : ""}`} data-shopping-m4-id={item.id} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={(event) => { clearLongPress(); globalDragCleanup.current?.(); globalDragCleanup.current = null; if (capturedPointerId.current !== null && event.currentTarget.hasPointerCapture?.(capturedPointerId.current)) event.currentTarget.releasePointerCapture(capturedPointerId.current); capturedPointerId.current = null; capturedRow.current = null; start.current = null; if (dragStarted.current) onDragEnd(); dragStarted.current = false; setSwiping(false); }} onClickCapture={handleClickCapture}>
       <div className="shopping-m4__row-content" style={{ "--shopping-m4-swipe": `${swipeOffset}px` } as CSSProperties}>
-        <button type="button" className="shopping-m4__row-main" aria-expanded={expanded} onClick={onToggle}>
+        <button type="button" className="shopping-m4__row-main" aria-expanded={isExpanded} onClick={canExpand ? onToggle : undefined}>
           <span className="shopping-m4__row-details">
             <span className="shopping-m4__name">{item.name}</span>
             {purchased ? <span className="shopping-m4__purchase-meta">{item.purchasedAt ? shoppingPurchaseDateTime(item.purchasedAt, timezone) : "購入済み"}</span> : item.plannedPurchaseDate ? <span className="shopping-m4__planned">{formatShoppingPlannedDate(item.plannedPurchaseDate)}予定</span> : null}
@@ -1929,9 +2092,9 @@ function ShoppingM4Row({
           {purchased ? <span className="shopping-m4__avatar" role="img" aria-label={`購入者: ${purchaserName}`}>{purchaserName.charAt(0) || "?"}</span> : null}
         </button>
       </div>
-      {!purchased && actionsOpen ? <div className="shopping-m4__actions" aria-label={`${item.name}の操作メニュー`}><button type="button" onPointerDown={(event) => event.stopPropagation()} onClick={onEdit}>編集</button></div> : null}
-      {expanded ? <div className="shopping-m4__expanded">
-        <button type="button" className="shopping-m4__primary" disabled={busy} onClick={purchased ? onRestore : onPurchase}>{purchased ? <Undo2 aria-hidden="true" /> : null}{purchased ? "戻す" : busy ? "購入中…" : "購入"}</button>
+      {actionsOpen ? <div className="shopping-m4__actions" aria-label={`${item.name}の操作メニュー`}><button type="button" onPointerDown={(event) => event.stopPropagation()} onClick={purchased ? onRestore : onEdit}>{purchased ? "戻す" : "編集"}</button></div> : null}
+      {isExpanded ? <div className="shopping-m4__expanded">
+        {!purchased ? <button type="button" className="shopping-m4__primary" disabled={busy} onClick={onPurchase}>{busy ? "購入中…" : "購入"}</button> : null}
         {item.note ? <div className="shopping-m4__detail"><span>メモ</span><p>{item.note}</p></div> : null}
         {imageSrc ? <div className="shopping-m4__detail"><span>写真</span><img src={imageSrc} alt={`${item.name}の写真`} onError={(event) => { event.currentTarget.hidden = true; }} /></div> : null}
         {!purchased && item.plannedPurchaseDate ? <div className="shopping-m4__planned-detail">購入予定日 {formatShoppingPlannedDate(item.plannedPurchaseDate)}</div> : null}
@@ -2003,6 +2166,8 @@ function ShoppingItemFormScreen({
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
+  const [persistedItemId, setPersistedItemId] = useState<string | null>(mode === "edit" ? itemId ?? null : null);
   const [existingImage, setExistingImage] = useState<ShoppingItem["image"]>(null);
   const [selectedImage, setSelectedImage] = useState<ProcessedImage | null>(null);
   const [previewUrl, setPreviewUrl] = useState("");
@@ -2102,7 +2267,7 @@ function ShoppingItemFormScreen({
           "写真のサイズが大きすぎます。10MB以下の写真を選択してください。",
         "processed-image-too-large": "画像サイズを1MB以下にしてください",
         "image-load-failed": "画像を処理できませんでした。別の画像を選択してください",
-        "webp-conversion-failed":
+        "image-conversion-failed":
           "画像を処理できませんでした。別の画像を選択してください"
       };
       setImageMessage(
@@ -2144,24 +2309,30 @@ function ShoppingItemFormScreen({
   };
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    if (submittingRef.current) return;
     const nextErrors = validateShoppingForm(form);
     setErrors(nextErrors);
     setMessage("");
     if (Object.keys(nextErrors).length > 0) return;
+    submittingRef.current = true;
     setSubmitting(true);
     try {
       const payload = normalizeShoppingForm(form) as UpdateShoppingItemInput;
-      const result =
-        mode === "edit" && itemId
-          ? await updateShoppingItem(itemId, payload)
-          : await createShoppingItem(payload as CreateShoppingItemInput);
+      const existingItemId = persistedItemId ?? (mode === "edit" ? itemId : null);
+      const result = existingItemId
+        ? await updateShoppingItem(existingItemId, payload)
+        : await createShoppingItem(payload as CreateShoppingItemInput);
+      setPersistedItemId(result.item.id);
       if (selectedImage) {
         setImageStatus("uploading");
         try {
           await uploadShoppingItemImage(result.item.id, selectedImage);
           await refreshImageUsage();
         } catch (error) {
-          setMessage(shoppingErrorMessage(error));
+          setMessage(
+            imageUploadErrorMessage(error) ??
+              "買い物は登録されましたが、画像の保存に失敗しました。画像を確認してもう一度保存してください。"
+          );
           setImageStatus("idle");
           return;
         }
@@ -2172,6 +2343,7 @@ function ShoppingItemFormScreen({
       setMessage(shoppingErrorMessage(error));
       if (error instanceof ApiError && error.details) setErrors(error.details);
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };

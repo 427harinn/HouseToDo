@@ -196,7 +196,7 @@ export type ShoppingItemImage = {
   shoppingItemId: string;
   householdId: string;
   r2Key: string;
-  contentType: "image/webp";
+  contentType: ShoppingItemImageContentType;
   sizeBytes: number;
   width: number;
   height: number;
@@ -204,6 +204,8 @@ export type ShoppingItemImage = {
   createdAt: string;
   updatedAt: string;
 };
+
+export type ShoppingItemImageContentType = "image/webp" | "image/jpeg";
 
 export type ShoppingTemplate = {
   id: string;

@@ -43,6 +43,14 @@ const expectNoHorizontalScroll = async (page: Page) => {
     )
     .toBe(true);
 };
+const swipeLeft = async (page: Page, row: ReturnType<Page["locator"]>) => {
+  const box = await row.boundingBox();
+  if (!box) throw new Error("Shopping row is not measurable.");
+  await page.mouse.move(box.x + box.width * 0.8, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width * 0.35, box.y + box.height / 2, { steps: 8 });
+  await page.mouse.up();
+};
 
 test("planned shopping date integrates with Calendar, purchase state, reuse exclusions, and responsive UI", async ({
   page
@@ -176,8 +184,11 @@ test("planned shopping date integrates with Calendar, purchase state, reuse excl
     element.scrollIntoView({ block: "center", inline: "nearest" })
   );
   await shot(page, "shopping-purchased-datetime.png", false);
-  await page.locator("[data-shopping-m4-id]").filter({ hasText: itemName }).getByRole("button", { name: itemName }).click();
-  await page.getByRole("button", { name: "戻す", exact: true }).click();
+  const purchasedRow = page.locator("[data-shopping-m4-id]").filter({ hasText: itemName });
+  await purchasedRow.getByRole("button", { name: itemName }).click();
+  await expect(purchasedRow.getByRole("button", { name: "戻す", exact: true })).toHaveCount(0);
+  await swipeLeft(page, purchasedRow);
+  await purchasedRow.getByRole("button", { name: "戻す", exact: true }).click();
   await expect(page.getByRole("button", { name: /購入済み 0件/ })).toBeVisible();
   await page.goto(`/shopping/items/${shoppingItemId}/edit`);
   await expect(page.getByLabel("購入予定日")).toHaveValue(today);

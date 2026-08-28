@@ -58,6 +58,14 @@ const pointerSwipeLeft = async (page: Page, row: ReturnType<Page["locator"]>) =>
   await page.mouse.move(box.x + box.width * 0.35, box.y + box.height / 2, { steps: 8 });
   await page.mouse.up();
 };
+const pointerSwipeRight = async (page: Page, row: ReturnType<Page["locator"]>) => {
+  const box = await row.boundingBox();
+  if (!box) throw new Error("Shopping row has no bounding box");
+  await page.mouse.move(box.x + box.width * 0.35, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width * 0.8, box.y + box.height / 2, { steps: 8 });
+  await page.mouse.up();
+};
 
 test.describe("shopping UI M4", () => {
   test("covers canonical list, expand/purchase/restore, Add/Edit, swipe, reorder, and household sync", async ({ browser }: { browser: Browser }) => {
@@ -90,8 +98,14 @@ test.describe("shopping UI M4", () => {
     await pageA.getByRole("button", { name: /購入済み 1件/ }).click();
     const purchasedRow = pageA.locator("[data-shopping-m4-id]").filter({ hasText: `牛乳 ${id}` });
     await purchasedRow.getByRole("button", { name: /牛乳/ }).click();
-    await expect(purchasedRow.getByRole("button", { name: "戻す" })).toBeVisible();
+    await expect(purchasedRow.getByRole("button", { name: "戻す" })).toHaveCount(0);
+    await expect(purchasedRow.locator(".shopping-m4__detail")).toContainText("低脂肪ではないもの");
     await expect(purchasedRow.locator(`[aria-label="購入者: ${userA.name}"]`)).toBeVisible();
+    await pointerSwipeLeft(pageA, purchasedRow);
+    await expect(purchasedRow.getByRole("button", { name: "戻す" })).toBeVisible();
+    await pointerSwipeRight(pageA, purchasedRow);
+    await expect(purchasedRow.getByRole("button", { name: "戻す" })).toHaveCount(0);
+    await pointerSwipeLeft(pageA, purchasedRow);
     await purchasedRow.getByRole("button", { name: "戻す" }).click();
     await expect(pageA.getByRole("button", { name: /購入済み 0件/ })).toBeVisible();
 

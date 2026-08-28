@@ -2,7 +2,7 @@ import { nowIso } from "../lib/date";
 import { AppError, shoppingItemNotFoundError, validationError } from "../lib/errors";
 import { ShoppingItemImageRepository } from "../repositories/shopping-item-image-repository";
 import { ShoppingItemRepository } from "../repositories/shopping-item-repository";
-import type { ShoppingItemImage } from "../types/domain";
+import type { ShoppingItemImage, ShoppingItemImageContentType } from "../types/domain";
 import { HouseholdService } from "./household-service";
 import { OrphanR2ObjectRepository, type OrphanSourceType } from "../repositories/orphan-r2-object-repository";
 import { ORPHAN_R2_RETENTION_DAYS } from "../lib/constants";
@@ -12,7 +12,7 @@ import { ImageUploadReservationService } from "./image-upload-reservation-servic
 export const MAX_IMAGE_BYTES = 1024 * 1024;
 export const MAX_IMAGE_DIMENSION = 1280;
 
-export type ImageUploadInput = { body: ArrayBuffer; width: number; height: number };
+export type ImageUploadInput = { body: ArrayBuffer; width: number; height: number; contentType: ShoppingItemImageContentType };
 
 const invalidImage = (message: string) => validationError({ image: message }, message);
 
@@ -55,19 +55,22 @@ export class ShoppingItemImageService {
     }
     if (input.body.byteLength < 16 || input.body.byteLength > MAX_IMAGE_BYTES) throw invalidImage("画像のサイズが上限を超えています。");
     const bytes = new Uint8Array(input.body);
-    const riff = String.fromCharCode(...bytes.slice(0, 4));
-    const webp = String.fromCharCode(...bytes.slice(8, 12));
-    if (riff !== "RIFF" || webp !== "WEBP") throw invalidImage("WebP画像として確認できません。");
+    const isWebp = String.fromCharCode(...bytes.slice(0, 4)) === "RIFF" && String.fromCharCode(...bytes.slice(8, 12)) === "WEBP";
+    const isJpeg = bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+    if ((input.contentType === "image/webp" && !isWebp) || (input.contentType === "image/jpeg" && !isJpeg)) {
+      throw invalidImage("画像形式と実データが一致しません。");
+    }
 
     const old = await this.images.findByItemForHousehold(household.id, itemId);
     const id = crypto.randomUUID();
-    const r2Key = `households/${household.id}/shopping/${itemId}/${id}.webp`;
+    const extension = input.contentType === "image/jpeg" ? "jpg" : "webp";
+    const r2Key = `households/${household.id}/shopping/${itemId}/${id}.${extension}`;
     const now = nowIso();
-    const image: ShoppingItemImage = { id, shoppingItemId: itemId, householdId: household.id, r2Key, contentType: "image/webp", sizeBytes: input.body.byteLength, width: input.width, height: input.height, createdBy: userId, createdAt: now, updatedAt: now };
+    const image: ShoppingItemImage = { id, shoppingItemId: itemId, householdId: household.id, r2Key, contentType: input.contentType, sizeBytes: input.body.byteLength, width: input.width, height: input.height, createdBy: userId, createdAt: now, updatedAt: now };
     const reservation = await this.reservations.reserve({ householdId: household.id, shoppingItemId: itemId, r2Key, byteSize: input.body.byteLength, oldImage: old, now: new Date(now) });
     let r2Written = false;
     try {
-      await this.bucket.put(reservation.r2Key, input.body, { httpMetadata: { contentType: "image/webp" } });
+      await this.bucket.put(reservation.r2Key, input.body, { httpMetadata: { contentType: input.contentType } });
       r2Written = true;
       const confirmedOld = await this.images.findByItemForHousehold(household.id, itemId);
       if ((old?.id ?? null) !== (confirmedOld?.id ?? null) || (old?.updatedAt ?? null) !== (confirmedOld?.updatedAt ?? null)) {

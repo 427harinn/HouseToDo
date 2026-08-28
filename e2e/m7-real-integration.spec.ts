@@ -241,6 +241,7 @@ test("M7 real two-user Shopping sync uses production API data across sessions", 
     timeZone: "Asia/Tokyo"
   }).format(new Date(purchasedData.purchasedAt!));
   await expect(purchased).toContainText(displayedPurchaseTime);
+  await swipeLeft(pageA, purchased);
   await purchased.getByRole("button", { name: "戻す" }).click();
   await expect(pageA.getByRole("button", { name: /購入済み 0件/ })).toBeVisible();
   await pageA.screenshot({ path: "docs/evidence/m7/screenshots/shopping-user-a-restored.png" });

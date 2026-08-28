@@ -80,6 +80,43 @@ const waitForApp = async (page: Page) => {
 };
 
 test.describe("shopping item image E2E", () => {
+  test("uploads JPEG metadata through local D1 and preserves WebP compatibility", async ({ page }) => {
+    const id = stamp();
+    await waitForApp(page);
+    await register(page, { email: `jpeg-${id}@example.test`, name: `JPEG ${id}` });
+    await createHousehold(page, `JPEG House ${id}`);
+
+    const itemId = await createItemApi(page, `JPEG Milk ${id}`);
+    await uploadFixtureApi(page, itemId, "shopping-item-landscape.jpg", "image/jpeg", 120, 90);
+    const jpegResponse = await page.request.get(`/api/shopping/items/${itemId}/image`);
+    expect(jpegResponse.status()).toBe(200);
+    expect(jpegResponse.headers()["content-type"]).toContain("image/jpeg");
+
+    const webpItemId = await createItemApi(page, `WebP Milk ${id}`);
+    await uploadFixtureApi(page, webpItemId, "shopping-item-replacement.webp", "image/webp", 80, 60);
+    const webpResponse = await page.request.get(`/api/shopping/items/${webpItemId}/image`);
+    expect(webpResponse.status()).toBe(200);
+    expect(webpResponse.headers()["content-type"]).toContain("image/webp");
+
+    const mismatchResponse = await page.request.put(`/api/shopping/items/${itemId}/image`, {
+      headers: originHeader(page),
+      multipart: {
+        image: {
+          name: "mismatch.webp",
+          mimeType: "image/webp",
+          buffer: await (await import("node:fs/promises")).readFile(fixture("shopping-item-landscape.jpg"))
+        },
+        width: "120",
+        height: "90"
+      }
+    });
+    expect(mismatchResponse.status()).toBe(400);
+    await expect(mismatchResponse.json()).resolves.toMatchObject({
+      ok: false,
+      error: { code: "VALIDATION_ERROR" }
+    });
+  });
+
   test("creates, serves, edits, replaces, shares, deletes, and cleans up private images", async ({ browser }: { browser: Browser }) => {
     const id = stamp();
     const userA = { email: `image-a-${id}@example.test`, name: `Image A ${id}` };

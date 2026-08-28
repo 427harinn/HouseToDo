@@ -2,6 +2,9 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
+import { processShoppingImage } from "./lib/image-processing";
+
+vi.mock("./lib/image-processing", () => ({ processShoppingImage: vi.fn() }));
 
 const user = {
   id: "user-1",
@@ -347,6 +350,22 @@ describe("App task form payload", () => {
     await waitFor(() => expect(patchPayloads).toHaveLength(1));
     expect(patchPayloads[0]).toMatchObject({ deadlineTime: null, notificationOffsetMinutes: null });
   }, 15000);
+
+  it("renders one canonical start date and only shows time when all-day is off", async () => {
+    mockFetch();
+    window.history.replaceState({}, "", "/tasks/new");
+    const { container } = render(<App />);
+    await waitFor(() => expect(screen.getByRole("checkbox", { name: "終日" })).toBeInTheDocument());
+    expect(container.querySelectorAll("input[type=\"date\"]")).toHaveLength(1);
+    expect(container.querySelector("#m2-task-start-date")).toBeInTheDocument();
+    expect(container.querySelector("#m2-task-date")).not.toBeInTheDocument();
+    expect(container.querySelector("#m2-task-time")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "終日" }));
+    await waitFor(() => expect(container.querySelector("#m2-task-time")).toBeInTheDocument());
+    expect(container.querySelectorAll("input[type=\"date\"]")).toHaveLength(1);
+    expect(container.querySelector("#m2-task-date")).not.toBeInTheDocument();
+  });
 });
 
 describe("M5 Other / Settings routes", () => {
@@ -654,6 +673,37 @@ describe("M2 Home", () => {
     expect(screen.queryByRole("button", { name: "編集" })).not.toBeInTheDocument();
   });
 
+  it("keeps only one Home swipe row open at a time", async () => {
+    const secondTask = { ...task, id: "home-task-2", title: "床そうじ", overdue: false };
+    const dashboard = {
+      ...baseDashboard,
+      todayTasks: [task, secondTask],
+      homeTasks: [task, secondTask],
+      summary: { ...baseDashboard.summary, total: 2, pending: 2 },
+      completedRecords: [{ id: "record-1", taskId: "history-task", status: "completed", title: "洗濯", taskActive: true, actualCompleter: { userId: user.id, displayName: user.displayName, avatarUrl: null }, assignedUser: null }]
+    };
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.endsWith("/api/auth/me")) return Promise.resolve(ok({ user }));
+      if (url.endsWith("/api/households/current")) return Promise.resolve(ok({ household }));
+      if (url.endsWith("/api/households/current/image-usage")) return Promise.resolve(ok(imageUsage));
+      if (url.endsWith("/api/dashboard/today")) return Promise.resolve(ok(dashboard));
+      return Promise.resolve(failure("NOT_FOUND", 404));
+    });
+    window.history.replaceState({}, "", "/home");
+    const { container } = render(<App />);
+    await screen.findByRole("button", { name: "ゴミ出しを完了" });
+    const rows = () => Array.from(container.querySelectorAll<HTMLElement>(".m2-home__task-list .m2-home__row"));
+    const openWithActionButton = (row: HTMLElement) => {
+      fireEvent.click(row.querySelector<HTMLButtonElement>(".m2-home__more")!);
+    };
+    openWithActionButton(rows()[0]);
+    await waitFor(() => expect(rows()[0]).toHaveClass("is-actions-open"));
+    openWithActionButton(rows()[1]);
+    await waitFor(() => expect(rows()[1]).toHaveClass("is-actions-open"));
+    await waitFor(() => expect(rows()[0]).not.toHaveClass("is-actions-open"));
+  });
+
   it("formats today, week, month, and dated time deadlines without merging date and time", async () => {
     const tasks = [
       { ...task, id: "today-time", title: "今日の時刻", deadlineDate: "2026-08-25", deadlineTime: "09:00", modelRecurrenceType: "daily", overdue: false },
@@ -681,5 +731,66 @@ describe("M2 Home", () => {
     expect(screen.getByText("8/31まで")).toBeInTheDocument();
     expect(screen.getByText("8/24 09:00まで")).toBeInTheDocument();
     expect(screen.getByText("締切なし")).toBeInTheDocument();
+  });
+});
+
+describe("Shopping image persistence", () => {
+  it("keeps one persisted item while retrying a failed image upload", async () => {
+    const item = { ...shoppingItem, id: "persisted-shop-1", name: "牛乳", image: null };
+    vi.mocked(processShoppingImage).mockResolvedValue({
+      blob: new Blob(["jpeg"], { type: "image/jpeg" }),
+      width: 80,
+      height: 60,
+      contentType: "image/jpeg",
+      size: 4
+    });
+    Object.defineProperty(URL, "createObjectURL", { configurable: true, value: () => "blob:test" });
+    Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: () => undefined });
+    let createCalls = 0;
+    let updateCalls = 0;
+    let uploadCalls = 0;
+    vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      const method = init?.method ?? "GET";
+      if (url.endsWith("/api/auth/me")) return Promise.resolve(ok({ user }));
+      if (url.endsWith("/api/households/current")) return Promise.resolve(ok({ household }));
+      if (url.endsWith("/api/households/current/members")) return Promise.resolve(ok({ members }));
+      if (url.endsWith("/api/households/current/image-usage")) return Promise.resolve(ok(imageUsage));
+      if (url.startsWith("/api/shopping/recent")) return Promise.resolve(ok({ items: [] }));
+      if (url.endsWith("/api/shopping/templates")) return Promise.resolve(ok({ templates: [] }));
+      if (url.endsWith("/api/shopping/items") && method === "POST") { createCalls += 1; return Promise.resolve(ok({ item }, 201)); }
+      if (url.endsWith(`/api/shopping/items/${item.id}`) && method === "PATCH") { updateCalls += 1; return Promise.resolve(ok({ item })); }
+      if (url.endsWith(`/api/shopping/items/${item.id}/image`) && method === "PUT") { uploadCalls += 1; return Promise.resolve(failure("VALIDATION_ERROR", 400)); }
+      return Promise.resolve(failure("NOT_FOUND", 404));
+    });
+    window.history.replaceState({}, "", "/shopping/new");
+    render(<App />);
+
+    await screen.findByRole("heading", { name: "買い物を追加" });
+    fireEvent.change(screen.getByLabelText("商品名"), { target: { value: "牛乳" } });
+    fireEvent.change(screen.getByLabelText("写真ファイルを選択"), { target: { files: [new File(["source"], "milk.jpg", { type: "image/jpeg" })] } });
+    await waitFor(() => expect(screen.getByAltText("牛乳写真のプレビュー")).toBeInTheDocument());
+
+    const save = screen.getByRole("button", { name: "保存" });
+    fireEvent.click(save);
+    await waitFor(() => expect(uploadCalls).toBe(1));
+    expect(createCalls).toBe(1);
+    expect(screen.getByText("買い物は登録されましたが、画像の保存に失敗しました。画像を確認してもう一度保存してください。")).toBeInTheDocument();
+
+    fireEvent.click(save);
+    await waitFor(() => expect(uploadCalls).toBe(2));
+    expect(createCalls).toBe(1);
+    expect(updateCalls).toBe(1);
+
+    fireEvent.click(save);
+    await waitFor(() => expect(uploadCalls).toBe(3));
+    expect(createCalls).toBe(1);
+    expect(updateCalls).toBe(2);
+
+    fireEvent.click(screen.getByRole("button", { name: "外す" }));
+    fireEvent.click(save);
+    await waitFor(() => expect(updateCalls).toBe(3));
+    expect(createCalls).toBe(1);
+    expect(uploadCalls).toBe(3);
   });
 });

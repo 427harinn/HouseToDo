@@ -1,11 +1,11 @@
-import type { ShoppingItemImage } from "../types/domain";
+import type { ShoppingItemImage, ShoppingItemImageContentType } from "../types/domain";
 
 type ImageRow = {
   id: string;
   shopping_item_id: string;
   household_id: string;
   r2_key: string;
-  content_type: "image/webp";
+  content_type: ShoppingItemImageContentType;
   size_bytes: number;
   width: number;
   height: number;

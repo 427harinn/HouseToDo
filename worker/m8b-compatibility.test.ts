@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createApp } from "./app";
 import { MemoryD1 } from "./test-utils/memory-d1";
 import { MemoryR2 } from "./test-utils/memory-r2";
@@ -206,11 +206,15 @@ describe("M8B compatibility contracts", () => {
   });
 
   it("keeps Dashboard and Calendar compatibility fields while reading legacy records", async () => {
-    const app = createApp();
-    const db = new MemoryD1();
-    const env = createTestEnv(db);
-    const { cookie } = await registerWithHousehold(app, env, "legacy");
-    const date = "2026-08-26";
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-08-26T03:00:00.000Z"));
+    try {
+      const app = createApp();
+      const db = new MemoryD1();
+      const env = createTestEnv(db);
+      const { cookie } = await registerWithHousehold(app, env, "legacy");
+      const date = "2026-08-26";
+      const fixedNow = "2026-08-26T03:00:00.000Z";
 
     const taskResponse = await app.fetch(
       jsonRequest(
@@ -245,6 +249,8 @@ describe("M8B compatibility contracts", () => {
     );
     expect(record).toBeDefined();
     if (!record) throw new Error("completed legacy fixture record was not created");
+    expect(record.completed_at).toBe(fixedNow);
+    expect(record.updated_at).toBe(fixedNow);
     record.task_title_snapshot = null;
     record.assigned_user_id_snapshot = null;
     record.assigned_user_display_name_snapshot = null;
@@ -347,5 +353,8 @@ describe("M8B compatibility contracts", () => {
     );
     expect(restored.status).toBe(200);
     expect(db.taskRecords.has(record.id)).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -13,8 +13,11 @@ const parseUpload = async (request: Request) => {
   const width = Number(form.get("width"));
   const height = Number(form.get("height"));
   if (!(file instanceof Blob) || file.size === 0) throw validationError({ image: "画像ファイルを指定してください。" });
+  const normalizedFileType = file.type.toLowerCase();
+  if (normalizedFileType !== "image/webp" && normalizedFileType !== "image/jpeg") throw validationError({ image: "JPEGまたはWebP画像を指定してください。" });
+  const fileType: "image/webp" | "image/jpeg" = normalizedFileType;
   if (!Number.isInteger(width) || !Number.isInteger(height)) throw validationError({ image: "画像サイズが不正です。" });
-  return { body: await file.arrayBuffer(), width, height };
+  return { body: await file.arrayBuffer(), width, height, contentType: fileType };
 };
 
 export const uploadShoppingItemImageRoute = (itemId: string): Handler => requireAuth(async (context) => {

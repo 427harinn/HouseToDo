@@ -67,6 +67,17 @@ describe("shopping api clients", () => {
     expect(getShoppingItemImageUrl("i1", "2026-08-01T00:00:00Z")).toContain("/api/shopping/items/i1/image?v=");
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ method: "PUT" });
+    const body = fetchMock.mock.calls[0]?.[1]?.body;
+    expect(body).toBeInstanceOf(FormData);
+    expect((body as FormData).get("image")).toMatchObject({ name: "shopping-item.webp" });
     expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({ method: "DELETE" });
+  });
+
+  it("uses a JPEG filename for a JPEG processed image", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(ok({ item: { id: "i1" } })));
+    const image: ProcessedImage = { blob: new Blob(["jpeg"], { type: "image/jpeg" }), width: 80, height: 60, contentType: "image/jpeg", size: 4 };
+    await uploadShoppingItemImage("i1", image);
+    const body = fetchMock.mock.calls[0]?.[1]?.body;
+    expect((body as FormData).get("image")).toMatchObject({ name: "shopping-item.jpg" });
   });
 });
