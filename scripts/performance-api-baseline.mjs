@@ -79,6 +79,7 @@ const createTask = async (body) => (await request("/api/tasks", {
   body
 })).data.task;
 
+const representativeStartDate = new Date().toISOString().slice(0, 10);
 const activeTaskIds = [];
 for (let index = 0; index < 12; index += 1) {
   const task = await createTask({
@@ -89,14 +90,29 @@ for (let index = 0; index < 12; index += 1) {
   });
   activeTaskIds.push(task.id);
 }
+const weeklySeeded = [];
 for (let index = 0; index < 3; index += 1) {
-  await createTask({
+  weeklySeeded.push(await createTask({
     title: `Performance weekly ${index + 1}`,
-    recurrenceType: "weekly",
+    description: null,
+    recurrenceType: "weekly_flexible",
+    modelRecurrenceType: "weekly_flexible",
     assignmentType: "anyone",
+    assignedUserId: null,
+    scheduledTime: null,
     notificationSlot: "none",
-    weeklyTargetCount: 1
-  });
+    notificationTime: null,
+    weekdays: [],
+    weeklyTargetCount: null,
+    startDate: representativeStartDate,
+    targetDate: null,
+    deadlineTime: null,
+    notificationOffsetMinutes: null,
+    weeklyDeadlineWeekday: 5,
+    monthlyDayOfMonth: null,
+    monthlyDeadlineDay: null,
+    monthlyDeadlineType: null
+  }));
 }
 await createTask({
   title: "Performance scheduled",
@@ -121,6 +137,14 @@ const api = {
   dashboard: await measured("/api/dashboard/today", endpointOptions)
 };
 
+const canonicalWeeklyFlexibleSeeded = weeklySeeded.filter((task) => task.modelRecurrenceType === "weekly_flexible").length;
+const legacyWeeklyAmongSeeded = weeklySeeded.filter((task) => task.recurrenceType === "weekly" && task.modelRecurrenceType !== "weekly_flexible").length;
+if (canonicalWeeklyFlexibleSeeded !== 3 || legacyWeeklyAmongSeeded !== 0) {
+  throw new Error(`representative weekly seed verification failed: canonical=${canonicalWeeklyFlexibleSeeded}, legacy=${legacyWeeklyAmongSeeded}`);
+}
+
+const freshDashboard = await request("/api/dashboard/today", endpointOptions);
+
 const completeSamples = [];
 const postCompleteDashboardSamples = [];
 let lastDashboard;
@@ -139,6 +163,7 @@ api.completePost = summary(completeSamples);
 api.postCompleteDashboard = summary(postCompleteDashboardSamples);
 
 const dashboardData = lastDashboard?.data ?? (await request("/api/dashboard/today", endpointOptions)).data;
+const freshDashboardData = freshDashboard.data;
 const sectionBytes = {};
 for (const key of ["homeTasks", "todayTasks", "weeklyTasks", "completedRecords", "passedRecords", "shopping", "members"]) {
   sectionBytes[key] = Buffer.byteLength(JSON.stringify(dashboardData[key]));
@@ -146,10 +171,16 @@ for (const key of ["homeTasks", "todayTasks", "weeklyTasks", "completedRecords",
 
 console.log(JSON.stringify({
   baseUrl,
+  warmupCount: 3,
   sampleCount: 15,
-  seeded: { dailyTasks: 12, weeklyTasks: 3, scheduledTasks: 1, pendingShopping: 5 },
+  completionSampleCount: 10,
+  seeded: { dailyTasks: 12, weeklyTasks: 3, scheduledTasks: 1, pendingShopping: 5, activeTasks: 16, representativeStartDate },
+  weeklySeedVerification: { canonicalWeeklyFlexibleSeeded, legacyWeeklyAmongSeeded },
   api,
+  freshDashboardResponseBytes: freshDashboard.rawBytes,
+  postCompletionDashboardResponseBytes: lastDashboard?.rawBytes ?? null,
   dashboardResponseBytes: lastDashboard?.rawBytes ?? null,
+  freshDashboardSectionBytes: Object.fromEntries(Object.keys(sectionBytes).map((key) => [key, Buffer.byteLength(JSON.stringify(freshDashboardData[key]))])),
   dashboardSectionBytes: sectionBytes,
   completedRows: dashboardData.completedRecords?.length ?? null,
   activeRows: dashboardData.homeTasks?.length ?? null

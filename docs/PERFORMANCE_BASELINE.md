@@ -94,11 +94,12 @@ Home task rendering does not require `weeklyTasks`, `todayTasks` when `homeTasks
 This is a `STATIC QUERY COUNT ESTIMATE`, not a D1 instrumentation count. It is derived directly from repository method calls for the representative local seed used below:
 
 - 12 daily tasks
-- 3 canonical weekly-flexible tasks
+- 3 canonical `weekly_flexible` tasks (`modelRecurrenceType = "weekly_flexible"`, verified 3/3)
 - 1 scheduled task
 - 5 pending shopping items
 - 16 active tasks total
 - 3 canonical weekly tasks requiring per-task period lookup
+- 0 legacy weekly tasks among the three representative weekly tasks
 
 The authenticated dashboard request is estimated at **74 D1 prepared statements**:
 
@@ -128,15 +129,15 @@ Observed duplication patterns:
 
 Measured against the local Worker and local D1 after warm-up. These are loopback measurements for relative comparison inside the current architecture; they are not Cloudflare production or staging latency.
 
-The API harness used 15 measured samples after 3 warm-up calls for GET endpoints. Completion POST and its immediately following dashboard refresh used 10 distinct seeded daily tasks.
+The API harness used 3 warm-up calls followed by 15 measured samples for each GET endpoint. Completion POST and its immediately following dashboard refresh used 10 distinct seeded daily tasks. The corrected run used a newly created isolated local household; it did not reset unrelated local D1 state.
 
 | Endpoint | min (ms) | p50 / median (ms) | p95 (ms) | max (ms) |
 |---|---:|---:|---:|---:|
-| `GET /api/auth/me` | 5.35 | 5.92 | 6.73 | 6.73 |
-| `GET /api/households/current` | 6.20 | 6.86 | 8.04 | 8.04 |
-| `GET /api/dashboard/today` | 69.24 | 72.14 | 91.97 | 91.97 |
-| Complete `POST /api/tasks/:id/complete` | 14.08 | 15.18 | 18.99 | 18.99 |
-| `GET /api/dashboard/today` after complete | 70.38 | 73.16 | 90.59 | 90.59 |
+| `GET /api/auth/me` | 6.15 | 7.49 | 10.50 | 10.50 |
+| `GET /api/households/current` | 6.58 | 7.32 | 9.14 | 9.14 |
+| `GET /api/dashboard/today` | 73.80 | 79.47 | 102.78 | 102.78 |
+| Complete `POST /api/tasks/:id/complete` | 14.26 | 14.82 | 20.71 | 20.71 |
+| `GET /api/dashboard/today` after complete | 73.58 | 79.25 | 120.47 | 120.47 |
 
 The repeatable API harness is `scripts/performance-api-baseline.mjs`. It refuses non-loopback targets and creates representative data only through the local Worker.
 
@@ -195,18 +196,26 @@ Calendar entry uses one HTTP request, with the Worker running task-calendar and 
 
 # Dashboard Response Size
 
-Measured from the local dashboard HTTP response for the representative seed after 10 tasks had been completed:
+Measured from the local dashboard HTTP response for the corrected representative seed. The fresh snapshot was captured before the 10 completion samples; the post-completion snapshot was captured after the tenth completion and its refresh.
 
-- Total serialized HTTP response: **32,794 bytes**
-- `homeTasks`: 6,264 bytes
-- `todayTasks`: 17,555 bytes
-- `weeklyTasks`: 2,404 bytes
-- `completedRecords`: 5,752 bytes
-- `passedRecords`: 2 bytes
-- `shopping`: 314 bytes
-- `members`: 124 bytes
+- Fresh snapshot total serialized HTTP response: **36,467 bytes**
+- Fresh `homeTasks`: 16,609 bytes
+- Fresh `todayTasks`: 16,609 bytes
+- Fresh `weeklyTasks`: 2,428 bytes
+- Fresh `completedRecords`: 2 bytes
+- Fresh `passedRecords`: 2 bytes
+- Fresh `shopping`: 314 bytes
+- Fresh `members`: 124 bytes
+- Post-completion snapshot total serialized HTTP response: **32,866 bytes**
+- Post-completion `homeTasks`: 6,288 bytes
+- Post-completion `todayTasks`: 17,579 bytes
+- Post-completion `weeklyTasks`: 2,428 bytes
+- Post-completion `completedRecords`: 5,752 bytes
+- Post-completion `passedRecords`: 2 bytes
+- Post-completion `shopping`: 314 bytes
+- Post-completion `members`: 124 bytes
 
-The section totals are approximately 32,415 bytes; the remainder is the envelope and scalar fields.
+The fresh section totals are approximately 36,088 bytes and the post-completion section totals are approximately 32,487 bytes; the remainder in each case is the response envelope and scalar fields.
 
 Overfetch evidence is **YES**:
 
@@ -245,7 +254,7 @@ Missing-index evidence: **YES, as candidates only**. Candidate follow-up indexes
 
 ## P1 — Completion always refetches the full dashboard
 
-**Evidence:** `HomeScreen.complete` ignores the successful completion result and calls `refresh()`, which requests `/api/dashboard/today` again. The local p50 is 73.16ms after completion, and the dashboard has a static estimate of 74 D1 statements for the representative seed.
+**Evidence:** `HomeScreen.complete` ignores the successful completion result and calls `refresh()`, which requests `/api/dashboard/today` again. The corrected local p50 is 79.25ms after completion, and the dashboard has a static estimate of 74 D1 statements for the corrected representative seed.
 
 **User impact:** A single-task completion waits on unrelated task projections, history, members, shopping count/preview, and repeated household/task queries before the completed state is reflected.
 
@@ -253,7 +262,7 @@ Missing-index evidence: **YES, as candidates only**. Candidate follow-up indexes
 
 ## P1 — Dashboard overfetch and repeated D1 work
 
-**Evidence:** The 32,794-byte response contains 17,555 bytes of `todayTasks` and 2,404 bytes of `weeklyTasks` that Home does not need for its initial visible task list. The static estimate shows three task-list loads, four household resolutions, 48 weekday SELECTs, and per-canonical-task period SELECTs.
+**Evidence:** The corrected fresh 36,467-byte response contains 16,609 bytes of `todayTasks` and 2,428 bytes of `weeklyTasks` that Home does not need for its initial visible task list. The static estimate shows three task-list loads, four household resolutions, 48 weekday SELECTs, and per-canonical-task period SELECTs.
 
 **User impact:** More server work and serialization must complete before any Home task row can be displayed.
 
