@@ -2,19 +2,22 @@
   <title id="title">HouseToDo app icon</title>
   <desc id="desc">A white house with a green check mark on a mint background.</desc>
   <rect width="512" height="512" fill="#8FD3B6" />
-  <path
-    d="M106 249.5 256 112l150 137.5V407c0 10.493-8.507 19-19 19H125c-10.493 0-19-8.507-19-19V249.5Z"
-    fill="#FFFFFF"
-    stroke="#FFFFFF"
-    stroke-linejoin="round"
-    stroke-width="16"
-  />
-  <path
-    d="m177 303 53 53 105-114"
-    fill="none"
-    stroke="#4E9F7D"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    stroke-width="28"
-  />
+  <!-- v3: enlarge the glyph around its existing optical center without changing the full-bleed background. -->
+  <g transform="translate(256 268.5) scale(1.12) translate(-256 -268.5)">
+    <path
+      d="M106 249.5 256 112l150 137.5V407c0 10.493-8.507 19-19 19H125c-10.493 0-19-8.507-19-19V249.5Z"
+      fill="#FFFFFF"
+      stroke="#FFFFFF"
+      stroke-linejoin="round"
+      stroke-width="16"
+    />
+    <path
+      d="m177 303 53 53 105-114"
+      fill="none"
+      stroke="#4E9F7D"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="28"
+    />
+  </g>
 </svg>

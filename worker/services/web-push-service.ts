@@ -338,7 +338,7 @@ export class WebPushService {
         {
           title: "HouseToDo",
           body: "テスト通知が届きました",
-          icon: "/icons/house-todo-v2-192.png",
+          icon: "/icons/house-todo-v3-192.png",
           data: { url: "/" }
         },
         publicKey,

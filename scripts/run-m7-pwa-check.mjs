@@ -116,8 +116,8 @@ result.manifest.requiredFields =
   manifest.scope === "/";
 assert(result.manifest.requiredFields, "manifest required fields are invalid");
 for (const [file, expected, key] of [
-  ["/icons/house-todo-v2-192.png", 192, "192"],
-  ["/icons/house-todo-v2-512.png", 512, "512"]
+  ["/icons/house-todo-v3-192.png", 192, "192"],
+  ["/icons/house-todo-v3-512.png", 512, "512"]
 ]) {
   const response = await api.get(file);
   assert(response.status() === 200, `${file} is not HTTP 200`);
