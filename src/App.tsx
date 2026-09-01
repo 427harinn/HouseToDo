@@ -298,6 +298,7 @@ export function App() {
   const [household, setHousehold] = useState<HouseholdState>({ status: "idle" });
   const [pendingInviteCode, setPendingInviteCode] = useState("");
   const [pendingRegistrationAvatar, setPendingRegistrationAvatar] = useState<ProcessedImage | null>(null);
+  const [profileImageNotice, setProfileImageNotice] = useState("");
 
   const navigate = useCallback(
     (nextRoute: string, replace = false) => {
@@ -346,9 +347,28 @@ export function App() {
     await refreshHousehold();
   };
 
+  const settleHouseholdAndUploadAvatar = async (
+    nextHousehold: Household,
+    user: AuthUser | null,
+    avatar: ProcessedImage | null
+  ) => {
+    setPendingRegistrationAvatar(null);
+    setHousehold({ status: "ready", household: nextHousehold });
+    if (user) setAuth({ status: "authenticated", user });
+    navigate("/home", true);
+    if (!user || !avatar) return;
+    try {
+      const uploaded = await uploadProfileImage(avatar);
+      setAuth({ status: "authenticated", user: { ...user, avatarUrl: uploaded.avatarUrl } });
+    } catch {
+      setProfileImageNotice("プロフィール画像の保存に失敗しました。設定から再度登録できます。");
+    }
+  };
+
   const completeRegistration = async (user: AuthUser, inviteCode: string, avatar: ProcessedImage | null) => {
     setAuth({ status: "authenticated", user });
     setPendingRegistrationAvatar(avatar);
+    setProfileImageNotice("");
     if (!inviteCode) {
       await refreshHousehold();
       return;
@@ -356,11 +376,7 @@ export function App() {
     setHousehold({ status: "loading" });
     try {
       const result = await joinHousehold(inviteCode);
-      const nextUser = avatar ? { ...user, avatarUrl: (await uploadProfileImage(avatar)).avatarUrl } : user;
-      setAuth({ status: "authenticated", user: nextUser });
-      setPendingRegistrationAvatar(null);
-      setHousehold({ status: "ready", household: result.household });
-      navigate("/home", true);
+      await settleHouseholdAndUploadAvatar(result.household, user, avatar);
     } catch (error) {
       setPendingInviteCode(inviteCode);
       setHousehold({ status: "none" });
@@ -454,17 +470,8 @@ export function App() {
       return (
         <CreateHouseholdScreen
           onCreated={(next) => {
-            const finalize = async () => {
-              const currentUser = auth.status === "authenticated" ? auth.user : null;
-              const nextUser = currentUser && pendingRegistrationAvatar
-                ? { ...currentUser, avatarUrl: (await uploadProfileImage(pendingRegistrationAvatar)).avatarUrl }
-                : currentUser;
-              if (nextUser) setAuth({ status: "authenticated", user: nextUser });
-              setPendingRegistrationAvatar(null);
-              setHousehold({ status: "ready", household: next });
-              navigate("/home", true);
-            };
-            return finalize();
+            const currentUser = auth.status === "authenticated" ? auth.user : null;
+            return settleHouseholdAndUploadAvatar(next, currentUser, pendingRegistrationAvatar);
           }}
           onNavigate={navigate}
         />
@@ -490,7 +497,8 @@ export function App() {
     household: household.household,
     onNavigate: navigate,
     onLogout: () => void signOut(),
-    user: auth.user
+    user: auth.user,
+    profileImageNotice
   };
   if (route.name === "/other") {
     return (
@@ -1258,9 +1266,11 @@ function useHomeData() {
 
 function HomeScreen({
   household,
+  profileImageNotice,
   onNavigate
 }: {
   household: Household;
+  profileImageNotice?: string;
   user: AuthUser;
   onNavigate: (route: NavigationPath) => void;
   onLogout: () => void;
@@ -1360,6 +1370,7 @@ function HomeScreen({
           <p>{formatHomeDate(today)}</p>
           <h1>やること</h1>
         </header>
+        {profileImageNotice ? <p className="m2-home__notice" role="status">{profileImageNotice}</p> : null}
         <ErrorMessage message={message} />
         {activeTasks.length > 0 ? (
           <section className="m2-home__task-list" aria-label="やること一覧">

@@ -23,10 +23,13 @@ const failure = (code: string, status: number) => ({
 const user = { id: "user-profile-crop", email: "crop@example.test", displayName: "Crop User", avatarUrl: null as string | null };
 const household = { id: "household-profile-crop", name: "Crop House", timezone: "Asia/Tokyo", weekStartsOn: 1, role: "owner" as const };
 
-const setupApi = async (page: Page) => {
+const setupApi = async (page: Page, options: { avatarUploadFailure?: boolean } = {}) => {
   let registered = false;
   let registerCount = 0;
   let householdCreated = false;
+  let householdJoined = false;
+  let joinCount = 0;
+  let avatarUploadAttempted = false;
   let avatarUploaded = false;
   let avatarUrl: string | null = null;
   await page.route("**/api/**", async (route) => {
@@ -42,13 +45,23 @@ const setupApi = async (page: Page) => {
       return route.fulfill(envelope({ user }));
     }
     if (url.pathname === "/api/households/current") {
-      return route.fulfill(householdCreated ? envelope({ household }) : envelope({ household: null }));
+      return route.fulfill(householdCreated || householdJoined ? envelope({ household }) : envelope({ household: null }));
     }
     if (url.pathname === "/api/households" && request.method() === "POST") {
       householdCreated = true;
       return route.fulfill(envelope({ household }, 201));
     }
+    if (url.pathname === "/api/households/invites/validate" && request.method() === "POST") {
+      return route.fulfill(envelope({ valid: true }));
+    }
+    if (url.pathname === "/api/households/join" && request.method() === "POST") {
+      joinCount += 1;
+      householdJoined = true;
+      return route.fulfill(envelope({ household }));
+    }
     if (url.pathname === "/api/account/avatar" && request.method() === "PUT") {
+      avatarUploadAttempted = true;
+      if (options.avatarUploadFailure) return route.fulfill(failure("VALIDATION_ERROR", 400));
       avatarUploaded = true;
       avatarUrl = "/api/users/user-profile-crop/avatar?v=2";
       return route.fulfill(envelope({ avatarUrl }));
@@ -64,6 +77,8 @@ const setupApi = async (page: Page) => {
   return {
     get registerCount() { return registerCount; },
     get avatarUploaded() { return avatarUploaded; },
+    get avatarUploadAttempted() { return avatarUploadAttempted; },
+    get joinCount() { return joinCount; },
     get householdCreated() { return householdCreated; }
   };
 };
@@ -143,6 +158,42 @@ test.describe("profile image registration and crop", () => {
     await expect(page).toHaveURL(/\/home$/);
     expect(state.registerCount).toBe(1);
     expect(state.avatarUploaded).toBeFalsy();
+  });
+
+  test("keeps the created household and continues home when avatar upload fails", async ({ page }) => {
+    const state = await setupApi(page, { avatarUploadFailure: true });
+    await fillRegistration(page);
+    await page.locator("#register-profile-image").setInputFiles(portraitFixture);
+    await page.getByRole("button", { name: "決定" }).click();
+    await expect(page.getByAltText("選択したプロフィール画像のプレビュー")).toBeVisible();
+    await page.getByRole("button", { name: "新規登録" }).click();
+    await expect(page).toHaveURL(/\/household\/create$/);
+    await page.locator("#household-name").fill("Avatar Failure Create House");
+    await page.getByRole("button", { name: "家庭を作る" }).click();
+    await expect(page).toHaveURL(/\/home$/);
+    await expect(page.getByText("プロフィール画像の保存に失敗しました。設定から再度登録できます。")).toBeVisible();
+    expect(state.householdCreated).toBeTruthy();
+    expect(state.avatarUploadAttempted).toBeTruthy();
+    expect(state.avatarUploaded).toBeFalsy();
+    expect(await page.getByText("家庭を作成できませんでした。").count()).toBe(0);
+    await screenshot(page, "09-create-avatar-upload-failed-390x844.png");
+  });
+
+  test("keeps the joined household and continues home when avatar upload fails", async ({ page }) => {
+    const state = await setupApi(page, { avatarUploadFailure: true });
+    await fillRegistration(page);
+    await page.locator("#register-invite-code").fill("VALID");
+    await page.locator("#register-profile-image").setInputFiles(portraitFixture);
+    await page.getByRole("button", { name: "決定" }).click();
+    await expect(page.getByAltText("選択したプロフィール画像のプレビュー")).toBeVisible();
+    await page.getByRole("button", { name: "新規登録" }).click();
+    await expect(page).toHaveURL(/\/home$/);
+    await expect(page.getByText("プロフィール画像の保存に失敗しました。設定から再度登録できます。")).toBeVisible();
+    expect(state.joinCount).toBe(1);
+    expect(state.avatarUploadAttempted).toBeTruthy();
+    expect(state.avatarUploaded).toBeFalsy();
+    expect(await page.getByText("招待コードが正しくありません。").count()).toBe(0);
+    await screenshot(page, "10-join-avatar-upload-failed-390x844.png");
   });
 });
 
