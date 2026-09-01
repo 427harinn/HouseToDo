@@ -11,6 +11,8 @@
     "test": "vitest run --maxWorkers=1 --minWorkers=1",
     "test:e2e": "playwright test",
     "test:e2e:staging": "playwright test --config=playwright.staging.config.ts",
+    "pwa:icons:generate": "node scripts/generate-pwa-icon-assets.mjs",
+    "pwa:icons:validate": "node scripts/validate-pwa-icon.mjs",
     "test:watch": "vitest",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
