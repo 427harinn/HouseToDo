@@ -43,12 +43,13 @@ type FormFieldProps = {
   id: string;
   label: string;
   error?: string;
+  className?: string;
   children: ReactNode;
 };
 
-export function FormField({ id, label, error, children }: FormFieldProps) {
+export function FormField({ id, label, error, className = "", children }: FormFieldProps) {
   return (
-    <div className="form-field">
+    <div className={`form-field ${className}`.trim()}>
       <label htmlFor={id}>{label}</label>
       {children}
       {error ? (
