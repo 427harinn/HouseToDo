@@ -43,6 +43,7 @@ function calendarData(selectedDate: string, completed = false, passed = false, m
 
 test.describe("Calendar M3", () => {
   test.beforeEach(async ({ page }) => {
+    await page.clock.install({ time: new Date("2026-08-20T12:00:00+09:00") });
     let completed = false;
     let passed = false;
     let delayedCalendarRefresh = false;

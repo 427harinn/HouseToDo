@@ -85,6 +85,7 @@ import {
 } from "./task-model-ui";
 import { MOTION_MS } from "./motion/constants";
 import { usePrefersReducedMotion } from "./hooks/usePrefersReducedMotion";
+import { useDelayedBusyStatus } from "./hooks/useDelayedBusyStatus";
 import {
   createTemporaryHistoryRecord,
   getRetainedTaskProjection,
@@ -147,6 +148,8 @@ type HomeBootstrapRequest = {
 };
 
 const HOME_REFRESH_STATUS = "最新情報を確認しています。";
+const HOME_REFRESH_STATUS_SHOW_DELAY_MS = 500;
+const HOME_REFRESH_STATUS_MIN_VISIBLE_MS = 400;
 
 const staticRoutes = new Set<StaticRoute>([
   "/",
@@ -1456,7 +1459,12 @@ function HomeScreen({
   onLogout: () => void;
   homeBootstrap: HomeBootstrapRequest | null;
 }) {
-  const { data, refreshing, message, refresh, invalidateRequests, hasAuthoritativeSync, authoritativeRevision } = useHomeData(user, household, homeBootstrap);
+  const { data, loading, refreshing, message, refresh, invalidateRequests, hasAuthoritativeSync, authoritativeRevision } = useHomeData(user, household, homeBootstrap);
+  const delayedRefreshStatusVisible = useDelayedBusyStatus(refreshing && data !== null, {
+    delayMs: HOME_REFRESH_STATUS_SHOW_DELAY_MS,
+    minVisibleMs: HOME_REFRESH_STATUS_MIN_VISIBLE_MS
+  });
+  const showRefreshStatus = (loading && !data) || (delayedRefreshStatusVisible && !message);
   const prefersReducedMotion = usePrefersReducedMotion();
   const [completedOpen, setCompletedOpen] = useState(false);
   const [passedOpen, setPassedOpen] = useState(false);
@@ -1593,9 +1601,9 @@ function HomeScreen({
         <header className="m2-home__header">
           <p>{formatHomeDate(today)}</p>
           <h1>やること</h1>
+          {showRefreshStatus ? <p className="m2-home__refresh-status" role="status" aria-live="polite">{HOME_REFRESH_STATUS}</p> : null}
         </header>
         {profileImageNotice ? <p className="m2-home__notice" role="status">{profileImageNotice}</p> : null}
-        <p className="m2-home__refresh-status" role="status" aria-live="polite">{refreshing ? HOME_REFRESH_STATUS : ""}</p>
         {message ? <p className="m2-home__refresh-error" role="status" aria-live="polite">{message}</p> : null}
         {!data ? (
           <section className="m2-home__pending" aria-label="やることを読み込み中" aria-hidden="true" />
