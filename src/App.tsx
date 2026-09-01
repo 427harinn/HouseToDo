@@ -1323,6 +1323,7 @@ function useHomeData(user: AuthUser, household: Household, bootstrap: HomeBootst
       const nextData = await request;
       if (applyGate) await applyGate;
       if (generationRef.current !== generation || requestEpoch !== refreshEpochRef.current || sequence < latestAppliedRef.current) return null;
+      if (nextData.date !== dateKeyRef.current) return null;
       latestAppliedRef.current = sequence;
       hasAuthoritativeSyncRef.current = true;
       setState((current) => ({
@@ -1388,9 +1389,10 @@ function useHomeData(user: AuthUser, household: Household, bootstrap: HomeBootst
     });
 
     let request: Promise<HomeToday>;
-    if (bootstrap) {
+    if (bootstrap && !bootstrap.consumed) {
       bootstrap.consumed = true;
       request = bootstrap.promise;
+      initialRequestRef.current = { identityKey, request };
     } else if (initialRequestRef.current?.identityKey === identityKey) {
       request = initialRequestRef.current.request;
     } else {

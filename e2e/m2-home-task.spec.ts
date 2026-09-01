@@ -11,6 +11,10 @@ test.use({
   video: { mode: "on", size: { width: 390, height: 844 } }
 });
 
+test.beforeEach(async ({ page }) => {
+  await page.clock.install({ time: new Date("2026-08-25T12:00:00+09:00") });
+});
+
 const task = (id: string, title: string, scope: "date" | "date-all-day" | "week" | "month" | "none" | "overdue", assignedUserId: string | null = null, description = "") => ({
   id,
   title,

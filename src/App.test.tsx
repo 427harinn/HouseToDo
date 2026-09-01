@@ -700,6 +700,13 @@ describe("M6 auth and household entry", () => {
 });
 
 describe("M2 Home", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ now: new Date("2026-08-25T12:00:00+09:00"), toFake: ["Date"] });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   const task = {
     id: "home-task-1",
     title: "ゴミ出し",
