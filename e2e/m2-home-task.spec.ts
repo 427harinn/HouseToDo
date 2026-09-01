@@ -11,6 +11,14 @@ test.use({
   video: { mode: "on", size: { width: 390, height: 844 } }
 });
 
+test.beforeEach(async ({ page }) => {
+  await page.clock.install({ time: new Date("2026-08-25T12:00:00+09:00") });
+});
+
+const installM2Clock = async (page: Page) => {
+  await page.clock.install({ time: new Date("2026-08-25T12:00:00+09:00") });
+};
+
 const task = (id: string, title: string, scope: "date" | "date-all-day" | "week" | "month" | "none" | "overdue", assignedUserId: string | null = null, description = "") => ({
   id,
   title,
@@ -265,6 +273,7 @@ test("M2 Task add/reuse/edit/delete evidence", async ({ page }) => {
 test("records task-complete.webm", async ({ browser }) => {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "ja-JP", timezoneId: "Asia/Tokyo", recordVideo: { dir: evidenceDir, size: { width: 390, height: 844 } } });
   const page = await context.newPage();
+  await installM2Clock(page);
   const state: HomeState = { completed: false, passed: false, deleted: false, overdue: true };
   await installRoutes(page, state);
   await page.goto("/home");
@@ -281,6 +290,7 @@ test("records task-complete.webm", async ({ browser }) => {
 test("records task-swipe-pass.webm", async ({ browser }) => {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "ja-JP", timezoneId: "Asia/Tokyo", recordVideo: { dir: evidenceDir, size: { width: 390, height: 844 } } });
   const page = await context.newPage();
+  await installM2Clock(page);
   const state: HomeState = { completed: false, passed: false, deleted: false, overdue: true };
   await installRoutes(page, state);
   await page.goto("/home");
@@ -302,6 +312,7 @@ test("records task-swipe-pass.webm", async ({ browser }) => {
 test("records task-undo.webm", async ({ browser }) => {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "ja-JP", timezoneId: "Asia/Tokyo", recordVideo: { dir: evidenceDir, size: { width: 390, height: 844 } } });
   const page = await context.newPage();
+  await installM2Clock(page);
   const state: HomeState = { completed: true, passed: false, deleted: false, overdue: true, completedTaskId: "m2-overdue", completedTitle: "期限超過の家事" };
   await installRoutes(page, state);
   await page.goto("/home");
