@@ -2014,6 +2014,10 @@ textarea[aria-invalid="true"] {
 .m2-task-form .form-field { gap: 8px; }
 .m2-task-form .form-field label { font-size: .8125rem; font-weight: 400; }
 .m2-task-form input, .m2-task-form select, .m2-task-form textarea { background: var(--color-surface); }
+.m2-task-form .mobile-compact-input-row, .shopping-m4-form > .mobile-compact-input-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 10.5rem); min-width: 0; min-height: 52px; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--color-border); color: var(--color-text); }
+.m2-task-form .mobile-compact-input-row > label, .shopping-m4-form > .mobile-compact-input-row > label { min-width: 0; overflow-wrap: anywhere; color: var(--color-text); font-size: .9375rem; font-weight: 400; }
+.mobile-compact-input-row > input { justify-self: end; width: min(100%, 10.5rem); max-width: 100%; min-width: 0; min-height: 44px; margin: 0; box-sizing: border-box; padding: 10px 8px; font-size: 16px; text-align: right; }
+.mobile-compact-input-row > .field-error { grid-column: 1 / -1; margin: 0; }
 .m2-task-form__row { position: relative; display: flex; width: 100%; min-height: 48px; align-items: center; gap: 12px; padding: 4px 0; border: 0; border-bottom: 1px solid var(--color-border); background: transparent; color: var(--color-text); text-align: left; }
 .m2-task-form__row--button { cursor: pointer; font: inherit; }
 .m2-task-form__row > span:first-child { color: var(--color-text); font-size: .9375rem; }
