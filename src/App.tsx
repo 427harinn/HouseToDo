@@ -85,6 +85,14 @@ import {
 } from "./task-model-ui";
 import { MOTION_MS } from "./motion/constants";
 import { usePrefersReducedMotion } from "./hooks/usePrefersReducedMotion";
+import {
+  clearHomeSnapshots,
+  homeSnapshotKey,
+  readMemoryHomeSnapshot,
+  readPersistentHomeSnapshot,
+  writeServerConfirmedHomeSnapshot,
+  type HomeSnapshotIdentity
+} from "./cache/home-snapshot";
 import type {
   AuthState,
   AuthUser,
@@ -123,6 +131,13 @@ type NavigationPath =
   string;
 
 type FormErrors = Record<string, string>;
+
+type HomeBootstrapRequest = {
+  promise: Promise<HomeToday>;
+  consumed: boolean;
+};
+
+const HOME_REFRESH_STATUS = "最新情報を確認しています。";
 
 const staticRoutes = new Set<StaticRoute>([
   "/",
@@ -299,6 +314,11 @@ export function App() {
   const [pendingInviteCode, setPendingInviteCode] = useState("");
   const [pendingRegistrationAvatar, setPendingRegistrationAvatar] = useState<ProcessedImage | null>(null);
   const [profileImageNotice, setProfileImageNotice] = useState("");
+  const initialHomeRoute = useRef(route.name === "/" || route.name === "/home");
+  const homeBootstrapRef = useRef<HomeBootstrapRequest | null>(null);
+  const invalidateHomeBootstrap = useCallback(() => {
+    homeBootstrapRef.current = null;
+  }, []);
 
   const navigate = useCallback(
     (nextRoute: string, replace = false) => {
@@ -343,6 +363,7 @@ export function App() {
   );
 
   const completeAuth = async (user: AuthUser) => {
+    invalidateHomeBootstrap();
     setAuth({ status: "authenticated", user });
     await refreshHousehold();
   };
@@ -352,6 +373,7 @@ export function App() {
     user: AuthUser | null,
     avatar: ProcessedImage | null
   ) => {
+    invalidateHomeBootstrap();
     setPendingRegistrationAvatar(null);
     setHousehold({ status: "ready", household: nextHousehold });
     if (user) setAuth({ status: "authenticated", user });
@@ -366,6 +388,7 @@ export function App() {
   };
 
   const completeRegistration = async (user: AuthUser, inviteCode: string, avatar: ProcessedImage | null) => {
+    invalidateHomeBootstrap();
     setAuth({ status: "authenticated", user });
     setPendingRegistrationAvatar(avatar);
     setProfileImageNotice("");
@@ -393,6 +416,8 @@ export function App() {
     try {
       await logout();
     } finally {
+      invalidateHomeBootstrap();
+      await clearHomeSnapshots();
       setAuth({ status: "unauthenticated" });
       setHousehold({ status: "idle" });
       navigate("/login", true);
@@ -407,18 +432,42 @@ export function App() {
 
   useEffect(() => {
     const controller = new AbortController();
-    me(controller.signal)
-      .then((result) => {
-        setAuth({ status: "authenticated", user: result.user });
-        return refreshHousehold(controller.signal);
-      })
+    if (initialHomeRoute.current && !homeBootstrapRef.current) {
+      const promise = getHomeToday();
+      homeBootstrapRef.current = { promise, consumed: false };
+      void promise.catch(() => undefined);
+    }
+
+    const authRequest = me(controller.signal);
+    const householdRequest = getCurrentHousehold(controller.signal);
+    void authRequest
+      .then((result) => setAuth({ status: "authenticated", user: result.user }))
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
+        homeBootstrapRef.current = null;
         setAuth({ status: "unauthenticated" });
         setHousehold({ status: "idle" });
       });
+    void householdRequest
+      .then((result) => {
+        setHousehold(
+          result.household
+            ? { status: "ready", household: result.household }
+            : { status: "none" }
+        );
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        if (error instanceof ApiError && error.code === "UNAUTHENTICATED") {
+          homeBootstrapRef.current = null;
+          setAuth({ status: "unauthenticated" });
+          setHousehold({ status: "idle" });
+          return;
+        }
+        setHousehold({ status: "error", message: apiErrorMessage(error) });
+      });
     return () => controller.abort();
-  }, [refreshHousehold]);
+  }, []);
 
   useEffect(() => {
     if (auth.status === "loading") return;
@@ -481,6 +530,7 @@ export function App() {
       return (
         <JoinHouseholdScreen
           onJoined={(next) => {
+            invalidateHomeBootstrap();
             setHousehold({ status: "ready", household: next });
             navigate("/home", true);
           }}
@@ -542,7 +592,7 @@ export function App() {
     return <ShoppingItemFormScreen {...shellProps} mode="create" />;
   if (route.name === "/shopping/items/:itemId/edit")
     return <ShoppingItemFormScreen {...shellProps} mode="edit" itemId={route.itemId} />;
-  return <HomeScreen {...shellProps} />;
+  return <HomeScreen {...shellProps} homeBootstrap={homeBootstrapRef.current} />;
 }
 function LoginScreen({
   onLogin,
@@ -1229,53 +1279,155 @@ function CalendarShoppingSection({
   );
 }
 
-function useHomeData() {
-  const [data, setData] = useState<HomeToday | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState("");
-  const refresh = useCallback(async (signal?: AbortSignal) => {
-    setLoading(true);
-    setMessage("");
+function useHomeData(user: AuthUser, household: Household, bootstrap: HomeBootstrapRequest | null) {
+  const [dateKey, setDateKey] = useState(() => todayInTimezone(household.timezone));
+  const dateKeyRef = useRef(dateKey);
+  const identity: HomeSnapshotIdentity = { userId: user.id, householdId: household.id, date: dateKey };
+  const identityKey = homeSnapshotKey(identity);
+  const [state, setState] = useState(() => {
+    const memory = readMemoryHomeSnapshot(identity);
+    return {
+      data: memory,
+      loading: true,
+      refreshing: true,
+      message: "",
+      source: memory ? "memory" : "none" as "memory" | "indexeddb" | "server" | "none",
+      hasAuthoritativeSync: false
+    };
+  });
+  const generationRef = useRef(0);
+  const requestSequenceRef = useRef(0);
+  const latestStartedRef = useRef(0);
+  const latestAppliedRef = useRef(0);
+  const hasAuthoritativeSyncRef = useRef(false);
+  const controllersRef = useRef(new Set<AbortController>());
+
+  const startRequest = useCallback(async (request: Promise<HomeToday>, generation: number, applyGate?: Promise<unknown>): Promise<HomeToday | null> => {
+    const sequence = ++requestSequenceRef.current;
+    latestStartedRef.current = sequence;
+    setState((current) => ({ ...current, loading: current.data === null, refreshing: true, message: "" }));
     try {
-      setData(await getHomeToday(undefined, signal));
-    } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") return;
-      setMessage(apiErrorMessage(error));
-    } finally {
-      setLoading(false);
+      const nextData = await request;
+      if (applyGate) await applyGate;
+      if (generationRef.current !== generation || sequence < latestAppliedRef.current) return nextData;
+      latestAppliedRef.current = sequence;
+      hasAuthoritativeSyncRef.current = true;
+      setState((current) => ({
+        ...current,
+        data: nextData,
+        loading: false,
+        refreshing: latestStartedRef.current !== sequence,
+        message: "",
+        source: "server",
+        hasAuthoritativeSync: true
+      }));
+      if (nextData.date === dateKeyRef.current) {
+        void writeServerConfirmedHomeSnapshot({ userId: user.id, householdId: household.id, date: dateKeyRef.current }, nextData);
+      }
+      return nextData;
+    } catch (error: unknown) {
+      if (generationRef.current !== generation || sequence !== latestStartedRef.current) return null;
+      if (error instanceof DOMException && error.name === "AbortError") return null;
+      setState((current) => ({
+        ...current,
+        loading: false,
+        refreshing: false,
+        message: "最新情報を取得できませんでした。"
+      }));
+      return null;
     }
-  }, []);
-  useEffect(() => {
+  }, [household.id, user.id]);
+
+  const refresh = useCallback(async (applyGate?: Promise<unknown>): Promise<HomeToday | null> => {
     const controller = new AbortController();
-    void refresh(controller.signal);
+    controllersRef.current.add(controller);
+    const request = getHomeToday(undefined, controller.signal).finally(() => controllersRef.current.delete(controller));
+    return startRequest(request, generationRef.current, applyGate);
+  }, [startRequest]);
+
+  useEffect(() => {
+    const generation = ++generationRef.current;
+    dateKeyRef.current = dateKey;
+    requestSequenceRef.current = 0;
+    latestStartedRef.current = 0;
+    latestAppliedRef.current = 0;
+    hasAuthoritativeSyncRef.current = false;
+    const currentIdentity: HomeSnapshotIdentity = { userId: user.id, householdId: household.id, date: dateKey };
+    const memory = readMemoryHomeSnapshot(currentIdentity);
+    setState({
+      data: memory,
+      loading: true,
+      refreshing: true,
+      message: "",
+      source: memory ? "memory" : "none",
+      hasAuthoritativeSync: false
+    });
+
+    let request: Promise<HomeToday>;
+    if (bootstrap && !bootstrap.consumed) {
+      bootstrap.consumed = true;
+      request = bootstrap.promise;
+    } else {
+      const controller = new AbortController();
+      controllersRef.current.add(controller);
+      request = getHomeToday(undefined, controller.signal).finally(() => controllersRef.current.delete(controller));
+    }
+    const persistentRead = memory ? Promise.resolve(null) : readPersistentHomeSnapshot(currentIdentity);
+    void persistentRead.then((cached) => {
+      if (!cached || generationRef.current !== generation || hasAuthoritativeSyncRef.current) return;
+      setState((current) => current.data ? current : {
+        ...current,
+        data: cached,
+        source: "indexeddb"
+      });
+    });
+    void startRequest(request, generation);
+
     const onVisible = () => {
-      if (document.visibilityState === "visible") void refresh();
+      if (document.visibilityState !== "visible") return;
+      const nextDateKey = todayInTimezone(household.timezone);
+      if (nextDateKey !== dateKeyRef.current) {
+        dateKeyRef.current = nextDateKey;
+        setDateKey(nextDateKey);
+        setState({ data: null, loading: true, refreshing: true, message: "", source: "none", hasAuthoritativeSync: false });
+        return;
+      }
+      void refresh();
     };
     document.addEventListener("visibilitychange", onVisible);
+    const activeControllers = controllersRef.current;
     return () => {
-      controller.abort();
       document.removeEventListener("visibilitychange", onVisible);
+      activeControllers.forEach((controller) => controller.abort());
+      activeControllers.clear();
     };
-  }, [refresh]);
-  const apply = useCallback((nextData: HomeToday) => {
-    setData(nextData);
-    setLoading(false);
-  }, []);
-  return { data, loading, message, refresh, apply };
+  }, [dateKey, household.id, household.timezone, user.id, identityKey, bootstrap, refresh, startRequest]);
+
+  return {
+    data: state.data,
+    loading: state.loading,
+    refreshing: state.refreshing,
+    message: state.message,
+    hasAuthoritativeSync: state.hasAuthoritativeSync,
+    refresh
+  };
 }
 
 function HomeScreen({
   household,
+  user,
   profileImageNotice,
-  onNavigate
+  onNavigate,
+  homeBootstrap
 }: {
   household: Household;
   profileImageNotice?: string;
   user: AuthUser;
   onNavigate: (route: NavigationPath) => void;
   onLogout: () => void;
+  homeBootstrap: HomeBootstrapRequest | null;
 }) {
-  const { data, loading, message, refresh, apply } = useHomeData();
+  const { data, refreshing, message, refresh, hasAuthoritativeSync } = useHomeData(user, household, homeBootstrap);
   const prefersReducedMotion = usePrefersReducedMotion();
   const [completedOpen, setCompletedOpen] = useState(false);
   const [passedOpen, setPassedOpen] = useState(false);
@@ -1285,6 +1437,7 @@ function HomeScreen({
   const [passingIds, setPassingIds] = useState<Set<string>>(new Set());
   const [restoringIds, setRestoringIds] = useState<Set<string>>(new Set());
   const [statusMessage, setStatusMessage] = useState("");
+  const mutationsDisabled = Boolean(data && !hasAuthoritativeSync);
   const today = data?.date ?? todayInTimezone(household.timezone);
   const activeTasks = (data?.homeTasks ?? []).filter(
     (task) => task.status === "pending" || task.status === "in_progress"
@@ -1302,16 +1455,14 @@ function HomeScreen({
     const motionPromise = wait(motionMs);
     try {
       await mutation;
-      const nextHomePromise = getHomeToday();
-      const [nextHome] = await Promise.all([nextHomePromise, motionPromise]);
-      apply(nextHome);
+      await Promise.all([refresh(motionPromise), motionPromise]);
     } catch (error) {
       await motionPromise;
       throw error;
     }
   };
   const complete = async (task: TodayTask) => {
-    if (isBusy(task.id)) return;
+    if (isBusy(task.id) || mutationsDisabled) return;
     setOpenRowId(null);
     setExpandedTaskId(null);
     setActionId(setCompletingIds, task.id, true);
@@ -1327,7 +1478,7 @@ function HomeScreen({
     }
   };
   const pass = async (task: TodayTask) => {
-    if (isBusy(task.id)) return;
+    if (isBusy(task.id) || mutationsDisabled) return;
     setOpenRowId(null);
     setActionId(setPassingIds, task.id, true);
     setStatusMessage(`「${task.title}」をパスしました`);
@@ -1341,7 +1492,7 @@ function HomeScreen({
     }
   };
   const restore = async (record: HomeToday["completedRecords"][number]) => {
-    if (isBusy(record.taskId)) return;
+    if (isBusy(record.taskId) || mutationsDisabled) return;
     setOpenRowId(null);
     setActionId(setRestoringIds, record.taskId, true);
     try {
@@ -1365,14 +1516,17 @@ function HomeScreen({
   };
   return (
     <AppFrame current="/home" onNavigate={onNavigate}>
-      <main className="m2-home" aria-busy={loading}>
+      <main className="m2-home" aria-busy={refreshing}>
         <header className="m2-home__header">
           <p>{formatHomeDate(today)}</p>
           <h1>やること</h1>
         </header>
         {profileImageNotice ? <p className="m2-home__notice" role="status">{profileImageNotice}</p> : null}
-        <ErrorMessage message={message} />
-        {activeTasks.length > 0 ? (
+        <p className="m2-home__refresh-status" role="status" aria-live="polite">{refreshing ? HOME_REFRESH_STATUS : ""}</p>
+        {message ? <p className="m2-home__refresh-error" role="status" aria-live="polite">{message}</p> : null}
+        {!data ? (
+          <section className="m2-home__pending" aria-label="やることを読み込み中" aria-hidden="true" />
+        ) : activeTasks.length > 0 ? (
           <section className="m2-home__task-list" aria-label="やること一覧">
             {activeTasks.map((task) => (
               <HomeSwipeRow
@@ -1385,7 +1539,8 @@ function HomeScreen({
                 onSecondary={() => void pass(task)}
                 secondaryLabel="パス"
                 expanded={expandedTaskId === task.id}
-                expandedContent={<TaskInlineDetail task={task} today={today} members={data?.members ?? []} busy={isBusy(task.id)} onComplete={() => void complete(task)} />}
+                expandedContent={<TaskInlineDetail task={task} today={today} members={data.members} busy={isBusy(task.id)} disabled={mutationsDisabled} onComplete={() => void complete(task)} />}
+                mutationsDisabled={mutationsDisabled}
                 rowClassName={restoringIds.has(task.id) ? "is-restoring-row" : completingIds.has(task.id) ? "is-completing-row" : passingIds.has(task.id) ? "is-passing-row" : ""}
               >
                 <button className="m2-home__row-main" type="button" disabled={isBusy(task.id)} onClick={() => toggleTaskDetail(task.id)} aria-label={`${task.title}の詳細`} aria-expanded={expandedTaskId === task.id} aria-controls={`home-task-detail-${task.id}`}>
@@ -1412,7 +1567,7 @@ function HomeScreen({
             <button className="m2-home__history-toggle" type="button" aria-expanded={completedOpen} onClick={() => setCompletedOpen((open) => !open)}>
               <span>完了済み {completed.length}</span><ChevronRight aria-hidden="true" className={completedOpen ? "is-open" : ""} />
             </button>
-            {completedOpen ? <div className="m2-home__history-list">{completed.map((record) => <HomeHistoryRow key={record.id} record={record} busy={restoringIds.has(record.taskId)} onEdit={() => editRecord(record)} onRestore={() => void restore(record)} openRowId={openRowId} onOpenRow={setOpenRowId} />)}</div> : null}
+            {completedOpen ? <div className="m2-home__history-list">{completed.map((record) => <HomeHistoryRow key={record.id} record={record} busy={restoringIds.has(record.taskId)} onEdit={() => editRecord(record)} onRestore={() => void restore(record)} openRowId={openRowId} onOpenRow={setOpenRowId} mutationsDisabled={mutationsDisabled} />)}</div> : null}
           </section>
         ) : null}
         {passed.length > 0 ? (
@@ -1420,7 +1575,7 @@ function HomeScreen({
             <button className="m2-home__history-toggle" type="button" aria-expanded={passedOpen} onClick={() => setPassedOpen((open) => !open)}>
               <span>パス済み {passed.length}</span><ChevronRight aria-hidden="true" className={passedOpen ? "is-open" : ""} />
             </button>
-            {passedOpen ? <div className="m2-home__history-list">{passed.map((record) => <HomeHistoryRow key={record.id} record={record} busy={restoringIds.has(record.taskId)} onEdit={() => editRecord(record)} onRestore={() => void restore(record)} passed openRowId={openRowId} onOpenRow={setOpenRowId} />)}</div> : null}
+            {passedOpen ? <div className="m2-home__history-list">{passed.map((record) => <HomeHistoryRow key={record.id} record={record} busy={restoringIds.has(record.taskId)} onEdit={() => void editRecord(record)} onRestore={() => void restore(record)} passed openRowId={openRowId} onOpenRow={setOpenRowId} mutationsDisabled={mutationsDisabled} />)}</div> : null}
           </section>
         ) : null}
         <button className="m2-home__shopping" type="button" onClick={() => onNavigate("/shopping")}>
@@ -1479,12 +1634,12 @@ function HomeAvatar({ member, label }: { member: { displayName: string | null; c
   return <span className="m2-home__avatar" role="img" aria-label={`${label}: ${name}`}>{member.avatarUrl ? <img src={member.avatarUrl} alt="" /> : name.slice(0, 1)}</span>;
 }
 
-function TaskInlineDetail({ task, today, members, busy, onComplete }: { task: TodayTask; today: string; members?: HomeToday["members"]; busy: boolean; onComplete: () => void }) {
+function TaskInlineDetail({ task, today, members, busy, disabled = false, onComplete }: { task: TodayTask; today: string; members?: HomeToday["members"]; busy: boolean; disabled?: boolean; onComplete: () => void }) {
   const description = task.description?.trim();
   const assignee = members ? homeMemberForTask(task, members) : null;
   const hasDateOrTime = Boolean(task.deadlineDate ?? (task.modelRecurrenceType === "once" ? task.targetDate : null) ?? task.deadlineTime ?? task.scheduledTime);
   return <div className="m2-home__expanded" id={`home-task-detail-${task.id}`}>
-    <button type="button" className="m2-home__primary" disabled={busy} onClick={onComplete}>{busy ? "完了中…" : "完了"}</button>
+    <button type="button" className="m2-home__primary" disabled={busy || disabled} onClick={onComplete}>{busy ? "完了中…" : "完了"}</button>
     {description ? <div className="m2-home__detail"><span>メモ</span><p>{description}</p></div> : null}
     {assignee ? <div className="m2-home__detail"><span>担当</span><p>{assignee.displayName ?? "メンバー"}</p></div> : null}
     {hasDateOrTime ? <div className="m2-home__detail"><span>日付 / 時間</span><p>{formatHomeDeadline(task, today)}</p></div> : null}
@@ -1492,7 +1647,7 @@ function TaskInlineDetail({ task, today, members, busy, onComplete }: { task: To
   </div>;
 }
 
-function HomeSwipeRow({ children, rowId, openRowId, onOpenRow, busy, onEdit, onSecondary, secondaryLabel, expanded = false, expandedContent, rowClassName = "", restoreOnly = false }: { children: ReactNode; rowId: string; openRowId: string | null; onOpenRow: (rowId: string | null) => void; busy: boolean; onEdit?: () => void; onSecondary: () => void; secondaryLabel: string; expanded?: boolean; expandedContent?: ReactNode; rowClassName?: string; restoreOnly?: boolean }) {
+function HomeSwipeRow({ children, rowId, openRowId, onOpenRow, busy, onEdit, onSecondary, secondaryLabel, expanded = false, expandedContent, rowClassName = "", restoreOnly = false, mutationsDisabled = false }: { children: ReactNode; rowId: string; openRowId: string | null; onOpenRow: (rowId: string | null) => void; busy: boolean; onEdit?: () => void; onSecondary: () => void; secondaryLabel: string; expanded?: boolean; expandedContent?: ReactNode; rowClassName?: string; restoreOnly?: boolean; mutationsDisabled?: boolean }) {
   const actionWidth = restoreOnly ? 72 : 136;
   const actionsOpen = openRowId === rowId;
   const [offset, setOffset] = useState(actionsOpen ? -actionWidth : 0);
@@ -1545,15 +1700,15 @@ function HomeSwipeRow({ children, rowId, openRowId, onOpenRow, busy, onEdit, onS
       {children}
       <button type="button" className="m2-home__more" aria-label="操作" aria-expanded={actionsOpen} onClick={() => { const next = !actionsOpen; onOpenRow(next ? rowId : null); setOffset(next ? -actionWidth : 0); }}><Ellipsis aria-hidden="true" /></button>
     </div>
-    <div className={`m2-home__actions ${restoreOnly ? "is-restore-only" : ""}`} aria-label="操作メニュー"><span aria-hidden="true" />{!restoreOnly && onEdit ? <button type="button" onClick={onEdit}>編集</button> : null}<button type="button" className="is-secondary" disabled={busy} onClick={onSecondary}>{secondaryLabel}</button></div>
+     <div className={`m2-home__actions ${restoreOnly ? "is-restore-only" : ""}`} aria-label="操作メニュー"><span aria-hidden="true" />{!restoreOnly && onEdit ? <button type="button" onClick={onEdit}>編集</button> : null}<button type="button" className="is-secondary" disabled={busy || mutationsDisabled} onClick={onSecondary}>{secondaryLabel}</button></div>
     {expanded ? expandedContent : null}
   </div>;
 }
 
-function HomeHistoryRow({ record, busy, onEdit, onRestore, passed = false, openRowId, onOpenRow }: { record: HomeToday["completedRecords"][number]; busy: boolean; onEdit: () => void; onRestore: () => void; passed?: boolean; openRowId: string | null; onOpenRow: (rowId: string | null) => void }) {
+function HomeHistoryRow({ record, busy, onEdit, onRestore, passed = false, openRowId, onOpenRow, mutationsDisabled = false }: { record: HomeToday["completedRecords"][number]; busy: boolean; onEdit: () => void; onRestore: () => void; passed?: boolean; openRowId: string | null; onOpenRow: (rowId: string | null) => void; mutationsDisabled?: boolean }) {
   const deleted = !record.taskActive;
   const member = passed ? record.assignedUser : record.actualCompleter;
-  return <HomeSwipeRow rowId={`history-${record.id}`} openRowId={openRowId} onOpenRow={onOpenRow} busy={busy} onEdit={deleted ? undefined : onEdit} onSecondary={onRestore} secondaryLabel="戻す" restoreOnly={deleted} rowClassName={busy ? "is-restoring-row" : ""}>
+  return <HomeSwipeRow rowId={`history-${record.id}`} openRowId={openRowId} onOpenRow={onOpenRow} busy={busy} onEdit={deleted ? undefined : onEdit} onSecondary={onRestore} secondaryLabel="戻す" restoreOnly={deleted} mutationsDisabled={mutationsDisabled} rowClassName={busy ? "is-restoring-row" : ""}>
     <div className="m2-home__row-main m2-home__history-main"><span className="m2-home__row-details"><span className="m2-home__task-title">{record.title}</span></span>{member?.displayName ? <HomeAvatar member={member} label={passed ? "担当" : "完了者"} /> : null}</div>
   </HomeSwipeRow>;
 }

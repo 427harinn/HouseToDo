@@ -1939,6 +1939,8 @@ textarea[aria-invalid="true"] {
 .m2-home__header { margin-bottom: var(--space-4); }
 .m2-home__header p { margin: 0 0 4px; color: var(--color-text-secondary); font-size: .8125rem; }
 .m2-home__header h1 { margin: 0; font-size: 1.125rem; font-weight: 600; }
+.m2-home__refresh-status, .m2-home__refresh-error { min-height: 20px; margin: 0 0 var(--space-2); color: var(--color-text-secondary); font-size: .75rem; line-height: 1.5; }
+.m2-home__refresh-error { color: var(--color-task-overdue); }
 .m2-home__notice { margin: 0 0 var(--space-3); padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--color-primary) 35%, var(--color-border)); border-radius: 12px; background: color-mix(in srgb, var(--color-primary) 8%, var(--color-surface)); color: var(--color-text); font-size: .8125rem; line-height: 1.5; }
 .m2-home__task-list { border-top: 1px solid var(--color-border); }
 .m2-home__row { position: relative; overflow: hidden; border-bottom: 1px solid var(--color-border); isolation: isolate; touch-action: pan-y; }
@@ -1988,6 +1990,8 @@ textarea[aria-invalid="true"] {
 .m2-home__empty-illustration { position: relative; display: grid; width: 64px; height: 64px; place-items: center; border: 1px solid var(--color-primary); border-radius: 50%; color: var(--color-primary-strong); }
 .m2-home__empty-illustration svg:first-child { width: 29px; height: 29px; stroke-width: 1.6; }
 .m2-home__empty-illustration svg:last-child { position: absolute; right: 10px; bottom: 10px; width: 16px; height: 16px; padding: 2px; background: var(--color-bg); stroke-width: 2.5; }
+.m2-home__pending { display: grid; min-height: 176px; place-items: center; padding: 32px 16px; color: var(--color-text-secondary); text-align: center; }
+.m2-home__pending p { margin: 0; font-size: .875rem; }
 .m2-home__shopping { border-bottom: 1px solid var(--color-border); }
 .m2-home__status { min-height: 20px; margin: 8px 0 0; color: var(--color-text-secondary); font-size: .75rem; }
 @keyframes m2-check-enter { from { opacity: 0; transform: scale(.7); } to { opacity: 1; transform: scale(1); } }
