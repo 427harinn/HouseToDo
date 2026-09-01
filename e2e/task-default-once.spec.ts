@@ -3,7 +3,17 @@ import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 
 const artifactDir = path.resolve(process.env.PLAYWRIGHT_ARTIFACT_DIR ?? "artifacts/playwright/task-default-once");
-const today = "2026-09-01";
+const householdTimezone = "Asia/Tokyo";
+const today = () => {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: householdTimezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+};
 
 const json = (data: unknown, status = 200) => ({
   status,
@@ -31,7 +41,7 @@ const installRoutes = async (page: Page, state: TaskState) => {
     if (url.pathname === "/api/households/current") return route.fulfill(json({ household: { id: "household-1", name: "わが家", timezone: "Asia/Tokyo", weekStartsOn: 1, role: "owner" } }));
     if (url.pathname === "/api/households/current/members") return route.fulfill(json({ members: [{ userId: "user-1", displayName: "はる", role: "owner", color: "#d9f2eb", avatarUrl: null }] }));
     if (url.pathname === "/api/tasks/recent") return route.fulfill(json({ tasks: [{ id: "recent-daily", title: "最近の毎日家事", recurrenceType: "daily", modelRecurrenceType: "daily", assignmentType: "anyone", assignedUserId: null, description: "", startDate: "2026-08-01", targetDate: null, deadlineTime: null, notificationOffsetMinutes: null, weekdays: [], weeklyTargetCount: null, weeklyDeadlineWeekday: null, monthlyDayOfMonth: null, monthlyDeadlineType: null, active: true }] }));
-    if (url.pathname === "/api/tasks/task-edit" && request.method() === "GET") return route.fulfill(json({ task: { id: "task-edit", title: "既存の毎日家事", description: "メモ", recurrenceType: "daily", modelRecurrenceType: "daily", assignmentType: "anyone", assignedUserId: null, startDate: today, targetDate: null, deadlineTime: null, notificationOffsetMinutes: null, weekdays: [], weeklyTargetCount: null, weeklyDeadlineWeekday: null, monthlyDayOfMonth: null, monthlyDeadlineType: null, active: true } }));
+    if (url.pathname === "/api/tasks/task-edit" && request.method() === "GET") return route.fulfill(json({ task: { id: "task-edit", title: "既存の毎日家事", description: "メモ", recurrenceType: "daily", modelRecurrenceType: "daily", assignmentType: "anyone", assignedUserId: null, startDate: today(), targetDate: null, deadlineTime: null, notificationOffsetMinutes: null, weekdays: [], weeklyTargetCount: null, weeklyDeadlineWeekday: null, monthlyDayOfMonth: null, monthlyDeadlineType: null, active: true } }));
     if (url.pathname === "/api/tasks/task-edit/history") return route.fulfill(json({ records: [] }));
     if (url.pathname === "/api/tasks" && request.method() === "POST") {
       state.createdPayloads.push(request.postDataJSON() as Record<string, unknown>);
@@ -50,7 +60,7 @@ test.describe("new task default recurrence", () => {
     await page.goto("/tasks/new");
     await expect(page.getByRole("heading", { name: "家事を追加" })).toBeVisible();
     await expect(page.getByRole("button", { name: "繰り返し: 今回だけ" })).toBeVisible();
-    await expect(page.locator("#m2-task-start-date")).toHaveValue(today);
+    await expect(page.locator("#m2-task-start-date")).toHaveValue(today());
     await assertNoHorizontalOverflow(page);
     await screenshot(page, "new-initial-390x844.png");
 
@@ -65,7 +75,7 @@ test.describe("new task default recurrence", () => {
     await page.getByRole("button", { name: "以前の項目から選ぶ" }).click();
     await page.getByRole("dialog", { name: "以前の項目から選ぶ" }).getByRole("button", { name: /最近の毎日家事/ }).click();
     await expect(page.getByRole("button", { name: "繰り返し: 毎日" })).toBeVisible();
-    await expect(page.locator("#m2-task-start-date")).toHaveValue(today);
+    await expect(page.locator("#m2-task-start-date")).toHaveValue(today());
 
     await page.goto("/tasks/task-edit/edit");
     await expect(page.getByRole("heading", { name: "家事を編集" })).toBeVisible();
@@ -79,7 +89,7 @@ test.describe("new task default recurrence", () => {
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto("/tasks/new");
     await expect(page.getByRole("button", { name: "繰り返し: 今回だけ" })).toBeVisible();
-    await expect(page.locator("#m2-task-start-date")).toHaveValue(today);
+    await expect(page.locator("#m2-task-start-date")).toHaveValue(today());
     await assertNoHorizontalOverflow(page);
     await screenshot(page, "new-initial-375x812.png");
     await page.getByRole("button", { name: "繰り返し: 今回だけ" }).click();
@@ -97,8 +107,8 @@ test.describe("new task default recurrence", () => {
     expect(state.createdPayloads[0]).toMatchObject({
       recurrenceType: "once",
       modelRecurrenceType: "once",
-      startDate: today,
-      targetDate: today
+      startDate: today(),
+      targetDate: today()
     });
   });
 });
