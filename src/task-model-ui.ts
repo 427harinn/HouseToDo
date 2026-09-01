@@ -24,7 +24,7 @@ export type TaskFormState = {
 export const defaultTaskForm = (): TaskFormState => ({
   title: "",
   description: "",
-  recurrence: "daily",
+  recurrence: "once",
   assignmentType: "anyone",
   assignedUserId: null,
   startDate: "",

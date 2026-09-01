@@ -104,6 +104,7 @@ test.describe("mobile-safe Task date and time inputs", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/tasks/new");
     await expect(page.getByRole("heading", { name: "家事を追加" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "繰り返し: 今回だけ" })).toBeVisible();
     await expect(page.locator("#m2-task-start-date")).toHaveValue("2026-09-01");
     await assertCompactInputLayout(page, "#m2-task-start-date");
     await expect(page.locator("#m2-task-time")).toHaveCount(0);
@@ -117,10 +118,11 @@ test.describe("mobile-safe Task date and time inputs", () => {
     await page.locator("#m2-task-title").fill("朝の片付け");
     await page.locator('form button[type="submit"]').click();
     await expect(page).toHaveURL("/home");
-    expect(state.createdPayloads[0]).toMatchObject({ startDate: "2026-09-01", deadlineTime: "09:00" });
+    expect(state.createdPayloads[0]).toMatchObject({ recurrenceType: "once", modelRecurrenceType: "once", startDate: "2026-09-01", targetDate: "2026-09-01", deadlineTime: "09:00" });
 
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto("/tasks/new");
+    await expect(page.getByRole("button", { name: "繰り返し: 今回だけ" })).toBeVisible();
     await expect(page.locator("#m2-task-start-date")).toHaveValue("2026-09-01");
     await page.getByRole("checkbox", { name: "終日" }).click();
     await page.locator("#m2-task-start-date").fill("2026-09-01");

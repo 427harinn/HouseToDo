@@ -236,8 +236,10 @@ describe("App task form payload", () => {
 
     await waitFor(() => expect(capturedPayload).not.toBeNull());
     expect(capturedPayload).toMatchObject({
-      recurrenceType: "daily",
-      modelRecurrenceType: "daily",
+      recurrenceType: "once",
+      modelRecurrenceType: "once",
+      startDate: "2026-09-01",
+      targetDate: "2026-09-01",
       scheduledTime: null,
       deadlineTime: "09:00"
     });
@@ -371,6 +373,8 @@ describe("App task form payload", () => {
     window.history.replaceState({}, "", "/tasks/new");
     const { container } = render(<App />);
     await waitFor(() => expect(screen.getByRole("checkbox", { name: "終日" })).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "繰り返し: 今回だけ" })).toBeInTheDocument();
+    expect(container.querySelector<HTMLInputElement>("#m2-task-start-date")).toHaveValue("2026-09-01");
     expect(container.querySelectorAll("input[type=\"date\"]")).toHaveLength(1);
     expect(container.querySelector("#m2-task-start-date")).toBeInTheDocument();
     expect(container.querySelector("#m2-task-date")).not.toBeInTheDocument();
