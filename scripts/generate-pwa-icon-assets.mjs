@@ -25,20 +25,20 @@ async function renderIcon(size, filePath, sourceSvg = svg) {
 }
 
 for (const size of [180, 192, 512]) {
-  await renderIcon(size, path.join(iconDir, `house-todo-v3-${size}.png`));
+  await renderIcon(size, path.join(iconDir, `house-todo-v4-${size}.png`));
 }
 for (const size of [192, 512]) {
   await renderIcon(
     size,
-    path.join(iconDir, `house-todo-v3-maskable-${size}.png`),
+    path.join(iconDir, `house-todo-v4-maskable-${size}.png`),
     maskableSvg
   );
 }
 
 const iconData = {};
-for (const version of ["v2", "v3", "v3-maskable"]) {
+for (const version of ["v3", "v4", "v4-maskable"]) {
   iconData[version] = {};
-  for (const size of version === "v3-maskable" ? [512] : [180, 512]) {
+  for (const size of version === "v4-maskable" ? [512] : [180, 512]) {
     const contents = await readFile(path.join(iconDir, `house-todo-${version}-${size}.png`));
     iconData[version][size] = `data:image/png;base64,${contents.toString("base64")}`;
   }
@@ -80,27 +80,27 @@ await previewPage.setContent(`<!doctype html>
   .caption { margin-top: 28px; padding: 16px 18px; border: 1px solid #d9e8df; border-radius: 16px; background: #f9fffb; font-size: 15px; line-height: 1.45; }
 </style>
 <h1>HouseToDo app icon refresh</h1>
-<p>v2 → v3 · enlarged house + check · full-bleed mint background · mask-safe central glyph</p>
+<p>v3 → v4 · same scale · slightly higher house · explicit vertical walls · full-bleed mint background</p>
 <main class="grid">
   <section class="card"><h2>A · iOS-sized comparison at 60px</h2><div class="comparison">
-    <div class="compare-item"><div class="masked ios"><img src="${iconData.v2[180]}" alt="v2 iOS icon"></div><span>v2 · old</span></div>
-    <div class="compare-item"><div class="masked ios"><img src="${iconData.v3[180]}" alt="v3 iOS icon"></div><span>v3 · new</span></div>
-  </div><div class="caption">The mint tile reaches every corner; the comparison isolates the artwork scale change under the rounded-square mask.</div></section>
+    <div class="compare-item"><div class="masked ios"><img src="${iconData.v3[180]}" alt="v3 iOS icon"></div><span>v3 · old</span></div>
+    <div class="compare-item"><div class="masked ios"><img src="${iconData.v4[180]}" alt="v4 iOS icon"></div><span>v4 · new</span></div>
+  </div><div class="caption">The mint tile reaches every corner; the comparison isolates the small position and wall-geometry change under the rounded-square mask.</div></section>
   <section class="card"><h2>B · Simulated iOS mask at 180px</h2><div class="mask-pair">
-    <div class="mask-item"><div class="masked ios"><img src="${iconData.v2[512]}" alt="v2 iOS mask"></div><span>v2 · old</span></div>
-    <div class="mask-item"><div class="masked ios"><img src="${iconData.v3[512]}" alt="v3 iOS mask"></div><span>v3 · new</span></div>
+    <div class="mask-item"><div class="masked ios"><img src="${iconData.v3[512]}" alt="v3 iOS mask"></div><span>v3 · old</span></div>
+    <div class="mask-item"><div class="masked ios"><img src="${iconData.v4[512]}" alt="v4 iOS mask"></div><span>v4 · new</span></div>
   </div></section>
   <section class="card"><h2>C · Circular mask safety</h2><div class="mask-trio">
-    <div class="mask-item"><div class="masked circle"><img src="${iconData.v2[512]}" alt="v2 circular mask"></div><span>v2 · old</span></div>
     <div class="mask-item"><div class="masked circle"><img src="${iconData.v3[512]}" alt="v3 standard circular mask"></div><span>v3 · standard</span></div>
-    <div class="mask-item"><div class="masked circle"><img src="${iconData["v3-maskable"][512]}" alt="v3 maskable circular mask"></div><span>v3 · maskable</span></div>
+    <div class="mask-item"><div class="masked circle"><img src="${iconData.v4[512]}" alt="v4 standard circular mask"></div><span>v4 · standard</span></div>
+    <div class="mask-item"><div class="masked circle"><img src="${iconData["v4-maskable"][512]}" alt="v4 maskable circular mask"></div><span>v4 · maskable</span></div>
   </div></section>
-  <section class="card"><h2>D · v3 small-size readability</h2><div class="sizes">
-    <div class="size"><img style="--size:180px" src="${iconData.v3[180]}" alt="v3 180px icon"><span>180px</span></div>
-    <div class="size"><img style="--size:60px" src="${iconData.v3[180]}" alt="v3 60px icon"><span>60px</span></div>
-    <div class="size"><img style="--size:40px" src="${iconData.v3[180]}" alt="v3 40px icon"><span>40px</span></div>
+  <section class="card"><h2>D · v4 small-size readability</h2><div class="sizes">
+    <div class="size"><img style="--size:180px" src="${iconData.v4[180]}" alt="v4 180px icon"><span>180px</span></div>
+    <div class="size"><img style="--size:60px" src="${iconData.v4[180]}" alt="v4 60px icon"><span>60px</span></div>
+    <div class="size"><img style="--size:40px" src="${iconData.v4[180]}" alt="v4 40px icon"><span>40px</span></div>
   </div></section>
-  <section class="card"><h2>E · Home Screen context</h2><div class="raw"><div class="masked ios" style="width:180px;height:180px"><img src="${iconData.v3[512]}" alt="v3 home screen icon"></div></div><div class="caption">Full-bleed mint remains visible to the platform mask. The v3 house and check are enlarged around the same optical center and remain inside the mask-safe area.</div></section>
+  <section class="card"><h2>E · Home Screen context</h2><div class="raw"><div class="masked ios" style="width:180px;height:180px"><img src="${iconData.v4[512]}" alt="v4 home screen icon"></div></div><div class="caption">Full-bleed mint remains visible to the platform mask. The v4 house keeps the v3 scale, shifts slightly upward, and uses explicit vertical wall geometry.</div></section>
 </main>`);
 await previewPage.screenshot({
   path: path.join(artifactDir, "icon-contact-sheet.png"),
@@ -114,4 +114,4 @@ await previewPage
   .screenshot({ path: path.join(artifactDir, "icon-ios-mask-preview.png") });
 
 await browser.close();
-console.log("Generated house-todo-v3 standard/maskable icons and comparison preview artifacts from", sourcePath);
+console.log("Generated house-todo-v4 standard/maskable icons and comparison preview artifacts from", sourcePath);

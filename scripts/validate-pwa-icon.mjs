@@ -7,11 +7,21 @@ import { inflateSync } from "node:zlib";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const iconDir = path.join(root, "public", "icons");
-const expected = [180, 192, 512];
 const expectedMint = [143, 211, 182];
 const colorTolerance = 2;
 const standardSizes = [180, 192, 512];
 const maskableSizes = [192, 512];
+
+const svgSource = await readFile(
+  path.join(root, "docs", "design", "house-todo-app-icon.svg"),
+  "utf8"
+);
+if (
+  !svgSource.includes("translate(0 -8)") ||
+  !svgSource.includes("M106 249.5H406V407c0 10.493-8.507 19-19 19H125c-10.493 0-19-8.507-19-19V249.5Z")
+) {
+  throw new Error("SVG master: expected v4 upward offset and explicit vertical wall body");
+}
 
 function parsePng(buffer, fileName) {
   const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
@@ -134,11 +144,11 @@ async function validateIcon(fileName, size) {
 }
 
 for (const size of standardSizes) {
-  const fileName = `house-todo-v3-${size}.png`;
+  const fileName = `house-todo-v4-${size}.png`;
   await validateIcon(fileName, size);
 }
 for (const size of maskableSizes) {
-  const fileName = `house-todo-v3-maskable-${size}.png`;
+  const fileName = `house-todo-v4-maskable-${size}.png`;
   await validateIcon(fileName, size);
 }
 
@@ -155,19 +165,19 @@ for (const icon of manifest.icons) {
 if (
   JSON.stringify(manifest.icons.map((icon) => icon.src)) !==
   JSON.stringify([
-    "/icons/house-todo-v3-192.png",
-    "/icons/house-todo-v3-512.png",
-    "/icons/house-todo-v3-maskable-192.png",
-    "/icons/house-todo-v3-maskable-512.png"
+    "/icons/house-todo-v4-192.png",
+    "/icons/house-todo-v4-512.png",
+    "/icons/house-todo-v4-maskable-192.png",
+    "/icons/house-todo-v4-maskable-512.png"
   ])
 ) {
-  throw new Error("manifest.webmanifest: expected separate v3 standard and maskable sources");
+  throw new Error("manifest.webmanifest: expected separate v4 standard and maskable sources");
 }
 
 const indexHtml = await readFile(path.join(root, "index.html"), "utf8");
 const appleMatch = indexHtml.match(/<link\s+rel="apple-touch-icon"[^>]*href="([^"]+)"/);
-if (!appleMatch || appleMatch[1] !== "/icons/house-todo-v3-180.png")
-  throw new Error("index.html: apple-touch-icon does not point to the v3 180px asset");
+if (!appleMatch || appleMatch[1] !== "/icons/house-todo-v4-180.png")
+  throw new Error("index.html: apple-touch-icon does not point to the v4 180px asset");
 if (!existsSync(path.join(root, "public", appleMatch[1].slice(1))))
   throw new Error("index.html: apple-touch-icon file is missing");
 
@@ -185,8 +195,10 @@ for (const relative of runtimeFiles) {
     throw new Error(`${relative}: stale unversioned runtime icon reference`);
   if (/house-todo-v2-(?:180|192|512)\.png/.test(contents))
     throw new Error(`${relative}: stale v2 runtime icon reference`);
+  if (/house-todo-v3-(?:180|192|512|maskable-192|maskable-512)\.png/.test(contents))
+    throw new Error(`${relative}: stale v3 runtime icon reference`);
 }
 
 console.log(
-  `PWA icon validation passed: ${expected.map((size) => `${size}x${size}`).join(", ")}; v3 dimensions, opaque mint edges, manifest/apple-touch/runtime references verified.`
+  `PWA icon validation passed: v4 standard ${standardSizes.map((size) => `${size}x${size}`).join(", ")}; v4 maskable ${maskableSizes.map((size) => `${size}x${size}`).join(", ")}; opaque mint edges, SVG geometry, manifest/apple-touch/runtime references verified.`
 );
