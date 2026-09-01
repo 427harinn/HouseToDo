@@ -216,6 +216,7 @@ test("M2 Task add/reuse/edit/delete evidence", async ({ page }) => {
   await expect(page.locator(".bottom-nav")).toHaveCount(0);
   await expect(page.locator("input[type=\"date\"]")).toHaveCount(1);
   await expect(page.locator("#m2-task-start-date")).toBeVisible();
+  await expect(page.getByRole("button", { name: "繰り返し: 今回だけ" })).toBeVisible();
   await expect(page.locator("#m2-task-date")).toHaveCount(0);
   await expect(page.locator("#m2-task-time")).toHaveCount(0);
   await page.getByRole("checkbox", { name: "終日" }).click();
@@ -231,6 +232,7 @@ test("M2 Task add/reuse/edit/delete evidence", async ({ page }) => {
   await page.waitForTimeout(300);
   await screenshot(page, "09-task-reuse-picker-390x844.png");
   await page.getByRole("button", { name: /床そうじ/ }).click();
+  await expect(page.getByRole("button", { name: "繰り返し: 毎日" })).toBeVisible();
   await page.goto("/tasks/task-edit/edit");
   await expect(page.getByRole("heading", { name: "家事を編集" })).toBeVisible();
   await expect(page.locator(".bottom-nav")).toHaveCount(0);
@@ -238,6 +240,7 @@ test("M2 Task add/reuse/edit/delete evidence", async ({ page }) => {
   await expect(page.getByText("前回：8/20")).toBeVisible();
   await page.getByRole("button", { name: /繰り返し:/ }).click();
   await expect(page.getByRole("dialog", { name: "繰り返し" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "繰り返し" }).getByRole("button", { name: "毎日" }).locator("svg")).toHaveCount(1);
   await page.waitForTimeout(240);
   await screenshot(page, "14-task-repeat-sheet-390x844.png");
   await page.getByRole("button", { name: "閉じる", exact: true }).click();

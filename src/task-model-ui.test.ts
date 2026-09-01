@@ -12,6 +12,15 @@ import {
 } from "./task-model-ui";
 
 describe("task model form mapping", () => {
+  it("defaults new task forms to a one-time recurrence", () => {
+    expect(defaultTaskForm()).toMatchObject({ recurrence: "once", startDate: "", targetDate: "" });
+    expect(taskFormToPayload({
+      ...defaultTaskForm(), title: "今日の家事", startDate: "2026-09-01", targetDate: "2026-09-01"
+    })).toMatchObject({
+      recurrenceType: "once", modelRecurrenceType: "once", startDate: "2026-09-01", targetDate: "2026-09-01"
+    });
+  });
+
   it("cleans recurrence-specific state when the type changes", () => {
     const weekly = {
       ...defaultTaskForm(), recurrence: "weekly_fixed" as const, weekdays: [2, 5],
