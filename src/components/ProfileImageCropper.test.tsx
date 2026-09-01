@@ -46,7 +46,7 @@ describe("ProfileImagePicker", () => {
     fireEvent.change(screen.getByLabelText("プロフィール画像を選択"), {
       target: { files: [source.file] }
     });
-    expect(await screen.findByRole("dialog", { name: "プロフィール画像を調整" })).toBeVisible();
+    expect(await screen.findByRole("dialog", { name: "写真を調整" })).toBeVisible();
     expect(screen.getByLabelText("プロフィール画像の切り抜き範囲")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "キャンセル" }));
     expect(onImageChange).not.toHaveBeenCalled();
@@ -54,9 +54,9 @@ describe("ProfileImagePicker", () => {
     fireEvent.change(screen.getByLabelText("プロフィール画像を選択"), {
       target: { files: [source.file] }
     });
-    await screen.findByRole("dialog", { name: "プロフィール画像を調整" });
+    await screen.findByRole("dialog", { name: "写真を調整" });
     fireEvent.change(screen.getByLabelText("プロフィール画像の拡大縮小"), { target: { value: "2" } });
-    fireEvent.click(screen.getByRole("button", { name: "決定" }));
+    fireEvent.click(screen.getByRole("button", { name: "完了" }));
 
     await waitFor(() => expect(onImageChange).toHaveBeenCalledWith(result));
     expect(processCroppedAvatar).toHaveBeenCalledWith(source, expect.objectContaining({ zoom: 2 }));

@@ -621,8 +621,8 @@ describe("M6 auth and household entry", () => {
     fireEvent.change(screen.getByLabelText("プロフィール画像を選択"), {
       target: { files: [new File(["source"], "avatar.jpg", { type: "image/jpeg" })] }
     });
-    await screen.findByRole("dialog", { name: "プロフィール画像を調整" });
-    fireEvent.click(screen.getByRole("button", { name: "決定" }));
+    await screen.findByRole("dialog", { name: "写真を調整" });
+    fireEvent.click(screen.getByRole("button", { name: "完了" }));
     await screen.findByAltText("選択したプロフィール画像のプレビュー");
 
     fireEvent.click(screen.getByRole("button", { name: "新規登録" }));
@@ -680,8 +680,8 @@ describe("M6 auth and household entry", () => {
     fireEvent.change(screen.getByLabelText("プロフィール画像を選択"), {
       target: { files: [new File(["source"], "avatar.jpg", { type: "image/jpeg" })] }
     });
-    await screen.findByRole("dialog", { name: "プロフィール画像を調整" });
-    fireEvent.click(screen.getByRole("button", { name: "決定" }));
+    await screen.findByRole("dialog", { name: "写真を調整" });
+    fireEvent.click(screen.getByRole("button", { name: "完了" }));
     await screen.findByAltText("選択したプロフィール画像のプレビュー");
 
     fireEvent.click(screen.getByRole("button", { name: "新規登録" }));

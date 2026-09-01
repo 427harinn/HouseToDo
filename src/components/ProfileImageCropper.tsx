@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
+import { createPortal } from "react-dom";
+import { useEffect, useId, useMemo, useRef, useState, type PointerEvent } from "react";
 import {
   AVATAR_CROP_VIEWPORT,
   createCropSource,
@@ -7,8 +8,6 @@ import {
   type CropSource,
   type ProcessedImage
 } from "../lib/image-processing";
-import { BottomSheet } from "./BottomSheet";
-
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 const imageErrorMessage = (error: unknown): string => {
@@ -40,6 +39,7 @@ export function ProfileImagePicker({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const selectionId = useRef(0);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const previewUrl = useMemo(() => (image ? URL.createObjectURL(image.blob) : ""), [image]);
 
   useEffect(() => () => {
@@ -76,6 +76,7 @@ export function ProfileImagePicker({
     if (source) URL.revokeObjectURL(source.url);
     setSource(null);
     setProcessing(false);
+    window.setTimeout(() => triggerRef.current?.focus(), 0);
   };
 
   const confirmCrop = async (crop: AvatarCrop) => {
@@ -108,6 +109,7 @@ export function ProfileImagePicker({
         }}
       />
       <button
+        ref={triggerRef}
         type="button"
         className="m5-secondary-action profile-image-picker-v2__button"
         disabled={disabled || busy}
@@ -119,19 +121,22 @@ export function ProfileImagePicker({
         <img className="profile-image-picker-v2__preview" src={previewUrl} alt="選択したプロフィール画像のプレビュー" />
       ) : null}
       {error ? <p className="m5-error" role="alert">{error}</p> : null}
-      <BottomSheet
-        className="bottom-sheet--profile-image-crop"
-        open={Boolean(source)}
-        title="プロフィール画像を調整"
-        onClose={closeCrop}
-      >
-        {source ? <ProfileImageCropSheet source={source} disabled={busy} onCancel={closeCrop} onConfirm={(crop) => void confirmCrop(crop)} /> : null}
-      </BottomSheet>
+      {source
+        ? createPortal(
+            <ProfileImageCropEditor
+              source={source}
+              disabled={busy}
+              onCancel={closeCrop}
+              onConfirm={(crop) => void confirmCrop(crop)}
+            />,
+            document.body
+          )
+        : null}
     </div>
   );
 }
 
-function ProfileImageCropSheet({
+function ProfileImageCropEditor({
   source,
   disabled,
   onCancel,
@@ -143,9 +148,40 @@ function ProfileImageCropSheet({
   onConfirm: (crop: AvatarCrop) => void;
 }) {
   const [crop, setCrop] = useState<AvatarCrop>({ zoom: 1, offsetX: 0, offsetY: 0 });
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const pinchStart = useRef<{ distance: number; zoom: number } | null>(null);
   const dragStart = useRef<{ x: number; y: number; offsetX: number; offsetY: number } | null>(null);
+  useEffect(() => {
+    const previousOverflow = {
+      document: document.documentElement.style.overflow,
+      body: document.body.style.overflow,
+      bodyTouchAction: document.body.style.touchAction,
+      bodyOverscrollBehavior: document.body.style.overscrollBehavior
+    };
+    const scrollContainers = Array.from(
+      document.querySelectorAll<HTMLElement>(".app-shell, .app-shell__viewport")
+    );
+    const previousContainerOverflow = scrollContainers.map((container) => container.style.overflowY);
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+    document.body.style.touchAction = "none";
+    document.body.style.overscrollBehavior = "none";
+    scrollContainers.forEach((container) => {
+      container.style.overflowY = "hidden";
+    });
+    dialogRef.current?.focus();
+    return () => {
+      document.documentElement.style.overflow = previousOverflow.document;
+      document.body.style.overflow = previousOverflow.body;
+      document.body.style.touchAction = previousOverflow.bodyTouchAction;
+      document.body.style.overscrollBehavior = previousOverflow.bodyOverscrollBehavior;
+      scrollContainers.forEach((container, index) => {
+        container.style.overflowY = previousContainerOverflow[index];
+      });
+    };
+  }, []);
   const imageScale = Math.max(
     AVATAR_CROP_VIEWPORT / source.width,
     AVATAR_CROP_VIEWPORT / source.height
@@ -214,21 +250,54 @@ function ProfileImageCropSheet({
     if (pointers.current.size === 0) dragStart.current = null;
   };
 
+  const changeZoom = (nextZoom: number) => {
+    const zoom = clamp(nextZoom, 1, 3);
+    const nextScale = Math.max(AVATAR_CROP_VIEWPORT / source.width, AVATAR_CROP_VIEWPORT / source.height) * zoom;
+    const nextMaxX = Math.max(0, (source.width * nextScale - AVATAR_CROP_VIEWPORT) / 2);
+    const nextMaxY = Math.max(0, (source.height * nextScale - AVATAR_CROP_VIEWPORT) / 2);
+    setCrop((current) => ({
+      zoom,
+      offsetX: clamp(current.offsetX, -nextMaxX, nextMaxX),
+      offsetY: clamp(current.offsetY, -nextMaxY, nextMaxY)
+    }));
+  };
+
   return (
-    <div className="profile-image-crop-sheet">
-      <p className="profile-image-crop-sheet__hint">写真を指で移動し、円の中に使いたい範囲を合わせてください。</p>
-      <div
-        className="profile-image-crop"
-        aria-label="プロフィール画像の切り抜き範囲"
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
-      >
-        <img src={source.url} alt="" draggable={false} style={imageStyle} />
-        <div className="profile-image-crop__guide" aria-hidden="true" />
-      </div>
-      <label className="profile-image-crop__zoom">
+    <div
+      ref={dialogRef}
+      className="profile-image-crop-editor"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+      tabIndex={-1}
+    >
+      <header className="profile-image-crop-editor__header">
+        <button type="button" className="profile-image-crop-editor__cancel" onClick={onCancel}>キャンセル</button>
+        <h1 id={titleId}>写真を調整</h1>
+        <button
+          type="button"
+          className="profile-image-crop-editor__complete"
+          disabled={disabled}
+          onClick={() => onConfirm(crop)}
+        >
+          {disabled ? "処理中…" : "完了"}
+        </button>
+      </header>
+      <main className="profile-image-crop-editor__main">
+        <p className="profile-image-crop-editor__hint">写真を指で移動し、円の中に使いたい範囲を合わせてください。</p>
+        <div
+          className="profile-image-crop"
+          aria-label="プロフィール画像の切り抜き範囲"
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+        >
+          <img src={source.url} alt="" draggable={false} style={imageStyle} />
+          <div className="profile-image-crop__guide" aria-hidden="true" />
+        </div>
+      </main>
+      <label className="profile-image-crop-editor__zoom">
         <span>拡大・縮小</span>
         <input
           aria-label="プロフィール画像の拡大縮小"
@@ -238,13 +307,9 @@ function ProfileImageCropSheet({
           step="0.01"
           value={crop.zoom}
           disabled={disabled}
-          onChange={(event) => setCrop((current) => ({ ...current, zoom: Number(event.target.value), offsetX: 0, offsetY: 0 }))}
+          onChange={(event) => changeZoom(Number(event.target.value))}
         />
       </label>
-      <div className="profile-image-crop__actions">
-        <button type="button" className="m5-secondary-action" disabled={disabled} onClick={onCancel}>キャンセル</button>
-        <button type="button" className="m5-primary-action" disabled={disabled} onClick={() => onConfirm(crop)}>決定</button>
-      </div>
     </div>
   );
 }

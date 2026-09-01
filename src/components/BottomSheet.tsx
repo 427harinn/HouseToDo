@@ -11,14 +11,13 @@ import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
 import { MOTION_MS } from "../motion/constants";
 
 type BottomSheetProps = {
-  className?: string;
   children: ReactNode;
   onClose: () => void;
   open: boolean;
   title: string;
 };
 
-export function BottomSheet({ children, className, onClose, open, title }: BottomSheetProps) {
+export function BottomSheet({ children, onClose, open, title }: BottomSheetProps) {
   const dragStartY = useRef<number | null>(null);
   const dragOffsetRef = useRef(0);
   const dismissTimer = useRef<number | null>(null);
@@ -106,7 +105,7 @@ export function BottomSheet({ children, className, onClose, open, title }: Botto
         onClick={onClose}
       />
       <section
-        className={["bottom-sheet", className, isDragging ? "is-dragging" : "", isDismissing ? "is-dismissing" : ""]
+        className={["bottom-sheet", isDragging ? "is-dragging" : "", isDismissing ? "is-dismissing" : ""]
           .filter(Boolean)
           .join(" ")}
         role="dialog"
