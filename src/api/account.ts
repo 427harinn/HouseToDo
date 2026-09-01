@@ -4,7 +4,7 @@ import type { AuthUser } from "../types";
 
 export const uploadProfileImage = (image: ProcessedImage) => {
   const body = new FormData();
-  body.append("image", image.blob, "profile-avatar.webp");
+  body.append("image", image.blob, `profile-avatar.${image.contentType === "image/jpeg" ? "jpg" : "webp"}`);
   body.append("width", String(image.width));
   body.append("height", String(image.height));
   return apiRequest<{ avatarUrl: string | null }>("/api/account/avatar", {

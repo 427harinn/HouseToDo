@@ -182,11 +182,24 @@
 .m5-account-avatar-edit { position: absolute; right: -2px; bottom: -2px; display: inline-flex; width: 28px; height: 28px; align-items: center; justify-content: center; color: var(--color-primary-strong); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 50%; }
 .m5-account-avatar-edit svg { width: 15px; height: 15px; }
 .m5-account-file { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.profile-image-picker-v2 { display: grid; gap: 10px; }
+.profile-image-picker-v2__button { width: 100%; min-height: 44px; }
+.profile-image-picker-v2__preview { width: 88px; height: 88px; object-fit: cover; border: 2px solid var(--color-primary); border-radius: 50%; }
+.profile-image-crop-sheet { display: grid; gap: 14px; overflow: visible; overscroll-behavior: contain; padding-bottom: 4px; }
+.profile-image-crop-sheet__hint { margin: 0; color: var(--color-text-secondary); font-size: .8125rem; line-height: 1.5; }
+.profile-image-crop { position: relative; width: min(100%, 320px); aspect-ratio: 1; margin: 0 auto; overflow: hidden; background: #17231f; border-radius: 14px; touch-action: none; user-select: none; }
+.profile-image-crop img { position: absolute; top: 50%; left: 50%; max-width: none; object-fit: fill; pointer-events: none; user-select: none; }
+.profile-image-crop__guide { position: absolute; inset: 0; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 0 999px rgb(14 23 19 / 42%), 0 1px 8px rgb(0 0 0 / 32%); pointer-events: none; }
+.profile-image-crop__zoom { display: grid; gap: 8px; color: var(--color-text-secondary); font-size: .8125rem; }
+.profile-image-crop__zoom input { width: 100%; min-height: 36px; accent-color: var(--color-primary-strong); }
+.profile-image-crop__actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.profile-image-crop__actions button { min-height: 46px; }
 .m5-account-logout { padding-top: clamp(48px, 12vh, 112px); margin-top: 16px; border-top: 1px solid var(--color-border); }
 .m5-selection-list { display: grid; }
 .m5-selection-list button { display: flex; min-height: 52px; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border: 0; border-bottom: 1px solid var(--color-border); background: transparent; color: var(--color-text); text-align: left; }
 .m5-selection-list button svg { flex: 0 0 18px; width: 18px; height: 18px; color: var(--color-primary-strong); }
 @media (max-width: 340px) { .m5-page { padding-inline: 12px; } .m5-settings-header h1 { font-size: 1rem; } .m5-settings-back { font-size: .8125rem; } .m5-field-row, .m5-account-profile .m5-field-row { grid-template-columns: minmax(0, 1fr); align-items: stretch; gap: 4px; } .m5-time-row { grid-template-columns: minmax(0, 1fr) minmax(0, 9rem); align-items: center; } .m5-row-value { max-width: 60%; font-size: .8125rem; } }
+@media (max-height: 820px) { .bottom-sheet { padding-top: 4px; padding-bottom: calc(8px + env(safe-area-inset-bottom)); } }
 @media (prefers-reduced-motion: reduce) { .m5-toggle-visual, .m5-toggle-visual::after, .m5-storage-bar span { transition: none; } }
 
 html {
@@ -330,6 +343,10 @@ p {
   display: grid;
   gap: 16px;
 }
+
+.register-avatar-field { display: grid; gap: 8px; padding: 14px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-surface-muted, #f7faf8); }
+.register-avatar-field__heading { display: flex; justify-content: space-between; gap: 8px; color: var(--color-text-secondary); font-size: .8125rem; }
+.register-avatar-field__hint { margin: 0; color: var(--color-text-muted); font-size: .75rem; line-height: 1.5; }
 
 .entry-page .form-field {
   gap: 8px;
@@ -1800,12 +1817,19 @@ textarea[aria-invalid="true"] {
 .bottom-sheet {
   position: relative;
   width: min(100%, 40rem);
+  box-sizing: border-box;
+  max-height: calc(100dvh - 8px);
+  overflow-y: auto;
   padding: var(--space-2) var(--space-4)
     calc(var(--space-4) + env(safe-area-inset-bottom));
   border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
   background: var(--color-surface);
   translate: 0 var(--sheet-drag-offset, 0px);
   animation: bottom-sheet-enter 200ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.bottom-sheet--profile-image-crop {
+  overflow-y: hidden;
 }
 
 .bottom-sheet.is-dragging {

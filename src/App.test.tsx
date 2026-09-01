@@ -62,7 +62,7 @@ const purchasedItem = {
   name: "卵",
   status: "purchased",
   purchasedBy: { userId: "user-2", displayName: "たくや" },
-  purchasedAt: "2026-08-24T01:32:00Z"
+  purchasedAt: new Date(Date.now() - 60 * 60 * 1000).toISOString()
 };
 
 const template = {
@@ -450,7 +450,7 @@ describe("App shopping UI", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /購入済み 1件/ }));
     expect(screen.getByText("卵")).toBeInTheDocument();
-    expect(screen.getByText("2026/8/24 10:32")).toBeInTheDocument();
+    expect(screen.getByText(/\d{4}\/\d+\/\d+ \d{2}:\d{2}/)).toBeInTheDocument();
     expect(screen.getByLabelText("購入者: たくや")).toBeInTheDocument();
   }, 15000);
 

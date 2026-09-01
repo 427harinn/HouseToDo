@@ -50,6 +50,15 @@ const webp = (width = 80, height = 80, size = 30) => {
   return bytes;
 };
 
+const jpeg = (width = 80, height = 80) => new Uint8Array([
+  0xff, 0xd8,
+  0xff, 0xc0, 0x00, 0x11, 0x08,
+  (height >> 8) & 0xff, height & 0xff,
+  (width >> 8) & 0xff, width & 0xff,
+  0x03, 0x01, 0x11, 0x00, 0x02, 0x11, 0x00, 0x03, 0x11, 0x00,
+  0xff, 0xd9
+]);
+
 describe("profile image API", () => {
   it("uploads, returns the avatar URL, replaces, removes, and rejects invalid uploads", async () => {
     const app = createApp();
@@ -83,6 +92,18 @@ describe("profile image API", () => {
       height: 81
     });
     expect((env.ATTACHMENTS as unknown as MemoryR2).objects.size).toBe(1);
+    await service.upload(userId, {
+      body: jpeg(96, 64).buffer,
+      contentType: "image/jpeg",
+      width: 96,
+      height: 64
+    });
+    expect((env.ATTACHMENTS as unknown as MemoryR2).objects.size).toBe(1);
+    const avatarResponse = await app.fetch(
+      new Request("https://example.test/api/users/" + encodeURIComponent(userId) + "/avatar", { headers: { cookie } }),
+      env
+    );
+    expect(avatarResponse.headers.get("content-type")).toBe("image/jpeg");
     await expect(
       service.upload(userId, {
         body: webp().buffer,

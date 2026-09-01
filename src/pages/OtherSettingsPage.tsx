@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { Camera, Check, ChevronLeft, ChevronRight } from "lucide-react";
 import { BottomSheet } from "../components/BottomSheet";
 import { ApiError, apiMessage } from "../api/client";
@@ -13,7 +13,8 @@ import {
   type NotificationSettings
 } from "../api/notifications";
 import { getCurrentImageUsage, type ImageUsage } from "../api/image-usage";
-import { processShoppingImage } from "../lib/image-processing";
+import type { ProcessedImage } from "../lib/image-processing";
+import { ProfileImagePicker } from "../components/ProfileImageCropper";
 import { formatBytes } from "../lib/format";
 import { getBrowserCapabilities, type BrowserCapabilities } from "../lib/capabilities";
 import { urlBase64ToUint8Array } from "../lib/vapid";
@@ -368,9 +369,9 @@ function AccountPage({ user, onUserUpdated, onLogout }: { user: AuthUser; onUser
   const savedName = useRef(user.displayName);
   const [sheet, setSheet] = useState<"avatar" | "logout" | null>(null);
   const [busy, setBusy] = useState(false);
+  const [selectedAvatar, setSelectedAvatar] = useState<ProcessedImage | null>(null);
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
   const nameCommitInFlight = useRef(false);
 
   const commitName = async () => {
@@ -386,11 +387,12 @@ function AccountPage({ user, onUserUpdated, onLogout }: { user: AuthUser; onUser
     finally { nameCommitInFlight.current = false; setBusy(false); }
   };
   const onNameKeyDown = (event: KeyboardEvent<HTMLInputElement>) => { if (event.key === "Enter") { event.preventDefault(); event.currentTarget.blur(); } };
-  const chooseAvatar = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]; event.currentTarget.value = ""; if (!file) return;
+  const chooseAvatar = async (processed: ProcessedImage | null) => {
+    if (!processed) return;
+    setSelectedAvatar(processed);
     setBusy(true); setError(""); setStatus("");
-    try { const processed = await processShoppingImage(file); const result = await uploadProfileImage(processed); setAvatarUrl(result.avatarUrl); onUserUpdated({ ...user, avatarUrl: result.avatarUrl }); setSheet(null); setStatus("保存しました"); }
-    catch (nextError) { setError(errorMessage(nextError)); }
+    try { const result = await uploadProfileImage(processed); setAvatarUrl(result.avatarUrl); onUserUpdated({ ...user, avatarUrl: result.avatarUrl }); setSelectedAvatar(null); setSheet(null); setStatus("保存しました"); }
+    catch (nextError) { setError(nextError instanceof ApiError && nextError.details?.image ? nextError.details.image : "画像のアップロードに失敗しました。もう一度お試しください。"); }
     finally { setBusy(false); }
   };
   const removeAvatar = async () => {
@@ -406,7 +408,6 @@ function AccountPage({ user, onUserUpdated, onLogout }: { user: AuthUser; onUser
         <button type="button" className="m5-account-avatar-button" aria-label="プロフィール画像を変更" onClick={() => setSheet("avatar")}>
           <OtherAvatar name={displayName} imageUrl={avatarUrl} large /><span className="m5-account-avatar-edit" aria-hidden="true"><Camera /></span>
         </button>
-        <input ref={inputRef} className="m5-account-file" type="file" accept="image/jpeg,image/png,image/webp" aria-label="プロフィール画像を選択" onChange={(event) => void chooseAvatar(event)} />
         <label className="m5-field-row"><span>表示名</span><input aria-label="表示名" value={displayName} disabled={busy} onChange={(event) => setDisplayName(event.target.value)} onBlur={() => void commitName()} onKeyDown={onNameKeyDown} /></label>
         <label className="m5-field-row"><span>メール</span><input aria-label="メール" value={user.email} readOnly /></label>
       </div>
@@ -414,7 +415,10 @@ function AccountPage({ user, onUserUpdated, onLogout }: { user: AuthUser; onUser
       {error ? <p className="m5-error" role="alert">{error}</p> : null}
       <p className="m5-status" role="status" aria-live="polite">{status}</p>
       <BottomSheet open={sheet === "avatar"} title="プロフィール画像" onClose={() => setSheet(null)}>
-        <div className="m5-sheet-actions"><button type="button" className="m5-secondary-action" disabled={busy} onClick={() => inputRef.current?.click()}>写真を選択</button>{avatarUrl ? <button type="button" className="m5-danger-action" disabled={busy} onClick={() => void removeAvatar()}>初期状態に戻す</button> : null}</div>
+        <div className="m5-sheet-actions">
+          <ProfileImagePicker id="account-profile-image" image={selectedAvatar} disabled={busy} onImageChange={chooseAvatar} />
+          {avatarUrl ? <button type="button" className="m5-danger-action" disabled={busy} onClick={() => void removeAvatar()}>初期状態に戻す</button> : null}
+        </div>
       </BottomSheet>
       <BottomSheet open={sheet === "logout"} title="ログアウトしますか？" onClose={() => setSheet(null)}>
         <div className="m5-sheet-actions"><button type="button" className="m5-danger-action" disabled={busy} onClick={() => { setSheet(null); setBusy(true); void onLogout().finally(() => setBusy(false)); }}>ログアウト</button><button type="button" className="m5-secondary-action" onClick={() => setSheet(null)}>キャンセル</button></div>

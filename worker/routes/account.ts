@@ -3,7 +3,7 @@ import { validationError } from "../lib/errors";
 import { requireAuth } from "../middleware/auth";
 import type { Handler } from "../middleware/error-handler";
 import { avatarUrlFor } from "../services/auth-service";
-import { UserAvatarService } from "../services/user-avatar-service";
+import { avatarContentTypeFor, UserAvatarService } from "../services/user-avatar-service";
 import { UserRepository } from "../repositories/user-repository";
 import { nowIso } from "../lib/date";
 import { parseJsonBody, validateUpdateProfileInput } from "../lib/validation";
@@ -55,7 +55,7 @@ export const getProfileImageRoute = (targetId: string): Handler =>
     ).get(context.user!.id, targetId);
     return new Response(object.body, {
       headers: {
-        "content-type": "image/webp",
+        "content-type": avatarContentTypeFor(user.avatar!.key),
         "cache-control": "private, max-age=300",
         etag: `"${user.updatedAt}"`
       }
