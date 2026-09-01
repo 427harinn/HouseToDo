@@ -42,10 +42,10 @@ Only successful server-confirmed Home GET results are written. Logout clears Hom
 Measured with the dedicated Playwright suite against the local production-like Vite preview (`127.0.0.1:4173`) using deliberately held route responses. These are controlled/mock timings, not staging measurements.
 
 - Parallel bootstrap request-start overlap: `1ms` in the follow-up run; all three requests started before any response was released.
-- Cold usable Home DOM: `95ms` from the earliest controlled request start.
-- IndexedDB cache task DOM: `142ms` from navigation start while Home network was held.
-- IndexedDB authoritative task DOM: `529ms` from navigation start after release.
-- First Home task DOM: `142ms`; Home revisit task DOM from the same run: `312ms`.
+- Cold usable Home DOM: `92ms` from the earliest controlled request start.
+- IndexedDB cache task DOM: `183ms` from navigation start while Home network was held.
+- IndexedDB authoritative task DOM: `566ms` from navigation start after release.
+- First Home task DOM: `164ms`; Home revisit task DOM from the same run: `322ms`.
 - The cold test asserted exactly one initial `/api/home/today` request.
 
 The result demonstrates overlap and cache behavior under controlled delays. It does not claim a production or staging latency improvement from these mock numbers. The remaining cold bottleneck is the first authoritative Home response and render; P8 would be a separate server-side optimization.

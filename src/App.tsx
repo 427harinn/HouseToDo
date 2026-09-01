@@ -458,13 +458,12 @@ export function App() {
           homeBootstrapRef.current = null;
           setAuth({ status: "unauthenticated" });
           setHousehold({ status: "idle" });
-          navigate("/login", true);
           return;
         }
         setHousehold({ status: "error", message: apiErrorMessage(error) });
       });
     return () => controller.abort();
-  }, [navigate]);
+  }, []);
 
   useEffect(() => {
     if (auth.status === "loading") return;
