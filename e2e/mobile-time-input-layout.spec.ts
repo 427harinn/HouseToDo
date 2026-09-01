@@ -30,8 +30,8 @@ const settleForScreenshot = async (page: Page, inputSelector: string) => {
 
 const assertCompactInputLayout = async (page: Page, inputSelector: string) => {
   const metrics = await page.evaluate((selector) => {
-    const row = document.querySelector<HTMLElement>(".mobile-compact-input-row");
     const input = document.querySelector<HTMLInputElement>(selector);
+    const row = input?.closest<HTMLElement>(".mobile-compact-input-row");
     const label = row?.querySelector<HTMLLabelElement>("label");
     const rowBox = row?.getBoundingClientRect();
     const inputBox = input?.getBoundingClientRect();
@@ -96,17 +96,20 @@ const installTaskRoutes = async (page: Page, state: TaskState) => {
   });
 };
 
-test.describe("mobile-safe Task time input", () => {
-  test("keeps the time row compact at every target viewport and preserves create/edit values", async ({ page }) => {
+test.describe("mobile-safe Task date and time inputs", () => {
+  test("keeps the start date and time rows compact at every target viewport and preserves create/edit values", async ({ page }) => {
     const state: TaskState = { createdPayloads: [], updatePayloads: [] };
     await installTaskRoutes(page, state);
 
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/tasks/new");
     await expect(page.getByRole("heading", { name: "家事を追加" })).toBeVisible();
+    await expect(page.locator("#m2-task-start-date")).toHaveValue("2026-09-01");
+    await assertCompactInputLayout(page, "#m2-task-start-date");
     await expect(page.locator("#m2-task-time")).toHaveCount(0);
     await page.getByRole("checkbox", { name: "終日" }).click();
     await expect(page.locator("#m2-task-time")).toHaveValue("09:00");
+    await assertCompactInputLayout(page, "#m2-task-start-date");
     await assertCompactInputLayout(page, "#m2-task-time");
     await screenshot(page, "task-new-time-390x844.png");
     await page.locator("#m2-task-time").focus();
@@ -114,31 +117,41 @@ test.describe("mobile-safe Task time input", () => {
     await page.locator("#m2-task-title").fill("朝の片付け");
     await page.locator('form button[type="submit"]').click();
     await expect(page).toHaveURL("/home");
-    expect(state.createdPayloads[0]).toMatchObject({ deadlineTime: "09:00" });
+    expect(state.createdPayloads[0]).toMatchObject({ startDate: "2026-09-01", deadlineTime: "09:00" });
 
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto("/tasks/new");
+    await expect(page.locator("#m2-task-start-date")).toHaveValue("2026-09-01");
     await page.getByRole("checkbox", { name: "終日" }).click();
+    await page.locator("#m2-task-start-date").fill("2026-09-01");
     await page.locator("#m2-task-time").fill("23:59");
+    await assertCompactInputLayout(page, "#m2-task-start-date");
     await assertCompactInputLayout(page, "#m2-task-time");
     await settleForScreenshot(page, "#m2-task-time");
     await screenshot(page, "task-new-time-375x812.png");
 
     await page.setViewportSize({ width: 375, height: 667 });
     await page.goto("/tasks/task-edit/edit");
+    await expect(page.locator("#m2-task-start-date")).toHaveValue("2026-09-01");
     await expect(page.locator("#m2-task-time")).toHaveValue("09:00");
+    await assertCompactInputLayout(page, "#m2-task-start-date");
     await assertCompactInputLayout(page, "#m2-task-time");
     await screenshot(page, "task-edit-time-375x667.png");
+    await page.locator("#m2-task-start-date").fill("2026-09-05");
     await page.locator("#m2-task-time").fill("18:30");
     await page.locator('form button[type="submit"]').click();
     await expect(page).toHaveURL("/home");
-    expect(state.updatePayloads[0]).toMatchObject({ deadlineTime: "18:30" });
+    expect(state.updatePayloads[0]).toMatchObject({ startDate: "2026-09-05", deadlineTime: "18:30" });
 
     await page.setViewportSize({ width: 320, height: 568 });
     await page.goto("/tasks/new");
+    await expect(page.locator("#m2-task-start-date")).toHaveValue("2026-09-01");
+    await assertCompactInputLayout(page, "#m2-task-start-date");
     await expect(page.locator("#m2-task-time")).toHaveCount(0);
     await page.getByRole("checkbox", { name: "終日" }).click();
+    await page.locator("#m2-task-start-date").fill("2026-09-01");
     await page.locator("#m2-task-time").fill("00:00");
+    await assertCompactInputLayout(page, "#m2-task-start-date");
     await assertCompactInputLayout(page, "#m2-task-time");
     await assertSubmitReachable(page);
     await settleForScreenshot(page, "#m2-task-time");
