@@ -69,6 +69,6 @@ When an authenticated cold launch resolves to `household: null`, the pre-househo
 
 ## Verification
 
-Dedicated coverage is in `e2e/home-cache-first.spec.ts` and covers parallel startup, duplicate prevention, memory revisit, IndexedDB hard reload, auth safety, household/date isolation, initial mutation lock, later revalidation, IndexedDB failure fallback, stale pre-auth bootstrap recovery through login and registration, and pre-household recovery through both create and join. Unit coverage is in `src/cache/home-snapshot.test.ts`.
+Dedicated coverage is in `e2e/home-cache-first.spec.ts` and covers parallel startup, duplicate prevention, memory revisit, IndexedDB hard reload, auth safety, household/date isolation, initial mutation lock, later revalidation, IndexedDB failure fallback, stale pre-auth bootstrap recovery through login and registration, and pre-household recovery through both create and join. The dedicated suite now has 13 passing scenarios. Unit coverage is in `src/cache/home-snapshot.test.ts`.
 
 No D1 migration was added or required. Production was not touched.
