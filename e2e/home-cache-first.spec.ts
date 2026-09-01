@@ -43,6 +43,12 @@ const envelope = (data: unknown, status = 200) => ({
     : { ok: true, data, requestId: "e2e" })
 });
 
+const unauthenticated = () => ({
+  status: 401,
+  contentType: "application/json",
+  body: JSON.stringify({ ok: false, error: { code: "UNAUTHENTICATED", message: "ログインが必要です" }, requestId: "e2e" })
+});
+
 const seedSnapshot = async (page: Page, identity: { userId: string; householdId: string; date: string }, data: ReturnType<typeof homeData>) => {
   await page.addInitScript(({ identity: nextIdentity, data: nextData }) => {
     const key = `home:${nextIdentity.userId}:${nextIdentity.householdId}:${nextIdentity.date}`;
@@ -248,5 +254,87 @@ test.describe("WP4 Home cache-first bootstrap", () => {
     await installBasicRoutes(page, { home: () => envelope(homeData("IDBなしでも表示")) });
     await page.goto("/home");
     await expect(page.getByText("IDBなしでも表示")).toBeVisible();
+  });
+
+  test("discards the pre-auth bootstrap and fetches fresh Home after login", async ({ page }) => {
+    let authenticated = false;
+    let homeCalls = 0;
+    const homeAuthStates: boolean[] = [];
+    await page.route("**/api/**", async (route) => {
+      const url = new URL(route.request().url());
+      if (url.pathname === "/api/auth/me") return route.fulfill(unauthenticated());
+      if (url.pathname === "/api/auth/login") {
+        authenticated = true;
+        return route.fulfill(envelope({ user }));
+      }
+      if (url.pathname === "/api/households/current") {
+        return authenticated ? route.fulfill(envelope({ household })) : route.fulfill(unauthenticated());
+      }
+      if (url.pathname === "/api/home/today") {
+        homeCalls += 1;
+        homeAuthStates.push(authenticated);
+        return authenticated ? route.fulfill(envelope(homeData("ログイン後の新しい家事"))) : route.fulfill(unauthenticated());
+      }
+      return route.fulfill(envelope({}));
+    });
+
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: "ログイン" })).toBeVisible();
+    await page.getByLabel("メールアドレス").fill(user.email);
+    await page.getByLabel("パスワード").fill("very-long-password");
+    await page.getByRole("button", { name: "ログイン" }).click();
+
+    await expect(page.getByText("ログイン後の新しい家事")).toBeVisible();
+    await expect(page.getByText("最新情報を取得できませんでした。")).toHaveCount(0);
+    expect(homeCalls).toBe(2);
+    expect(homeAuthStates).toEqual([false, true]);
+  });
+
+  test("uses a fresh Home request after unauthenticated registration and household creation", async ({ page }) => {
+    let authenticated = false;
+    let householdReady = false;
+    let homeCalls = 0;
+    const homeAuthStates: boolean[] = [];
+    await page.route("**/api/**", async (route) => {
+      const request = route.request();
+      const url = new URL(request.url());
+      if (url.pathname === "/api/auth/me") return route.fulfill(unauthenticated());
+      if (url.pathname === "/api/auth/register") {
+        authenticated = true;
+        return route.fulfill(envelope({ user }, 201));
+      }
+      if (url.pathname === "/api/households/current") {
+        if (!authenticated) return route.fulfill(unauthenticated());
+        return route.fulfill(envelope({ household: householdReady ? household : null }));
+      }
+      if (url.pathname === "/api/households" && request.method() === "POST") {
+        householdReady = true;
+        return route.fulfill(envelope({ household }, 201));
+      }
+      if (url.pathname === "/api/home/today") {
+        homeCalls += 1;
+        homeAuthStates.push(authenticated);
+        return authenticated && householdReady
+          ? route.fulfill(envelope(homeData("登録後の新しい家事")))
+          : route.fulfill(unauthenticated());
+      }
+      return route.fulfill(envelope({}));
+    });
+
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: "ログイン" })).toBeVisible();
+    await page.getByRole("link", { name: "アカウントを作る" }).click();
+    await page.getByLabel("表示名").fill("登録テスト");
+    await page.getByLabel("メールアドレス").fill(user.email);
+    await page.getByLabel("パスワード").fill("very-long-password");
+    await page.getByRole("button", { name: "新規登録" }).click();
+    await expect(page.getByRole("heading", { name: "家庭を作る" })).toBeVisible();
+    await page.getByLabel("家庭名").fill("登録テスト家庭");
+    await page.getByRole("button", { name: "家庭を作る" }).click();
+
+    await expect(page.getByText("登録後の新しい家事")).toBeVisible();
+    await expect(page.getByText("最新情報を取得できませんでした。")).toHaveCount(0);
+    expect(homeCalls).toBe(2);
+    expect(homeAuthStates).toEqual([false, true]);
   });
 });

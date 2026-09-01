@@ -360,6 +360,7 @@ export function App() {
   );
 
   const completeAuth = async (user: AuthUser) => {
+    homeBootstrapRef.current = null;
     setAuth({ status: "authenticated", user });
     await refreshHousehold();
   };
@@ -383,6 +384,7 @@ export function App() {
   };
 
   const completeRegistration = async (user: AuthUser, inviteCode: string, avatar: ProcessedImage | null) => {
+    homeBootstrapRef.current = null;
     setAuth({ status: "authenticated", user });
     setPendingRegistrationAvatar(avatar);
     setProfileImageNotice("");
@@ -410,6 +412,7 @@ export function App() {
     try {
       await logout();
     } finally {
+      homeBootstrapRef.current = null;
       await clearHomeSnapshots();
       setAuth({ status: "unauthenticated" });
       setHousehold({ status: "idle" });
@@ -437,6 +440,7 @@ export function App() {
       .then((result) => setAuth({ status: "authenticated", user: result.user }))
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
+        homeBootstrapRef.current = null;
         setAuth({ status: "unauthenticated" });
         setHousehold({ status: "idle" });
       });
@@ -450,10 +454,17 @@ export function App() {
       })
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
+        if (error instanceof ApiError && error.code === "UNAUTHENTICATED") {
+          homeBootstrapRef.current = null;
+          setAuth({ status: "unauthenticated" });
+          setHousehold({ status: "idle" });
+          navigate("/login", true);
+          return;
+        }
         setHousehold({ status: "error", message: apiErrorMessage(error) });
       });
     return () => controller.abort();
-  }, []);
+  }, [navigate]);
 
   useEffect(() => {
     if (auth.status === "loading") return;

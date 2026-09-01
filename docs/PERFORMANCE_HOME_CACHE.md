@@ -41,14 +41,20 @@ Only successful server-confirmed Home GET results are written. Logout clears Hom
 
 Measured with the dedicated Playwright suite against the local production-like Vite preview (`127.0.0.1:4173`) using deliberately held route responses. These are controlled/mock timings, not staging measurements.
 
-- Parallel bootstrap request-start overlap: `0ms` in the final run; all three requests started before any response was released.
-- Cold usable Home DOM: `116ms` from the earliest controlled request start.
-- IndexedDB cache task DOM: `143ms` from navigation start while Home network was held.
-- IndexedDB authoritative task DOM: `526ms` from navigation start after release.
-- First Home task DOM: `142ms`; Home revisit task DOM from the same run: `305ms`.
+- Parallel bootstrap request-start overlap: `1ms` in the follow-up run; all three requests started before any response was released.
+- Cold usable Home DOM: `95ms` from the earliest controlled request start.
+- IndexedDB cache task DOM: `142ms` from navigation start while Home network was held.
+- IndexedDB authoritative task DOM: `529ms` from navigation start after release.
+- First Home task DOM: `142ms`; Home revisit task DOM from the same run: `312ms`.
 - The cold test asserted exactly one initial `/api/home/today` request.
 
 The result demonstrates overlap and cache behavior under controlled delays. It does not claim a production or staging latency improvement from these mock numbers. The remaining cold bottleneck is the first authoritative Home response and render; P8 would be a separate server-side optimization.
+
+## Follow-up: stale pre-auth bootstrap invalidation
+
+The first WP4 version left a rejected pre-auth `getHomeToday()` Promise in `homeBootstrapRef` with `consumed=false`. After an unauthenticated cold launch, login or registration could therefore consume that old 401 Promise instead of issuing a fresh authenticated Home GET.
+
+The follow-up clears the bootstrap reference when authentication fails, when the household request reports `UNAUTHENTICATED`, on login success, on registration success, and on logout. The existing authenticated cold-launch path is unchanged: it still starts `me()`, current household, and Home together and consumes the single Home request. Login and registration now always mount Home with a fresh bootstrap request.
 
 ## UI and mutation behavior
 
@@ -61,7 +67,6 @@ The result demonstrates overlap and cache behavior under controlled delays. It d
 
 ## Verification
 
-Dedicated coverage is in `e2e/home-cache-first.spec.ts` and covers parallel startup, duplicate prevention, memory revisit, IndexedDB hard reload, auth safety, household/date isolation, initial mutation lock, later revalidation, and IndexedDB failure fallback. Unit coverage is in `src/cache/home-snapshot.test.ts`.
+Dedicated coverage is in `e2e/home-cache-first.spec.ts` and covers parallel startup, duplicate prevention, memory revisit, IndexedDB hard reload, auth safety, household/date isolation, initial mutation lock, later revalidation, IndexedDB failure fallback, and stale pre-auth bootstrap recovery through both login and registration. Unit coverage is in `src/cache/home-snapshot.test.ts`.
 
 No D1 migration was added or required. Production was not touched.
-
