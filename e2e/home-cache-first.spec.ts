@@ -72,6 +72,7 @@ const installBasicRoutes = async (page: Page, options: {
   let homeCalls = 0;
   await page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url());
+    if (!url.pathname.startsWith("/api/")) return route.continue();
     if (url.pathname === "/api/auth/me") return route.fulfill(options.auth ?? envelope({ user }));
     if (url.pathname === "/api/households/current") return route.fulfill(options.currentHousehold ?? envelope({ household }));
     if (url.pathname === "/api/home/today") {
@@ -93,7 +94,9 @@ test.describe("WP4 Home cache-first bootstrap", () => {
     const startTimes: number[] = [];
     const releases = new Map<string, () => void>();
     await page.route("**/api/**", async (route) => {
-      const pathname = new URL(route.request().url()).pathname;
+      const url = new URL(route.request().url());
+      if (!url.pathname.startsWith("/api/")) return route.continue();
+      const pathname = url.pathname;
       if (!["/api/auth/me", "/api/households/current", "/api/home/today"].includes(pathname)) return route.fulfill(envelope({}));
       starts.push(pathname);
       startTimes.push(Date.now());
@@ -262,6 +265,7 @@ test.describe("WP4 Home cache-first bootstrap", () => {
     const homeAuthStates: boolean[] = [];
     await page.route("**/api/**", async (route) => {
       const url = new URL(route.request().url());
+      if (!url.pathname.startsWith("/api/")) return route.continue();
       if (url.pathname === "/api/auth/me") return route.fulfill(unauthenticated());
       if (url.pathname === "/api/auth/login") {
         authenticated = true;
@@ -298,6 +302,7 @@ test.describe("WP4 Home cache-first bootstrap", () => {
     await page.route("**/api/**", async (route) => {
       const request = route.request();
       const url = new URL(request.url());
+      if (!url.pathname.startsWith("/api/")) return route.continue();
       if (url.pathname === "/api/auth/me") return route.fulfill(unauthenticated());
       if (url.pathname === "/api/auth/register") {
         authenticated = true;
@@ -346,6 +351,7 @@ test.describe("WP4 Home cache-first bootstrap", () => {
     await page.route("**/api/**", async (route) => {
       const request = route.request();
       const url = new URL(request.url());
+      if (!url.pathname.startsWith("/api/")) return route.continue();
       if (url.pathname === "/api/auth/me") return route.fulfill(envelope({ user }));
       if (url.pathname === "/api/households/current") return route.fulfill(envelope({ household: householdReady ? household : null }));
       if (url.pathname === "/api/households" && request.method() === "POST") {
@@ -381,6 +387,7 @@ test.describe("WP4 Home cache-first bootstrap", () => {
     await page.route("**/api/**", async (route) => {
       const request = route.request();
       const url = new URL(request.url());
+      if (!url.pathname.startsWith("/api/")) return route.continue();
       if (url.pathname === "/api/auth/me") return route.fulfill(envelope({ user }));
       if (url.pathname === "/api/households/current") return route.fulfill(envelope({ household: householdReady ? household : null }));
       if (url.pathname === "/api/households/join" && request.method() === "POST") {

@@ -86,6 +86,15 @@ import {
 import { MOTION_MS } from "./motion/constants";
 import { usePrefersReducedMotion } from "./hooks/usePrefersReducedMotion";
 import {
+  createTemporaryHistoryRecord,
+  getRetainedTaskProjection,
+  projectHomeData,
+  serverMatchesMutation,
+  type HomeMutation,
+  type HomeMutationPhase,
+  type HomeMutationType
+} from "./home-local-first";
+import {
   clearHomeSnapshots,
   homeSnapshotKey,
   readMemoryHomeSnapshot,
@@ -1292,24 +1301,28 @@ function useHomeData(user: AuthUser, household: Household, bootstrap: HomeBootst
       refreshing: true,
       message: "",
       source: memory ? "memory" : "none" as "memory" | "indexeddb" | "server" | "none",
-      hasAuthoritativeSync: false
+      hasAuthoritativeSync: false,
+      authoritativeRevision: 0
     };
   });
   const generationRef = useRef(0);
   const requestSequenceRef = useRef(0);
   const latestStartedRef = useRef(0);
   const latestAppliedRef = useRef(0);
+  const refreshEpochRef = useRef(0);
   const hasAuthoritativeSyncRef = useRef(false);
   const controllersRef = useRef(new Set<AbortController>());
+  const initialRequestRef = useRef<{ identityKey: string; request: Promise<HomeToday> } | null>(null);
 
   const startRequest = useCallback(async (request: Promise<HomeToday>, generation: number, applyGate?: Promise<unknown>): Promise<HomeToday | null> => {
     const sequence = ++requestSequenceRef.current;
     latestStartedRef.current = sequence;
+    const requestEpoch = refreshEpochRef.current;
     setState((current) => ({ ...current, loading: current.data === null, refreshing: true, message: "" }));
     try {
       const nextData = await request;
       if (applyGate) await applyGate;
-      if (generationRef.current !== generation || sequence < latestAppliedRef.current) return nextData;
+      if (generationRef.current !== generation || requestEpoch !== refreshEpochRef.current || sequence < latestAppliedRef.current) return null;
       latestAppliedRef.current = sequence;
       hasAuthoritativeSyncRef.current = true;
       setState((current) => ({
@@ -1319,14 +1332,15 @@ function useHomeData(user: AuthUser, household: Household, bootstrap: HomeBootst
         refreshing: latestStartedRef.current !== sequence,
         message: "",
         source: "server",
-        hasAuthoritativeSync: true
+        hasAuthoritativeSync: true,
+        authoritativeRevision: current.authoritativeRevision + 1
       }));
       if (nextData.date === dateKeyRef.current) {
         void writeServerConfirmedHomeSnapshot({ userId: user.id, householdId: household.id, date: dateKeyRef.current }, nextData);
       }
       return nextData;
     } catch (error: unknown) {
-      if (generationRef.current !== generation || sequence !== latestStartedRef.current) return null;
+      if (generationRef.current !== generation || requestEpoch !== refreshEpochRef.current || sequence !== latestStartedRef.current) return null;
       if (error instanceof DOMException && error.name === "AbortError") return null;
       setState((current) => ({
         ...current,
@@ -1345,6 +1359,14 @@ function useHomeData(user: AuthUser, household: Household, bootstrap: HomeBootst
     return startRequest(request, generationRef.current, applyGate);
   }, [startRequest]);
 
+  const invalidateRequests = useCallback(() => {
+    refreshEpochRef.current += 1;
+    requestSequenceRef.current += 1;
+    latestStartedRef.current = requestSequenceRef.current;
+    controllersRef.current.forEach((controller) => controller.abort());
+    controllersRef.current.clear();
+  }, []);
+
   useEffect(() => {
     const generation = ++generationRef.current;
     dateKeyRef.current = dateKey;
@@ -1352,6 +1374,7 @@ function useHomeData(user: AuthUser, household: Household, bootstrap: HomeBootst
     latestStartedRef.current = 0;
     latestAppliedRef.current = 0;
     hasAuthoritativeSyncRef.current = false;
+    refreshEpochRef.current += 1;
     const currentIdentity: HomeSnapshotIdentity = { userId: user.id, householdId: household.id, date: dateKey };
     const memory = readMemoryHomeSnapshot(currentIdentity);
     setState({
@@ -1360,17 +1383,19 @@ function useHomeData(user: AuthUser, household: Household, bootstrap: HomeBootst
       refreshing: true,
       message: "",
       source: memory ? "memory" : "none",
-      hasAuthoritativeSync: false
+      hasAuthoritativeSync: false,
+      authoritativeRevision: 0
     });
 
     let request: Promise<HomeToday>;
-    if (bootstrap && !bootstrap.consumed) {
+    if (bootstrap) {
       bootstrap.consumed = true;
       request = bootstrap.promise;
+    } else if (initialRequestRef.current?.identityKey === identityKey) {
+      request = initialRequestRef.current.request;
     } else {
-      const controller = new AbortController();
-      controllersRef.current.add(controller);
-      request = getHomeToday(undefined, controller.signal).finally(() => controllersRef.current.delete(controller));
+      request = getHomeToday();
+      initialRequestRef.current = { identityKey, request };
     }
     const persistentRead = memory ? Promise.resolve(null) : readPersistentHomeSnapshot(currentIdentity);
     void persistentRead.then((cached) => {
@@ -1389,7 +1414,7 @@ function useHomeData(user: AuthUser, household: Household, bootstrap: HomeBootst
       if (nextDateKey !== dateKeyRef.current) {
         dateKeyRef.current = nextDateKey;
         setDateKey(nextDateKey);
-        setState({ data: null, loading: true, refreshing: true, message: "", source: "none", hasAuthoritativeSync: false });
+        setState({ data: null, loading: true, refreshing: true, message: "", source: "none", hasAuthoritativeSync: false, authoritativeRevision: 0 });
         return;
       }
       void refresh();
@@ -1409,7 +1434,9 @@ function useHomeData(user: AuthUser, household: Household, bootstrap: HomeBootst
     refreshing: state.refreshing,
     message: state.message,
     hasAuthoritativeSync: state.hasAuthoritativeSync,
-    refresh
+    authoritativeRevision: state.authoritativeRevision,
+    refresh,
+    invalidateRequests
   };
 }
 
@@ -1427,83 +1454,127 @@ function HomeScreen({
   onLogout: () => void;
   homeBootstrap: HomeBootstrapRequest | null;
 }) {
-  const { data, refreshing, message, refresh, hasAuthoritativeSync } = useHomeData(user, household, homeBootstrap);
+  const { data, refreshing, message, refresh, invalidateRequests, hasAuthoritativeSync, authoritativeRevision } = useHomeData(user, household, homeBootstrap);
   const prefersReducedMotion = usePrefersReducedMotion();
   const [completedOpen, setCompletedOpen] = useState(false);
   const [passedOpen, setPassedOpen] = useState(false);
   const [openRowId, setOpenRowId] = useState<string | null>(null);
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
-  const [completingIds, setCompletingIds] = useState<Set<string>>(new Set());
-  const [passingIds, setPassingIds] = useState<Set<string>>(new Set());
-  const [restoringIds, setRestoringIds] = useState<Set<string>>(new Set());
+  const [mutations, setMutations] = useState<HomeMutation[]>([]);
   const [statusMessage, setStatusMessage] = useState("");
+  const mutationsRef = useRef<HomeMutation[]>([]);
+  const mutationSequenceRef = useRef(0);
+  const mountedRef = useRef(true);
+  const sessionIdentity = `${user.id}:${household.id}:${todayInTimezone(household.timezone)}`;
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+  useEffect(() => {
+    mutationsRef.current = [];
+    setMutations([]);
+    setStatusMessage("");
+  }, [sessionIdentity]);
+  useEffect(() => {
+    if (!data || authoritativeRevision === 0) return;
+    const current = mutationsRef.current;
+    const next = current.map((mutation) => mutation.postSucceeded && mutation.phase === "transitioned" && serverMatchesMutation(data, mutation)
+      ? { ...mutation, phase: "reconciled" as const }
+      : mutation);
+    if (next.some((mutation, index) => mutation !== current[index])) {
+      mutationsRef.current = next;
+      setMutations(next);
+    }
+  }, [authoritativeRevision, data]);
   const mutationsDisabled = Boolean(data && !hasAuthoritativeSync);
-  const today = data?.date ?? todayInTimezone(household.timezone);
-  const activeTasks = (data?.homeTasks ?? []).filter(
+  const currentSessionMutations = mutations.filter((mutation) => mutation.userId === user.id && mutation.householdId === household.id && mutation.date === todayInTimezone(household.timezone));
+  const displayedData = data ? projectHomeData(data, currentSessionMutations) : null;
+  const today = displayedData?.date ?? todayInTimezone(household.timezone);
+  const activeTasks = (displayedData?.homeTasks ?? []).filter(
     (task) => task.status === "pending" || task.status === "in_progress"
   );
-  const completed = data?.completedRecords ?? [];
-  const passed = data?.passedRecords ?? [];
+  const completed = displayedData?.completedRecords ?? [];
+  const passed = displayedData?.passedRecords ?? [];
   const wait = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, prefersReducedMotion ? 0 : ms));
-  const setActionId = (setter: React.Dispatch<React.SetStateAction<Set<string>>>, id: string, busy: boolean) => setter((current) => {
-    const next = new Set(current);
-    if (busy) next.add(id); else next.delete(id);
-    return next;
-  });
-  const isBusy = (id: string) => completingIds.has(id) || passingIds.has(id) || restoringIds.has(id);
-  const reconcile = async (mutation: Promise<unknown>, motionMs: number) => {
+  const updateMutations = (updater: (current: HomeMutation[]) => HomeMutation[]) => {
+    if (!mountedRef.current) return;
+    const next = updater(mutationsRef.current);
+    mutationsRef.current = next;
+    setMutations(next);
+  };
+  const activeMutationFor = (taskId: string) => [...mutationsRef.current].reverse().find((mutation) => mutation.taskId === taskId && mutation.phase !== "reconciled");
+  const isBusy = (id: string) => Boolean(activeMutationFor(id));
+  const mutationClass = (taskId: string, type: HomeMutationType) => {
+    const mutation = activeMutationFor(taskId);
+    return mutation?.type === type ? `is-${type === "complete" ? "completing" : type === "pass" ? "passing" : "restoring"}-row` : "";
+  };
+  const markPhaseAfterMotion = (mutationId: string, motionPromise: Promise<void>) => {
+    void motionPromise.then(() => updateMutations((current) => current.map((mutation) => mutation.id === mutationId && mutation.phase === "animating"
+      ? { ...mutation, phase: "transitioned" as HomeMutationPhase }
+      : mutation)));
+  };
+  const beginMutation = ({ type, taskId, originalTask, originalRecord, motionMs }: { type: HomeMutationType; taskId: string; originalTask?: TodayTask; originalRecord?: HomeToday["completedRecords"][number]; motionMs: number }) => {
+    const startedAt = Date.now();
+    const mutation: HomeMutation = {
+      id: `home-${type}-${taskId}-${startedAt}-${++mutationSequenceRef.current}`,
+      type,
+      phase: "animating",
+      userId: user.id,
+      householdId: household.id,
+      date: today,
+      taskId,
+      originalTask,
+      originalRecord,
+      transientRecord: originalTask && (type === "complete" || type === "pass")
+        ? createTemporaryHistoryRecord(originalTask, type, { userId: user.id, householdId: household.id, date: today }, user, startedAt, displayedData?.members.find((member) => member.userId === originalTask.assignedUserId))
+        : undefined,
+      startedAt,
+      postSucceeded: false
+    };
+    invalidateRequests();
+    updateMutations((current) => [...current, mutation]);
     const motionPromise = wait(motionMs);
+    markPhaseAfterMotion(mutation.id, motionPromise);
+    return { mutation, motionPromise };
+  };
+  const reconcileMatchingMutation = (serverData: HomeToday) => updateMutations((current) => current.map((mutation) => mutation.postSucceeded && mutation.phase === "transitioned" && serverMatchesMutation(serverData, mutation)
+    ? { ...mutation, phase: "reconciled" as const }
+    : mutation));
+  const runMutation = async (mutation: HomeMutation, motionPromise: Promise<void>, request: Promise<unknown>) => {
     try {
-      await mutation;
-      await Promise.all([refresh(motionPromise), motionPromise]);
+      await request;
+      if (!mountedRef.current) return;
+      updateMutations((current) => current.map((entry) => entry.id === mutation.id ? { ...entry, postSucceeded: true } : entry));
+      const nextData = await refresh(motionPromise);
+      if (nextData && mountedRef.current) reconcileMatchingMutation(nextData);
     } catch (error) {
-      await motionPromise;
-      throw error;
+      if (!mountedRef.current) return;
+      updateMutations((current) => current.filter((entry) => entry.id !== mutation.id));
+      setStatusMessage(apiErrorMessage(error));
+      await refresh();
     }
   };
-  const complete = async (task: TodayTask) => {
+  const complete = (task: TodayTask) => {
     if (isBusy(task.id) || mutationsDisabled) return;
     setOpenRowId(null);
     setExpandedTaskId(null);
-    setActionId(setCompletingIds, task.id, true);
     setStatusMessage("");
-    const request = changeTaskState(task.id, "complete", homeTaskActionScope(task, household));
-    try {
-      await reconcile(request, MOTION_MS.completion);
-    } catch (error) {
-      setStatusMessage(apiErrorMessage(error));
-      await refresh();
-    } finally {
-      setActionId(setCompletingIds, task.id, false);
-    }
+    const { mutation, motionPromise } = beginMutation({ type: "complete", taskId: task.id, originalTask: task, motionMs: MOTION_MS.completion });
+    void runMutation(mutation, motionPromise, changeTaskState(task.id, "complete", homeTaskActionScope(task, household)));
   };
-  const pass = async (task: TodayTask) => {
+  const pass = (task: TodayTask) => {
     if (isBusy(task.id) || mutationsDisabled) return;
     setOpenRowId(null);
-    setActionId(setPassingIds, task.id, true);
     setStatusMessage(`「${task.title}」をパスしました`);
-    try {
-      await reconcile(changeTaskState(task.id, "skip", homeTaskActionScope(task, household)), MOTION_MS.pass);
-    } catch (error) {
-      setStatusMessage(apiErrorMessage(error));
-      await refresh();
-    } finally {
-      setActionId(setPassingIds, task.id, false);
-    }
+    const { mutation, motionPromise } = beginMutation({ type: "pass", taskId: task.id, originalTask: task, motionMs: MOTION_MS.pass });
+    void runMutation(mutation, motionPromise, changeTaskState(task.id, "skip", homeTaskActionScope(task, household)));
   };
-  const restore = async (record: HomeToday["completedRecords"][number]) => {
+  const restore = (record: HomeToday["completedRecords"][number]) => {
     if (isBusy(record.taskId) || mutationsDisabled) return;
     setOpenRowId(null);
-    setActionId(setRestoringIds, record.taskId, true);
-    try {
-      await reconcile(restoreTaskRecord(record.taskId, record.id), MOTION_MS.restore);
-      setStatusMessage(`「${record.title}」を戻しました`);
-    } catch (error) {
-      setStatusMessage(apiErrorMessage(error));
-      await refresh();
-    } finally {
-      setActionId(setRestoringIds, record.taskId, false);
-    }
+    const originalTask = getRetainedTaskProjection(mutationsRef.current, record.taskId) ?? undefined;
+    const { mutation, motionPromise } = beginMutation({ type: "restore", taskId: record.taskId, originalTask, originalRecord: record, motionMs: MOTION_MS.restore });
+    void runMutation(mutation, motionPromise, restoreTaskRecord(record.taskId, record.id));
   };
   const editRecord = (record: HomeToday["completedRecords"][number]) => onNavigate(`/tasks/${record.taskId}/edit`);
   const openRowAction = (rowId: string | null) => {
@@ -1539,19 +1610,19 @@ function HomeScreen({
                 onSecondary={() => void pass(task)}
                 secondaryLabel="パス"
                 expanded={expandedTaskId === task.id}
-                expandedContent={<TaskInlineDetail task={task} today={today} members={data.members} busy={isBusy(task.id)} disabled={mutationsDisabled} onComplete={() => void complete(task)} />}
+                expandedContent={<TaskInlineDetail task={task} today={today} members={displayedData?.members} busy={isBusy(task.id)} disabled={mutationsDisabled} onComplete={() => void complete(task)} />}
                 mutationsDisabled={mutationsDisabled}
-                rowClassName={restoringIds.has(task.id) ? "is-restoring-row" : completingIds.has(task.id) ? "is-completing-row" : passingIds.has(task.id) ? "is-passing-row" : ""}
+                rowClassName={mutationClass(task.id, "complete") || mutationClass(task.id, "pass") || mutationClass(task.id, "restore")}
               >
                 <button className="m2-home__row-main" type="button" disabled={isBusy(task.id)} onClick={() => toggleTaskDetail(task.id)} aria-label={`${task.title}の詳細`} aria-expanded={expandedTaskId === task.id} aria-controls={`home-task-detail-${task.id}`}>
-                  <span className={`m2-home__check m2-home__check--${homeTaskScope(task)}${completingIds.has(task.id) ? " is-completing" : ""}`} aria-hidden="true">
-                    {completingIds.has(task.id) ? <Check /> : null}
+                  <span className={`m2-home__check m2-home__check--${homeTaskScope(task)}${activeMutationFor(task.id)?.type === "complete" ? " is-completing" : ""}`} aria-hidden="true">
+                    {activeMutationFor(task.id)?.type === "complete" ? <Check /> : null}
                   </span>
                   <span className="m2-home__row-details">
                     <span className="m2-home__task-title">{task.title}</span>
                     <span className="m2-home__deadline">{formatHomeDeadline(task, today)}</span>
                   </span>
-                  {homeMemberForTask(task, data?.members ?? []) ? <HomeAvatar member={homeMemberForTask(task, data?.members ?? [])!} label="担当" /> : null}
+                  {homeMemberForTask(task, displayedData?.members ?? []) ? <HomeAvatar member={homeMemberForTask(task, displayedData?.members ?? [])!} label="担当" /> : null}
                 </button>
               </HomeSwipeRow>
             ))}
@@ -1567,7 +1638,7 @@ function HomeScreen({
             <button className="m2-home__history-toggle" type="button" aria-expanded={completedOpen} onClick={() => setCompletedOpen((open) => !open)}>
               <span>完了済み {completed.length}</span><ChevronRight aria-hidden="true" className={completedOpen ? "is-open" : ""} />
             </button>
-            {completedOpen ? <div className="m2-home__history-list">{completed.map((record) => <HomeHistoryRow key={record.id} record={record} busy={restoringIds.has(record.taskId)} onEdit={() => editRecord(record)} onRestore={() => void restore(record)} openRowId={openRowId} onOpenRow={setOpenRowId} mutationsDisabled={mutationsDisabled} />)}</div> : null}
+            {completedOpen ? <div className="m2-home__history-list">{completed.map((record) => <HomeHistoryRow key={record.id} record={record} busy={isBusy(record.taskId)} onEdit={() => editRecord(record)} onRestore={() => void restore(record)} openRowId={openRowId} onOpenRow={setOpenRowId} mutationsDisabled={mutationsDisabled} />)}</div> : null}
           </section>
         ) : null}
         {passed.length > 0 ? (
@@ -1575,11 +1646,11 @@ function HomeScreen({
             <button className="m2-home__history-toggle" type="button" aria-expanded={passedOpen} onClick={() => setPassedOpen((open) => !open)}>
               <span>パス済み {passed.length}</span><ChevronRight aria-hidden="true" className={passedOpen ? "is-open" : ""} />
             </button>
-            {passedOpen ? <div className="m2-home__history-list">{passed.map((record) => <HomeHistoryRow key={record.id} record={record} busy={restoringIds.has(record.taskId)} onEdit={() => void editRecord(record)} onRestore={() => void restore(record)} passed openRowId={openRowId} onOpenRow={setOpenRowId} mutationsDisabled={mutationsDisabled} />)}</div> : null}
+            {passedOpen ? <div className="m2-home__history-list">{passed.map((record) => <HomeHistoryRow key={record.id} record={record} busy={isBusy(record.taskId)} onEdit={() => void editRecord(record)} onRestore={() => void restore(record)} passed openRowId={openRowId} onOpenRow={setOpenRowId} mutationsDisabled={mutationsDisabled} />)}</div> : null}
           </section>
         ) : null}
         <button className="m2-home__shopping" type="button" onClick={() => onNavigate("/shopping")}>
-          <span>買い物 {data?.shopping.pendingCount ?? 0}件</span><ChevronRight aria-hidden="true" />
+          <span>買い物 {displayedData?.shopping.pendingCount ?? 0}件</span><ChevronRight aria-hidden="true" />
         </button>
         <p className="m2-home__status" role="status" aria-live="polite">{statusMessage}</p>
       </main>
