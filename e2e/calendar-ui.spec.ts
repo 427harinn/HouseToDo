@@ -72,8 +72,8 @@ test("calendar supports month navigation, selected-date sections, markers, and t
   await page.goto("/calendar");
   await expect(page.getByRole("grid", { name: /カレンダー/ })).toBeVisible();
   await expect(page.locator(".calendar-day-number.is-today")).toHaveCount(1);
-  await expect(page.getByText(`Calendar weekly flexible ${id}`)).toBeVisible();
-  await expect(page.getByText(`Calendar monthly flexible ${id}`)).toBeVisible();
+  await expect(page.getByText(`Calendar weekly flexible ${id}`).first()).toBeVisible();
+  await expect(page.getByText(`Calendar monthly flexible ${id}`).first()).toBeVisible();
   await expectNoHorizontalScroll(page);
   await shot(page, "calendar-mobile.png");
   await shot(page, "calendar-flexible-sections.png");
@@ -101,8 +101,10 @@ test("calendar supports month navigation, selected-date sections, markers, and t
 
   await page.locator(`.calendar-day-task[title="Calendar once ${id}"]`).click();
   await expect(page.getByRole("dialog")).toBeVisible();
-  await page.getByRole("button", { name: `Calendar once ${id}の操作` }).click();
-  await page.getByRole("button", { name: "編集" }).click();
+  const onceRow = page.getByRole("dialog").locator(".calendar-detail-task").filter({ hasText: `Calendar once ${id}` });
+  await onceRow.hover();
+  await onceRow.getByRole("button", { name: "操作" }).click();
+  await onceRow.getByRole("button", { name: "編集" }).click();
   await expect(page).toHaveURL(new RegExp(`/tasks/${onceId}/edit`));
   expect(errors).toEqual([]);
   expect(requestFailures).toEqual([]);
