@@ -10,6 +10,22 @@ export type ProcessedImage = {
   size: number;
 };
 
+export type CropSource = {
+  file: File;
+  url: string;
+  width: number;
+  height: number;
+};
+
+export type AvatarCrop = {
+  zoom: number;
+  offsetX: number;
+  offsetY: number;
+};
+
+export const AVATAR_CROP_VIEWPORT = 320;
+export const AVATAR_OUTPUT_DIMENSION = 512;
+
 const supportedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 const loadBitmap = async (file: File): Promise<ImageBitmap | HTMLImageElement> => {
@@ -46,9 +62,80 @@ const encodeCanvas = async (canvas: HTMLCanvasElement, quality: number): Promise
   return jpeg;
 };
 
-export async function processShoppingImage(file: File): Promise<ProcessedImage> {
+const validateSourceFile = (file: File) => {
   if (!supportedTypes.has(file.type.toLowerCase())) throw new Error("unsupported-image-type");
   if (file.size === 0 || file.size > MAX_SOURCE_IMAGE_BYTES) throw new Error("source-image-too-large");
+};
+
+export async function createCropSource(file: File): Promise<CropSource> {
+  validateSourceFile(file);
+  const bitmap = await loadBitmap(file);
+  const width = bitmap.width;
+  const height = bitmap.height;
+  if (!width || !height) throw new Error("image-load-failed");
+  if ("close" in bitmap && typeof bitmap.close === "function") bitmap.close();
+  return { file, url: URL.createObjectURL(file), width, height };
+}
+
+export async function processCroppedAvatar(source: CropSource, crop: AvatarCrop): Promise<ProcessedImage> {
+  const bitmap = await loadBitmap(source.file);
+  const sourceWidth = bitmap.width;
+  const sourceHeight = bitmap.height;
+  if (!sourceWidth || !sourceHeight) throw new Error("image-load-failed");
+
+  const baseScale = Math.max(
+    AVATAR_CROP_VIEWPORT / sourceWidth,
+    AVATAR_CROP_VIEWPORT / sourceHeight
+  );
+  const zoom = Math.min(3, Math.max(1, crop.zoom));
+  const scale = baseScale * zoom;
+  const renderedWidth = sourceWidth * scale;
+  const renderedHeight = sourceHeight * scale;
+  const maxOffsetX = Math.max(0, (renderedWidth - AVATAR_CROP_VIEWPORT) / 2);
+  const maxOffsetY = Math.max(0, (renderedHeight - AVATAR_CROP_VIEWPORT) / 2);
+  const offsetX = Math.min(maxOffsetX, Math.max(-maxOffsetX, crop.offsetX));
+  const offsetY = Math.min(maxOffsetY, Math.max(-maxOffsetY, crop.offsetY));
+  const imageX = (AVATAR_CROP_VIEWPORT - renderedWidth) / 2 + offsetX;
+  const imageY = (AVATAR_CROP_VIEWPORT - renderedHeight) / 2 + offsetY;
+  const cropSize = Math.min(
+    sourceWidth,
+    sourceHeight,
+    AVATAR_CROP_VIEWPORT / scale
+  );
+  const sourceX = Math.min(
+    sourceWidth - cropSize,
+    Math.max(0, -imageX / scale)
+  );
+  const sourceY = Math.min(
+    sourceHeight - cropSize,
+    Math.max(0, -imageY / scale)
+  );
+  const outputDimension = Math.max(1, Math.min(AVATAR_OUTPUT_DIMENSION, Math.floor(cropSize)));
+  const canvas = document.createElement("canvas");
+  canvas.width = outputDimension;
+  canvas.height = outputDimension;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("image-conversion-failed");
+  context.drawImage(
+    bitmap,
+    sourceX,
+    sourceY,
+    cropSize,
+    cropSize,
+    0,
+    0,
+    outputDimension,
+    outputDimension
+  );
+  const blob = await encodeCanvas(canvas, 0.86);
+  if ("close" in bitmap && typeof bitmap.close === "function") bitmap.close();
+  const contentType = blob.type.toLowerCase();
+  if (contentType !== "image/webp" && contentType !== "image/jpeg") throw new Error("image-conversion-failed");
+  return { blob, width: outputDimension, height: outputDimension, contentType, size: blob.size };
+}
+
+export async function processShoppingImage(file: File): Promise<ProcessedImage> {
+  validateSourceFile(file);
   const bitmap = await loadBitmap(file);
   const sourceWidth = bitmap.width;
   const sourceHeight = bitmap.height;

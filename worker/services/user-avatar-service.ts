@@ -1,6 +1,7 @@
 import { nowIso } from "../lib/date";
 import { AppError, validationError } from "../lib/errors";
 import { getImageLimits } from "../lib/image-limits";
+import { readJpegDimensions } from "../lib/jpeg";
 import { readWebpDimensions } from "../lib/webp";
 import { HouseholdImageUsageRepository } from "../repositories/household-image-usage-repository";
 import { HouseholdMemberRepository } from "../repositories/household-member-repository";
@@ -20,6 +21,11 @@ export type ProfileImageUploadInput = {
 };
 
 const invalidImage = (message: string) => validationError({ image: message }, message);
+
+export const avatarContentTypeFor = (key: string): "image/webp" | "image/jpeg" =>
+  key.toLowerCase().endsWith(".jpg") || key.toLowerCase().endsWith(".jpeg")
+    ? "image/jpeg"
+    : "image/webp";
 
 export class UserAvatarService {
   private readonly users: UserRepository;
@@ -41,12 +47,14 @@ export class UserAvatarService {
   }
 
   async upload(userId: string, input: ProfileImageUploadInput): Promise<User> {
-    if (input.contentType !== "image/webp")
-      throw invalidImage("WebP画像を指定してください。");
+    if (input.contentType !== "image/webp" && input.contentType !== "image/jpeg")
+      throw invalidImage("JPEGまたはWebP画像を指定してください。");
     if (input.body.byteLength > PROFILE_IMAGE_MAX_BYTES)
-      throw invalidImage("WebP画像のサイズまたは形式が不正です。");
-    const dimensions = readWebpDimensions(input.body);
-    if (!dimensions) throw invalidImage("WebP画像のサイズまたは形式が不正です。");
+      throw invalidImage("JPEGまたはWebP画像のサイズまたは形式が不正です。");
+    const dimensions = input.contentType === "image/jpeg"
+      ? readJpegDimensions(input.body)
+      : readWebpDimensions(input.body);
+    if (!dimensions) throw invalidImage("JPEGまたはWebP画像のサイズまたは形式が不正です。");
     if (
       dimensions.width > PROFILE_IMAGE_MAX_DIMENSION ||
       dimensions.height > PROFILE_IMAGE_MAX_DIMENSION
@@ -102,10 +110,12 @@ export class UserAvatarService {
       });
 
     const id = crypto.randomUUID();
-    const r2Key = `households/${household.id}/users/${userId}/avatar/${id}.webp`;
+    const storedContentType = input.contentType;
+    const extension = storedContentType === "image/jpeg" ? "jpg" : "webp";
+    const r2Key = `households/${household.id}/users/${userId}/avatar/${id}.${extension}`;
     const now = nowIso();
     await this.bucket.put(r2Key, input.body, {
-      httpMetadata: { contentType: "image/webp" }
+      httpMetadata: { contentType: storedContentType }
     });
     try {
       const results = await this.db.batch([

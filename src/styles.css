@@ -182,11 +182,29 @@
 .m5-account-avatar-edit { position: absolute; right: -2px; bottom: -2px; display: inline-flex; width: 28px; height: 28px; align-items: center; justify-content: center; color: var(--color-primary-strong); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 50%; }
 .m5-account-avatar-edit svg { width: 15px; height: 15px; }
 .m5-account-file { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.profile-image-picker-v2 { display: grid; gap: 10px; }
+.profile-image-picker-v2__button { width: 100%; min-height: 44px; }
+.profile-image-picker-v2__preview { width: 88px; height: 88px; object-fit: cover; border: 2px solid var(--color-primary); border-radius: 50%; }
+.profile-image-crop-editor { position: fixed; inset: 0; z-index: 1000; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; width: 100%; height: 100vh; height: 100svh; height: 100dvh; box-sizing: border-box; padding: max(8px, env(safe-area-inset-top)) 16px max(12px, env(safe-area-inset-bottom)); overflow: hidden; overscroll-behavior: none; background: #101915; color: #f6fbf8; touch-action: none; }
+.profile-image-crop-editor__header { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 8px; min-height: 44px; }
+.profile-image-crop-editor__header h1 { margin: 0; color: inherit; font-size: 1rem; font-weight: 600; text-align: center; }
+.profile-image-crop-editor__header button { min-height: 44px; padding: 8px 4px; border: 0; background: transparent; color: inherit; font: inherit; font-size: .875rem; }
+.profile-image-crop-editor__cancel { justify-self: start; }
+.profile-image-crop-editor__complete { justify-self: end; color: #a8e8ce !important; font-weight: 600 !important; }
+.profile-image-crop-editor__complete:disabled { color: rgb(246 251 248 / 46%) !important; }
+.profile-image-crop-editor__main { display: grid; align-content: center; justify-items: center; gap: 14px; min-height: 0; overflow: hidden; }
+.profile-image-crop-editor__hint { width: min(100%, 360px); margin: 0; color: rgb(246 251 248 / 72%); font-size: .8125rem; line-height: 1.5; text-align: center; }
+.profile-image-crop { position: relative; width: min(100%, 320px); aspect-ratio: 1; margin: 0 auto; overflow: hidden; background: #17231f; border-radius: 14px; touch-action: none; user-select: none; }
+.profile-image-crop img { position: absolute; top: 50%; left: 50%; max-width: none; object-fit: fill; pointer-events: none; user-select: none; }
+.profile-image-crop__guide { position: absolute; inset: 0; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 0 999px rgb(14 23 19 / 42%), 0 1px 8px rgb(0 0 0 / 32%); pointer-events: none; }
+.profile-image-crop-editor__zoom { display: grid; gap: 6px; width: min(100%, 360px); margin: 0 auto; padding-top: 8px; color: rgb(246 251 248 / 82%); font-size: .8125rem; text-align: center; }
+.profile-image-crop-editor__zoom input { width: 100%; min-height: 40px; accent-color: #a8e8ce; touch-action: auto; }
 .m5-account-logout { padding-top: clamp(48px, 12vh, 112px); margin-top: 16px; border-top: 1px solid var(--color-border); }
 .m5-selection-list { display: grid; }
 .m5-selection-list button { display: flex; min-height: 52px; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border: 0; border-bottom: 1px solid var(--color-border); background: transparent; color: var(--color-text); text-align: left; }
 .m5-selection-list button svg { flex: 0 0 18px; width: 18px; height: 18px; color: var(--color-primary-strong); }
 @media (max-width: 340px) { .m5-page { padding-inline: 12px; } .m5-settings-header h1 { font-size: 1rem; } .m5-settings-back { font-size: .8125rem; } .m5-field-row, .m5-account-profile .m5-field-row { grid-template-columns: minmax(0, 1fr); align-items: stretch; gap: 4px; } .m5-time-row { grid-template-columns: minmax(0, 1fr) minmax(0, 9rem); align-items: center; } .m5-row-value { max-width: 60%; font-size: .8125rem; } }
+@media (max-height: 820px) { .bottom-sheet { padding-top: 4px; padding-bottom: calc(8px + env(safe-area-inset-bottom)); } }
 @media (prefers-reduced-motion: reduce) { .m5-toggle-visual, .m5-toggle-visual::after, .m5-storage-bar span { transition: none; } }
 
 html {
@@ -330,6 +348,10 @@ p {
   display: grid;
   gap: 16px;
 }
+
+.register-avatar-field { display: grid; gap: 8px; padding: 14px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-surface-muted, #f7faf8); }
+.register-avatar-field__heading { display: flex; justify-content: space-between; gap: 8px; color: var(--color-text-secondary); font-size: .8125rem; }
+.register-avatar-field__hint { margin: 0; color: var(--color-text-muted); font-size: .75rem; line-height: 1.5; }
 
 .entry-page .form-field {
   gap: 8px;
@@ -1800,6 +1822,9 @@ textarea[aria-invalid="true"] {
 .bottom-sheet {
   position: relative;
   width: min(100%, 40rem);
+  box-sizing: border-box;
+  max-height: calc(100dvh - 8px);
+  overflow-y: auto;
   padding: var(--space-2) var(--space-4)
     calc(var(--space-4) + env(safe-area-inset-bottom));
   border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
@@ -1914,6 +1939,7 @@ textarea[aria-invalid="true"] {
 .m2-home__header { margin-bottom: var(--space-4); }
 .m2-home__header p { margin: 0 0 4px; color: var(--color-text-secondary); font-size: .8125rem; }
 .m2-home__header h1 { margin: 0; font-size: 1.125rem; font-weight: 600; }
+.m2-home__notice { margin: 0 0 var(--space-3); padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--color-primary) 35%, var(--color-border)); border-radius: 12px; background: color-mix(in srgb, var(--color-primary) 8%, var(--color-surface)); color: var(--color-text); font-size: .8125rem; line-height: 1.5; }
 .m2-home__task-list { border-top: 1px solid var(--color-border); }
 .m2-home__row { position: relative; overflow: hidden; border-bottom: 1px solid var(--color-border); isolation: isolate; touch-action: pan-y; }
 .m2-home__row-content { position: relative; z-index: 1; display: flex; min-height: 70px; align-items: stretch; background: var(--color-bg); transform: translateX(var(--m2-swipe-offset, 0px)); transition: transform 180ms ease-out; }

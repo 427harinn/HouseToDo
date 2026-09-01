@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useId,
   useRef,
   useState,
   type CSSProperties,
@@ -24,6 +25,7 @@ export function BottomSheet({ children, onClose, open, title }: BottomSheetProps
   const [isDragging, setIsDragging] = useState(false);
   const [isDismissing, setIsDismissing] = useState(false);
   const prefersReducedMotion = usePrefersReducedMotion();
+  const titleId = useId();
 
   useEffect(() => {
     if (open) {
@@ -39,11 +41,23 @@ export function BottomSheet({ children, onClose, open, title }: BottomSheetProps
 
   useEffect(() => {
     if (!open) return undefined;
+    const scrollContainers = Array.from(
+      document.querySelectorAll<HTMLElement>(".app-shell, .app-shell__viewport")
+    );
+    const previousOverflow = scrollContainers.map((container) => container.style.overflowY);
+    scrollContainers.forEach((container) => {
+      container.style.overflowY = "hidden";
+    });
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
     };
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      scrollContainers.forEach((container, index) => {
+        container.style.overflowY = previousOverflow[index];
+      });
+    };
   }, [onClose, open]);
 
   if (!open) return null;
@@ -91,12 +105,12 @@ export function BottomSheet({ children, onClose, open, title }: BottomSheetProps
         onClick={onClose}
       />
       <section
-        className={`bottom-sheet${isDragging ? " is-dragging" : ""}${
-          isDismissing ? " is-dismissing" : ""
-        }`}
+        className={["bottom-sheet", isDragging ? "is-dragging" : "", isDismissing ? "is-dismissing" : ""]
+          .filter(Boolean)
+          .join(" ")}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="add-sheet-title"
+        aria-labelledby={titleId}
         style={{ "--sheet-drag-offset": `${dragOffset}px` } as CSSProperties}
       >
         <div
@@ -108,7 +122,7 @@ export function BottomSheet({ children, onClose, open, title }: BottomSheetProps
           onPointerCancel={handleDragEnd}
         />
         <div className="bottom-sheet__header">
-          <h2 id="add-sheet-title">{title}</h2>
+          <h2 id={titleId}>{title}</h2>
           <button type="button" className="bottom-sheet__close" onClick={onClose}>
             閉じる
           </button>

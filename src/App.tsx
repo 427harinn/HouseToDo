@@ -6,6 +6,7 @@ import { login, logout, me, register } from "./api/auth";
 import { ApiError, apiMessage } from "./api/client";
 import { getHomeToday, type HomeToday } from "./api/home";
 import { imageUploadErrorMessage } from "./api/image-errors";
+import { uploadProfileImage } from "./api/account";
 import { getCurrentImageUsage, type ImageUsage } from "./api/image-usage";
 import {
   createShoppingItem,
@@ -66,6 +67,7 @@ import {
   TextInput
 } from "./components/ui";
 import { BottomSheet } from "./components/BottomSheet";
+import { ProfileImagePicker } from "./components/ProfileImageCropper";
 import {
   weekdayLabels
 } from "./task-labels";
@@ -295,6 +297,8 @@ export function App() {
   const [auth, setAuth] = useState<AuthState>({ status: "loading" });
   const [household, setHousehold] = useState<HouseholdState>({ status: "idle" });
   const [pendingInviteCode, setPendingInviteCode] = useState("");
+  const [pendingRegistrationAvatar, setPendingRegistrationAvatar] = useState<ProcessedImage | null>(null);
+  const [profileImageNotice, setProfileImageNotice] = useState("");
 
   const navigate = useCallback(
     (nextRoute: string, replace = false) => {
@@ -343,8 +347,28 @@ export function App() {
     await refreshHousehold();
   };
 
-  const completeRegistration = async (user: AuthUser, inviteCode: string) => {
+  const settleHouseholdAndUploadAvatar = async (
+    nextHousehold: Household,
+    user: AuthUser | null,
+    avatar: ProcessedImage | null
+  ) => {
+    setPendingRegistrationAvatar(null);
+    setHousehold({ status: "ready", household: nextHousehold });
+    if (user) setAuth({ status: "authenticated", user });
+    navigate("/home", true);
+    if (!user || !avatar) return;
+    try {
+      const uploaded = await uploadProfileImage(avatar);
+      setAuth({ status: "authenticated", user: { ...user, avatarUrl: uploaded.avatarUrl } });
+    } catch {
+      setProfileImageNotice("プロフィール画像の保存に失敗しました。設定から再度登録できます。");
+    }
+  };
+
+  const completeRegistration = async (user: AuthUser, inviteCode: string, avatar: ProcessedImage | null) => {
     setAuth({ status: "authenticated", user });
+    setPendingRegistrationAvatar(avatar);
+    setProfileImageNotice("");
     if (!inviteCode) {
       await refreshHousehold();
       return;
@@ -352,8 +376,7 @@ export function App() {
     setHousehold({ status: "loading" });
     try {
       const result = await joinHousehold(inviteCode);
-      setHousehold({ status: "ready", household: result.household });
-      navigate("/home", true);
+      await settleHouseholdAndUploadAvatar(result.household, user, avatar);
     } catch (error) {
       setPendingInviteCode(inviteCode);
       setHousehold({ status: "none" });
@@ -447,8 +470,8 @@ export function App() {
       return (
         <CreateHouseholdScreen
           onCreated={(next) => {
-            setHousehold({ status: "ready", household: next });
-            navigate("/home", true);
+            const currentUser = auth.status === "authenticated" ? auth.user : null;
+            return settleHouseholdAndUploadAvatar(next, currentUser, pendingRegistrationAvatar);
           }}
           onNavigate={navigate}
         />
@@ -474,7 +497,8 @@ export function App() {
     household: household.household,
     onNavigate: navigate,
     onLogout: () => void signOut(),
-    user: auth.user
+    user: auth.user,
+    profileImageNotice
   };
   if (route.name === "/other") {
     return (
@@ -599,7 +623,7 @@ function RegisterScreen({
   onRegister,
   onNavigate
 }: {
-  onRegister: (user: AuthUser, inviteCode: string) => Promise<void>;
+  onRegister: (user: AuthUser, inviteCode: string, avatar: ProcessedImage | null) => Promise<void>;
   onNavigate: (route: StaticRoute) => void;
 }) {
   const [displayName, setDisplayName] = useState("");
@@ -609,8 +633,12 @@ function RegisterScreen({
   const [errors, setErrors] = useState<FormErrors>({});
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [avatar, setAvatar] = useState<ProcessedImage | null>(null);
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const submittingRef = useRef(false);
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    if (submittingRef.current) return;
     const nextErrors: FormErrors = {};
     if (displayName.trim().length === 0 || displayName.trim().length > 80)
       nextErrors.displayName = "表示名は1〜80文字で入力してください。";
@@ -621,6 +649,7 @@ function RegisterScreen({
     setErrors(nextErrors);
     setMessage(Object.keys(nextErrors).length > 0 ? "入力内容を確認してください" : "");
     if (Object.keys(nextErrors).length > 0) return;
+    submittingRef.current = true;
     setSubmitting(true);
     try {
       const normalizedInviteCode = normalizeInviteCode(inviteCode);
@@ -636,7 +665,7 @@ function RegisterScreen({
         email: email.trim(),
         password
       });
-      await onRegister(result.user, normalizedInviteCode);
+      await onRegister(result.user, normalizedInviteCode, avatar);
     } catch (error) {
       if (error instanceof ApiError && error.code === "CONFLICT") {
         setErrors({ email: "このメールアドレスはすでに登録されています。" });
@@ -645,6 +674,7 @@ function RegisterScreen({
         if (error instanceof ApiError && error.details) setErrors(error.details);
       }
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };
@@ -701,8 +731,22 @@ function RegisterScreen({
               value={inviteCode}
             />
           </FormField>
+          <div className="register-avatar-field">
+            <div className="register-avatar-field__heading">
+              <span>プロフィール画像（任意）</span>
+              {avatar ? <span>選択済み</span> : null}
+            </div>
+            <ProfileImagePicker
+              id="register-profile-image"
+              image={avatar}
+              disabled={submitting}
+              onImageChange={(next) => { setAvatar(next); }}
+              onProcessingChange={setAvatarBusy}
+            />
+            <p className="register-avatar-field__hint">登録後も画像を変更できます。</p>
+          </div>
           <ErrorMessage message={message} />
-          <Button className="entry-primary-action" disabled={submitting} type="submit">
+          <Button className="entry-primary-action" disabled={submitting || avatarBusy} type="submit">
             {submitting ? <InlineLoading /> : "新規登録"}
           </Button>
         </form>
@@ -715,7 +759,7 @@ function CreateHouseholdScreen({
   onCreated,
   onNavigate
 }: {
-  onCreated: (household: Household) => void;
+  onCreated: (household: Household) => void | Promise<void>;
   onNavigate: (route: StaticRoute) => void;
 }) {
   const [name, setName] = useState("");
@@ -734,7 +778,7 @@ function CreateHouseholdScreen({
     setSubmitting(true);
     try {
       const result = await createHousehold(trimmed);
-      onCreated(result.household);
+      await onCreated(result.household);
     } catch (error) {
       setMessage(apiErrorMessage(error));
       if (error instanceof ApiError && error.details) setErrors(error.details);
@@ -1222,9 +1266,11 @@ function useHomeData() {
 
 function HomeScreen({
   household,
+  profileImageNotice,
   onNavigate
 }: {
   household: Household;
+  profileImageNotice?: string;
   user: AuthUser;
   onNavigate: (route: NavigationPath) => void;
   onLogout: () => void;
@@ -1324,6 +1370,7 @@ function HomeScreen({
           <p>{formatHomeDate(today)}</p>
           <h1>やること</h1>
         </header>
+        {profileImageNotice ? <p className="m2-home__notice" role="status">{profileImageNotice}</p> : null}
         <ErrorMessage message={message} />
         {activeTasks.length > 0 ? (
           <section className="m2-home__task-list" aria-label="やること一覧">

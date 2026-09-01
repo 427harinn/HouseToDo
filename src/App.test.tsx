@@ -4,7 +4,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import { processShoppingImage } from "./lib/image-processing";
 
-vi.mock("./lib/image-processing", () => ({ processShoppingImage: vi.fn() }));
+vi.mock("./lib/image-processing", () => ({
+  AVATAR_CROP_VIEWPORT: 320,
+  createCropSource: vi.fn((file: File) => Promise.resolve({
+    file,
+    url: "blob:crop-source",
+    width: 640,
+    height: 640
+  })),
+  processCroppedAvatar: vi.fn(() => Promise.resolve({
+    blob: new Blob(["avatar"], { type: "image/jpeg" }),
+    width: 320,
+    height: 320,
+    contentType: "image/jpeg",
+    size: 6
+  })),
+  processShoppingImage: vi.fn()
+}));
 
 const user = {
   id: "user-1",
@@ -62,7 +78,7 @@ const purchasedItem = {
   name: "卵",
   status: "purchased",
   purchasedBy: { userId: "user-2", displayName: "たくや" },
-  purchasedAt: "2026-08-24T01:32:00Z"
+  purchasedAt: new Date(Date.now() - 60 * 60 * 1000).toISOString()
 };
 
 const template = {
@@ -450,7 +466,7 @@ describe("App shopping UI", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /購入済み 1件/ }));
     expect(screen.getByText("卵")).toBeInTheDocument();
-    expect(screen.getByText("2026/8/24 10:32")).toBeInTheDocument();
+    expect(screen.getByText(/\d{4}\/\d+\/\d+ \d{2}:\d{2}/)).toBeInTheDocument();
     expect(screen.getByLabelText("購入者: たくや")).toBeInTheDocument();
   }, 15000);
 
@@ -563,6 +579,120 @@ describe("M6 auth and household entry", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(screen.getByLabelText("招待コード（任意）")).toHaveAttribute("aria-invalid", "false");
   });
+
+  it("settles household creation and continues home when avatar upload fails", async () => {
+    let createCalls = 0;
+    let uploadCalls = 0;
+    Object.defineProperty(URL, "createObjectURL", { configurable: true, value: () => "blob:crop-preview" });
+    Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: () => undefined });
+    vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      const method = init?.method ?? "GET";
+      if (url.endsWith("/api/auth/me")) return Promise.resolve(failure("UNAUTHENTICATED", 401));
+      if (url.endsWith("/api/auth/register")) return Promise.resolve(ok({ user }, 201));
+      if (url.endsWith("/api/households/current")) return Promise.resolve(ok({ household: null }));
+      if (url.endsWith("/api/households") && method === "POST") {
+        createCalls += 1;
+        return Promise.resolve(ok({ household }, 201));
+      }
+      if (url.endsWith("/api/account/avatar") && method === "PUT") {
+        uploadCalls += 1;
+        return Promise.resolve(failure("VALIDATION_ERROR", 400));
+      }
+      if (url.endsWith("/api/home/today")) {
+        return Promise.resolve(ok({
+          date: "2026-08-01",
+          homeTasks: [],
+          completedRecords: [],
+          passedRecords: [],
+          shopping: { pendingCount: 0 },
+          members
+        }));
+      }
+      return Promise.resolve(failure("NOT_FOUND", 404));
+    });
+    window.history.replaceState({}, "", "/register");
+    render(<App />);
+
+    await screen.findByRole("heading", { name: "新規登録" });
+    fireEvent.change(screen.getByLabelText("表示名"), { target: { value: "さや" } });
+    fireEvent.change(screen.getByLabelText("メールアドレス"), { target: { value: "new@example.com" } });
+    fireEvent.change(screen.getByLabelText("パスワード"), { target: { value: "very-long-password" } });
+    fireEvent.change(screen.getByLabelText("プロフィール画像を選択"), {
+      target: { files: [new File(["source"], "avatar.jpg", { type: "image/jpeg" })] }
+    });
+    await screen.findByRole("dialog", { name: "写真を調整" });
+    fireEvent.click(screen.getByRole("button", { name: "完了" }));
+    await screen.findByAltText("選択したプロフィール画像のプレビュー");
+
+    fireEvent.click(screen.getByRole("button", { name: "新規登録" }));
+    await screen.findByRole("heading", { name: "家庭を作る" });
+    fireEvent.change(screen.getByLabelText("家庭名"), { target: { value: "わが家" } });
+    fireEvent.click(screen.getByRole("button", { name: "家庭を作る" }));
+
+    expect(await screen.findByRole("heading", { name: "やること" })).toBeInTheDocument();
+    expect(window.location.pathname).toBe("/home");
+    expect(createCalls).toBe(1);
+    expect(uploadCalls).toBe(1);
+    expect(screen.getByText("プロフィール画像の保存に失敗しました。設定から再度登録できます。")).toBeInTheDocument();
+    expect(screen.queryByText("家庭を作成できませんでした。")).not.toBeInTheDocument();
+  }, 15000);
+
+  it("settles invite join and continues home when avatar upload fails", async () => {
+    let joinCalls = 0;
+    let uploadCalls = 0;
+    Object.defineProperty(URL, "createObjectURL", { configurable: true, value: () => "blob:crop-preview" });
+    Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: () => undefined });
+    vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      const method = init?.method ?? "GET";
+      if (url.endsWith("/api/auth/me")) return Promise.resolve(failure("UNAUTHENTICATED", 401));
+      if (url.endsWith("/api/households/invites/validate")) return Promise.resolve(ok({ valid: true }));
+      if (url.endsWith("/api/auth/register")) return Promise.resolve(ok({ user }, 201));
+      if (url.endsWith("/api/households/join") && method === "POST") {
+        joinCalls += 1;
+        return Promise.resolve(ok({ household }, 200));
+      }
+      if (url.endsWith("/api/account/avatar") && method === "PUT") {
+        uploadCalls += 1;
+        return Promise.resolve(failure("VALIDATION_ERROR", 400));
+      }
+      if (url.endsWith("/api/home/today")) {
+        return Promise.resolve(ok({
+          date: "2026-08-01",
+          homeTasks: [],
+          completedRecords: [],
+          passedRecords: [],
+          shopping: { pendingCount: 0 },
+          members
+        }));
+      }
+      return Promise.resolve(failure("NOT_FOUND", 404));
+    });
+    window.history.replaceState({}, "", "/register");
+    render(<App />);
+
+    await screen.findByRole("heading", { name: "新規登録" });
+    fireEvent.change(screen.getByLabelText("表示名"), { target: { value: "さや" } });
+    fireEvent.change(screen.getByLabelText("メールアドレス"), { target: { value: "new@example.com" } });
+    fireEvent.change(screen.getByLabelText("パスワード"), { target: { value: "very-long-password" } });
+    fireEvent.change(screen.getByLabelText("招待コード（任意）"), { target: { value: "VALID" } });
+    fireEvent.change(screen.getByLabelText("プロフィール画像を選択"), {
+      target: { files: [new File(["source"], "avatar.jpg", { type: "image/jpeg" })] }
+    });
+    await screen.findByRole("dialog", { name: "写真を調整" });
+    fireEvent.click(screen.getByRole("button", { name: "完了" }));
+    await screen.findByAltText("選択したプロフィール画像のプレビュー");
+
+    fireEvent.click(screen.getByRole("button", { name: "新規登録" }));
+
+    expect(await screen.findByRole("heading", { name: "やること" })).toBeInTheDocument();
+    expect(window.location.pathname).toBe("/home");
+    expect(joinCalls).toBe(1);
+    expect(uploadCalls).toBe(1);
+    expect(screen.getByText("プロフィール画像の保存に失敗しました。設定から再度登録できます。")).toBeInTheDocument();
+    expect(screen.queryByText("招待コードが正しくありません。")).not.toBeInTheDocument();
+  }, 15000);
 });
 
 describe("M2 Home", () => {
