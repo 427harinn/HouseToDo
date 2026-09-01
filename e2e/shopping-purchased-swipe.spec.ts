@@ -21,6 +21,7 @@ const swipe = async (page: Page, row: ReturnType<Page["locator"]>, from: number,
 };
 
 test("purchased Shopping restore is swipe-only and exclusive across sections", async ({ page }) => {
+  await page.clock.install({ time: new Date("2026-08-24T12:00:00Z") });
   const pending = {
     id: "pending-1",
     name: "牛乳",
