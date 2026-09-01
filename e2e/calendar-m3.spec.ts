@@ -46,8 +46,14 @@ test.describe("Calendar M3", () => {
     await page.clock.install({ time: new Date("2026-08-20T12:00:00+09:00") });
     let completed = false;
     let passed = false;
-    let delayedCalendarRefresh = false;
+    let delayedCalendarRefreshes = 0;
     let persistActiveAfterComplete = false;
+    const settleCalendarRefresh = async () => {
+      if (delayedCalendarRefreshes > 0) {
+        delayedCalendarRefreshes -= 1;
+        await new Promise((resolve) => setTimeout(resolve, 650));
+      }
+    };
     await page.route("**/api/**", async (route) => {
       const url = new URL(route.request().url());
       if (!url.pathname.startsWith("/api/")) return route.continue();
@@ -56,11 +62,25 @@ test.describe("Calendar M3", () => {
       if (url.pathname === "/api/households/current/members") return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(response({ members: [] })) });
       if (url.pathname === "/api/tasks/task-1" && route.request().method() === "GET") return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(response({ task: { id: "task-1", title: "朝食の片付け", description: null, recurrenceType: "model_only", modelRecurrenceType: "once", assignmentType: "anyone", assignedUserId: null, startDate: "2026-08-20", targetDate: "2026-08-20", deadlineTime: null, notificationOffsetMinutes: null, weekdays: [], weeklyTargetCount: null, active: true } })) });
       if (url.pathname === "/api/tasks/task-1/history") return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(response({ records: [] })) });
-      if (url.pathname === "/api/tasks/calendar") { persistActiveAfterComplete ||= url.searchParams.get("persist") === "1"; if (delayedCalendarRefresh) { delayedCalendarRefresh = false; await new Promise((resolve) => setTimeout(resolve, 300)); } return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(response(calendarData(url.searchParams.get("selectedDate") ?? "2026-08-20", completed, passed, url.searchParams.get("multi") === "1"))) }); }
-      if (url.pathname.endsWith("/complete")) { if (!persistActiveAfterComplete) completed = true; delayedCalendarRefresh = true; return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(response({ result: {} })) }); }
+      if (url.pathname === "/api/tasks/calendar") { persistActiveAfterComplete ||= url.searchParams.get("persist") === "1"; await settleCalendarRefresh(); return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(response(calendarData(url.searchParams.get("selectedDate") ?? "2026-08-20", completed, passed, url.searchParams.get("multi") === "1"))) }); }
+      if (url.pathname.endsWith("/complete")) { persistActiveAfterComplete ||= new URL(page.url()).searchParams.get("persist") === "1"; if (!persistActiveAfterComplete) completed = true; delayedCalendarRefreshes = 2; return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(response({ result: {} })) }); }
       if (url.pathname.endsWith("/skip")) { passed = true; return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(response({ result: {} })) }); }
       if (url.pathname.endsWith("/calendar-restore")) { completed = false; return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(response({ result: { reset: true } })) }); }
       throw new Error(`Unexpected Calendar API request: ${route.request().method()} ${url.pathname}`);
+    });
+    await page.route("**/api/tasks/calendar/range**", async (route) => {
+      const url = new URL(route.request().url());
+      await settleCalendarRefresh();
+      const selectedDate = "2026-08-20";
+      const full = calendarData(selectedDate, completed, passed, url.searchParams.get("multi") === "1");
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(response({ from: full.from, to: full.to, today: full.today, timezone: full.timezone, dates: full.dates })) });
+    });
+    await page.route("**/api/tasks/calendar/day**", async (route) => {
+      const url = new URL(route.request().url());
+      await settleCalendarRefresh();
+      const selectedDate = url.searchParams.get("date") ?? "2026-08-20";
+      const full = calendarData(selectedDate, completed, passed, url.searchParams.get("multi") === "1");
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(response({ today: full.today, timezone: full.timezone, selectedDate: full.selectedDate, selected: full.selected })) });
     });
   });
 

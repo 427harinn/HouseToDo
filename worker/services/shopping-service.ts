@@ -9,6 +9,7 @@ import { ShoppingItemRepository } from "../repositories/shopping-item-repository
 import { ShoppingItemImageRepository } from "../repositories/shopping-item-image-repository";
 import { ShoppingTemplateRepository } from "../repositories/shopping-template-repository";
 import type { ShoppingItem, ShoppingRecentItem } from "../types/domain";
+import type { HouseholdWithRole } from "../types/domain";
 import { HouseholdService } from "./household-service";
 import { ShoppingItemImageService } from "./shopping-item-image-service";
 import { nowIso } from "../lib/date";
@@ -56,6 +57,14 @@ export class ShoppingService {
 
   async listPlannedItems(userId: string, from: string, to: string): Promise<ShoppingItem[]> {
     const household = await this.households.requireCurrentHousehold(userId);
+    return this.listPlannedItemsForHousehold(household, from, to);
+  }
+
+  async listPlannedItemsForHousehold(
+    household: HouseholdWithRole,
+    from: string,
+    to: string
+  ): Promise<ShoppingItem[]> {
     return this.items.listPlannedByHouseholdId(household.id, from, to);
   }
 

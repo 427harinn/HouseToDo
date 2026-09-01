@@ -774,9 +774,10 @@ export class MemoryD1 {
       return rows;
     }
     if (sql.includes("FROM task_weekdays")) {
+      const taskIds = sql.includes(" IN (") ? values.map(String) : [String(values[0])];
       return Array.from(this.taskWeekdays.values())
-        .filter((item) => item.task_id === values[0])
-        .sort((a, b) => a.weekday - b.weekday);
+        .filter((item) => taskIds.includes(item.task_id))
+        .sort((a, b) => a.task_id.localeCompare(b.task_id) || a.weekday - b.weekday);
     }
     if (
       sql.includes("FROM task_records tr") &&

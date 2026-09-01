@@ -146,6 +146,8 @@ const currentResponse = await request(endpoint(cases.currentMonth.from, cases.cu
 const sameMonthResponse = await request(endpoint(cases.sameMonthDifferentDate.from, cases.sameMonthDifferentDate.to, cases.sameMonthDifferentDate.selectedDate), { cookie: cookieHeader });
 const currentDatesJson = JSON.stringify(currentResponse.data.dates);
 const sameMonthDatesJson = JSON.stringify(sameMonthResponse.data.dates);
+const markerResponse = await request(`/api/tasks/calendar/range?from=${cases.currentMonth.from}&to=${cases.currentMonth.to}`, { cookie: cookieHeader });
+const selectedResponse = await request(`/api/tasks/calendar/day?date=${cases.sameMonthDifferentDate.selectedDate}`, { cookie: cookieHeader });
 
 console.log(JSON.stringify({
   baseUrl,
@@ -173,5 +175,17 @@ console.log(JSON.stringify({
     sameMonthResponseBytes: sameMonthResponse.rawBytes,
     currentSelectedDetailBytes: byteLength(currentResponse.data.selected),
     sameMonthSelectedDetailBytes: byteLength(sameMonthResponse.data.selected)
+  },
+  splitResponses: {
+    markerBytes: markerResponse.rawBytes,
+    markerDateCount: Object.keys(markerResponse.data.dates).length,
+    selectedBytes: selectedResponse.rawBytes,
+    selectedTaskCounts: {
+      fixed: selectedResponse.data.selected.fixed.length,
+      weeklyFlexible: selectedResponse.data.selected.weeklyFlexible.length,
+      monthlyFlexible: selectedResponse.data.selected.monthlyFlexible.length,
+      completed: selectedResponse.data.selected.completed.length,
+      shopping: selectedResponse.data.selected.shopping.length
+    }
   }
 }, null, 2));
