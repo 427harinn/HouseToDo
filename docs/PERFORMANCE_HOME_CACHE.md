@@ -56,6 +56,8 @@ The first WP4 version left a rejected pre-auth `getHomeToday()` Promise in `home
 
 The follow-up clears the bootstrap reference when authentication fails, when the household request reports `UNAUTHENTICATED`, on login success, on registration success, and on logout. The existing authenticated cold-launch path is unchanged: it still starts `me()`, current household, and Home together and consumes the single Home request. Login and registration now always mount Home with a fresh bootstrap request.
 
+When an authenticated cold launch resolves to `household: null`, the pre-household bootstrap is also invalidated at the shared household setup boundary: `settleHouseholdAndUploadAvatar` for household creation and the join callback for invite joining. This preserves the one-request authenticated path for users who already have a household while forcing a fresh Home GET after a new household identity becomes available.
+
 ## UI and mutation behavior
 
 - Authenticated/authorized Home renders its shell without waiting for Home data.
@@ -67,6 +69,6 @@ The follow-up clears the bootstrap reference when authentication fails, when the
 
 ## Verification
 
-Dedicated coverage is in `e2e/home-cache-first.spec.ts` and covers parallel startup, duplicate prevention, memory revisit, IndexedDB hard reload, auth safety, household/date isolation, initial mutation lock, later revalidation, IndexedDB failure fallback, and stale pre-auth bootstrap recovery through both login and registration. Unit coverage is in `src/cache/home-snapshot.test.ts`.
+Dedicated coverage is in `e2e/home-cache-first.spec.ts` and covers parallel startup, duplicate prevention, memory revisit, IndexedDB hard reload, auth safety, household/date isolation, initial mutation lock, later revalidation, IndexedDB failure fallback, stale pre-auth bootstrap recovery through login and registration, and pre-household recovery through both create and join. Unit coverage is in `src/cache/home-snapshot.test.ts`.
 
 No D1 migration was added or required. Production was not touched.

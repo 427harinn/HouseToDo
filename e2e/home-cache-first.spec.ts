@@ -337,4 +337,76 @@ test.describe("WP4 Home cache-first bootstrap", () => {
     expect(homeCalls).toBe(2);
     expect(homeAuthStates).toEqual([false, true]);
   });
+
+  test("discards the pre-household bootstrap before creating a household", async ({ page }) => {
+    let householdReady = false;
+    let homeCalls = 0;
+    let releaseBootstrap!: () => void;
+    const bootstrapHeld = new Promise<void>((resolve) => { releaseBootstrap = resolve; });
+    await page.route("**/api/**", async (route) => {
+      const request = route.request();
+      const url = new URL(request.url());
+      if (url.pathname === "/api/auth/me") return route.fulfill(envelope({ user }));
+      if (url.pathname === "/api/households/current") return route.fulfill(envelope({ household: householdReady ? household : null }));
+      if (url.pathname === "/api/households" && request.method() === "POST") {
+        householdReady = true;
+        return route.fulfill(envelope({ household }, 201));
+      }
+      if (url.pathname === "/api/home/today") {
+        homeCalls += 1;
+        if (homeCalls === 1) {
+          await bootstrapHeld;
+          return route.fulfill(envelope({}, 503));
+        }
+        return route.fulfill(envelope(homeData("作成後の新しい家事")));
+      }
+      return route.fulfill(envelope({}));
+    });
+
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: "家庭を作る" })).toBeVisible();
+    await page.getByLabel("家庭名").fill("作成テスト家庭");
+    await page.getByRole("button", { name: "家庭を作る" }).click();
+
+    await expect(page.getByText("作成後の新しい家事")).toBeVisible();
+    expect(homeCalls).toBe(2);
+    releaseBootstrap();
+  });
+
+  test("discards the pre-household bootstrap before joining a household", async ({ page }) => {
+    let householdReady = false;
+    let homeCalls = 0;
+    let releaseBootstrap!: () => void;
+    const bootstrapHeld = new Promise<void>((resolve) => { releaseBootstrap = resolve; });
+    await page.route("**/api/**", async (route) => {
+      const request = route.request();
+      const url = new URL(request.url());
+      if (url.pathname === "/api/auth/me") return route.fulfill(envelope({ user }));
+      if (url.pathname === "/api/households/current") return route.fulfill(envelope({ household: householdReady ? household : null }));
+      if (url.pathname === "/api/households/join" && request.method() === "POST") {
+        householdReady = true;
+        return route.fulfill(envelope({ household }));
+      }
+      if (url.pathname === "/api/home/today") {
+        homeCalls += 1;
+        if (homeCalls === 1) {
+          await bootstrapHeld;
+          return route.fulfill(envelope({}, 503));
+        }
+        return route.fulfill(envelope(homeData("参加後の新しい家事")));
+      }
+      return route.fulfill(envelope({}));
+    });
+
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: "家庭を作る" })).toBeVisible();
+    await page.getByRole("link", { name: "招待から参加" }).click();
+    await expect(page.getByRole("heading", { name: "招待から参加" })).toBeVisible();
+    await page.getByLabel("招待コード").fill("JOIN-CODE");
+    await page.getByRole("button", { name: "参加する" }).click();
+
+    await expect(page.getByText("参加後の新しい家事")).toBeVisible();
+    expect(homeCalls).toBe(2);
+    releaseBootstrap();
+  });
 });

@@ -316,6 +316,9 @@ export function App() {
   const [profileImageNotice, setProfileImageNotice] = useState("");
   const initialHomeRoute = useRef(route.name === "/" || route.name === "/home");
   const homeBootstrapRef = useRef<HomeBootstrapRequest | null>(null);
+  const invalidateHomeBootstrap = useCallback(() => {
+    homeBootstrapRef.current = null;
+  }, []);
 
   const navigate = useCallback(
     (nextRoute: string, replace = false) => {
@@ -360,7 +363,7 @@ export function App() {
   );
 
   const completeAuth = async (user: AuthUser) => {
-    homeBootstrapRef.current = null;
+    invalidateHomeBootstrap();
     setAuth({ status: "authenticated", user });
     await refreshHousehold();
   };
@@ -370,6 +373,7 @@ export function App() {
     user: AuthUser | null,
     avatar: ProcessedImage | null
   ) => {
+    invalidateHomeBootstrap();
     setPendingRegistrationAvatar(null);
     setHousehold({ status: "ready", household: nextHousehold });
     if (user) setAuth({ status: "authenticated", user });
@@ -384,7 +388,7 @@ export function App() {
   };
 
   const completeRegistration = async (user: AuthUser, inviteCode: string, avatar: ProcessedImage | null) => {
-    homeBootstrapRef.current = null;
+    invalidateHomeBootstrap();
     setAuth({ status: "authenticated", user });
     setPendingRegistrationAvatar(avatar);
     setProfileImageNotice("");
@@ -412,7 +416,7 @@ export function App() {
     try {
       await logout();
     } finally {
-      homeBootstrapRef.current = null;
+      invalidateHomeBootstrap();
       await clearHomeSnapshots();
       setAuth({ status: "unauthenticated" });
       setHousehold({ status: "idle" });
@@ -526,6 +530,7 @@ export function App() {
       return (
         <JoinHouseholdScreen
           onJoined={(next) => {
+            invalidateHomeBootstrap();
             setHousehold({ status: "ready", household: next });
             navigate("/home", true);
           }}
