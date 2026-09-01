@@ -226,7 +226,7 @@ export class NotificationSchedulerService {
             {
               title: "家事の時間です",
               body: task.title,
-              icon: "/icons/house-todo-192.png",
+              icon: "/icons/house-todo-v4-192.png",
               data: { url: `/tasks/${task.id}` }
             }
           );
@@ -242,7 +242,7 @@ export class NotificationSchedulerService {
             {
               title: "家事の時間です",
               body: task.title,
-              icon: "/icons/house-todo-192.png",
+              icon: "/icons/house-todo-v4-192.png",
               data: { url: `/tasks/${task.id}` }
             }
           );
@@ -294,7 +294,7 @@ export class NotificationSchedulerService {
                 summary.type === "evening_summary"
                   ? `未完了の家事が${incompleteTasks.length}件あります`
                   : `今日の家事が${incompleteTasks.length}件あります`,
-              icon: "/icons/house-todo-192.png",
+              icon: "/icons/house-todo-v4-192.png",
               data: { url: "/" }
             }
           );
