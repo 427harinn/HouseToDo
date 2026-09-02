@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { getLocalDate, getLocalTime } from "../lib/date-time";
 import { createNotificationSchedulerRepositories } from "../repositories/notification-scheduler-repository";
 import { MemoryD1 } from "../test-utils/memory-d1";
+import { TaskService } from "./task-service";
 import {
+  formatRemainingTaskTitles,
   isIncomplete,
   isTaskDueToday,
   NOTIFICATION_DELIVERY_WINDOW_MINUTES,
@@ -121,6 +123,61 @@ const addCanonicalTask = (db: MemoryD1, overrides: Record<string, unknown> = {})
   });
 };
 
+const addSummaryTask = (
+  db: MemoryD1,
+  input: {
+    id: string;
+    householdId?: string;
+    title: string;
+    sortOrder: number;
+    active?: number;
+    recurrenceType?: Task["recurrenceType"];
+    modelRecurrenceType?: Task["modelRecurrenceType"];
+    targetDate?: string | null;
+    weekdays?: number[];
+    startDate?: string | null;
+    deadlineTime?: string | null;
+    weeklyDeadlineWeekday?: number | null;
+    monthlyDayOfMonth?: number | null;
+    monthlyDeadlineType?: Task["monthlyDeadlineType"];
+    assignmentType?: Task["assignmentType"];
+    assignedUserId?: string | null;
+  }
+) => {
+  db.tasks.set(input.id, {
+    id: input.id,
+    household_id: input.householdId ?? "house-1",
+    title: input.title,
+    description: null,
+    recurrence_type: input.recurrenceType ?? "daily",
+    model_recurrence_type: input.modelRecurrenceType,
+    assignment_type: input.assignmentType ?? "anyone",
+    assigned_user_id: input.assignedUserId ?? null,
+    scheduled_time: null,
+    notification_slot: "none",
+    notification_time: null,
+    weekly_target_count: null,
+    start_date: input.startDate ?? "2026-01-01",
+    target_date: input.targetDate ?? null,
+    deadline_time: input.deadlineTime ?? null,
+    notification_offset_minutes: null,
+    weekly_deadline_weekday: input.weeklyDeadlineWeekday ?? null,
+    monthly_day_of_month: input.monthlyDayOfMonth ?? null,
+    monthly_deadline_type: input.monthlyDeadlineType ?? null,
+    active: input.active ?? 1,
+    sort_order: input.sortOrder,
+    created_by: "user-1",
+    created_at: "2026-01-01",
+    updated_at: "2026-01-01"
+  });
+  for (const weekday of input.weekdays ?? []) {
+    db.taskWeekdays.set(`${input.id}:${weekday}`, {
+      task_id: input.id,
+      weekday
+    });
+  }
+};
+
 describe("notification scheduler rules", () => {
   it("uses a 20-minute half-open delivery window", () => {
     const at = (time: string) => new Date(`2026-08-12T${time}:00.000Z`);
@@ -185,6 +242,471 @@ describe("notification scheduler rules", () => {
     expect(isIncomplete("in_progress")).toBe(true);
     expect(isIncomplete("completed")).toBe(false);
     expect(isIncomplete("skipped")).toBe(false);
+  });
+
+  it("formats one, three, and many remaining task titles deterministically", () => {
+    expect(formatRemainingTaskTitles([{ title: "  ゴミ出し  " }])).toBe("ゴミ出し");
+    expect(
+      formatRemainingTaskTitles([
+        { title: "ゴミ出し" },
+        { title: "食器\n洗い" },
+        { title: "インコの餌交換" }
+      ])
+    ).toBe("ゴミ出し・食器 洗い・インコの餌交換");
+    expect(
+      formatRemainingTaskTitles([
+        { title: "ゴミ出し" },
+        { title: "食器洗い" },
+        { title: "インコの餌交換" },
+        { title: "風呂掃除" },
+        { title: "床掃除" }
+      ])
+    ).toBe("ゴミ出し・食器洗い・インコの餌交換・ほか2件");
+  });
+
+  it("uses Home's actionable projection for summary eligibility and body titles", async () => {
+    const db = schedulerDb(null);
+    db.tasks.clear();
+    addSummaryTask(db, { id: "task-1", title: "ゴミ出し", sortOrder: 1 });
+    addSummaryTask(db, { id: "task-2", title: "食器洗い", sortOrder: 2 });
+    addSummaryTask(db, { id: "task-3", title: "インコの餌交換", sortOrder: 3 });
+    addSummaryTask(db, { id: "task-4", title: "完了済み", sortOrder: 4 });
+    addSummaryTask(db, { id: "task-5", title: "スキップ済み", sortOrder: 5 });
+    addSummaryTask(db, { id: "task-6", title: "無効", sortOrder: 6, active: 0 });
+    db.taskRecords.set("record-completed", {
+      id: "record-completed",
+      household_id: "house-1",
+      task_id: "task-4",
+      target_date: "2026-08-13",
+      target_week_start: null,
+      status: "completed",
+      acted_by: "user-1",
+      started_at: null,
+      completed_at: "2026-08-13T01:00:00.000Z",
+      skipped_at: null,
+      note: null,
+      created_at: "2026-08-13T01:00:00.000Z",
+      updated_at: "2026-08-13T01:00:00.000Z"
+    });
+    db.taskRecords.set("record-skipped", {
+      id: "record-skipped",
+      household_id: "house-1",
+      task_id: "task-5",
+      target_date: "2026-08-13",
+      target_week_start: null,
+      status: "skipped",
+      acted_by: "user-1",
+      started_at: null,
+      completed_at: null,
+      skipped_at: "2026-08-13T01:00:00.000Z",
+      note: null,
+      created_at: "2026-08-13T01:00:00.000Z",
+      updated_at: "2026-08-13T01:00:00.000Z"
+    });
+    db.notificationSettings.set("house-1:user-1", {
+      user_id: "user-1",
+      household_id: "house-1",
+      morning_summary_enabled: 1,
+      morning_summary_time: "09:00",
+      evening_summary_enabled: 0,
+      evening_summary_time: "21:00",
+      timezone: "Asia/Tokyo",
+      updated_at: "2026-01-01"
+    });
+    const payloads: Record<string, unknown>[] = [];
+    const service = new NotificationSchedulerService(db as unknown as D1Database, {
+      sendPayload: (_userId, _householdId, payload) => {
+        payloads.push(payload as Record<string, unknown>);
+        return Promise.resolve({ sent: 1, failed: 0 });
+      }
+    });
+
+    const home = await new TaskService(db as unknown as D1Database).listHomeForHousehold(
+      {
+        id: "house-1",
+        name: "House",
+        timezone: "Asia/Tokyo",
+        weekStartsOn: 1,
+        createdBy: "user-1",
+        createdAt: "2026-01-01",
+        updatedAt: "2026-01-01",
+        role: "owner"
+      },
+      "2026-08-13"
+    );
+    await service.run({}, new Date("2026-08-13T00:05:00.000Z"));
+
+    expect(home.tasks.map((task) => task.id)).toEqual(["task-1", "task-2", "task-3"]);
+    expect(payloads).toHaveLength(1);
+    expect(payloads[0]).toMatchObject({
+      title: "朝の家事が3件残っています",
+      body: "ゴミ出し・食器洗い・インコの餌交換",
+      data: {
+        kind: "summary",
+        period: "morning",
+        localDate: "2026-08-13",
+        url: "/home"
+      }
+    });
+    expect(payloads[0].body).toBe(formatRemainingTaskTitles(home.tasks));
+  });
+
+  it("supports all canonical recurrence types through the Home projection", async () => {
+    const db = schedulerDb(null);
+    db.tasks.clear();
+    addSummaryTask(db, {
+      id: "once",
+      title: "一度だけ",
+      sortOrder: 1,
+      recurrenceType: "model_only",
+      modelRecurrenceType: "once",
+      targetDate: "2026-08-13"
+    });
+    addSummaryTask(db, {
+      id: "daily",
+      title: "毎日",
+      sortOrder: 2,
+      modelRecurrenceType: "daily"
+    });
+    addSummaryTask(db, {
+      id: "weekly-fixed",
+      title: "毎週固定",
+      sortOrder: 3,
+      recurrenceType: "model_only",
+      modelRecurrenceType: "weekly_fixed",
+      weekdays: [4]
+    });
+    addSummaryTask(db, {
+      id: "monthly-fixed",
+      title: "毎月固定",
+      sortOrder: 4,
+      recurrenceType: "model_only",
+      modelRecurrenceType: "monthly_fixed",
+      monthlyDayOfMonth: 13
+    });
+    addSummaryTask(db, {
+      id: "weekly-flexible",
+      title: "週内柔軟",
+      sortOrder: 5,
+      recurrenceType: "weekly",
+      modelRecurrenceType: "weekly_flexible",
+      weeklyDeadlineWeekday: 4
+    });
+    addSummaryTask(db, {
+      id: "monthly-flexible",
+      title: "月内柔軟",
+      sortOrder: 6,
+      recurrenceType: "model_only",
+      modelRecurrenceType: "monthly_flexible",
+      monthlyDeadlineType: "month_end"
+    });
+    db.notificationSettings.set("house-1:user-1", {
+      user_id: "user-1",
+      household_id: "house-1",
+      morning_summary_enabled: 1,
+      morning_summary_time: "09:00",
+      evening_summary_enabled: 0,
+      evening_summary_time: "21:00",
+      timezone: "Asia/Tokyo",
+      updated_at: "2026-01-01"
+    });
+    const payloads: Record<string, unknown>[] = [];
+    await new NotificationSchedulerService(db as unknown as D1Database, {
+      sendPayload: (_userId, _householdId, payload) => {
+        payloads.push(payload as Record<string, unknown>);
+        return Promise.resolve({ sent: 1, failed: 0 });
+      }
+    }).run({}, new Date("2026-08-13T00:05:00.000Z"));
+
+    expect(payloads[0]).toMatchObject({
+      title: "朝の家事が6件残っています",
+      body: "一度だけ・毎日・毎週固定・ほか3件"
+    });
+  });
+
+  it("keeps task-specific payloads distinct from summary payloads", async () => {
+    const legacyDb = schedulerDb("07:45");
+    const legacyPayloads: Record<string, unknown>[] = [];
+    await new NotificationSchedulerService(legacyDb as unknown as D1Database, {
+      sendPayload: (_userId, _householdId, payload) => {
+        legacyPayloads.push(payload as Record<string, unknown>);
+        return Promise.resolve({ sent: 1, failed: 0 });
+      }
+    }).run({}, new Date("2026-08-12T22:45:00.000Z"));
+
+    expect(legacyPayloads[0]).toEqual({
+      title: "家事の時間です",
+      body: "Task",
+      icon: "/icons/house-todo-v4-192.png",
+      data: { kind: "task", taskId: "task-1", url: "/tasks/task-1" }
+    });
+    expect(legacyPayloads[0].body).not.toContain("・");
+
+    const canonicalDb = schedulerDb(null);
+    addCanonicalTask(canonicalDb, {
+      notification_time: null,
+      deadline_time: "08:00",
+      notification_offset_minutes: 15
+    });
+    const canonicalPayloads: Record<string, unknown>[] = [];
+    await new NotificationSchedulerService(canonicalDb as unknown as D1Database, {
+      sendPayload: (_userId, _householdId, payload) => {
+        canonicalPayloads.push(payload as Record<string, unknown>);
+        return Promise.resolve({ sent: 1, failed: 0 });
+      }
+    }).run({}, new Date("2026-08-12T22:45:00.000Z"));
+
+    expect(canonicalPayloads[0]).toMatchObject({
+      title: "家事の時間です",
+      body: "Task",
+      data: { kind: "task", taskId: "task-1", url: "/tasks/task-1" }
+    });
+    expect(canonicalPayloads[0].body).not.toBe(
+      formatRemainingTaskTitles([{ title: "Task" }, { title: "別の家事" }])
+    );
+  });
+
+  it("delivers canonical reminders at the configured deadline minus offset", async () => {
+    const db = schedulerDb(null);
+    addCanonicalTask(db, {
+      notification_time: null,
+      deadline_time: "08:00",
+      notification_offset_minutes: 15
+    });
+    let attempts = 0;
+    const service = new NotificationSchedulerService(db as unknown as D1Database, {
+      sendPayload: () => {
+        attempts += 1;
+        return Promise.resolve({ sent: 1, failed: 0 });
+      }
+    });
+
+    await service.run({}, new Date("2026-08-12T22:44:00.000Z"));
+    expect(attempts).toBe(0);
+    await service.run({}, new Date("2026-08-12T22:45:00.000Z"));
+    expect(attempts).toBe(1);
+    await service.run({}, new Date("2026-08-12T22:50:00.000Z"));
+    expect(attempts).toBe(1);
+  });
+
+  it("delivers zero-offset and non-five-minute canonical reminder times", async () => {
+    const zeroOffsetDb = schedulerDb(null);
+    addCanonicalTask(zeroOffsetDb, {
+      notification_time: null,
+      deadline_time: "08:00",
+      notification_offset_minutes: 0
+    });
+    let zeroOffsetAttempts = 0;
+    const zeroOffsetService = new NotificationSchedulerService(
+      zeroOffsetDb as unknown as D1Database,
+      {
+        sendPayload: () => {
+          zeroOffsetAttempts += 1;
+          return Promise.resolve({ sent: 1, failed: 0 });
+        }
+      }
+    );
+    await zeroOffsetService.run({}, new Date("2026-08-12T22:59:00.000Z"));
+    await zeroOffsetService.run({}, new Date("2026-08-12T23:00:00.000Z"));
+    expect(zeroOffsetAttempts).toBe(1);
+
+    const nonFiveMinuteDb = schedulerDb(null);
+    addCanonicalTask(nonFiveMinuteDb, {
+      notification_time: null,
+      deadline_time: "08:07",
+      notification_offset_minutes: 0
+    });
+    let nonFiveMinuteAttempts = 0;
+    const nonFiveMinuteService = new NotificationSchedulerService(
+      nonFiveMinuteDb as unknown as D1Database,
+      {
+        sendPayload: () => {
+          nonFiveMinuteAttempts += 1;
+          return Promise.resolve({ sent: 1, failed: 0 });
+        }
+      }
+    );
+    await nonFiveMinuteService.run({}, new Date("2026-08-12T23:05:00.000Z"));
+    expect(nonFiveMinuteAttempts).toBe(0);
+    await nonFiveMinuteService.run({}, new Date("2026-08-12T23:07:00.000Z"));
+    expect(nonFiveMinuteAttempts).toBe(1);
+  });
+
+  it("suppresses task-specific reminders for completed or skipped occurrences", async () => {
+    for (const status of ["completed", "skipped", undefined] as const) {
+      const db = schedulerDb(null);
+      addCanonicalTask(db, {
+        notification_time: null,
+        deadline_time: "08:00",
+        notification_offset_minutes: 0
+      });
+      if (status) {
+        db.taskRecords.set(`record-${status}`, {
+          id: `record-${status}`,
+          household_id: "house-1",
+          task_id: "task-1",
+          target_date: "2026-08-13",
+          target_week_start: null,
+          status,
+          acted_by: "user-1",
+          started_at: null,
+          completed_at: status === "completed" ? "2026-08-13T01:00:00.000Z" : null,
+          skipped_at: status === "skipped" ? "2026-08-13T01:00:00.000Z" : null,
+          note: null,
+          created_at: "2026-08-13T01:00:00.000Z",
+          updated_at: "2026-08-13T01:00:00.000Z"
+        });
+      }
+      let attempts = 0;
+      await new NotificationSchedulerService(db as unknown as D1Database, {
+        sendPayload: () => {
+          attempts += 1;
+          return Promise.resolve({ sent: 1, failed: 0 });
+        }
+      }).run({}, new Date("2026-08-12T23:00:00.000Z"));
+      expect(attempts).toBe(status ? 0 : 1);
+    }
+  });
+
+  it("sends summaries to each enabled household member regardless of task assignment", async () => {
+    const db = schedulerDb(null);
+    addSummaryTask(db, {
+      id: "assigned-task",
+      title: "担当家事",
+      sortOrder: 1,
+      assignmentType: "specific",
+      assignedUserId: "user-2"
+    });
+    db.users.set("user-2", {
+      id: "user-2",
+      email: "second@example.com",
+      password_hash: "hash",
+      display_name: "Second",
+      created_at: "2026-01-01",
+      updated_at: "2026-01-01"
+    });
+    db.members.set("house-1:user-2", {
+      household_id: "house-1",
+      user_id: "user-2",
+      role: "member",
+      color: null,
+      joined_at: "2026-01-01"
+    });
+    for (const userId of ["user-1", "user-2"]) {
+      db.notificationSettings.set(`house-1:${userId}`, {
+        user_id: userId,
+        household_id: "house-1",
+        morning_summary_enabled: 1,
+        morning_summary_time: "09:00",
+        evening_summary_enabled: 0,
+        evening_summary_time: "21:00",
+        timezone: "Asia/Tokyo",
+        updated_at: "2026-01-01"
+      });
+    }
+    const sentUsers: string[] = [];
+    await new NotificationSchedulerService(db as unknown as D1Database, {
+      sendPayload: (userId) => {
+        sentUsers.push(userId);
+        return Promise.resolve({ sent: 1, failed: 0 });
+      }
+    }).run({}, new Date("2026-08-13T00:05:00.000Z"));
+
+    expect(sentUsers).toEqual(["user-1", "user-2"]);
+  });
+
+  it("does not retry a summary after a partial device success", async () => {
+    const db = schedulerDb(null);
+    db.notificationSettings.set("house-1:user-1", {
+      user_id: "user-1",
+      household_id: "house-1",
+      morning_summary_enabled: 1,
+      morning_summary_time: "09:00",
+      evening_summary_enabled: 0,
+      evening_summary_time: "21:00",
+      timezone: "Asia/Tokyo",
+      updated_at: "2026-01-01"
+    });
+    let attempts = 0;
+    const service = new NotificationSchedulerService(db as unknown as D1Database, {
+      sendPayload: () => {
+        attempts += 1;
+        return Promise.resolve({ sent: 1, failed: 1 });
+      }
+    });
+
+    await service.run({}, new Date("2026-08-13T00:05:00.000Z"));
+    await service.run({}, new Date("2026-08-13T00:10:00.000Z"));
+
+    expect(attempts).toBe(1);
+    expect(Array.from(db.notificationDeliveries.values())).toMatchObject([
+      { notification_type: "morning_summary", status: "sent" }
+    ]);
+  });
+
+  it("continues with another household when one household fails", async () => {
+    const db = schedulerDb(null);
+    db.households.set("house-2", {
+      id: "house-2",
+      name: "Second House",
+      timezone: "Asia/Tokyo",
+      week_starts_on: 1,
+      created_by: "user-2",
+      created_at: "2026-01-01",
+      updated_at: "2026-01-01"
+    });
+    db.users.set("user-2", {
+      id: "user-2",
+      email: "second@example.com",
+      password_hash: "hash",
+      display_name: "Second",
+      created_at: "2026-01-01",
+      updated_at: "2026-01-01"
+    });
+    db.members.set("house-2:user-2", {
+      household_id: "house-2",
+      user_id: "user-2",
+      role: "owner",
+      color: null,
+      joined_at: "2026-01-01"
+    });
+    addSummaryTask(db, {
+      id: "task-2",
+      householdId: "house-2",
+      title: "Second house task",
+      sortOrder: 1
+    });
+    db.notificationSettings.set("house-2:user-2", {
+      user_id: "user-2",
+      household_id: "house-2",
+      morning_summary_enabled: 1,
+      morning_summary_time: "09:00",
+      evening_summary_enabled: 0,
+      evening_summary_time: "21:00",
+      timezone: "Asia/Tokyo",
+      updated_at: "2026-01-01"
+    });
+    const repositories = createNotificationSchedulerRepositories(
+      db as unknown as D1Database
+    );
+    const originalList = repositories.tasks.listByHouseholdId.bind(repositories.tasks);
+    repositories.tasks.listByHouseholdId = async (householdId, options) => {
+      if (householdId === "house-1") throw new Error("household query failed");
+      return originalList(householdId, options);
+    };
+    const sentUsers: string[] = [];
+    await new NotificationSchedulerService(
+      db as unknown as D1Database,
+      {
+        sendPayload: (userId) => {
+          sentUsers.push(userId);
+          return Promise.resolve({ sent: 1, failed: 0 });
+        }
+      },
+      repositories
+    ).run({}, new Date("2026-08-13T00:05:00.000Z"));
+
+    expect(sentUsers).toEqual(["user-2"]);
   });
 
   it("resolves canonical fixed reminders from the shared scope resolver", () => {
@@ -648,6 +1170,72 @@ describe("notification scheduler rules", () => {
     expect(attempts).toBe(2);
   });
 
+  it("deduplicates one morning slot, permits a changed time, and sends on the next date", async () => {
+    const db = schedulerDb(null);
+    db.notificationSettings.set("house-1:user-1", {
+      user_id: "user-1",
+      household_id: "house-1",
+      morning_summary_enabled: 1,
+      morning_summary_time: "09:00",
+      evening_summary_enabled: 0,
+      evening_summary_time: "21:00",
+      timezone: "Asia/Tokyo",
+      updated_at: "2026-01-01"
+    });
+    let attempts = 0;
+    const service = new NotificationSchedulerService(db as unknown as D1Database, {
+      sendPayload: () => {
+        attempts += 1;
+        return Promise.resolve({ sent: 1, failed: 0 });
+      }
+    });
+
+    await service.run({}, new Date("2026-09-02T00:00:00.000Z"));
+    await service.run({}, new Date("2026-09-02T00:05:00.000Z"));
+    expect(attempts).toBe(1);
+    db.notificationSettings.get("house-1:user-1")!.morning_summary_time = "20:30";
+    await service.run({}, new Date("2026-09-02T11:30:00.000Z"));
+    expect(attempts).toBe(2);
+    await service.run({}, new Date("2026-09-03T11:30:00.000Z"));
+    expect(attempts).toBe(3);
+    expect(
+      Array.from(db.notificationDeliveries.values()).map((row) => row.target_key)
+    ).toEqual(["2026-09-02:09:00", "2026-09-02:20:30", "2026-09-03:20:30"]);
+  });
+
+  it("deduplicates one evening slot, permits a changed time, and sends on the next date", async () => {
+    const db = schedulerDb(null);
+    db.notificationSettings.set("house-1:user-1", {
+      user_id: "user-1",
+      household_id: "house-1",
+      morning_summary_enabled: 0,
+      morning_summary_time: "09:00",
+      evening_summary_enabled: 1,
+      evening_summary_time: "21:00",
+      timezone: "Asia/Tokyo",
+      updated_at: "2026-01-01"
+    });
+    let attempts = 0;
+    const service = new NotificationSchedulerService(db as unknown as D1Database, {
+      sendPayload: () => {
+        attempts += 1;
+        return Promise.resolve({ sent: 1, failed: 0 });
+      }
+    });
+
+    await service.run({}, new Date("2026-09-02T12:00:00.000Z"));
+    await service.run({}, new Date("2026-09-02T12:05:00.000Z"));
+    expect(attempts).toBe(1);
+    db.notificationSettings.get("house-1:user-1")!.evening_summary_time = "20:30";
+    await service.run({}, new Date("2026-09-02T11:30:00.000Z"));
+    expect(attempts).toBe(2);
+    await service.run({}, new Date("2026-09-03T11:30:00.000Z"));
+    expect(attempts).toBe(3);
+    expect(
+      Array.from(db.notificationDeliveries.values()).map((row) => row.target_key)
+    ).toEqual(["2026-09-02:21:00", "2026-09-02:20:30", "2026-09-03:20:30"]);
+  });
+
   it("delivers morning and evening summaries independently in the configured timezone", async () => {
     const db = schedulerDb(null);
     db.notificationSettings.set("house-1:user-1", {
@@ -668,12 +1256,15 @@ describe("notification scheduler rules", () => {
       }
     });
     await service.run({}, new Date("2026-08-13T00:00:00.000Z"));
-    expect(sentTypes).toEqual(["今日の家事"]);
+    expect(sentTypes).toEqual(["朝の家事が1件残っています"]);
     await service.run({}, new Date("2026-08-13T12:00:00.000Z"));
-    expect(sentTypes).toEqual(["今日の家事"]);
+    expect(sentTypes).toEqual(["朝の家事が1件残っています"]);
     db.notificationSettings.get("house-1:user-1")!.evening_summary_enabled = 1;
     await service.run({}, new Date("2026-08-13T12:05:00.000Z"));
-    expect(sentTypes).toEqual(["今日の家事", "今日のやり残し"]);
+    expect(sentTypes).toEqual([
+      "朝の家事が1件残っています",
+      "今日の家事が1件残っています"
+    ]);
   });
 
   it("does not send an evening summary when all tasks are complete", async () => {
