@@ -1170,6 +1170,72 @@ describe("notification scheduler rules", () => {
     expect(attempts).toBe(2);
   });
 
+  it("deduplicates one morning slot, permits a changed time, and sends on the next date", async () => {
+    const db = schedulerDb(null);
+    db.notificationSettings.set("house-1:user-1", {
+      user_id: "user-1",
+      household_id: "house-1",
+      morning_summary_enabled: 1,
+      morning_summary_time: "09:00",
+      evening_summary_enabled: 0,
+      evening_summary_time: "21:00",
+      timezone: "Asia/Tokyo",
+      updated_at: "2026-01-01"
+    });
+    let attempts = 0;
+    const service = new NotificationSchedulerService(db as unknown as D1Database, {
+      sendPayload: () => {
+        attempts += 1;
+        return Promise.resolve({ sent: 1, failed: 0 });
+      }
+    });
+
+    await service.run({}, new Date("2026-09-02T00:00:00.000Z"));
+    await service.run({}, new Date("2026-09-02T00:05:00.000Z"));
+    expect(attempts).toBe(1);
+    db.notificationSettings.get("house-1:user-1")!.morning_summary_time = "20:30";
+    await service.run({}, new Date("2026-09-02T11:30:00.000Z"));
+    expect(attempts).toBe(2);
+    await service.run({}, new Date("2026-09-03T11:30:00.000Z"));
+    expect(attempts).toBe(3);
+    expect(
+      Array.from(db.notificationDeliveries.values()).map((row) => row.target_key)
+    ).toEqual(["2026-09-02:09:00", "2026-09-02:20:30", "2026-09-03:20:30"]);
+  });
+
+  it("deduplicates one evening slot, permits a changed time, and sends on the next date", async () => {
+    const db = schedulerDb(null);
+    db.notificationSettings.set("house-1:user-1", {
+      user_id: "user-1",
+      household_id: "house-1",
+      morning_summary_enabled: 0,
+      morning_summary_time: "09:00",
+      evening_summary_enabled: 1,
+      evening_summary_time: "21:00",
+      timezone: "Asia/Tokyo",
+      updated_at: "2026-01-01"
+    });
+    let attempts = 0;
+    const service = new NotificationSchedulerService(db as unknown as D1Database, {
+      sendPayload: () => {
+        attempts += 1;
+        return Promise.resolve({ sent: 1, failed: 0 });
+      }
+    });
+
+    await service.run({}, new Date("2026-09-02T12:00:00.000Z"));
+    await service.run({}, new Date("2026-09-02T12:05:00.000Z"));
+    expect(attempts).toBe(1);
+    db.notificationSettings.get("house-1:user-1")!.evening_summary_time = "20:30";
+    await service.run({}, new Date("2026-09-02T11:30:00.000Z"));
+    expect(attempts).toBe(2);
+    await service.run({}, new Date("2026-09-03T11:30:00.000Z"));
+    expect(attempts).toBe(3);
+    expect(
+      Array.from(db.notificationDeliveries.values()).map((row) => row.target_key)
+    ).toEqual(["2026-09-02:21:00", "2026-09-02:20:30", "2026-09-03:20:30"]);
+  });
+
   it("delivers morning and evening summaries independently in the configured timezone", async () => {
     const db = schedulerDb(null);
     db.notificationSettings.set("house-1:user-1", {

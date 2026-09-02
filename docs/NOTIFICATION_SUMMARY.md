@@ -81,6 +81,8 @@ Summary設定のIANA timezoneで09:00/21:00のslotを判定する。日付のtas
 
 5分Cronと20分windowの組み合わせにより、Summaryは各local slotを少なくとも一度評価し、task-specific reminderもpollingによる遅延を概ね0〜5分に抑える。同じuser/household/period/local dateまたはtask occurrenceのdelivery keyは既存の`notification_deliveries` unique keyで重複を防ぐ。
 
+Summaryのdelivery keyは`{scheduledDate}:{scheduledTime}`（例:`2026-09-02:09:00`）で、実際のCron実行時刻は含めない。同じ設定slotの09:00/09:05/09:10は同一slotとして重複を拒否する一方、同じ日に09:00から20:30へ明示的に設定変更した場合は別slotとして評価できる。既存の旧形式（日付のみ）のdelivery rowは履歴として残るが、新形式のslot keyとは一致しない。
+
 ## Duplicate and failure handling
 
 - Delivery claimは`(user_id, household_id, notification_type, target_key)`のunique keyと10分leaseを使用する。
@@ -97,7 +99,7 @@ per-subscription delivery stateやschema変更はN1では追加しない。そ�
 - Worker: `house-to-do-staging`
 - D1: `house-to-do-staging`
 - D1 ID: `17e73ab2-78e1-4e18-87d4-21a4ccef3216`
-- Cron: `*/15 * * * *` UTC
+- Cron: `*/5 * * * *` UTC
 - Expected secret names: `WEB_PUSH_VAPID_PUBLIC_KEY`, `WEB_PUSH_VAPID_PRIVATE_KEY`, `WEB_PUSH_SUBJECT`
 - No VAPID secret values are stored in this document.
 

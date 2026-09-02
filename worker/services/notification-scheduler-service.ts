@@ -344,7 +344,7 @@ export class NotificationSchedulerService {
             setting.userId,
             household.id,
             summary.type,
-            schedule.scheduledDate,
+            `${schedule.scheduledDate}:${schedule.scheduledTime}`,
             now,
             {
               title: summaryTitle(summary.period, remainingTasks.length),
