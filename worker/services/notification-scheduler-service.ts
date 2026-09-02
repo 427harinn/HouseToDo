@@ -7,7 +7,8 @@ import {
 } from "../lib/date-time";
 import { projectTaskOnDate, type TaskScope } from "../lib/task-model";
 import { createNotificationSchedulerRepositories } from "../repositories/notification-scheduler-repository";
-import type { Task } from "../types/domain";
+import type { Household, Task } from "../types/domain";
+import { TaskService } from "./task-service";
 import { WebPushService } from "./web-push-service";
 
 export const isTaskDueToday = (task: Task, dateKey: string): boolean =>
@@ -19,6 +20,24 @@ export const isIncomplete = (status: string | undefined): boolean =>
   status !== "completed" && status !== "skipped";
 
 export const NOTIFICATION_DELIVERY_WINDOW_MINUTES = 20;
+
+export type SummaryPeriod = "morning" | "evening";
+
+const normalizeTaskTitle = (title: string): string =>
+  title.replace(/\s+/gu, " ").trim() || "家事";
+
+export const formatRemainingTaskTitles = (
+  tasks: Array<Pick<Task, "title">>
+): string => {
+  const titles = tasks.map((task) => normalizeTaskTitle(task.title));
+  if (titles.length <= 3) return titles.join("・");
+  return `${titles.slice(0, 3).join("・")}・ほか${titles.length - 3}件`;
+};
+
+export const summaryTitle = (period: SummaryPeriod, count: number): string =>
+  period === "morning"
+    ? `朝の家事が${count}件残っています`
+    : `今日の家事が${count}件残っています`;
 
 type ScheduledNotification = {
   scheduledDate: string;
@@ -106,14 +125,14 @@ export const resolveCanonicalNotifications = (
 type SchedulerRepositories = ReturnType<typeof createNotificationSchedulerRepositories>;
 
 type NotificationPushSender = Pick<WebPushService, "sendPayload">;
+type HomeProjector = Pick<TaskService, "listHomeForHousehold">;
 
 export class NotificationSchedulerService {
   constructor(
     private readonly db: D1Database,
     private readonly push: NotificationPushSender = new WebPushService(db),
-    private readonly repositories: SchedulerRepositories = createNotificationSchedulerRepositories(
-      db
-    )
+    private readonly repositories: SchedulerRepositories = createNotificationSchedulerRepositories(db),
+    private readonly home: HomeProjector = new TaskService(db)
   ) {}
 
   async run(
@@ -122,6 +141,26 @@ export class NotificationSchedulerService {
   ): Promise<void> {
     const now = at.toISOString();
     for (const household of await this.repositories.households.listAll()) {
+      try {
+        await this.runForHousehold(env, household, at, now);
+      } catch (error) {
+        console.error(
+          JSON.stringify({
+            event: "notification_scheduler_household_failed",
+            householdId: household.id,
+            errorName: error instanceof Error ? error.name : "UnknownError"
+          })
+        );
+      }
+    }
+  }
+
+  private async runForHousehold(
+    env: Parameters<WebPushService["sendTest"]>[2],
+    household: Household,
+    at: Date,
+    now: string
+  ): Promise<void> {
       const tasks = await this.repositories.tasks.listByHouseholdId(household.id);
       const legacyScheduledTasks = tasks
         .filter((task) => !task.modelRecurrenceType)
@@ -148,7 +187,7 @@ export class NotificationSchedulerService {
           )
         );
       const recordsByDate = new Map<string, Map<string, string>>();
-      const getIncompleteTasksForDate = async (dateKey: string): Promise<Task[]> => {
+      const getLegacyIncompleteTasksForDate = async (dateKey: string): Promise<Task[]> => {
         if (!recordsByDate.has(dateKey)) {
           const records = await this.repositories.records.listDailyRecords(
             household.id,
@@ -168,7 +207,7 @@ export class NotificationSchedulerService {
       for (const dateKey of new Set(
         legacyScheduledTasks.map((item) => item.schedule.scheduledDate)
       )) {
-        await getIncompleteTasksForDate(dateKey);
+        await getLegacyIncompleteTasksForDate(dateKey);
       }
       const dueLegacyTasks = legacyScheduledTasks.filter((item) =>
         isIncomplete(recordsByDate.get(item.schedule.scheduledDate)?.get(item.task.id))
@@ -252,21 +291,33 @@ export class NotificationSchedulerService {
       const settings = (await this.repositories.settings.listEnabled()).filter(
         (setting) => setting.householdId === household.id
       );
+      const homeByDate = new Map<
+        string,
+        ReturnType<HomeProjector["listHomeForHousehold"]>
+      >();
+      const getHomeForDate = (dateKey: string) => {
+        const cached = homeByDate.get(dateKey);
+        if (cached) return cached;
+        const home = this.home.listHomeForHousehold(
+          { ...household, role: "owner" },
+          dateKey
+        );
+        homeByDate.set(dateKey, home);
+        return home;
+      };
       for (const setting of settings) {
         const summarySchedules = [
           {
             enabled: setting.morningSummaryEnabled,
             time: setting.morningSummaryTime,
-            type: "morning_summary",
-            title: "今日の家事",
-            body: "今日の家事を確認しましょう"
+            period: "morning" as const,
+            type: "morning_summary" as const
           },
           {
             enabled: setting.eveningSummaryEnabled,
             time: setting.eveningSummaryTime,
-            type: "evening_summary",
-            title: "今日のやり残し",
-            body: "今日のやり残しを確認しましょう"
+            period: "evening" as const,
+            type: "evening_summary" as const
           }
         ];
         for (const summary of summarySchedules) {
@@ -277,10 +328,9 @@ export class NotificationSchedulerService {
             summary.time
           );
           if (!schedule) continue;
-          const incompleteTasks = await getIncompleteTasksForDate(
-            schedule.scheduledDate
-          );
-          if (incompleteTasks.length === 0) continue;
+          const home = await getHomeForDate(schedule.scheduledDate);
+          const remainingTasks = home.tasks;
+          if (remainingTasks.length === 0) continue;
           await this.deliver(
             env,
             setting.userId,
@@ -289,18 +339,19 @@ export class NotificationSchedulerService {
             schedule.scheduledDate,
             now,
             {
-              title: summary.title,
-              body:
-                summary.type === "evening_summary"
-                  ? `未完了の家事が${incompleteTasks.length}件あります`
-                  : `今日の家事が${incompleteTasks.length}件あります`,
+              title: summaryTitle(summary.period, remainingTasks.length),
+              body: formatRemainingTaskTitles(remainingTasks),
               icon: "/icons/house-todo-v4-192.png",
-              data: { url: "/" }
+              data: {
+                kind: "summary",
+                period: summary.period,
+                localDate: schedule.scheduledDate,
+                url: "/home"
+              }
             }
           );
         }
       }
-    }
   }
 
   private async deliver(
