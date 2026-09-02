@@ -1,6 +1,7 @@
 import type { CalendarDateMarker, CalendarMarkersResponse, CalendarSelectedResponse, CalendarShoppingItem, TodayTask } from "../api/tasks";
 import {
   clearCalendarSnapshotRecords,
+  deleteCalendarShoppingDateRecords,
   readCalendarDaySnapshotRecord,
   readCalendarRangeSnapshotRecord,
   writeCalendarDaySnapshotRecord,
@@ -27,6 +28,7 @@ export type CalendarDaySnapshotIdentity = {
   timezone: string;
   selectedDate: string;
 };
+export type CalendarShoppingInvalidationIdentity = Pick<CalendarDaySnapshotIdentity, "userId" | "householdId" | "timezone">;
 
 const memoryRanges = new Map<string, CalendarRangeSnapshotRecord>();
 const memoryDays = new Map<string, CalendarDaySnapshotRecord>();
@@ -175,5 +177,23 @@ export const clearCalendarSnapshots = async (): Promise<void> => {
     await clearCalendarSnapshotRecords();
   } catch {
     // Logout must not be blocked by an unavailable IndexedDB implementation.
+  }
+};
+
+/** Invalidate only Calendar marker/day snapshots whose Shopping projection includes date. */
+export const invalidateCalendarShoppingDate = async (identity: CalendarShoppingInvalidationIdentity, date: string | null | undefined): Promise<void> => {
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+  cacheEpoch += 1;
+  for (const [key, record] of memoryRanges) {
+    if (record.userId === identity.userId && record.householdId === identity.householdId && record.timezone === identity.timezone && record.from <= date && record.to >= date) memoryRanges.delete(key);
+  }
+  for (const [key, record] of memoryDays) {
+    if (record.userId === identity.userId && record.householdId === identity.householdId && record.timezone === identity.timezone && record.selectedDate === date) memoryDays.delete(key);
+  }
+  latestRequestSequences.clear();
+  try {
+    await deleteCalendarShoppingDateRecords(identity, date);
+  } catch {
+    // IndexedDB invalidation is best effort; the incremented epoch protects in-flight writes.
   }
 };

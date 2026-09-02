@@ -140,3 +140,30 @@ export const clearCalendarSnapshotRecords = async (): Promise<void> => {
   });
   return closeAfter(database, operation);
 };
+
+export const deleteCalendarShoppingDateRecords = async (identity: { userId: string; householdId: string; timezone: string }, date: string): Promise<void> => {
+  const database = await openDatabase();
+  const operation = new Promise<void>((resolve, reject) => {
+    const transaction = database.transaction([CALENDAR_RANGE_STORE_NAME, CALENDAR_DAY_STORE_NAME], "readwrite");
+    const rangeStore = transaction.objectStore(CALENDAR_RANGE_STORE_NAME);
+    const dayStore = transaction.objectStore(CALENDAR_DAY_STORE_NAME);
+    const rangeRequest = rangeStore.getAll();
+    const dayRequest = dayStore.getAll();
+    rangeRequest.onsuccess = () => {
+      (rangeRequest.result as CalendarRangeSnapshotRecord[])
+        .filter((record) => record.userId === identity.userId && record.householdId === identity.householdId && record.timezone === identity.timezone && record.from <= date && record.to >= date)
+        .forEach((record) => rangeStore.delete(record.key));
+    };
+    dayRequest.onsuccess = () => {
+      (dayRequest.result as CalendarDaySnapshotRecord[])
+        .filter((record) => record.userId === identity.userId && record.householdId === identity.householdId && record.timezone === identity.timezone && record.selectedDate === date)
+        .forEach((record) => dayStore.delete(record.key));
+    };
+    rangeRequest.onerror = () => transaction.abort();
+    dayRequest.onerror = () => transaction.abort();
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error ?? new Error("IndexedDB invalidation failed"));
+    transaction.onabort = () => reject(transaction.error ?? new Error("IndexedDB invalidation aborted"));
+  });
+  return closeAfter(database, operation);
+};

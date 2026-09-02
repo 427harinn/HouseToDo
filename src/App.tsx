@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
 import type { ChangeEvent } from "react";
 import type { ReactNode } from "react";
 import { Check, ChevronLeft, ChevronRight, Ellipsis, House, Image as ImageIcon, MessageCircle, ShoppingCart, X } from "lucide-react";
@@ -24,6 +24,7 @@ import {
   deleteShoppingItemImage,
   type CreateShoppingItemInput,
   type ShoppingItem,
+  type ShoppingItemList,
   type ShoppingRecentItem,
   type ShoppingTemplate,
   type UpdateShoppingItemInput
@@ -108,6 +109,24 @@ import {
   type HomeSnapshotIdentity
 } from "./cache/home-snapshot";
 import {
+  clearShoppingSnapshots,
+  mergeServerConfirmedShoppingItem,
+  readMemoryShoppingSnapshot,
+  readPersistentShoppingSnapshot,
+  getShoppingSnapshotEpoch,
+  removeServerConfirmedShoppingItem,
+  shoppingSnapshotKey,
+  writeServerConfirmedShoppingSnapshot,
+  type ShoppingSnapshotIdentity
+} from "./cache/shopping-snapshot";
+import {
+  clearMemoryShoppingSupport,
+  readMemoryShoppingMembers,
+  readMemoryShoppingTemplates,
+  writeMemoryShoppingMembers,
+  writeMemoryShoppingTemplates
+} from "./cache/shopping-support";
+import {
   calendarDaySnapshotKey,
   calendarRangeSnapshotKey,
   getCalendarSnapshotEpoch,
@@ -121,9 +140,19 @@ import {
   writeServerConfirmedCalendarRangeSnapshot,
   clearCalendarSnapshots,
   clearMemoryCalendarSnapshots,
+  invalidateCalendarShoppingDate,
   type CalendarDaySnapshotIdentity,
   type CalendarRangeSnapshotIdentity
 } from "./cache/calendar-snapshot";
+import {
+  createShoppingMutation,
+  hasShoppingMutationForItem,
+  mergeShoppingItem,
+  projectShoppingList,
+  removeShoppingMutation,
+  rollbackShoppingMutation,
+  type ShoppingMutation
+} from "./shopping-local-first";
 import type {
   AuthState,
   AuthUser,
@@ -171,6 +200,7 @@ type HomeBootstrapRequest = {
 const HOME_REFRESH_STATUS = "最新情報を確認しています。";
 const HOME_REFRESH_STATUS_SHOW_DELAY_MS = 500;
 const HOME_REFRESH_STATUS_MIN_VISIBLE_MS = 400;
+const SHOPPING_REFRESH_STATUS = "買い物リストを更新しています。";
 
 const staticRoutes = new Set<StaticRoute>([
   "/",
@@ -452,6 +482,8 @@ export function App() {
       invalidateHomeBootstrap();
       await clearHomeSnapshots();
       await clearCalendarSnapshots();
+      await clearShoppingSnapshots();
+      clearMemoryShoppingSupport();
       setAuth({ status: "unauthenticated" });
       setHousehold({ status: "idle" });
       navigate("/login", true);
@@ -2192,54 +2224,138 @@ const memberName = (members: HouseholdMember[], userId: string | null | undefine
 const shoppingPurchaseDateTime = (value: string | null, timezone: string) =>
   formatDateTimeInTimezone(value, timezone);
 
-function useShoppingData() {
-  const [pending, setPending] = useState<ShoppingItem[]>([]);
-  const [purchased, setPurchased] = useState<ShoppingItem[]>([]);
-  const [templates, setTemplates] = useState<ShoppingTemplate[]>([]);
-  const [members, setMembers] = useState<HouseholdMember[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState("");
-  const refresh = useCallback(async (signal?: AbortSignal) => {
-    setLoading(true);
-    setMessage("");
-    try {
-      const [itemsResult, templatesResult, membersResult] = await Promise.all([
-        listShoppingItems(signal),
-        listShoppingTemplates(signal),
-        listMembers(signal)
-      ]);
-      setPending(itemsResult.pending);
-      setPurchased(itemsResult.purchased);
-      setTemplates(templatesResult.templates.filter((template) => template.active));
-      setMembers(membersResult.members);
-    } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") return;
-      setMessage(shoppingErrorMessage(error));
-    } finally {
-      if (!signal?.aborted) setLoading(false);
-    }
+function useShoppingData(user: AuthUser, household: Household) {
+  const identity = useMemo<ShoppingSnapshotIdentity>(() => ({ userId: user.id, householdId: household.id }), [user.id, household.id]);
+  const identityKey = shoppingSnapshotKey(identity);
+  const initialMemory = readMemoryShoppingSnapshot(identity);
+  const [state, setState] = useState(() => ({
+    data: initialMemory,
+    loading: initialMemory === null,
+    refreshing: true,
+    message: "",
+    source: initialMemory ? "memory" : "none" as "memory" | "indexeddb" | "server" | "none",
+    hasAuthoritativeSync: false,
+    authoritativeRevision: 0
+  }));
+  const [templates, setTemplates] = useState<ShoppingTemplate[]>(() => readMemoryShoppingTemplates(identity) ?? []);
+  const [members, setMembers] = useState<HouseholdMember[]>(() => readMemoryShoppingMembers(identity) ?? []);
+  const stateRef = useRef(state);
+  const generationRef = useRef(0);
+  const requestSequenceRef = useRef(0);
+  const latestStartedRef = useRef(0);
+  const mutationRevisionRef = useRef(0);
+  const controllersRef = useRef(new Set<AbortController>());
+  stateRef.current = state;
+
+  const setCurrentState = useCallback((next: typeof state) => {
+    stateRef.current = next;
+    setState(next);
   }, []);
-  useEffect(() => {
+
+  const refreshItems = useCallback(async (): Promise<ShoppingItemList | null> => {
+    const generation = generationRef.current;
+    const sequence = ++requestSequenceRef.current;
+    latestStartedRef.current = sequence;
+    const mutationRevision = mutationRevisionRef.current;
+    const requestEpoch = getShoppingSnapshotEpoch();
     const controller = new AbortController();
-    void refresh(controller.signal);
-    const onVisible = () => {
-      if (document.visibilityState === "visible") void refresh();
-    };
+    controllersRef.current.add(controller);
+    setState((current) => {
+      const next = { ...current, loading: current.data === null, refreshing: true, message: "" };
+      stateRef.current = next;
+      return next;
+    });
+    try {
+      const nextData = await listShoppingItems(controller.signal);
+      if (generationRef.current !== generation || sequence !== latestStartedRef.current || mutationRevision !== mutationRevisionRef.current || requestEpoch !== getShoppingSnapshotEpoch()) return null;
+      const next = { ...stateRef.current, data: nextData, loading: false, refreshing: false, message: "", source: "server" as const, hasAuthoritativeSync: true, authoritativeRevision: stateRef.current.authoritativeRevision + 1 };
+      setCurrentState(next);
+      void writeServerConfirmedShoppingSnapshot(identity, nextData, requestEpoch);
+      return nextData;
+    } catch (error) {
+      if (generationRef.current !== generation || sequence !== latestStartedRef.current) return null;
+      if (error instanceof DOMException && error.name === "AbortError") return null;
+      setState((current) => {
+        const next = { ...current, loading: false, refreshing: false, message: shoppingErrorMessage(error) };
+        stateRef.current = next;
+        return next;
+      });
+      return null;
+    } finally {
+      controllersRef.current.delete(controller);
+    }
+  }, [identity, setCurrentState]);
+
+  const startMutation = useCallback(() => {
+    mutationRevisionRef.current += 1;
+    return mutationRevisionRef.current;
+  }, []);
+
+  const applyServerConfirmedItem = useCallback(async (item: ShoppingItem) => {
+    const current = stateRef.current.data;
+    if (!current) return;
+    const nextData = mergeShoppingItem(current, item);
+    setCurrentState({ ...stateRef.current, data: nextData, source: "server" });
+    await mergeServerConfirmedShoppingItem(identity, item);
+  }, [identity, setCurrentState]);
+
+  const rollbackItem = useCallback((mutation: ShoppingMutation) => {
+    const current = stateRef.current.data;
+    if (!current) return;
+    const nextData = rollbackShoppingMutation(current, mutation);
+    setCurrentState({ ...stateRef.current, data: nextData });
+  }, [setCurrentState]);
+
+  useEffect(() => {
+    const generation = ++generationRef.current;
+    mutationRevisionRef.current = 0;
+    const memory = readMemoryShoppingSnapshot(identity);
+      setCurrentState({ data: memory, loading: memory === null, refreshing: true, message: "", source: memory ? "memory" : "none", hasAuthoritativeSync: false, authoritativeRevision: 0 });
+    const readEpoch = getShoppingSnapshotEpoch();
+    const persistentRead = memory ? Promise.resolve(null) : readPersistentShoppingSnapshot(identity);
+    void persistentRead.then((cached) => {
+      if (!cached || generationRef.current !== generation || readEpoch !== getShoppingSnapshotEpoch() || stateRef.current.hasAuthoritativeSync) return;
+      setCurrentState({ ...stateRef.current, data: cached, loading: false, source: "indexeddb" });
+    });
+    void refreshItems();
+
+    const cachedTemplates = readMemoryShoppingTemplates(identity);
+    if (cachedTemplates) setTemplates(cachedTemplates);
+    else void listShoppingTemplates().then((result) => { const active = result.templates.filter((template) => template.active); writeMemoryShoppingTemplates(identity, active); setTemplates(active); }).catch(() => undefined);
+    const cachedMembers = readMemoryShoppingMembers(identity);
+    if (cachedMembers) setMembers(cachedMembers);
+    else void listMembers().then((result) => { writeMemoryShoppingMembers(identity, result.members); setMembers(result.members); }).catch(() => undefined);
+
+    const onVisible = () => { if (document.visibilityState === "visible") void refreshItems(); };
     document.addEventListener("visibilitychange", onVisible);
+    const activeControllers = controllersRef.current;
     return () => {
-      controller.abort();
       document.removeEventListener("visibilitychange", onVisible);
+      activeControllers.forEach((controller) => controller.abort());
+      activeControllers.clear();
     };
-  }, [refresh]);
+  }, [identityKey, refreshItems, identity, setCurrentState]);
+
   return {
-    pending,
-    purchased,
+    pending: state.data?.pending ?? [],
+    purchased: state.data?.purchased ?? [],
     templates,
     members,
-    loading,
-    message,
-    setMessage,
-    refresh
+    loading: state.loading,
+    refreshing: state.refreshing,
+    message: state.message,
+    setMessage: (message: string) => setState((current) => {
+      const next = { ...current, message };
+      stateRef.current = next;
+      return next;
+    }),
+    refresh: refreshItems,
+    startMutation,
+    applyServerConfirmedItem,
+    rollbackItem,
+    hasAuthoritativeSync: state.hasAuthoritativeSync,
+    authoritativeRevision: state.authoritativeRevision,
+    data: state.data
   };
 }
 
@@ -2248,6 +2364,7 @@ const visiblePurchasedShoppingItems = (items: ShoppingItem[], now = Date.now()) 
 
 function ShoppingM4ListScreen({
   household,
+  user,
   onNavigate,
   targetItemId
 }: {
@@ -2257,17 +2374,34 @@ function ShoppingM4ListScreen({
   onLogout: () => void;
   targetItemId?: string | null;
 }) {
-  const { pending, purchased, members, loading, message, setMessage, refresh } = useShoppingData();
+  const { pending: baselinePending, purchased: baselinePurchased, members, loading, refreshing, message, setMessage, refresh, startMutation, applyServerConfirmedItem, rollbackItem, hasAuthoritativeSync, data } = useShoppingData(user, household);
+  const [mutations, setMutations] = useState<ShoppingMutation[]>([]);
+  const mutationsRef = useRef<ShoppingMutation[]>([]);
   const [orderedPending, setOrderedPending] = useState<ShoppingItem[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [purchasedOpen, setPurchasedOpen] = useState(false);
   const [actionsOpenId, setActionsOpenId] = useState<string | null>(null);
-  const [busyItem, setBusyItem] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [status, setStatus] = useState("");
+  const projected = useMemo(() => projectShoppingList({ pending: baselinePending, purchased: baselinePurchased }, mutations, user), [baselinePending, baselinePurchased, mutations, user]);
+  const pending = projected.pending;
+  const purchased = projected.purchased;
   const visiblePurchased = visiblePurchasedShoppingItems(purchased);
+  const delayedRefreshStatusVisible = useDelayedBusyStatus(refreshing && data !== null, {
+    delayMs: HOME_REFRESH_STATUS_SHOW_DELAY_MS,
+    minVisibleMs: HOME_REFRESH_STATUS_MIN_VISIBLE_MS
+  });
   const orderedPendingRef = useRef<ShoppingItem[]>([]);
+
+  useEffect(() => {
+    mutationsRef.current = mutations;
+  }, [mutations]);
+  useEffect(() => {
+    mutationsRef.current = [];
+    setMutations([]);
+    setStatus("");
+  }, [user.id, household.id]);
 
   useEffect(() => {
     orderedPendingRef.current = pending;
@@ -2275,14 +2409,14 @@ function ShoppingM4ListScreen({
   }, [pending]);
 
   useEffect(() => {
-    if (!targetItemId || loading) return;
+    if (!targetItemId || loading || data === null) return;
     const target = document.querySelector<HTMLElement>(`[data-shopping-m4-id="${CSS.escape(targetItemId)}"]`);
     if (!target) return;
     const isPurchased = visiblePurchasedShoppingItems(purchased).some((item) => item.id === targetItemId);
     if (isPurchased) setPurchasedOpen(true);
     setExpandedId(targetItemId);
     window.requestAnimationFrame(() => target.scrollIntoView({ block: "center", behavior: "smooth" }));
-  }, [loading, targetItemId, orderedPending, pending, purchased]);
+  }, [data, loading, targetItemId, orderedPending, pending, purchased]);
 
   const toggleExpanded = (itemId: string) => {
     setExpandedId((current) => (current === itemId ? null : itemId));
@@ -2290,21 +2424,29 @@ function ShoppingM4ListScreen({
   };
 
   const runPurchase = async (item: ShoppingItem, action: "purchase" | "unpurchase") => {
-    setBusyItem(item.id);
+    if (!hasAuthoritativeSync || hasShoppingMutationForItem(mutationsRef.current, item.id)) return;
+    const mutation = createShoppingMutation(item, action, Date.now());
+    startMutation();
+    mutationsRef.current = [...mutationsRef.current, mutation];
+    setMutations(mutationsRef.current);
+    setExpandedId(null);
+    setActionsOpenId(null);
     setMessage("");
     setStatus("");
+    void invalidateCalendarShoppingDate({ userId: user.id, householdId: household.id, timezone: household.timezone }, item.plannedPurchaseDate);
     try {
-      if (action === "purchase") await purchaseShoppingItem(item.id);
-      else await unpurchaseShoppingItem(item.id);
-      setExpandedId(null);
-      setPurchasedOpen(action === "unpurchase" ? false : false);
-      await refresh();
+      const result = action === "purchase" ? await purchaseShoppingItem(item.id) : await unpurchaseShoppingItem(item.id);
+      await applyServerConfirmedItem(result.item);
+      if (result.item.plannedPurchaseDate !== item.plannedPurchaseDate) void invalidateCalendarShoppingDate({ userId: user.id, householdId: household.id, timezone: household.timezone }, result.item.plannedPurchaseDate);
+      mutationsRef.current = removeShoppingMutation(mutationsRef.current, mutation.id);
+      setMutations(mutationsRef.current);
       setStatus(action === "purchase" ? `「${item.name}」を購入済みに移しました` : `「${item.name}」を未購入に戻しました`);
+      void refresh();
     } catch (error) {
+      rollbackItem(mutation);
+      mutationsRef.current = removeShoppingMutation(mutationsRef.current, mutation.id);
+      setMutations(mutationsRef.current);
       setMessage(shoppingErrorMessage(error));
-      await refresh();
-    } finally {
-      setBusyItem(null);
     }
   };
 
@@ -2343,7 +2485,7 @@ function ShoppingM4ListScreen({
 
   return (
     <AppFrame current="/shopping" onNavigate={onNavigate}>
-      <main className="shopping-m4" aria-busy={loading}>
+      <main className="shopping-m4" aria-busy={refreshing}>
         <header className="shopping-m4__header"><h1>買い物</h1></header>
         <ErrorMessage message={message} />
         {orderedPending.length > 0 ? (
@@ -2358,7 +2500,8 @@ function ShoppingM4ListScreen({
                 actionsOpen={actionsOpenId === item.id}
                 dragging={draggingId === item.id}
                 dragOver={dragOverId === item.id}
-                busy={busyItem === item.id}
+                busy={hasShoppingMutationForItem(mutations, item.id)}
+                mutationsDisabled={!hasAuthoritativeSync}
                 onToggle={() => toggleExpanded(item.id)}
                 onPurchase={() => void runPurchase(item, "purchase")}
                 onRestore={() => void runPurchase(item, "unpurchase")}
@@ -2393,7 +2536,8 @@ function ShoppingM4ListScreen({
               actionsOpen={actionsOpenId === item.id}
               dragging={false}
               dragOver={false}
-              busy={busyItem === item.id}
+              busy={hasShoppingMutationForItem(mutations, item.id)}
+              mutationsDisabled={!hasAuthoritativeSync}
               onToggle={() => toggleExpanded(item.id)}
               onPurchase={() => void runPurchase(item, "purchase")}
               onRestore={() => void runPurchase(item, "unpurchase")}
@@ -2406,7 +2550,7 @@ function ShoppingM4ListScreen({
             />
           )) : null}
         </section>
-        <p className="shopping-m4__status" role="status" aria-live="polite">{status}</p>
+        <p className="shopping-m4__status" role="status" aria-live="polite">{status || (delayedRefreshStatusVisible ? SHOPPING_REFRESH_STATUS : "")}</p>
       </main>
     </AppFrame>
   );
@@ -2422,6 +2566,7 @@ function ShoppingM4Row({
   dragging,
   dragOver,
   busy,
+  mutationsDisabled,
   onToggle,
   onPurchase,
   onRestore,
@@ -2441,6 +2586,7 @@ function ShoppingM4Row({
   dragging: boolean;
   dragOver: boolean;
   busy: boolean;
+  mutationsDisabled: boolean;
   onToggle: () => void;
   onPurchase: () => void;
   onRestore: () => void;
@@ -2568,9 +2714,9 @@ function ShoppingM4Row({
           {purchased ? <span className="shopping-m4__avatar" role="img" aria-label={`購入者: ${purchaserName}`}>{purchaserName.charAt(0) || "?"}</span> : null}
         </button>
       </div>
-      {actionsOpen ? <div className="shopping-m4__actions" aria-label={`${item.name}の操作メニュー`}><button type="button" onPointerDown={(event) => event.stopPropagation()} onClick={purchased ? onRestore : onEdit}>{purchased ? "戻す" : "編集"}</button></div> : null}
+      {actionsOpen ? <div className="shopping-m4__actions" aria-label={`${item.name}の操作メニュー`}><button type="button" disabled={purchased && (busy || mutationsDisabled)} onPointerDown={(event) => event.stopPropagation()} onClick={purchased ? onRestore : onEdit}>{purchased ? "戻す" : "編集"}</button></div> : null}
       {isExpanded ? <div className="shopping-m4__expanded">
-        {!purchased ? <button type="button" className="shopping-m4__primary" disabled={busy} onClick={onPurchase}>{busy ? "購入中…" : "購入"}</button> : null}
+        {!purchased ? <button type="button" className="shopping-m4__primary" disabled={busy || mutationsDisabled} onClick={onPurchase}>{busy ? "購入中…" : "購入"}</button> : null}
         {item.note ? <div className="shopping-m4__detail"><span>メモ</span><p>{item.note}</p></div> : null}
         {imageSrc ? <div className="shopping-m4__detail"><span>写真</span><img src={imageSrc} alt={`${item.name}の写真`} onError={(event) => { event.currentTarget.hidden = true; }} /></div> : null}
         {!purchased && item.plannedPurchaseDate ? <div className="shopping-m4__planned-detail">購入予定日 {formatShoppingPlannedDate(item.plannedPurchaseDate)}</div> : null}
@@ -2623,6 +2769,7 @@ function ImageUploadUsageHint({
 
 function ShoppingItemFormScreen({
   household,
+  user,
   mode,
   itemId,
   onNavigate
@@ -2634,7 +2781,6 @@ function ShoppingItemFormScreen({
   onNavigate: (route: NavigationPath) => void;
   onLogout: () => void;
 }) {
-  void household;
   const [form, setForm] = useState<CreateShoppingItemInput>(emptyShoppingForm);
   const [recentItems, setRecentItems] = useState<ShoppingRecentItem[]>([]);
   const [templates, setTemplates] = useState<ShoppingTemplate[]>([]);
@@ -2645,6 +2791,7 @@ function ShoppingItemFormScreen({
   const submittingRef = useRef(false);
   const [persistedItemId, setPersistedItemId] = useState<string | null>(mode === "edit" ? itemId ?? null : null);
   const [existingImage, setExistingImage] = useState<ShoppingItem["image"]>(null);
+  const [originalPlannedPurchaseDate, setOriginalPlannedPurchaseDate] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState<ProcessedImage | null>(null);
   const [previewUrl, setPreviewUrl] = useState("");
   const [imageStatus, setImageStatus] = useState<
@@ -2683,6 +2830,7 @@ function ShoppingItemFormScreen({
           plannedPurchaseDate: result.item.plannedPurchaseDate
         });
         setExistingImage(result.item.image);
+        setOriginalPlannedPurchaseDate(result.item.plannedPurchaseDate);
       })
       .catch((error) => {
         if (!(error instanceof DOMException && error.name === "AbortError"))
@@ -2694,13 +2842,14 @@ function ShoppingItemFormScreen({
   useEffect(() => {
     if (mode !== "create") return;
     const controller = new AbortController();
-    Promise.all([
-      listRecentShoppingItems(8, controller.signal),
-      listShoppingTemplates(controller.signal)
-    ])
+    const cachedTemplates = readMemoryShoppingTemplates({ userId: user.id, householdId: household.id });
+    const templatesRequest = cachedTemplates ? Promise.resolve({ templates: cachedTemplates }) : listShoppingTemplates(controller.signal);
+    Promise.all([listRecentShoppingItems(8, controller.signal), templatesRequest])
       .then(([recentResult, templateResult]) => {
         setRecentItems(recentResult.items);
-        setTemplates(templateResult.templates.filter((template) => template.active));
+        const active = templateResult.templates.filter((template) => template.active);
+        writeMemoryShoppingTemplates({ userId: user.id, householdId: household.id }, active);
+        setTemplates(active);
       })
       .catch((error) => {
         if (!(error instanceof DOMException && error.name === "AbortError"))
@@ -2710,7 +2859,7 @@ function ShoppingItemFormScreen({
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [mode]);
+  }, [household.id, mode, user.id]);
   useEffect(
     () => () => {
       if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -2798,11 +2947,15 @@ function ShoppingItemFormScreen({
       const result = existingItemId
         ? await updateShoppingItem(existingItemId, payload)
         : await createShoppingItem(payload as CreateShoppingItemInput);
+      await mergeServerConfirmedShoppingItem({ userId: user.id, householdId: household.id }, result.item);
+      void invalidateCalendarShoppingDate({ userId: user.id, householdId: household.id, timezone: household.timezone }, originalPlannedPurchaseDate);
+      if (result.item.plannedPurchaseDate !== originalPlannedPurchaseDate) void invalidateCalendarShoppingDate({ userId: user.id, householdId: household.id, timezone: household.timezone }, result.item.plannedPurchaseDate);
       setPersistedItemId(result.item.id);
       if (selectedImage) {
         setImageStatus("uploading");
         try {
-          await uploadShoppingItemImage(result.item.id, selectedImage);
+          const uploadResult = await uploadShoppingItemImage(result.item.id, selectedImage);
+          await mergeServerConfirmedShoppingItem({ userId: user.id, householdId: household.id }, uploadResult.item);
           await refreshImageUsage();
         } catch (error) {
           setMessage(
@@ -2820,6 +2973,20 @@ function ShoppingItemFormScreen({
       if (error instanceof ApiError && error.details) setErrors(error.details);
     } finally {
       submittingRef.current = false;
+      setSubmitting(false);
+    }
+  };
+  const deleteItem = async () => {
+    if (!itemId) return;
+    setSubmitting(true);
+    try {
+      await deleteShoppingItem(itemId);
+      await removeServerConfirmedShoppingItem({ userId: user.id, householdId: household.id }, itemId);
+      await invalidateCalendarShoppingDate({ userId: user.id, householdId: household.id, timezone: household.timezone }, originalPlannedPurchaseDate);
+      onNavigate("/shopping");
+    } catch (error) {
+      setMessage(shoppingErrorMessage(error));
+    } finally {
       setSubmitting(false);
     }
   };
@@ -3023,7 +3190,7 @@ function ShoppingItemFormScreen({
       <BottomSheet open={deleteOpen} title="買い物を削除しますか？" onClose={() => setDeleteOpen(false)}>
         <div className="shopping-m4-delete-confirm">
           <p>この商品を削除します。</p>
-          <Button variant="danger" onClick={() => { if (!itemId) return; setSubmitting(true); void deleteShoppingItem(itemId).then(() => onNavigate("/shopping")).catch((error) => setMessage(shoppingErrorMessage(error))).finally(() => setSubmitting(false)); }}>削除する</Button>
+          <Button variant="danger" onClick={() => void deleteItem()}>削除する</Button>
           <Button variant="secondary" onClick={() => setDeleteOpen(false)}>キャンセル</Button>
         </div>
       </BottomSheet>

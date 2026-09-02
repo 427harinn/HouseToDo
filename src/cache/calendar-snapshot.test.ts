@@ -8,6 +8,7 @@ import {
   calendarRangeSnapshotKey,
   clearCalendarSnapshots,
   clearMemoryCalendarSnapshots,
+  invalidateCalendarShoppingDate,
   isCalendarSelectedResponse,
   isValidCalendarDaySnapshotRecord,
   isValidCalendarRangeSnapshotRecord,
@@ -60,6 +61,22 @@ describe("Calendar snapshot keys and validation", () => {
 });
 
 describe("server-confirmed Calendar snapshots", () => {
+  it("invalidates only the affected Shopping date while preserving other dates", async () => {
+    const affectedRange = { ...rangeIdentity, from: "2026-09-01", to: "2026-09-30" };
+    const otherRange = { ...rangeIdentity, from: "2026-10-01", to: "2026-10-31" };
+    const affectedDay = { ...dayIdentity, selectedDate: "2026-09-01" };
+    const otherDay = { ...dayIdentity, selectedDate: "2026-09-02" };
+    await writeServerConfirmedCalendarRangeSnapshot(affectedRange, rangeData(affectedRange.from, affectedRange.to), 1);
+    await writeServerConfirmedCalendarRangeSnapshot(otherRange, rangeData(otherRange.from, otherRange.to), 2);
+    await writeServerConfirmedCalendarDaySnapshot(affectedDay, dayData(affectedDay.selectedDate), 1);
+    await writeServerConfirmedCalendarDaySnapshot(otherDay, dayData(otherDay.selectedDate), 2);
+    await invalidateCalendarShoppingDate(dayIdentity, "2026-09-01");
+    expect(readMemoryCalendarRangeSnapshot(affectedRange)).toBeNull();
+    expect(readMemoryCalendarDaySnapshot(affectedDay)).toBeNull();
+    expect(readMemoryCalendarRangeSnapshot(otherRange)).not.toBeNull();
+    expect(readMemoryCalendarDaySnapshot(otherDay)).not.toBeNull();
+  });
+
   it("keeps range and day caches isolated by identity", async () => {
     await writeServerConfirmedCalendarRangeSnapshot(rangeIdentity, rangeData(), 1);
     await writeServerConfirmedCalendarDaySnapshot(dayIdentity, dayData(), 1);
