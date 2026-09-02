@@ -1150,7 +1150,11 @@ function CalendarScreen({ household, user, onNavigate }: { household: Household;
     void loadMarkers();
   }, [gridEnd, gridKey, gridStart, household.id, household.timezone, loadMarkers, user.id]);
   useEffect(() => {
-    if (!selectedDate || selectedEffectDate.current === selectedDate) return;
+    if (!selectedDate) {
+      selectedEffectDate.current = null;
+      return;
+    }
+    if (selectedEffectDate.current === selectedDate) return;
     selectedEffectDate.current = selectedDate;
     const identity: CalendarDaySnapshotIdentity = { userId: user.id, householdId: household.id, timezone: household.timezone, selectedDate };
     const memory = readMemoryCalendarDaySnapshot(identity);
