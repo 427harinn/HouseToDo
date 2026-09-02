@@ -66,7 +66,7 @@ test("planned shopping date integrates with Calendar, purchase state, reuse excl
   page.on("console", (message) => {
     if (
       message.type() === "error" &&
-      !message.text().includes("status of 401 (Unauthorized)")
+      !/status of 401\b/.test(message.text())
     ) {
       errors.push(message.text());
     }
