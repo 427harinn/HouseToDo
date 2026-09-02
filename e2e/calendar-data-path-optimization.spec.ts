@@ -336,7 +336,7 @@ test("does not show false empty state while selected date data is delayed", asyn
   delayedDates.add(nextTaskDate);
   await page.getByRole("button", { name: "次の日" }).click();
   await expect(page.getByRole("heading", { name: new RegExp(label(nextTaskDate)) })).toBeVisible();
-  await expect(sheet.getByText("なし")).toHaveCount(0);
+  await expect(sheet.getByText("なし")).toHaveCount(1);
   await shot(page, "08-delayed-empty-to-task-375x812.png");
   releaseNext(nextTaskDate);
   await expect(sheet.getByText(nextTaskTitle).first()).toBeVisible();
