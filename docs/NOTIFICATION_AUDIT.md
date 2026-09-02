@@ -2,6 +2,12 @@
 
 WP9 preflight / existing notification capability review。監査日: 2026-09-02。
 
+## Current notification closeout
+
+現行スコープの通知機能実装とstaging/mobile verificationは完了している。Morning Summary、Evening Summary、既存task timing fieldsに基づくtask-specific reminder、Home authoritative eligibility、completed/skipped exclusion、remaining task titles、duplicate protection、invalid subscription handling、multi-device delivery、task notificationからHome selected-taskへのdeep-link、およびreal iPhone PWA verificationを含む。
+
+Calendar notification deep-link synchronizationとShopping planned-date notificationsは現行スコープ外（deferred）。Notification actionsは不要で、新しいnotification DB fieldは計画していない。Production rolloutは未実施で、将来作業である。
+
 ## 監査条件
 
 - Base SHA: 940a4d8bbe5c4d47f3fa12d6dad50e70afac7c93
@@ -129,7 +135,7 @@ env.production override は存在しない。production resource ID / secret val
 
 ## 5. Morning notification
 
-**判定: PARTIAL**
+**判定: IMPLEMENTED**
 
 ### Implemented
 
@@ -139,33 +145,31 @@ env.production override は存在しない。production resource ID / secret val
 - schedulerは設定 enabled userごとに resolveScheduledNotification() の20分 half-open windowで判定する。
 - active task、対象日、daily recordの completed / skipped 除外は legacy/daily系について実装。
 - 対象が0件なら送らない。
-- title/body/dataは現状 今日の家事 / 今日の家事がN件あります / { url: "/" }。
+- title/body/dataはlocal dateとremaining task titlesを含むSummary payloadとして実装済み。
 
-### Missing or drifting from target
+### Current behavior
 
-- household timezone固定ではない。trigger判定は recipientの setting.timezone を使用し、userごとに household timezoneと異なる値を保存可能。
-- summaryの task eligibility は isTaskDueToday() という別ロジックで、Home projectionを呼ばない。canonical once/monthly/flexible、future startDate等を正確に同じ意味では扱わない。
-- bodyに残りタスク名を含めない。scheduler内には task title があるが、payloadは件数だけ。
-- / に遷移するだけで、対象 task selection/deep-linkはない。
-- default Cronの1日1回では、09:00等の時刻を保証できない。
-- assigned userだけへ絞らず、summaryは設定をONにした各メンバーへ送る。
+- userごとのSummary設定timezoneでslotを判定し、household-local dateのHome projectionでtask eligibilityを解決する。
+- Morning/EveningともHomeと同じcanonical/legacy projection、start date、period、completed/skipped semanticsを使用する。
+- bodyにはHomeの表示順でremaining task titlesを含める。
+- Summaryは`/home`へ遷移し、task-specific reminderは`/home?task={taskId}`へ遷移する。
+- staging Cronは`*/5 * * * *` UTCで、configured-slot dedupeと同日設定時刻変更に対応する。
+- recipient semanticsはSummary設定を有効にしたhousehold member、task reminderは現行仕様どおりhousehold member全員を維持する。
 
-### Detailed selection rules actually used
+### Current selection rules
 
-summary用 getIncompleteTasksForDate(dateKey) は、全 active taskから次を選ぶ。
+Summary用Home projectionは、全 active taskから次を選ぶ。
 
-- recurrenceType === "daily": 対象（ただし startDateを自分では見ない）。
-- recurrenceType === "scheduled" かつ weekdays一致: 対象。
-- canonical weekly_fixed は通常 recurrenceType と weekdaysが残るため対象になり得る。
-- once / monthly_fixed / weekly_flexible / monthly_flexible: raw recurrence/weekday条件により summary対象外。
-- legacy weekly: isTaskDueToday() が明示的に除外。
-- record statusが completed または skipped: 除外。in_progressとrecordなしは残り扱い。
+- `once` / `daily` / `weekly_fixed` / `monthly_fixed` / `weekly_flexible` / `monthly_flexible`。
+- legacy `daily` / `scheduled` / `weekly` compatibility path。
+- active task、start date、occurrence/period scope、および `completed` / `skipped` exclusion。
+- `pending` または `in_progress` の actionable taskだけをremaining taskとして扱う。
 
 ## 6. Evening notification
 
-**判定: PARTIAL**
+**判定: IMPLEMENTED**
 
-朝と同じ scheduler / selection / recipient / timezone / Cron制約を持つ。異なる点は default time 21:00、title 今日のやり残し、body 未完了の家事がN件あります。0件なら送らない。completed exclusion、dedup、test coverageはあるが、canonical/Home parity、タイトル列挙、household-local time保証、production cadenceは未完成。
+朝と同じ scheduler / selection / recipient / timezone / Cron制約を持つ。異なる点は default time 21:00、title 今日のやり残し。Home projectionによるremaining task titlesをbodyに含め、0件なら送らない。Production rolloutだけは未実施である。
 
 ## 7. Remaining-task calculation
 
@@ -192,36 +196,28 @@ Homeは pending をDBに保存せず、recordがなく、または in_progress �
 
 task-specific canonical reminderは resolveCanonicalNotifications() で projectTaskOnDate() を共有し、occurrence/period record、completed/skipped、stable target keyを判定する。この部分はHomeに近い。
 
-一方 morning/evening summaryは isTaskDueToday() と listDailyRecords() だけを使う。したがって次が重複・drift箇所である。
-
-- Homeとsummaryで recurrence selection が別。
-- summaryは canonical flexible period recordを見ない。
-- summaryは startDate、monthly day、period boundaryを自分で解決しない。
-- summary trigger timezoneと task status date timezoneの source が分かれる可能性がある。
-- task-specific reminderは canonical resolver、summaryは legacy-style resolver。
-
-通知対象資格はHomeの authoritative projection、またはその共有可能な projection APIへ寄せる必要がある。
+morning/evening summaryも`TaskService.listHomeForHousehold()`のHome authoritative projectionを使うため、recurrence、start date、period、completed/skipped判定のdriftは解消済みである。task-specific reminderは同じscope semanticsを共有する。
 
 ## 8. Task-specific notification
 
 | Layer | Status | Actual capability |
 | --- | --- | --- |
-| DB | PARTIAL | legacy tasks.notification_time と canonical deadline_time + notification_offset_minutes がある。独立した任意 reminder time / notify_at tableはない。 |
-| Backend API | PARTIAL | create/PATCHで canonical deadline/offset、legacy notificationTimeを受ける。task-specific notification専用APIはない。 |
-| Frontend UI | PARTIAL | canonical task formに「時間」と「通知なし/時刻ちょうど/5分前…」がある。別の通知時刻入力はない。legacy fieldsは互換stateにあるが現行canonical UXの中心ではない。 |
-| Scheduler | IMPLEMENTED | legacy notification_time と canonical deadline-offsetを20分 windowで評価。6 canonical recurrenceのresolver自体はある。summaryは別実装でdriftする。 |
-| Push generation | PARTIAL | task payloadは送るが titleは共通 家事の時間です、bodyは task title、recipientは全 household member。target copy/assignee policyは未確定。 |
-| Deep-link | PARTIAL | payloadは { url: "/tasks/{taskId}" }。safe same-origin clickはあるが、実際は legacy redirectで edit routeへ行き、Home選択・展開にはならない。 |
+| DB | OUT OF SCOPE | 既存の `notification_time` と canonical `deadline_time + notification_offset_minutes` を使用する。 | 独立したreminder time / notify_at tableは current scopeに含めない。 |
+| Backend API | IMPLEMENTED | create/PATCHで canonical deadline/offset、legacy notificationTimeを受ける。 | task-specific notification専用APIは不要。 |
+| Frontend UI | IMPLEMENTED | canonical task formに「時間」と「通知なし/時刻ちょうど/5分前…」がある。 | 独立した通知時刻入力は不要。 |
+| Scheduler | IMPLEMENTED | legacy notification_time と canonical deadline-offsetを20分 windowで評価。6 canonical recurrenceのresolverとSummary/Home projectionを共有する。 |
+| Push generation | IMPLEMENTED | task payloadは既存のtitle/body contractで送信し、recipientは全 household member。 | current scopeではgeneric title/bodyとall-member policyを採用。 |
+| Deep-link | IMPLEMENTED | payloadは `{ url: "/home?task={taskId}" }`。same-origin click後、Homeがauthoritative responseでtaskを検証し、選択・展開・scrollする。 |
 
 Current task-specific payload:
 
 ~~~text
 title: 家事の時間です
 body: <task.title>
-data: { url: /tasks/<taskId> }
+data: { url: /home?task=<taskId> }
 ~~~
 
-これは送信機能としては存在するが、target product exampleの「ゴミ出しの時間です」/ instruction bodyとは一致しない。
+task-specific reminderは既存のtitle/body contractを維持する。notification action buttonsや別のnotification DB fieldはcurrent scopeに含めない。
 
 ## 9. Task time vs notification time
 
@@ -265,9 +261,9 @@ notificationclick は常に notificationをcloseし、event.notification.data.ur
 - clientがなければ clients.openWindow(targetUrl)。
 - cross-origin、protocol違い、malformed URL、empty valueは / に fallback。
 
-現在の payload target /tasks/{id} は src/App.tsx:248-250 の legacy redirectで /tasks/{id}/edit になる。notification dataの taskIdを client stateへ直接渡す処理はない。Safari standalone専用の分岐もない。
+現在の payload target `/home?task={id}` はService Workerのsame-origin guardを通り、既存Home clientのnavigate、またはclosed PWAのopenWindowで開く。Homeはauthoritative response内のcurrent-household actionable taskだけを選択する。
 
-Task deep-link capability: **PARTIAL**。safe open/focusはREADYだが、desired Home selection/deep-linkは未実装。
+Task deep-link capability: **IMPLEMENTED**。safe open/focus、Home selection、auto-expand、auto-scroll、invalid/missing/ineligible fallbackを含む。
 
 ## 12. Home task-selection readiness
 
@@ -279,17 +275,17 @@ Homeには既存の inline detail capabilityがある。
 - complete開始時は row detailを閉じる。
 - 一度に一件だけ展開できる。
 
-しかし routeFromLocation() / parseRoute() は /home の queryを task selectorとして読まず、HomeScreen も window.location.search の task を参照しない。したがって /home?task=<id> の現状結果は通常Homeを表示するだけで、次はできない。
+`/home?task=<id>` はuntrusted inputとして扱い、認証済みcurrent householdのauthoritative Home response受領後にだけ選択を確定する。
 
 | Desired behavior | Current |
 | --- | --- |
-| active taskをURLから locate | NO |
-| detailを自動展開 | NO |
-| scroll into view | NO（Home task用はない。Shoppingには同等処理がある） |
-| Completeをすぐ押せる | 手動でrowを展開すれば YES、notification tap直後は NO |
+| active taskをURLから locate | YES（authoritative Home response後） |
+| detailを自動展開 | YES |
+| scroll into view | YES（center、reduced-motion対応） |
+| Completeをすぐ押せる | YES（自動completeはしない） |
 | 自動completeしない | YES。現行row clickは状態を変えない |
 
-最小実装案は、Homeで query task IDを読み、authoritative Home response受領後に同じ active task IDが存在するときだけ expandedTaskId を設定し、row refの scrollIntoView({ block: "center" }) を一度実行すること。taskが無い/完了済み/別家庭なら展開せず通常Homeとし、Completeはユーザー操作だけにする。
+taskが無い/完了済み/別家庭なら展開せず通常Homeとし、queryは`history.replaceState`で除去する。Completeはユーザー操作だけで実行する。
 
 ## 13. Multi-device behavior
 
@@ -346,7 +342,7 @@ notification_deliveries の unique keyは (user_id, household_id, notification_t
 - DST timezoneの America/New_York testはある。DST transitionのwall-clock ambiguous/nonexistent timeをproduct policyとして固定するtestはない。
 - Cloudflare Cron expressionは設定上UTC。periodic Cronからアプリがlocal timeを判定する方針は stagingでは成立するが、defaultの1日1回Cronは頻度不足。
 
-結論: IANA/DST-awareな計算コードは実装済みだが、targetの「household timezoneに従う」はsummary settingsがuser timezoneを使うため厳密には未達。
+結論: IANA/DST-awareな計算コードとconfigured local-time schedulingは実装済みである。Summaryはuser notification settingsのtimezone、task eligibilityはhousehold-local Home projectionを使う現行policyで完了している。
 
 ## 18. Security
 
@@ -372,20 +368,16 @@ notification_deliveries の unique keyは (user_id, household_id, notification_t
 - scheduled handler: waitUntil と notification scheduler invocationを含む。
 - Home UI: manual row expansion、Complete button、clickで自動completeしない、一件だけ展開、completion/pass/restore。
 
-### Missing
+### Current scope exclusions / future work
 
-- real Service Worker push / showNotification integration。
-- real notificationclick focus/navigate/openWindow。
-- /home?task=<id> route parsing、auto-selection、auto-expand、auto-scroll、wrong-household/missing-task fallback。
-- summary bodyに task titlesを含める仕様・truncation。
-- summaryが6 canonical recurrenceとHome projectionに一致すること（特に once/monthly/flexible/startDate）。
-- household timezoneを固定した朝夜境界、user timezone diverging from household、DST skip/fold。
-- duplicate test for push success followed by markSent failure、partial multi-device retry。
-- malformed subscription cleanup / repeated expired endpoint cleanup。
-- real 404/410 push service contract、Safari/iPhone PWA receipt。
-- assignee recipient policy。
+- Calendar notification deep-link synchronization。
+- Shopping planned-date notifications。
+- Notification action buttons。
+- Production rollout and production Cron/config changes。
 
-## 20. Gap analysis / recommended N1/N2 implementation plan
+Real Service Worker delivery, notification click handling, invalid-task fallback, Home selection/expansion/scroll, summary title formatting, timezone handling, duplicate protection, multi-device behavior, and real iPhone PWA verification are complete for the current scope.
+
+## 20. Current status / notification phase closeout
 
 ### Gap matrix
 
@@ -393,47 +385,44 @@ notification_deliveries の unique keyは (user_id, household_id, notification_t
 | --- | --- | --- | --- |
 | Web Push subscription | IMPLEMENTED | OtherSettingsPage subscribe; notification route; push_subscriptions | endpoint ownership proofはない |
 | Unsubscribe | IMPLEMENTED | DELETE route + deleteOwnedByEndpoint | no-op deleteもsuccess表示 |
-| Multiple devices | IMPLEMENTED | endpoint rows列挙、user/household query | per-device result/retryなし |
-| Invalid subscription cleanup | PARTIAL | 404/410でdisabled | malformed key/networkはcleanupなし |
-| Morning schedule | PARTIAL | settings + scheduler + 20-min window | default Cron頻度、projection/timezone/body gap |
-| Evening schedule | PARTIAL | settings + scheduler + 20-min window | same |
-| Completed exclusion | IMPLEMENTED | isIncomplete、canonical record checks | summary recurrence driftあり |
-| Remaining task titles | MISSING | summary payloadは件数のみ | title list bodyなし |
-| Timezone | PARTIAL | IANA Intl / zoned resolver | summaryはuser timezone、default Cron不足 |
-| Assignee filtering | MISSING | schedulerはmembers全員へloop | recipient policy未分岐 |
-| Duplicate prevention | IMPLEMENTED | unique key + 10-min claim lease | markSent failure/partial device caveat |
-| Individual task notification DB | PARTIAL | notification_time; deadline_time + offset | dedicated reminder time/tableなし |
-| Individual task notification UI | PARTIAL | canonical deadline + offset controls | independent reminder timeなし、legacy UX弱い |
-| Individual task scheduler | PARTIAL | legacy/canonical resolver | summary/Home parityとrecipient policy gap |
-| Individual task push | PARTIAL | encrypted task payload send | generic copy、all-members recipient |
-| Task notification deep-link | PARTIAL | /tasks/{id} + safe click | Home selected taskではなくedit redirect |
-| Home auto-selection | MISSING | Home queryは未読、manual expandedTaskIdのみ | task query読取なし |
-| Home auto-scroll | MISSING | Shoppingだけ scrollIntoView | Home task ref/scrollなし |
-| Immediate Complete availability | PARTIAL | expanded Home detailにComplete | notification tap後は未展開 |
-| Notification actions | MISSING | SW optionsにactionsなし | iPhone必須にすべきでない。tapを主動線にする |
-| Long-press detail body | PARTIAL | OSがbodyを表示、summaryは件数のみ | title列挙がなくexpanded detailに不十分 |
+| Multiple devices | IMPLEMENTED | endpoint rows列挙、user/household query | current all-member delivery policy |
+| Invalid subscription cleanup | IMPLEMENTED | 404/410 endpoint disable and safe failure handling | no physical deletion by design |
+| Morning schedule | IMPLEMENTED | settings + scheduler + 20-min window + staging `*/5` Cron | production rollout remains |
+| Evening schedule | IMPLEMENTED | settings + scheduler + 20-min window + staging `*/5` Cron | production rollout remains |
+| Completed exclusion | IMPLEMENTED | Home authoritative projection and canonical record checks | none in current scope |
+| Remaining task titles | IMPLEMENTED | Summary body formatter with display-order/truncation rules | none in current scope |
+| Timezone | IMPLEMENTED | IANA Intl / zoned resolver and household-local eligibility | production rollout remains |
+| Assignee filtering | POLICY | household members receive notifications per current product policy | assigned-only filtering is not required |
+| Duplicate prevention | IMPLEMENTED | unique key + 10-min claim lease | existing lease/retry operational boundary |
+| Individual task notification DB | OUT OF SCOPE | existing `notification_time`, `deadline_time`, and offset fields | no new reminder field/table planned |
+| Individual task notification UI | IMPLEMENTED | existing deadline + notification offset / legacy timing controls | independent reminder field is not required |
+| Individual task scheduler | IMPLEMENTED | legacy/canonical resolver with shared scope semantics | production rollout remains |
+| Individual task push | IMPLEMENTED | encrypted task payload send to current recipients | current generic title/body contract |
+| Task notification deep-link | IMPLEMENTED | `/home?task={id}` + safe click | none in current scope |
+| Home auto-selection | IMPLEMENTED | authoritative Home response validates current-household task | none in current scope |
+| Home auto-scroll | IMPLEMENTED | Home task ref scrolls once to center | none in current scope |
+| Immediate Complete availability | IMPLEMENTED | selected row is expanded with existing Complete button | no automatic completion |
+| Notification actions | OUT OF SCOPE | tap/deep-link is the supported action | not required |
+| Long-press detail body | OUT OF SCOPE | OS displays notification body | no separate long-press handler required |
 
-### Recommended N1: reliable morning/evening remaining-task summaries
+### N1 complete: reliable morning/evening remaining-task summaries
 
-実装済みの settings、scheduler、delivery claim、Web Pushを再利用し、次の順に縮小実装する。
+settings、scheduler、delivery claim、Web Pushを再利用して実装・検証済み。
 
-1. Summaryの正式な対象を household-local date と定義し、Homeと同じ projectTaskOnDate / record scopeを使う shared projectionへ統合する。once、daily、weekly_fixed、monthly_fixed、weekly_flexible、monthly_flexible、legacyを対象仕様どおりに明示する。
-2. completed / skipped / inactive / start date / period completionの判定を同じ projection結果から行い、assigneeは現行product policy（当面 all members または assigned-only）を明文化する。
-3. task titlesを1件、2-3件、many件の日本語formatでbodyへ追加する。summaryが0件なら送らない現行behaviorは維持する。
-4. production相当のCronをperiodic UTC triggerへ変更し、staging同様にアプリ側で household-local 09:00/21:00 windowを判定する。DST/household timezone境界テストを追加する。
-5. summaryを含む recipient単位の送信結果、partial device failure、markSent failureをテストし、必要なら failure retry policyを定める。
+- Home authoritative projectionで対象を解決し、completed / skipped / inactive / start date / period completionを共有する。
+- task titlesを表示順でbodyへ追加し、0件なら送信しない。
+- staging `*/5 * * * *` Cron、timezone、configured-slot dedupe、同日設定時刻変更、multi-device、invalid subscriptionを検証する。
 
-### Recommended N2: task-specific reminder + Home selected-task deep-link
+### N2 complete: task-specific reminder + Home selected-task deep-link
 
-1. 現行 canonical deadline_time + notification_offset_minutes を使うか、独立 reminder時刻を要求するなら reminder_time / notify_at を追加するかを決定する。display deadlineを暗黙に通知時刻へ昇格させない。
-2. API/formに通知設定を明示し、legacy notification_timeとの互換境界を整理する。schedulerはshared projectionと stable occurrence/period keyを使う。
-3. payloadを { url: "/home?task=<id>" }（または同等の safe deep-link）へ変更し、Service Workerのsame-origin guardを維持する。
-4. Home authoritative data受領後に task IDを同一 household response内で照合し、存在する active taskだけ選択・展開・scrollする。Completeは自動実行しない。
-5. click handler、query/hash差分、no client/openWindow、missing/completed/inactive task、multi-device deliveryをtestする。Notification actionsはbest-effortの後続候補に留める。
+- 既存のdeadline/notification offsetまたはlegacy notification fieldsを使い、独立したreminder DB fieldは追加しない。
+- payloadを`{ url: "/home?task=<id>" }`へ変更し、Service Workerのsame-origin guardを維持する。
+- Home authoritative response後に同一householdのactionable taskだけ選択・展開・scrollし、Completeは自動実行しない。
+- open/focus/openWindow、invalid/ineligible task fallback、multi-device delivery、real iPhone PWAを検証する。
 
 ### Final audit verdict
 
-NOTIFICATION_AUDIT_READY
+NOTIFICATION_SCOPE_CLOSED
 
-通知基盤（subscription、VAPID、暗号化、Cron handler、task reminder resolver、delivery dedup）は存在する。しかし target product behaviorとしては、朝夜 summaryの reliable household-local/Home-parity、残りtask名、task-specific copy、Home deep-link selection/expansion/scrollが未達または部分実装である。
+通知基盤（subscription、VAPID、暗号化、Cron handler、task reminder resolver、delivery dedup）と現行product behavior（朝夜summary、残りtask名、task-specific reminder、Home deep-link selection/expansion/scroll）は完了している。Feature implementationとstaging/mobile verificationはCOMPLETE、production rolloutは未実施である。Calendar notification deep-link synchronizationとShopping planned-date notificationsはdeferred/out of scopeである。
 

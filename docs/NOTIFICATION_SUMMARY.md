@@ -1,6 +1,6 @@
 # HouseToDo — Notification Summary N1
 
-朝/夜の残タスク通知の実装仕様と運用メモ。N1ではtask-specific通知やHomeのtask deep-linkは変更しない。
+朝/夜の残タスク通知（N1）の実装仕様と運用メモ。N1とN2を合わせた現在の通知スコープは完了している。
 
 ## Morning / evening semantics
 
@@ -64,7 +64,7 @@ Task-specific payloadは次の形で、bodyは通知対象taskのtitleだけを�
 {
   "kind": "task",
   "taskId": "task-id",
-  "url": "/tasks/task-id"
+  "url": "/home?task=task-id"
 }
 ```
 
@@ -103,6 +103,12 @@ per-subscription delivery stateやschema変更はN1では追加しない。そ�
 - Expected secret names: `WEB_PUSH_VAPID_PUBLIC_KEY`, `WEB_PUSH_VAPID_PRIVATE_KEY`, `WEB_PUSH_SUBJECT`
 - No VAPID secret values are stored in this document.
 
-Staging deploy後に`/api/health` HTTP 200、DB/R2 healthy、pending migrations 0を機械確認する。synthetic data/subscriptionがない場合、実push成功は主張しない。
+Stagingでは`/api/health` HTTP 200、DB/R2 healthy、pending migrations 0を機械確認済みである。synthetic data/subscriptionがない場合、実push成功は主張しない。
 
-Production Cron/configはN1で変更しない。
+Production Cron/configはN1で変更していない。Production rolloutは未実施で、今後の作業である。
+
+## Notification scope closeout
+
+現在の通知スコープは完了している。Morning Summary、Evening Summary、既存のtask timing fieldsに基づくtask-specific reminder、Home authoritative eligibility、completed/skipped exclusion、remaining task titles、duplicate protection、invalid subscription handling、multi-device delivery、task notificationからHome selected-taskへのdeep-link、およびiPhone PWA real-device verificationを含む。
+
+Calendar notification deep-link synchronizationとShopping planned-date notificationsは現行スコープ外（deferred）である。Notification action buttonsは不要で、新しいnotification DB fieldは計画していない。

@@ -147,13 +147,24 @@
 
 ## Remaining future phases
 
-- Notification deep-link
+1. WebMCP
+2. Scheduler query optimization
+3. UI refinement / remaining UX cleanup, if applicable
+4. Production rollout
+
+Notification phase closeout:
+
+- [x] Morning Summary and Evening Summary with Home-authoritative eligibility and remaining task titles
+- [x] Task-specific reminder timing from existing fields and Home selected-task deep-link
+- [x] Duplicate protection, invalid subscription handling, multi-device support, and real iPhone PWA verification
+- [x] Close current notification scope; production rollout remains future work
+- Calendar notification deep-link synchronization and Shopping planned-date notifications are deferred/out of scope
+
 - [x] Recent task definition reuse with household isolation, sorting, limit, inactive filtering, and legacy compatibility behavior
 - [x] Task template CRUD, canonical six recurrence types, household authorization, and logical deactivation
 - [x] Shared task form prefill with startDate/once targetDate/task identity/history exclusion
 - [x] Recent/template Playwright UI coverage, responsive screenshots, and trace artifacts
 - [x] Verify recent/template authenticated E2E on staging and clean up temporary fixtures
-- Production rollout
 - [x] Add nullable Shopping planned purchase date with additive migration and validation
 - [x] Preserve planned date across purchase/unpurchase; support update and explicit clear
 - [x] Exclude planned date from Recent and Template prefill/storage
@@ -165,7 +176,6 @@
 - [x] Show unplanned Shopping in every Calendar selected-date detail without adding grid markers/counts
 - [x] Show purchase date and time consistently in Shopping list, detail, and Calendar cards using household timezone
 - [x] Verify unplanned/date-mixed ordering, marker/aria counts, purchase datetime, responsive UI, screenshots, and traces locally
-- Shopping planned-date notifications
 - [x] Shopping recent item reuse from existing household items with sorting, limit, deduplication, and isolation
 - [x] Shopping new-form template prefill while preserving existing template CRUD/add behavior
 - [x] Shopping camera/library image options with shared processing and unchanged R2 constraints

@@ -12,13 +12,13 @@
 - [x] Calendar staging verification and staging deployment
 - [x] Recent task reuse and task template UX
 - [x] Task reuse/template authenticated staging verification
-- [ ] Notification deep links and production rollout
+- [x] Notification phase: Morning/Evening Summary and task notification deep-link implementation
 
 ## Future work
 
-1. Task notification deep-link
-2. Calendar deep-link synchronization
-3. Shopping UX
+1. WebMCP
+2. Scheduler query optimization
+3. UI refinement
    - [x] recent shopping item reuse with household isolation, sorting, limit, and normalized-name deduplication
    - [x] Shopping new-form template prefill while preserving existing template CRUD/add semantics
    - [x] separate camera and photo-library selection with shared image processing/upload flow
@@ -28,13 +28,17 @@
    - [x] household-scoped Shopping projection in Calendar with separate marker/detail UI
    - [x] Shopping planned purchase date and Calendar integration staging deployment/verification
    - [x] Calendar selected-date visibility for unplanned Shopping and purchase datetime display
-   - Shopping planned-date notifications
-5. UI refinement
-6. WebMCP
-7. Scheduler query optimization
-8. Production rollout
+4. Production rollout
 
-task modelの詳細、migration互換性、通知仕様は [TASK_MODEL_DESIGN.md](TASK_MODEL_DESIGN.md) として仕様化を完了した。これはapproved but not implementedであり、現在仕様への反映は実装phaseの完了後に行う。
+## Notification phase closeout
+
+Feature implementation and staging/mobile verification are complete for the current notification scope. This includes Morning Summary, Evening Summary, task-specific reminders using the existing task timing fields, remaining task titles, Home-authoritative eligibility with completed/skipped exclusion, duplicate protection, invalid-subscription handling, multi-device delivery, and task notification deep-links to `/home?task={taskId}` with Home selection, expansion, auto-scroll, and existing Complete behavior. Real iPhone PWA verification is complete.
+
+Calendar notification deep-link synchronization and Shopping planned-date notifications are deferred/out of scope for the current product scope. Notification action buttons are not required, and no new notification DB field is planned.
+
+Production rollout remains future work; notification feature implementation and staging/mobile verification are complete, but production is not.
+
+task modelの詳細、migration互換性、通知仕様は [TASK_MODEL_DESIGN.md](TASK_MODEL_DESIGN.md) に記録している。完了済みの実装状態と、将来のproduction rolloutを区別して管理する。
 
 ### Task model redesign status
 
@@ -46,7 +50,7 @@ task modelの詳細、migration互換性、通知仕様は [TASK_MODEL_DESIGN.md
 - [x] Phase 2 API/service/repository implementation
 - [x] Phase 3 task create/edit/detail UI
 - [x] Phase 4 scheduler/reminder migration
-- [ ] Phase 5 notification deep-link
+- [x] Phase 5 notification deep-link
 - [x] Phase 6 recent task reuse and template UX
 - [x] Phase 7 calendar
 

@@ -1,7 +1,7 @@
 # HouseToDo 新タスクモデル設計
 
-> Status: **Approved; Phase 1–4 task model implementation complete**
-> Domain/schema, API/service/repository, occurrence/period actions, Task UI, canonical reminder scheduler, monthly Calendar UI/API, recent task reuse, and task templates are implemented. Notification deep-link remains staged.
+> Status: **Approved; Phase 1–7 implementation and current notification scope complete**
+> Domain/schema, API/service/repository, occurrence/period actions, Task UI, canonical reminder scheduler, monthly Calendar UI/API, recent task reuse, task templates, and the task notification deep-link are implemented. Production rollout remains future work.
 
 ### Phase 4 implementation boundary
 
@@ -10,7 +10,7 @@ Task create/edit exposes all six canonical recurrence types with conditional sta
 ### Phase 2 implementation boundary
 
 Task write/read APIs accept and return the six canonical recurrence types through `modelRecurrenceType`. Legacy requests remain supported. New `once`, `monthly_fixed`, and `monthly_flexible` tasks use the `model_only` legacy compatibility marker so the current today/week UI and legacy scheduler cannot misclassify them. Offsets greater than zero are never mirrored to legacy `notification_time`; only offset zero with a deadline is mirrored.
-> この文書は、次のmigration/API/UI/scheduler実装へ進むためのdesign source of truthである。ここでいうapprovedは仕様承認を意味し、現在のコード・DB・API・UIの挙動を変更したことを意味しない。
+> この文書は、migration/API/UI/scheduler実装のdesign source of truthである。各実装phaseの承認・完了状態は末尾のimplementation statusに記録する。
 
 ### Phase 1 compatibility storage note
 
@@ -56,7 +56,7 @@ weeklyは同じ `target_week_start` に複数のcompleted recordを保持でき�
 
 `notification_time` を予定通知時刻として、household timezoneで現在時刻とのdelivery window（20分）を判定する。schedulerはdailyとscheduledの対象日を求め、同日のdaily recordがcompleted/skippedでないtaskを対象にする。weeklyは対象外である。
 
-deliveryは `notification_deliveries` の `(user, household, type, target_key)` unique制約、claim lease、retry/releaseを使う。現行task target keyは `taskId:scheduledDate:scheduledTime`、payloadは `/tasks/{taskId}` へのsame-origin detail linkである。evening summaryはrecipientのuser notification settingsのtimezone/timeを使うが、対象taskの未完了判定はhousehold dateに依存する。
+deliveryは `notification_deliveries` の `(user, household, type, target_key)` unique制約、claim lease、retry/releaseを使う。現行task target keyは `taskId:scheduledDate:scheduledTime`、payloadは `/home?task={taskId}` へのsame-origin Home deep-linkである。evening summaryはrecipientのuser notification settingsのtimezone/timeを使い、対象taskの未完了判定はHome authoritative projectionに依存する。
 
 ## 2. Approved next task model
 
@@ -199,7 +199,7 @@ recent task reuseは実行履歴ではなく、既存tasksのactiveかつcanonic
 
 schedulerは `occurrence/period -> deadline_at -> notification_at -> delivery` の順で処理する。recurrenceごとにon-demandで対象scopeを解決し、deadline_timeまたはoffsetがnullなら送らない。flexibleはperiod completed count >= 1またはperiod skipなら送らない。
 
-現行の20分delivery window、delivery dedup、claim lease、retry/release、household memberへの配信、evening summaryは維持する。dedup target keyはstable target key＋notification presetを含める。個別task通知payloadには`taskId`, stable scope key, same-origin `/tasks/{taskId}` URL候補を持たせ、night summaryはhome/today incomplete overviewへ遷移する候補とする。実装・deep-link変更は別phaseで行う。
+現行の20分delivery window、delivery dedup、claim lease、retry/release、household memberへの配信、evening summaryは維持する。dedup target keyはstable target key＋notification presetを含める。個別task通知payloadには`taskId`, stable scope key, same-origin `/home?task={taskId}` URLを持たせ、summaryは`/home`へ遷移する。実装とstaging/mobile verificationは完了し、production rolloutだけが将来作業として残る。
 
 ## 10. Timezone policy
 
@@ -220,7 +220,9 @@ schedulerは `occurrence/period -> deadline_at -> notification_at -> delivery` �
 
 Canonical six recurrence types now use one server-side scope resolver. Fixed types use occurrence keys; flexible types use deadline-bounded period keys. Today/dashboard and Calendar expose additive scope, period, completed-count, deadline, and derived overdue fields. Canonical actions resolve scope from targetDate. Flexible reset deletes all records in the selected period. Legacy tasks, including weekly target counts greater than one, remain on the legacy path.
 
-Phase 6 recent task reuse and template UX is implemented locally. `GET /api/tasks/recent` reads active canonical task definitions with a limit of 8. `task_templates` is an additive, household-scoped table and CRUD API. Recent/template selection prefills the shared create form; it never copies task IDs, dates, task records, execution status, or history. Phase 5 notification deep links, remote migration, deployment, and production remain out of scope.
+Phase 5 notification implementation and staging/mobile verification are complete. Task reminders use existing deadline/notification offset or legacy notification fields, and task notifications deep-link to `/home?task={taskId}` for authoritative Home selection, expansion, and auto-scroll without automatic completion. Calendar notification deep-link synchronization and Shopping planned-date notifications are deferred/out of scope; notification actions and a new notification DB field are not planned. Production rollout remains future work.
+
+Phase 6 recent task reuse and template UX is implemented locally. `GET /api/tasks/recent` reads active canonical task definitions with a limit of 8. `task_templates` is an additive, household-scoped table and CRUD API. Recent/template selection prefills the shared create form; it never copies task IDs, dates, task records, execution status, or history.
 
 ## 12. Implementation phases
 
@@ -228,7 +230,7 @@ Phase 6 recent task reuse and template UX is implemented locally. `GET /api/task
 2. **Phase 2: API/service/repository** — recurrence validation、projection、scope actions、status/overdue、history response。
 3. **Phase 3: task create/edit/detail UI** — 6種UI、deadline、preset select、period status。
 4. **Phase 4: scheduler/reminder migration** — deadline-based scheduling、flexible suppression、dedup migration、legacy fallback removal。
-5. **Phase 5: task notification deep-link** — individual detail and evening summary destinations。
+5. **Phase 5: task notification deep-link** — individual task reminders to Home and summary destinations。**Complete for current scope.**
 6. **Phase 6: recent task reuse and template UX** — prefill, explicit template lifecycle。Implemented locally with additive migration `0013_task_templates.sql`.
 7. **Phase 7: calendar** — date projection, selected-date flexible details, fixed markers。
 
