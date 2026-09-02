@@ -190,6 +190,7 @@ test("optimizes Calendar marker/detail paths, actions, stale responses, and scre
   await page.getByRole("button", { name: "閉じる", exact: true }).click();
   await cell(page, today).click();
   const passRow390 = page.locator(".calendar-detail-task").filter({ hasText: passTitle }).first();
+  await expect(passRow390.getByRole("button", { name: "パス", exact: true })).toBeEnabled();
   await swipeLeft(page, passRow390);
   await passRow390.getByRole("button", { name: "パス", exact: true }).click();
   await expect(page.locator(".calendar-detail-task").filter({ hasText: passTitle })).toHaveCount(0, { timeout: 3_000 });
@@ -303,8 +304,8 @@ test("does not show false empty state while selected date data is delayed", asyn
   delayedDates.add(nextTaskDate);
   await page.getByRole("button", { name: "次の日" }).click();
   await expect(page.getByRole("heading", { name: new RegExp(label(nextTaskDate)) })).toBeVisible();
-  await expect(sheet.getByText(nextTaskTitle).first()).toBeVisible();
-  await expect(sheet.getByText("なし")).toHaveCount(1);
+  await expect(sheet.getByText(nextTaskTitle)).toHaveCount(0);
+  await expect(sheet.getByText("なし")).toHaveCount(0);
   await expect(sheet.getByText(taskTitle)).toHaveCount(0);
   await shot(page, "09-delayed-empty-to-task-390x844.png");
   releaseNext(nextTaskDate);
