@@ -4,6 +4,41 @@ import path from "node:path";
 
 const artifactDir = path.resolve(process.env.PLAYWRIGHT_ARTIFACT_DIR ?? "artifacts/playwright/calendar-data-path-optimization");
 const password = "very-long-password";
+const response = (data: unknown) => ({ ok: true, data, requestId: "e2e-calendar-data-path" });
+
+const calendarTask = (id: string, title: string, selectedDate: string) => ({
+  id,
+  title,
+  description: null,
+  recurrenceType: "model_only",
+  modelRecurrenceType: "once",
+  assignmentType: "anyone",
+  assignedUserId: null,
+  assignment: { type: "anyone", user: null },
+  scheduledTime: null,
+  notificationSlot: "none",
+  weekdays: [],
+  weeklyTargetCount: null,
+  targetDate: selectedDate,
+  active: true,
+  sortOrder: 1,
+  createdBy: "user-1",
+  createdAt: "2026-08-01",
+  updatedAt: "2026-08-01",
+  status: "pending",
+  actedBy: null,
+  startedAt: null,
+  completedAt: null,
+  skippedAt: null,
+  note: null,
+  scopeKind: "occurrence",
+  occurrenceKey: `occurrence:${id}:${selectedDate}`,
+  periodKey: null,
+  periodStart: selectedDate,
+  periodEnd: selectedDate,
+  deadlineDate: selectedDate,
+  overdue: false
+});
 
 const dateKey = () => {
   const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
@@ -196,4 +231,112 @@ test("optimizes Calendar marker/detail paths, actions, stale responses, and scre
   expect(actionRequests.filter((value) => new URL(value).pathname.endsWith("/complete")).length).toBe(2);
   expect(actionRequests.filter((value) => new URL(value).pathname.endsWith("/skip")).length).toBe(1);
   expect(actionRequests.filter((value) => new URL(value).pathname.endsWith("/calendar-restore")).length).toBe(2);
+});
+
+test("does not show false empty state while selected date data is delayed", async ({ page }) => {
+  const today = dateKey();
+  const taskDate = today;
+  const emptyDate = addDays(today, 1);
+  const nextTaskDate = addDays(today, 2);
+  const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const taskTitle = `Calendar transition task A ${id}`;
+  const nextTaskTitle = `Calendar transition task C ${id}`;
+  const delayedDates = new Set<string>();
+  const pendingReleases = new Map<string, Array<() => void>>();
+  const releaseNext = (date: string) => {
+    const resolve = pendingReleases.get(date)?.shift();
+    resolve?.();
+  };
+  const waitForRelease = (date: string) => new Promise<void>((resolve) => {
+    const releases = pendingReleases.get(date) ?? [];
+    releases.push(resolve);
+    pendingReleases.set(date, releases);
+  });
+  const selectedFor = (date: string) => ({
+    fixed: date === taskDate ? [calendarTask("transition-task-a", taskTitle, date)] : date === nextTaskDate ? [calendarTask("transition-task-c", nextTaskTitle, date)] : [],
+    weeklyFlexible: [],
+    monthlyFlexible: [],
+    completed: [],
+    shopping: []
+  });
+  const markerFor = (date: string) => ({ fixedCount: date === taskDate || date === nextTaskDate ? 1 : 0, fixedCompletedCount: 0, fixedSkippedCount: 0, shoppingCount: 0, purchasedShoppingCount: 0, tasks: date === taskDate ? [{ id: "transition-task-a", title: taskTitle, deadline: false }] : date === nextTaskDate ? [{ id: "transition-task-c", title: nextTaskTitle, deadline: false }] : [] });
+  const rangeDates = Object.fromEntries(Array.from({ length: 42 }, (_, index) => {
+    const date = addDays(today, index - 7);
+    return [date, markerFor(date)];
+  }));
+
+  await page.clock.install({ time: new Date(`${today}T12:00:00+09:00`) });
+  await page.goto("/register");
+  await page.locator("#register-name").fill(`Calendar transition ${id}`);
+  await page.locator("#register-email").fill(`calendar-transition-${id}@example.test`);
+  await page.locator("#register-password").fill(password);
+  await page.locator('form button[type="submit"]').click();
+  await expect(page).toHaveURL(/\/household\/create|\/home/);
+  await page.goto("/household/create");
+  await page.locator("#household-name").fill(`Calendar transition house ${id}`);
+  await page.locator('form button[type="submit"]').click();
+  await expect(page).toHaveURL(/\/home/);
+
+  await page.route("**/api/tasks/calendar/range**", async (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(response({ from: addDays(today, -7), to: addDays(today, 34), today, timezone: "Asia/Tokyo", dates: rangeDates })) }));
+  await page.route("**/api/tasks/calendar/day**", async (route) => {
+    const date = new URL(route.request().url()).searchParams.get("date") ?? today;
+    if (delayedDates.has(date)) await waitForRelease(date);
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(response({ today, timezone: "Asia/Tokyo", selectedDate: date, selected: selectedFor(date) })) });
+  });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`/calendar?date=${taskDate}`);
+  const sheet = page.getByRole("dialog");
+  await expect(sheet).toBeVisible();
+  await expect(sheet.getByText(taskTitle).first()).toBeVisible();
+
+  delayedDates.add(emptyDate);
+  await page.getByRole("button", { name: "次の日" }).click();
+  await expect(page.getByRole("heading", { name: new RegExp(label(emptyDate)) })).toBeVisible();
+  await expect(sheet.getByText(taskTitle)).toHaveCount(0);
+  await expect(sheet.getByText("なし")).toHaveCount(0);
+  await shot(page, "07-delayed-task-to-empty-390x844.png");
+  releaseNext(emptyDate);
+  await expect(sheet.getByText("なし")).toHaveCount(2);
+  await shot(page, "08-true-empty-day-390x844.png");
+
+  delayedDates.add(nextTaskDate);
+  await page.getByRole("button", { name: "次の日" }).click();
+  await expect(page.getByRole("heading", { name: new RegExp(label(nextTaskDate)) })).toBeVisible();
+  await expect(sheet.getByText("なし")).toHaveCount(0);
+  await expect(sheet.getByText(taskTitle)).toHaveCount(0);
+  await shot(page, "09-delayed-empty-to-task-390x844.png");
+  releaseNext(nextTaskDate);
+  await expect(sheet.getByText(nextTaskTitle).first()).toBeVisible();
+  await shot(page, "10-task-day-loaded-390x844.png");
+
+  delayedDates.clear();
+  await page.goto(`/calendar?date=${taskDate}`);
+  await expect(sheet.getByText(taskTitle).first()).toBeVisible();
+  delayedDates.add(emptyDate);
+  delayedDates.add(nextTaskDate);
+  await page.getByRole("button", { name: "次の日" }).click();
+  await expect(page.getByRole("heading", { name: new RegExp(label(emptyDate)) })).toBeVisible();
+  await page.getByRole("button", { name: "次の日" }).click();
+  await expect(page.getByRole("heading", { name: new RegExp(label(nextTaskDate)) })).toBeVisible();
+  releaseNext(nextTaskDate);
+  await expect(sheet.getByText(nextTaskTitle).first()).toBeVisible();
+  releaseNext(emptyDate);
+  await page.waitForTimeout(80);
+  await expect(page.getByRole("heading", { name: new RegExp(label(nextTaskDate)) })).toBeVisible();
+  await expect(sheet.getByText(nextTaskTitle).first()).toBeVisible();
+
+  await page.setViewportSize({ width: 375, height: 812 });
+  delayedDates.clear();
+  await page.goto(`/calendar?date=${emptyDate}`);
+  await expect(sheet.getByText("なし")).toHaveCount(2);
+  await shot(page, "07-true-empty-day-375x812.png");
+  delayedDates.add(nextTaskDate);
+  await page.getByRole("button", { name: "次の日" }).click();
+  await expect(page.getByRole("heading", { name: new RegExp(label(nextTaskDate)) })).toBeVisible();
+  await expect(sheet.getByText("なし")).toHaveCount(0);
+  await shot(page, "08-delayed-empty-to-task-375x812.png");
+  releaseNext(nextTaskDate);
+  await expect(sheet.getByText(nextTaskTitle).first()).toBeVisible();
+  await shot(page, "09-task-day-loaded-375x812.png");
 });
