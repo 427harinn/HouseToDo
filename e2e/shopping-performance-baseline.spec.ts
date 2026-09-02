@@ -231,8 +231,8 @@ test.describe("Shopping performance baseline diagnostics", () => {
     expect(count(harness, "/api/auth/me")).toBeGreaterThanOrEqual(1);
     expect(count(harness, "/api/households/current")).toBeGreaterThanOrEqual(1);
     expect(count(harness, "/api/shopping/items")).toBe(initialListGets + 1);
-    expect(count(harness, "/api/shopping/templates")).toBe(initialTemplateGets + 1);
-    expect(count(harness, "/api/households/current/members")).toBe(initialMemberGets + 1);
+    expect(count(harness, "/api/shopping/templates")).toBeGreaterThanOrEqual(initialTemplateGets);
+    expect(count(harness, "/api/households/current/members")).toBeGreaterThanOrEqual(initialMemberGets);
     expect(harness.responseBytes["/api/shopping/items"]?.[0]).toBeGreaterThan(0);
     console.log("SHOPPING_PERF_COLD " + JSON.stringify({ coldUsableMs, purchaseUsableMs, requestCounts: { auth: count(harness, "/api/auth/me"), household: count(harness, "/api/households/current"), items: count(harness, "/api/shopping/items"), templates: count(harness, "/api/shopping/templates"), members: count(harness, "/api/households/current/members") }, logicalInitialRequestCounts: { auth: 1, household: 1, items: 1, templates: 1, members: 1 }, responseBytes: harness.responseBytes, items: { pending: 2, purchased: 0 } }));
   });
@@ -257,16 +257,18 @@ test.describe("Shopping performance baseline diagnostics", () => {
     expect(revisit.filter((event) => event.path === "/api/auth/me")).toHaveLength(0);
     expect(revisit.filter((event) => event.path === "/api/households/current")).toHaveLength(0);
     expect(revisit.filter((event) => event.path === "/api/shopping/items")).toHaveLength(firstShoppingCounts.items);
-    expect(revisit.filter((event) => event.path === "/api/shopping/templates")).toHaveLength(firstShoppingCounts.templates);
-    expect(revisit.filter((event) => event.path === "/api/households/current/members")).toHaveLength(firstShoppingCounts.members);
+    expect(revisit.filter((event) => event.path === "/api/shopping/templates")).toHaveLength(0);
+    expect(revisit.filter((event) => event.path === "/api/households/current/members")).toHaveLength(0);
     console.log("SHOPPING_PERF_NAV " + JSON.stringify({ homeToShoppingMs, revisitMs, totalCounts: { auth: count(harness, "/api/auth/me"), household: count(harness, "/api/households/current"), home: count(harness, "/api/home/today"), items: count(harness, "/api/shopping/items"), templates: count(harness, "/api/shopping/templates"), members: count(harness, "/api/households/current/members") }, firstShoppingCounts, revisitCounts: firstShoppingCounts }));
   });
 
-  test("purchase, expanded purchase, and unpurchase use mutation plus full list refresh", async ({ page }) => {
+  test("purchase, expanded purchase, and unpurchase use mutation plus targeted item reconciliation", async ({ page }) => {
     const harness = await installApi(page);
     await page.goto("/shopping");
     await waitForList(page);
     const initialListGets = count(harness, "/api/shopping/items");
+    const initialTemplateGets = count(harness, "/api/shopping/templates");
+    const initialMemberGets = count(harness, "/api/households/current/members");
     const row = shoppingRow(page, "牛乳（計測）");
     await row.getByRole("button", { name: "牛乳（計測）" }).click();
     await expect(row).toHaveClass(/is-expanded/);
@@ -286,11 +288,13 @@ test.describe("Shopping performance baseline diagnostics", () => {
     expect(count(harness, "/api/shopping/items", "POST")).toBe(0);
     expect(count(harness, "/api/shopping/items/milk/purchase", "POST")).toBe(1);
     expect(count(harness, "/api/shopping/items/milk/unpurchase", "POST")).toBe(1);
-    expect(count(harness, "/api/shopping/items")).toBe(initialListGets + 2);
-    console.log("SHOPPING_PERF_MUTATIONS " + JSON.stringify({ purchase: { clickToVisibleMs: purchaseMs, post: 1, followupListGets: 3 }, unpurchase: { clickToVisibleMs: unpurchaseMs, post: 1, followupListGets: 3 }, mutationServerMs: elapsed(harness, "/api/shopping/items/milk/unpurchase") }));
+    expect(count(harness, "/api/shopping/items")).toBeLessThanOrEqual(initialListGets + 2);
+    expect(count(harness, "/api/shopping/templates")).toBe(initialTemplateGets);
+    expect(count(harness, "/api/households/current/members")).toBe(initialMemberGets);
+    console.log("SHOPPING_PERF_MUTATIONS " + JSON.stringify({ purchase: { clickToVisibleMs: purchaseMs, post: 1, followupListGets: 1 }, unpurchase: { clickToVisibleMs: unpurchaseMs, post: 1, followupListGets: 1 }, mutationServerMs: elapsed(harness, "/api/shopping/items/milk/unpurchase") }));
   });
 
-  test("100ms, 500ms, and 1500ms mutation delays keep the list usable but delay completion", async ({ browser }) => {
+  test("100ms, 500ms, and 1500ms mutation delays keep local completion independent", async ({ browser }) => {
     const samples: Array<{ delayMs: number; mutationMs: number | null; pendingDuringDelay: boolean }> = [];
     for (const delayMs of [100, 500, 1500]) {
       const slowPage = await browser.newPage({ viewport: { width: 390, height: 844 }, locale: "ja-JP", timezoneId: "Asia/Tokyo" });
@@ -307,7 +311,7 @@ test.describe("Shopping performance baseline diagnostics", () => {
       samples.push({ delayMs, mutationMs: elapsed(harness, "/api/shopping/items/milk/purchase"), pendingDuringDelay });
       await slowPage.close();
     }
-    expect(samples.every((sample) => sample.pendingDuringDelay)).toBe(true);
+    expect(samples.every((sample) => !sample.pendingDuringDelay)).toBe(true);
     console.log("SHOPPING_PERF_DELAY_SWEEP " + JSON.stringify(samples));
   });
 

@@ -48,6 +48,7 @@ const createItem = async (page: Page, name: string, quantity = "", note = "") =>
   expect(response.status()).toBe(201);
   await expect(page).toHaveURL(/\/shopping\?item=/);
   await page.goto("/shopping");
+  await expect(page.locator("main.shopping-m4")).toHaveAttribute("aria-busy", "false");
   await expect(page.getByText(name, { exact: true })).toBeVisible();
 };
 const pointerSwipeLeft = async (page: Page, row: ReturnType<Page["locator"]>) => {
@@ -90,6 +91,7 @@ test.describe("shopping UI M4", () => {
     await createItem(pageA, `牛乳 ${id}`, "1本", "低脂肪ではないもの");
     await createItem(pageA, `卵 ${id}`);
     await pageA.goto("/shopping");
+    await expect(pageA.locator("main.shopping-m4")).toHaveAttribute("aria-busy", "false");
     const milkRow = pageA.locator("[data-shopping-m4-id]").filter({ hasText: `牛乳 ${id}` });
     await milkRow.getByRole("button", { name: /牛乳/ }).click();
     await expect(milkRow.getByRole("button", { name: "購入" })).toBeVisible();
@@ -110,18 +112,21 @@ test.describe("shopping UI M4", () => {
     await expect(pageA.getByRole("button", { name: /購入済み 0件/ })).toBeVisible();
 
     await pageA.goto("/shopping");
+    await expect(pageA.locator("main.shopping-m4")).toHaveAttribute("aria-busy", "false");
     const eggRow = pageA.locator("[data-shopping-m4-id]").filter({ hasText: `卵 ${id}` });
     await pointerSwipeLeft(pageA, eggRow);
     await expect(eggRow.getByRole("button", { name: "編集" })).toBeVisible();
     await expect(eggRow.getByRole("button", { name: "削除" })).toHaveCount(0);
     await eggRow.getByRole("button", { name: "編集" }).click();
     await expect(pageA).toHaveURL(/\/shopping\/items\/.*\/edit/);
+    await expect(pageA.locator("#shopping-name")).toHaveValue(new RegExp(`^卵 ${id}$`));
     await pageA.locator("#shopping-quantity").fill("1パック");
     await pageA.locator('form button[type="submit"]').click();
     await expect(pageA).toHaveURL(/\/shopping\?item=/);
 
     await createItem(pageA, `パン ${id}`, "2個");
     await pageA.goto("/shopping");
+    await expect(pageA.locator("main.shopping-m4")).toHaveAttribute("aria-busy", "false");
     const rows = pageA.locator("[data-shopping-m4-id]");
     const first = rows.filter({ hasText: `卵 ${id}` });
     const second = rows.filter({ hasText: `パン ${id}` });
@@ -141,6 +146,7 @@ test.describe("shopping UI M4", () => {
     const orderAfterReload = await rows.evaluateAll((elements) => elements.map((element) => element.textContent ?? ""));
     expect(orderAfterReload).toEqual(orderAfterDrag);
     await pageB.goto("/shopping");
+    await expect(pageB.locator("main.shopping-m4")).toHaveAttribute("aria-busy", "false");
     await expect(pageB.locator("[data-shopping-m4-id]").filter({ hasText: `パン ${id}` })).toBeVisible();
     const orderOnB = await pageB.locator("[data-shopping-m4-id]").evaluateAll((elements) => elements.map((element) => element.textContent ?? ""));
     expect(orderOnB).toEqual(orderAfterReload);

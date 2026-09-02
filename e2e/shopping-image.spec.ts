@@ -78,6 +78,9 @@ const waitForApp = async (page: Page) => {
     expect(response.ok()).toBeTruthy();
   }).toPass({ timeout: 60_000 });
 };
+const waitForShoppingAuthoritative = async (page: Page) => {
+  await expect(page.locator("main.shopping-m4")).toHaveAttribute("aria-busy", "false");
+};
 
 test.describe("shopping item image E2E", () => {
   test("uploads JPEG metadata through local D1 and preserves WebP compatibility", async ({ page }) => {
@@ -146,6 +149,7 @@ test.describe("shopping item image E2E", () => {
 
     const itemId = new URL(pageA.url()).searchParams.get("item")!;
     await pageA.goto("/shopping");
+    await waitForShoppingAuthoritative(pageA);
     const itemRow = pageA.locator(`[data-shopping-m4-id="${itemId}"]`);
     await itemRow.getByRole("button", { name: new RegExp(`Image Milk ${id}`) }).click();
     const cardImage = itemRow.locator(".shopping-m4__expanded img");
@@ -176,6 +180,7 @@ test.describe("shopping item image E2E", () => {
     await pageA.locator('form button[type="submit"]').click();
     await expect(pageA).toHaveURL(new RegExp(`/shopping\\?item=${itemId}`));
     await pageA.goto("/shopping");
+    await waitForShoppingAuthoritative(pageA);
     await expect(pageA.locator(`[data-shopping-m4-id="${itemId}"]`)).toBeVisible();
 
     await pageA.goto(`/shopping/items/${itemId}/edit`);
@@ -185,6 +190,7 @@ test.describe("shopping item image E2E", () => {
     await pageA.locator('form button[type="submit"]').click();
     await expect(pageA).toHaveURL(new RegExp(`/shopping\\?item=${itemId}`));
     await pageA.goto("/shopping");
+    await waitForShoppingAuthoritative(pageA);
     const replacedRow = pageA.locator(`[data-shopping-m4-id="${itemId}"]`);
     await replacedRow.getByRole("button", { name: new RegExp(`Image Milk ${id}`) }).click();
     const replacedUrl = await replacedRow.locator(".shopping-m4__expanded img").getAttribute("src");
@@ -192,6 +198,7 @@ test.describe("shopping item image E2E", () => {
     expect(replacedUrl).not.toBe(firstUrl);
 
     await pageB.goto("/shopping");
+    await waitForShoppingAuthoritative(pageB);
     await expect(pageB.locator(`[data-shopping-m4-id="${itemId}"]`)).toBeVisible();
     const pendingRowB = pageB.locator(`[data-shopping-m4-id="${itemId}"]`);
     await pendingRowB.getByRole("button", { name: new RegExp(`Image Milk ${id}`) }).click();
@@ -202,6 +209,7 @@ test.describe("shopping item image E2E", () => {
     await expect(purchasedRowB.locator(".shopping-m4__expanded img")).toBeVisible();
     await shot(pageB, "06-shopping-image-purchased.png");
     await pageA.goto("/shopping");
+    await waitForShoppingAuthoritative(pageA);
     await pageA.getByRole("button", { name: /購入済み 1件/ }).click();
     const purchasedRowA = pageA.locator(`[data-shopping-m4-id="${itemId}"]`);
     await expect(purchasedRowA).toBeVisible();
@@ -217,6 +225,7 @@ test.describe("shopping item image E2E", () => {
     await expect(pageA.locator("#shopping-name")).toHaveValue(`Image Milk ${id}`);
     await pageA.locator('form button[type="submit"]').click();
     await pageA.goto("/shopping");
+    await waitForShoppingAuthoritative(pageA);
     await pageA.getByRole("button", { name: /購入済み 1件/ }).click();
     await expect(pageA.locator(`[data-shopping-m4-id="${itemId}"]`)).toBeVisible();
     const deletedImage = await pageA.request.get(new URL(replacedUrl!, pageA.url()).href);
