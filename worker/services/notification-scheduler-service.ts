@@ -269,7 +269,7 @@ export class NotificationSchedulerService {
               data: {
                 kind: "task",
                 taskId: task.id,
-                url: `/tasks/${task.id}`
+                url: `/home?task=${encodeURIComponent(task.id)}`
               }
             }
           );
@@ -289,7 +289,7 @@ export class NotificationSchedulerService {
               data: {
                 kind: "task",
                 taskId: task.id,
-                url: `/tasks/${task.id}`
+                url: `/home?task=${encodeURIComponent(task.id)}`
               }
             }
           );

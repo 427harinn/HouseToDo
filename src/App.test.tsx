@@ -2,6 +2,9 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
+import type { HomeToday } from "./api/home";
+import type { TodayTask } from "./api/tasks";
+import { clearMemoryHomeSnapshots, writeMemoryHomeSnapshot } from "./cache/home-snapshot";
 import { processShoppingImage } from "./lib/image-processing";
 
 vi.mock("./lib/image-processing", () => ({
@@ -705,8 +708,10 @@ describe("M6 auth and household entry", () => {
 describe("M2 Home", () => {
   beforeEach(() => {
     vi.useFakeTimers({ now: new Date("2026-08-25T12:00:00+09:00"), toFake: ["Date"] });
+    clearMemoryHomeSnapshots();
   });
   afterEach(() => {
+    clearMemoryHomeSnapshots();
     vi.useRealTimers();
   });
 
@@ -990,6 +995,114 @@ describe("M2 Home", () => {
     expect(screen.getByText("8/31まで")).toBeInTheDocument();
     expect(screen.getByText("8/24 09:00まで")).toBeInTheDocument();
     expect(screen.getByText("締切なし")).toBeInTheDocument();
+  });
+
+  it("authoritatively selects and expands a task notification, then consumes the query", async () => {
+    const deepLinkedTask = { ...task, id: "deep-link-task", title: "通知から開く家事", description: "すぐ完了できる" };
+    const dashboard = { ...baseDashboard, todayTasks: [deepLinkedTask], homeTasks: [deepLinkedTask] };
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: scrollIntoView });
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.endsWith("/api/auth/me")) return Promise.resolve(ok({ user }));
+      if (url.endsWith("/api/households/current")) return Promise.resolve(ok({ household }));
+      if (url.endsWith("/api/households/current/image-usage")) return Promise.resolve(ok(imageUsage));
+      if (url.endsWith("/api/home/today")) return Promise.resolve(ok(dashboard));
+      return Promise.resolve(failure("NOT_FOUND", 404));
+    });
+    window.history.replaceState({}, "", "/home?task=deep-link-task");
+    render(<App />);
+
+    expect(await screen.findByRole("button", { name: "完了" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "通知から開く家事の詳細" })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("すぐ完了できる")).toBeInTheDocument();
+    await waitFor(() => expect(window.location.pathname + window.location.search).toBe("/home"));
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(1));
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "center", behavior: "smooth" });
+  });
+
+  it("does not deep-link a cached task that the authoritative Home response no longer contains", async () => {
+    const staleTask: TodayTask = {
+      ...task,
+      id: "stale-deep-link",
+      title: "古い通知の家事",
+      recurrenceType: "daily",
+      modelRecurrenceType: "daily",
+      assignmentType: "specific",
+      status: "pending",
+      assignment: { type: "specific", user: { userId: "user-2" } },
+      notificationSlot: "none",
+      weekdays: [],
+      weeklyTargetCount: null,
+      active: true,
+      sortOrder: 1,
+      createdBy: user.id,
+      createdAt: "2026-08-01T00:00:00Z",
+      updatedAt: "2026-08-01T00:00:00Z",
+      actedBy: null,
+      startedAt: null,
+      completedAt: null,
+      skippedAt: null,
+      note: null
+    };
+    const staleSnapshot: HomeToday = { date: "2026-08-25", homeTasks: [staleTask], completedRecords: [], passedRecords: [], shopping: { pendingCount: 2 }, members: [{ userId: user.id, displayName: user.displayName, role: "owner", color: "#d9f2eb", avatarUrl: null }] };
+    writeMemoryHomeSnapshot({ userId: user.id, householdId: household.id, date: "2026-08-25" }, staleSnapshot);
+    const authoritativeDashboard = { ...baseDashboard, homeTasks: [], todayTasks: [], summary: { ...baseDashboard.summary, total: 0, pending: 0 } };
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.endsWith("/api/auth/me")) return Promise.resolve(ok({ user }));
+      if (url.endsWith("/api/households/current")) return Promise.resolve(ok({ household }));
+      if (url.endsWith("/api/households/current/image-usage")) return Promise.resolve(ok(imageUsage));
+      if (url.endsWith("/api/home/today")) return Promise.resolve(ok(authoritativeDashboard));
+      return Promise.resolve(failure("NOT_FOUND", 404));
+    });
+    window.history.replaceState({}, "", "/home?task=stale-deep-link");
+    render(<App />);
+
+    await waitFor(() => expect(window.location.pathname + window.location.search).toBe("/home"));
+    expect(screen.queryByRole("button", { name: "完了" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "古い通知の家事の詳細" })).not.toBeInTheDocument();
+  });
+
+  it("keeps a manually closed deep-linked task closed and preserves the one-expanded invariant", async () => {
+    const secondTask = { ...task, id: "deep-link-second", title: "別の家事", description: "別のメモ" };
+    const dashboard = { ...baseDashboard, todayTasks: [task, secondTask], homeTasks: [task, secondTask], summary: { ...baseDashboard.summary, total: 2, pending: 2 } };
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.endsWith("/api/auth/me")) return Promise.resolve(ok({ user }));
+      if (url.endsWith("/api/households/current")) return Promise.resolve(ok({ household }));
+      if (url.endsWith("/api/households/current/image-usage")) return Promise.resolve(ok(imageUsage));
+      if (url.endsWith("/api/home/today")) return Promise.resolve(ok(dashboard));
+      return Promise.resolve(failure("NOT_FOUND", 404));
+    });
+    window.history.replaceState({}, "", `/home?task=${task.id}`);
+    const { container } = render(<App />);
+    const first = await screen.findByRole("button", { name: "ゴミ出しの詳細" });
+    await waitFor(() => expect(first).toHaveAttribute("aria-expanded", "true"));
+    fireEvent.click(first);
+    expect(first).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(screen.getByRole("button", { name: "別の家事の詳細" }));
+    const rows = container.querySelectorAll(".m2-home__task-list .m2-home__row");
+    expect(rows[0]).not.toHaveClass("is-expanded");
+    expect(rows[1]).toHaveClass("is-expanded");
+  });
+
+  it.each([
+    ["completed", { ...baseDashboard, homeTasks: [], todayTasks: [], completedRecords: [{ id: "record-done", taskId: task.id, status: "completed", title: task.title, taskActive: true, actualCompleter: null, assignedUser: null }] }],
+    ["missing", { ...baseDashboard, homeTasks: [], todayTasks: [], completedRecords: [] }]
+  ])("falls back to normal Home when the deep-linked task is %s", async (_label, dashboard) => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.endsWith("/api/auth/me")) return Promise.resolve(ok({ user }));
+      if (url.endsWith("/api/households/current")) return Promise.resolve(ok({ household }));
+      if (url.endsWith("/api/households/current/image-usage")) return Promise.resolve(ok(imageUsage));
+      if (url.endsWith("/api/home/today")) return Promise.resolve(ok(dashboard));
+      return Promise.resolve(failure("NOT_FOUND", 404));
+    });
+    window.history.replaceState({}, "", `/home?task=${task.id}`);
+    render(<App />);
+    await waitFor(() => expect(window.location.pathname + window.location.search).toBe("/home"));
+    expect(screen.queryByRole("button", { name: "完了" })).not.toBeInTheDocument();
   });
 });
 
