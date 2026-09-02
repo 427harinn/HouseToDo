@@ -438,7 +438,7 @@ describe("notification scheduler rules", () => {
       title: "家事の時間です",
       body: "Task",
       icon: "/icons/house-todo-v4-192.png",
-      data: { kind: "task", taskId: "task-1", url: "/tasks/task-1" }
+      data: { kind: "task", taskId: "task-1", url: "/home?task=task-1" }
     });
     expect(legacyPayloads[0].body).not.toContain("・");
 
@@ -459,7 +459,7 @@ describe("notification scheduler rules", () => {
     expect(canonicalPayloads[0]).toMatchObject({
       title: "家事の時間です",
       body: "Task",
-      data: { kind: "task", taskId: "task-1", url: "/tasks/task-1" }
+      data: { kind: "task", taskId: "task-1", url: "/home?task=task-1" }
     });
     expect(canonicalPayloads[0].body).not.toBe(
       formatRemainingTaskTitles([{ title: "Task" }, { title: "別の家事" }])

@@ -31,6 +31,7 @@ import {
 } from "./api/shopping";
 import { processShoppingImage, type ProcessedImage } from "./lib/image-processing";
 import { formatDateTime as formatDateTimeInTimezone } from "./lib/format";
+import { homeTaskNotificationUrl, parseHomeTaskQuery, type HomeTaskQuery } from "./lib/notification-url";
 import { visiblePurchasedShoppingItems as filterVisiblePurchasedShoppingItems } from "./lib/shopping-visibility";
 import {
   createHousehold,
@@ -267,6 +268,11 @@ const replaceLegacyLocation = (pathname: string, search = "") => {
   return new URL(target, window.location.origin);
 };
 
+const homeTaskContinuation = (pathname: "/login" | "/home") => {
+  const { taskId } = parseHomeTaskQuery(window.location.search);
+  return taskId ? `${pathname}${homeTaskNotificationUrl(taskId).slice("/home".length)}` : pathname;
+};
+
 const routeFromLocation = (): Route => {
   const canonical = replaceLegacyLocation(window.location.pathname, window.location.search);
   return parseRoute(canonical?.pathname ?? window.location.pathname);
@@ -416,7 +422,7 @@ export function App() {
         if (error instanceof ApiError && error.code === "UNAUTHENTICATED") {
           setAuth({ status: "unauthenticated" });
           setHousehold({ status: "idle" });
-          navigate("/login", true);
+          navigate(homeTaskContinuation("/login"), true);
           return;
         }
         setHousehold({ status: "error", message: apiErrorMessage(error) });
@@ -538,12 +544,12 @@ export function App() {
   useEffect(() => {
     if (auth.status === "loading") return;
     if (auth.status === "unauthenticated") {
-      if (!isAuthRoute(route)) navigate("/login", true);
+      if (!isAuthRoute(route)) navigate(homeTaskContinuation("/login"), true);
       return;
     }
     if (household.status === "idle" || household.status === "loading") return;
     if (route.name === "/" || isAuthRoute(route)) {
-      navigate(household.status === "ready" ? "/home" : "/household/create", true);
+      navigate(household.status === "ready" ? homeTaskContinuation("/home") : "/household/create", true);
       return;
     }
     if (household.status === "none" && (isAppRoute(route) || route.name === "/guest" || route.name === "/onboarding")) navigate("/household/create", true);
@@ -659,7 +665,8 @@ export function App() {
     return <ShoppingItemFormScreen {...shellProps} mode="create" />;
   if (route.name === "/shopping/items/:itemId/edit")
     return <ShoppingItemFormScreen {...shellProps} mode="edit" itemId={route.itemId} />;
-  return <HomeScreen {...shellProps} homeBootstrap={homeBootstrapRef.current} />;
+  const homeTaskQuery = parseHomeTaskQuery(window.location.search);
+  return <HomeScreen {...shellProps} homeBootstrap={homeBootstrapRef.current} targetTaskQuery={homeTaskQuery} />;
 }
 function LoginScreen({
   onLogin,
@@ -1628,7 +1635,8 @@ function HomeScreen({
   user,
   profileImageNotice,
   onNavigate,
-  homeBootstrap
+  homeBootstrap,
+  targetTaskQuery
 }: {
   household: Household;
   profileImageNotice?: string;
@@ -1636,6 +1644,7 @@ function HomeScreen({
   onNavigate: (route: NavigationPath) => void;
   onLogout: () => void;
   homeBootstrap: HomeBootstrapRequest | null;
+  targetTaskQuery: HomeTaskQuery;
 }) {
   const { data, loading, refreshing, message, refresh, invalidateRequests, hasAuthoritativeSync, authoritativeRevision } = useHomeData(user, household, homeBootstrap);
   const delayedRefreshStatusVisible = useDelayedBusyStatus(refreshing && data !== null, {
@@ -1650,6 +1659,10 @@ function HomeScreen({
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const [mutations, setMutations] = useState<HomeMutation[]>([]);
   const [statusMessage, setStatusMessage] = useState("");
+  const taskRowRefs = useRef(new Map<string, HTMLDivElement>());
+  const deepLinkAttemptRef = useRef<string | null>(null);
+  const deepLinkScrollRef = useRef<{ key: string; taskId: string; requested: boolean } | null>(null);
+  const expandedTaskIdRef = useRef<string | null>(null);
   const mutationsRef = useRef<HomeMutation[]>([]);
   const mutationSequenceRef = useRef(0);
   const mountedRef = useRef(true);
@@ -1683,6 +1696,49 @@ function HomeScreen({
   );
   const completed = displayedData?.completedRecords ?? [];
   const passed = displayedData?.passedRecords ?? [];
+  useEffect(() => {
+    expandedTaskIdRef.current = expandedTaskId;
+  }, [expandedTaskId]);
+  useEffect(() => {
+    if (!targetTaskQuery.requested || !hasAuthoritativeSync || !data || authoritativeRevision === 0) return;
+    const key = targetTaskQuery.taskId ?? "<invalid>";
+    if (deepLinkAttemptRef.current === key) return;
+    deepLinkAttemptRef.current = key;
+    const target = targetTaskQuery.taskId
+      ? data.homeTasks.find((task) =>
+          task.id === targetTaskQuery.taskId &&
+          (task.status === "pending" || task.status === "in_progress")
+        )
+      : undefined;
+    if (!target) {
+      deepLinkScrollRef.current = null;
+      if (window.location.pathname === "/home" && new URLSearchParams(window.location.search).has("task")) {
+        window.history.replaceState({ route: "/home" }, "", "/home");
+      }
+      return;
+    }
+    setOpenRowId(null);
+    expandedTaskIdRef.current = target.id;
+    setExpandedTaskId(target.id);
+    deepLinkScrollRef.current = { key, taskId: target.id, requested: false };
+    if (window.location.pathname === "/home" && new URLSearchParams(window.location.search).has("task")) {
+      window.history.replaceState({ route: "/home" }, "", "/home");
+    }
+  }, [authoritativeRevision, data, hasAuthoritativeSync, targetTaskQuery]);
+  useEffect(() => {
+    const pending = deepLinkScrollRef.current;
+    if (!pending || pending.requested || expandedTaskId !== pending.taskId) return;
+    const frame = window.requestAnimationFrame(() => {
+      if (expandedTaskIdRef.current !== pending.taskId) return;
+      const row = taskRowRefs.current.get(pending.taskId);
+      if (!row) return;
+      row.scrollIntoView({ block: "center", behavior: prefersReducedMotion ? "auto" : "smooth" });
+      if (deepLinkScrollRef.current?.key === pending.key) {
+        deepLinkScrollRef.current.requested = true;
+      }
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeTasks, expandedTaskId, prefersReducedMotion]);
   const wait = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, prefersReducedMotion ? 0 : ms));
   const updateMutations = (updater: (current: HomeMutation[]) => HomeMutation[]) => {
     if (!mountedRef.current) return;
@@ -1798,6 +1854,10 @@ function HomeScreen({
                 onSecondary={() => void pass(task)}
                 secondaryLabel="パス"
                 expanded={expandedTaskId === task.id}
+                rowRef={(element) => {
+                  if (element) taskRowRefs.current.set(task.id, element);
+                  else taskRowRefs.current.delete(task.id);
+                }}
                 expandedContent={<TaskInlineDetail task={task} today={today} members={displayedData?.members} busy={isBusy(task.id)} disabled={mutationsDisabled} onComplete={() => void complete(task)} />}
                 mutationsDisabled={mutationsDisabled}
                 rowClassName={mutationClass(task.id, "complete") || mutationClass(task.id, "pass") || mutationClass(task.id, "restore")}
@@ -1906,7 +1966,7 @@ function TaskInlineDetail({ task, today, members, busy, disabled = false, onComp
   </div>;
 }
 
-function HomeSwipeRow({ children, rowId, openRowId, onOpenRow, busy, onEdit, onSecondary, secondaryLabel, expanded = false, expandedContent, rowClassName = "", restoreOnly = false, mutationsDisabled = false }: { children: ReactNode; rowId: string; openRowId: string | null; onOpenRow: (rowId: string | null) => void; busy: boolean; onEdit?: () => void; onSecondary: () => void; secondaryLabel: string; expanded?: boolean; expandedContent?: ReactNode; rowClassName?: string; restoreOnly?: boolean; mutationsDisabled?: boolean }) {
+function HomeSwipeRow({ children, rowId, openRowId, onOpenRow, busy, onEdit, onSecondary, secondaryLabel, expanded = false, expandedContent, rowClassName = "", restoreOnly = false, mutationsDisabled = false, rowRef }: { children: ReactNode; rowId: string; openRowId: string | null; onOpenRow: (rowId: string | null) => void; busy: boolean; onEdit?: () => void; onSecondary: () => void; secondaryLabel: string; expanded?: boolean; expandedContent?: ReactNode; rowClassName?: string; restoreOnly?: boolean; mutationsDisabled?: boolean; rowRef?: (element: HTMLDivElement | null) => void }) {
   const actionWidth = restoreOnly ? 72 : 136;
   const actionsOpen = openRowId === rowId;
   const [offset, setOffset] = useState(actionsOpen ? -actionWidth : 0);
@@ -1954,7 +2014,7 @@ function HomeSwipeRow({ children, rowId, openRowId, onOpenRow, busy, onEdit, onS
     if (event.target instanceof Element && event.target.closest(".m2-home__actions")) { suppressClick.current = false; return; }
     event.preventDefault(); event.stopPropagation(); suppressClick.current = false;
   };
-  return <div className={`m2-home__row ${expanded ? "is-expanded" : ""} ${actionsOpen ? "is-actions-open" : ""} ${dragging ? "is-dragging" : ""} ${rowClassName}`} onPointerDown={(event) => { event.stopPropagation(); start.current = { x: event.clientX, y: event.clientY }; setDragging(false); }} onPointerMove={(event) => { event.stopPropagation(); move(event); }} onPointerUp={(event) => { event.stopPropagation(); end(event); }} onPointerCancel={(event) => { event.stopPropagation(); start.current = null; vertical.current = false; horizontal.current = false; setDragging(false); setOffset(actionsOpen ? -actionWidth : 0); }} onClickCapture={clickCapture}>
+  return <div ref={rowRef} className={`m2-home__row ${expanded ? "is-expanded" : ""} ${actionsOpen ? "is-actions-open" : ""} ${dragging ? "is-dragging" : ""} ${rowClassName}`} onPointerDown={(event) => { event.stopPropagation(); start.current = { x: event.clientX, y: event.clientY }; setDragging(false); }} onPointerMove={(event) => { event.stopPropagation(); move(event); }} onPointerUp={(event) => { event.stopPropagation(); end(event); }} onPointerCancel={(event) => { event.stopPropagation(); start.current = null; vertical.current = false; horizontal.current = false; setDragging(false); setOffset(actionsOpen ? -actionWidth : 0); }} onClickCapture={clickCapture}>
     <div className="m2-home__row-content" style={{ "--m2-swipe-offset": `${offset}px` } as CSSProperties}>
       {children}
       <button type="button" className="m2-home__more" aria-label="操作" aria-expanded={actionsOpen} onClick={() => { const next = !actionsOpen; onOpenRow(next ? rowId : null); setOffset(next ? -actionWidth : 0); }}><Ellipsis aria-hidden="true" /></button>

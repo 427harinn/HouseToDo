@@ -95,7 +95,9 @@ self.addEventListener("notificationclick", (event) => {
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
       const sameOriginClient = clients.find((client) => new URL(client.url).origin === self.location.origin);
       if (sameOriginClient) {
-        if ("navigate" in sameOriginClient && new URL(sameOriginClient.url).pathname !== targetUrl) {
+        const currentUrl = new URL(sameOriginClient.url);
+        const currentTarget = `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`;
+        if ("navigate" in sameOriginClient && currentTarget !== targetUrl) {
           return sameOriginClient.navigate(targetUrl).then(() => sameOriginClient.focus());
         }
         return sameOriginClient.focus();
