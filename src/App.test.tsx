@@ -188,6 +188,7 @@ describe("App task form payload", () => {
   }, 15000);
 
   it("sends the canonical daily deadline from the time input", async () => {
+    vi.useFakeTimers({ now: new Date("2026-09-01T12:00:00+09:00"), toFake: ["Date"] });
     let capturedPayload: Record<string, unknown> | null = null;
     const task = {
       id: "task-1",
@@ -369,6 +370,7 @@ describe("App task form payload", () => {
   }, 15000);
 
   it("renders one canonical start date and only shows time when all-day is off", async () => {
+    vi.useFakeTimers({ now: new Date("2026-09-01T12:00:00+09:00"), toFake: ["Date"] });
     mockFetch();
     window.history.replaceState({}, "", "/tasks/new");
     const { container } = render(<App />);
@@ -434,6 +436,7 @@ describe("M7 legacy route redirects", () => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 

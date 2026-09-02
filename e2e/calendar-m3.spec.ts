@@ -64,7 +64,7 @@ test.describe("Calendar M3", () => {
       if (url.pathname === "/api/tasks/task-1/history") return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(response({ records: [] })) });
       if (url.pathname === "/api/tasks/calendar") { persistActiveAfterComplete ||= url.searchParams.get("persist") === "1"; await settleCalendarRefresh(); return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(response(calendarData(url.searchParams.get("selectedDate") ?? "2026-08-20", completed, passed, url.searchParams.get("multi") === "1"))) }); }
       if (url.pathname.endsWith("/complete")) { persistActiveAfterComplete ||= new URL(page.url()).searchParams.get("persist") === "1"; if (!persistActiveAfterComplete) completed = true; delayedCalendarRefreshes = 2; return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(response({ result: {} })) }); }
-      if (url.pathname.endsWith("/skip")) { passed = true; return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(response({ result: {} })) }); }
+      if (url.pathname.endsWith("/skip")) { passed = true; delayedCalendarRefreshes = 2; return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(response({ result: {} })) }); }
       if (url.pathname.endsWith("/calendar-restore")) { completed = false; return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(response({ result: { reset: true } })) }); }
       throw new Error(`Unexpected Calendar API request: ${route.request().method()} ${url.pathname}`);
     });
