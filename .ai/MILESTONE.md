@@ -13,6 +13,9 @@
 - Production UI Migration is `COMPLETE`.
 - Deploy and remote migration have not been performed.
 - Pending follow-up is release/deploy validation, real iPhone manual validation, and optional future compatibility cleanup.
+- Current notification scope is complete: Morning Summary, Evening Summary, task-specific reminders from existing timing fields, Home task deep-links, duplicate protection, invalid subscription handling, multi-device support, and real iPhone PWA verification.
+- Calendar notification deep-link synchronization and Shopping planned-date notifications are deferred/out of scope. Notification actions are not required, and no new notification DB field is planned.
+- Notification feature implementation and staging/mobile verification are complete; production rollout remains future work.
 - This closeout is not M9 feature development; UI, API, schema, and migration changes are out of scope.
 - 詳細なM1〜M8計画は[docs/PRODUCTION_UI_MIGRATION.md](../docs/PRODUCTION_UI_MIGRATION.md)を参照。
 
@@ -94,7 +97,7 @@
 - Implementation/render target SHA: `fbe0855f76cdea05cb5f05429513338955fcda76` (`test: align canonical m7 e2e contracts`).
 - Evidence commit SHA: `75ce6e42ff4e9ecadcb1828a95d8bcd9a914fab7`.
 - Local Worker + D1 two-user coverage includes Task complete/pass/restore/edit, Shopping reorder/purchase/restore/planned-date Calendar deep-link, Other member/displayName/permission/household sync, and logout isolation.
-- Production-like PWA diagnostics passed manifest, icons, service worker, start URL states, direct routes, legacy redirect, and notification URL safety. WebKit is unavailable locally; real iPhone remains manual follow-up.
+- Production-like PWA diagnostics passed manifest, icons, service worker, start URL states, direct routes, legacy redirect, and notification URL safety. WebKit is unavailable locally; the broader UI real-iPhone check remains a separate manual follow-up. Notification real-device verification is recorded in the current boundary above.
 - Evidence review package contains exactly four boards and four final WebM files; M8A backend cleanup is now in progress.
 
 ## M6 delivery boundary
@@ -177,7 +180,7 @@
 
 ## Next objective
 
-Shopping planned purchase dates and their Calendar projection are verified on staging. Notification deep-link, Shopping notifications, and production rollout remain future work.
+The next roadmap priorities are WebMCP, scheduler query optimization, UI refinement / remaining UX cleanup if applicable, and then production rollout. Notification implementation and staging/mobile verification are complete; production rollout is not.
 
 ## Guardrails
 

@@ -50,3 +50,7 @@ The deep link waits for the authenticated household and authoritative Home respo
 7. Repeat once while the PWA is already open at Home, and once while it is open on Calendar, Shopping, or another route.
 
 Summary notifications remain `/home` and do not auto-select a task. No reminder fields or D1 migration are required for this feature.
+
+## Scope status
+
+Task notification deep-link implementation and staging/mobile verification are complete, including real iPhone PWA verification. Calendar notification deep-link synchronization and Shopping planned-date notifications are deferred/out of scope. Notification action buttons are not required, and no new notification DB field is planned.
