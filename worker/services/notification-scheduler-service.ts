@@ -266,7 +266,11 @@ export class NotificationSchedulerService {
               title: "家事の時間です",
               body: task.title,
               icon: "/icons/house-todo-v4-192.png",
-              data: { url: `/tasks/${task.id}` }
+              data: {
+                kind: "task",
+                taskId: task.id,
+                url: `/tasks/${task.id}`
+              }
             }
           );
         }
@@ -282,7 +286,11 @@ export class NotificationSchedulerService {
               title: "家事の時間です",
               body: task.title,
               icon: "/icons/house-todo-v4-192.png",
-              data: { url: `/tasks/${task.id}` }
+              data: {
+                kind: "task",
+                taskId: task.id,
+                url: `/tasks/${task.id}`
+              }
             }
           );
         }

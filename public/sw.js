@@ -27,6 +27,33 @@ function safeAssetUrl(value) {
   }
 }
 
+function safeNotificationData(data) {
+  const result = { url: safeUrl(data && data.url) };
+  if (!data || typeof data !== "object" || Array.isArray(data)) return result;
+
+  if (
+    data.kind === "summary" &&
+    (data.period === "morning" || data.period === "evening") &&
+    typeof data.localDate === "string"
+  ) {
+    result.kind = "summary";
+    result.period = data.period;
+    result.localDate = data.localDate;
+    return result;
+  }
+
+  if (
+    data.kind === "task" &&
+    typeof data.taskId === "string" &&
+    data.taskId.length > 0 &&
+    data.taskId.length <= 128
+  ) {
+    result.kind = "task";
+    result.taskId = data.taskId;
+  }
+  return result;
+}
+
 self.addEventListener("install", () => {
   self.skipWaiting();
 });
@@ -55,7 +82,7 @@ self.addEventListener("push", (event) => {
   const badge = safeAssetUrl(payload.badge);
   if (icon) options.icon = icon;
   if (badge) options.badge = badge;
-  options.data = { url: safeUrl(payload.data && payload.data.url) };
+  options.data = safeNotificationData(payload.data);
 
   event.waitUntil(self.registration.showNotification(title, options));
 });

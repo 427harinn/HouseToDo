@@ -56,20 +56,30 @@ Summary payloadのdataは次の形を使用する。
 }
 ```
 
-Eveningでは`period`が`evening`になる。task titleはprivate dataの重複を避けるためbodyにのみ含め、dataには含めない。Service Workerは既存のsame-origin URL guardと`showNotification(title, { body, icon, data })`を使用する。
+Eveningでは`period`が`evening`になる。task titleはprivate dataの重複を避けるためbodyにのみ含め、dataには含めない。Service Workerは既存のsame-origin URL guardと`showNotification(title, { body, icon, data })`を使用し、`kind`とSummaryの`period/localDate`またはtaskの`taskId`を安全に保持する。Summaryとtask-specific payloadは`data.kind`で区別する。
+
+Task-specific payloadは次の形で、bodyは通知対象taskのtitleだけを含む。
+
+```json
+{
+  "kind": "task",
+  "taskId": "task-id",
+  "url": "/tasks/task-id"
+}
+```
 
 ## Timezone and Cron
 
 Summary設定のIANA timezoneで09:00/21:00のslotを判定する。日付のtask eligibilityはHomeと同じhousehold projectionへlocal dateを渡す。DSTは既存のIANA/Intlとzoned date処理を利用する。
 
-`resolveScheduledNotification()`のdelivery windowは20分のhalf-open window。N1のstaging Cronは次へ変更する。
+`resolveScheduledNotification()`のdelivery windowは20分のhalf-open window。これは安全なpickup/retry検出窓であり、通知の目標遅延ではない。Summaryは多少の遅延を許容できるが、task-specific reminderはdeadline/offsetの時刻精度を必要とするため、同じSchedulerをより細かいCronで動かす。
 
 | Environment | Old | New |
 | --- | --- | --- |
-| staging | `*/5 * * * *` | `*/15 * * * *` UTC |
+| staging | `*/15 * * * *` | `*/5 * * * *` UTC |
 | production/top-level | `0 18 * * *` | unchanged |
 
-15分Cronと20分windowの組み合わせにより、各local slotを少なくとも一度評価する。同じuser/household/period/local dateのdelivery keyは既存の`notification_deliveries` unique keyで重複を防ぐ。
+5分Cronと20分windowの組み合わせにより、Summaryは各local slotを少なくとも一度評価し、task-specific reminderもpollingによる遅延を概ね0〜5分に抑える。同じuser/household/period/local dateまたはtask occurrenceのdelivery keyは既存の`notification_deliveries` unique keyで重複を防ぐ。
 
 ## Duplicate and failure handling
 

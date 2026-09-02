@@ -424,6 +424,150 @@ describe("notification scheduler rules", () => {
     });
   });
 
+  it("keeps task-specific payloads distinct from summary payloads", async () => {
+    const legacyDb = schedulerDb("07:45");
+    const legacyPayloads: Record<string, unknown>[] = [];
+    await new NotificationSchedulerService(legacyDb as unknown as D1Database, {
+      sendPayload: (_userId, _householdId, payload) => {
+        legacyPayloads.push(payload as Record<string, unknown>);
+        return Promise.resolve({ sent: 1, failed: 0 });
+      }
+    }).run({}, new Date("2026-08-12T22:45:00.000Z"));
+
+    expect(legacyPayloads[0]).toEqual({
+      title: "家事の時間です",
+      body: "Task",
+      icon: "/icons/house-todo-v4-192.png",
+      data: { kind: "task", taskId: "task-1", url: "/tasks/task-1" }
+    });
+    expect(legacyPayloads[0].body).not.toContain("・");
+
+    const canonicalDb = schedulerDb(null);
+    addCanonicalTask(canonicalDb, {
+      notification_time: null,
+      deadline_time: "08:00",
+      notification_offset_minutes: 15
+    });
+    const canonicalPayloads: Record<string, unknown>[] = [];
+    await new NotificationSchedulerService(canonicalDb as unknown as D1Database, {
+      sendPayload: (_userId, _householdId, payload) => {
+        canonicalPayloads.push(payload as Record<string, unknown>);
+        return Promise.resolve({ sent: 1, failed: 0 });
+      }
+    }).run({}, new Date("2026-08-12T22:45:00.000Z"));
+
+    expect(canonicalPayloads[0]).toMatchObject({
+      title: "家事の時間です",
+      body: "Task",
+      data: { kind: "task", taskId: "task-1", url: "/tasks/task-1" }
+    });
+    expect(canonicalPayloads[0].body).not.toBe(
+      formatRemainingTaskTitles([{ title: "Task" }, { title: "別の家事" }])
+    );
+  });
+
+  it("delivers canonical reminders at the configured deadline minus offset", async () => {
+    const db = schedulerDb(null);
+    addCanonicalTask(db, {
+      notification_time: null,
+      deadline_time: "08:00",
+      notification_offset_minutes: 15
+    });
+    let attempts = 0;
+    const service = new NotificationSchedulerService(db as unknown as D1Database, {
+      sendPayload: () => {
+        attempts += 1;
+        return Promise.resolve({ sent: 1, failed: 0 });
+      }
+    });
+
+    await service.run({}, new Date("2026-08-12T22:44:00.000Z"));
+    expect(attempts).toBe(0);
+    await service.run({}, new Date("2026-08-12T22:45:00.000Z"));
+    expect(attempts).toBe(1);
+    await service.run({}, new Date("2026-08-12T22:50:00.000Z"));
+    expect(attempts).toBe(1);
+  });
+
+  it("delivers zero-offset and non-five-minute canonical reminder times", async () => {
+    const zeroOffsetDb = schedulerDb(null);
+    addCanonicalTask(zeroOffsetDb, {
+      notification_time: null,
+      deadline_time: "08:00",
+      notification_offset_minutes: 0
+    });
+    let zeroOffsetAttempts = 0;
+    const zeroOffsetService = new NotificationSchedulerService(
+      zeroOffsetDb as unknown as D1Database,
+      {
+        sendPayload: () => {
+          zeroOffsetAttempts += 1;
+          return Promise.resolve({ sent: 1, failed: 0 });
+        }
+      }
+    );
+    await zeroOffsetService.run({}, new Date("2026-08-12T22:59:00.000Z"));
+    await zeroOffsetService.run({}, new Date("2026-08-12T23:00:00.000Z"));
+    expect(zeroOffsetAttempts).toBe(1);
+
+    const nonFiveMinuteDb = schedulerDb(null);
+    addCanonicalTask(nonFiveMinuteDb, {
+      notification_time: null,
+      deadline_time: "08:07",
+      notification_offset_minutes: 0
+    });
+    let nonFiveMinuteAttempts = 0;
+    const nonFiveMinuteService = new NotificationSchedulerService(
+      nonFiveMinuteDb as unknown as D1Database,
+      {
+        sendPayload: () => {
+          nonFiveMinuteAttempts += 1;
+          return Promise.resolve({ sent: 1, failed: 0 });
+        }
+      }
+    );
+    await nonFiveMinuteService.run({}, new Date("2026-08-12T23:05:00.000Z"));
+    expect(nonFiveMinuteAttempts).toBe(0);
+    await nonFiveMinuteService.run({}, new Date("2026-08-12T23:07:00.000Z"));
+    expect(nonFiveMinuteAttempts).toBe(1);
+  });
+
+  it("suppresses task-specific reminders for completed or skipped occurrences", async () => {
+    for (const status of ["completed", "skipped", undefined] as const) {
+      const db = schedulerDb(null);
+      addCanonicalTask(db, {
+        notification_time: null,
+        deadline_time: "08:00",
+        notification_offset_minutes: 0
+      });
+      if (status) {
+        db.taskRecords.set(`record-${status}`, {
+          id: `record-${status}`,
+          household_id: "house-1",
+          task_id: "task-1",
+          target_date: "2026-08-13",
+          target_week_start: null,
+          status,
+          acted_by: "user-1",
+          started_at: null,
+          completed_at: status === "completed" ? "2026-08-13T01:00:00.000Z" : null,
+          skipped_at: status === "skipped" ? "2026-08-13T01:00:00.000Z" : null,
+          note: null,
+          created_at: "2026-08-13T01:00:00.000Z",
+          updated_at: "2026-08-13T01:00:00.000Z"
+        });
+      }
+      let attempts = 0;
+      await new NotificationSchedulerService(db as unknown as D1Database, {
+        sendPayload: () => {
+          attempts += 1;
+          return Promise.resolve({ sent: 1, failed: 0 });
+        }
+      }).run({}, new Date("2026-08-12T23:00:00.000Z"));
+      expect(attempts).toBe(status ? 0 : 1);
+    }
+  });
+
   it("sends summaries to each enabled household member regardless of task assignment", async () => {
     const db = schedulerDb(null);
     addSummaryTask(db, {
