@@ -4,6 +4,8 @@ import { chromium } from "@playwright/test";
 
 const baseUrl = process.env.PERF_BASE_URL ?? "http://127.0.0.1:8787";
 const responseEnvelope = (data) => ({ ok: true, data, requestId: "performance-client-baseline" });
+const performanceDate = process.env.PERF_DATE ?? new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo" }).format(new Date());
+const performanceDateTime = `${performanceDate}T00:00:00.000Z`;
 
 const task = {
   id: "task-1",
@@ -19,7 +21,7 @@ const task = {
   notificationTime: null,
   weekdays: [],
   weeklyTargetCount: null,
-  startDate: "2026-08-28",
+  startDate: performanceDate,
   targetDate: null,
   deadlineTime: null,
   notificationOffsetMinutes: null,
@@ -30,8 +32,8 @@ const task = {
   active: true,
   sortOrder: 1,
   createdBy: "user-1",
-  createdAt: "2026-08-28T00:00:00.000Z",
-  updatedAt: "2026-08-28T00:00:00.000Z",
+  createdAt: performanceDateTime,
+  updatedAt: performanceDateTime,
   status: "pending",
   actedBy: null,
   startedAt: null,
@@ -39,11 +41,11 @@ const task = {
   skippedAt: null,
   note: null,
   scopeKind: "occurrence",
-  occurrenceKey: "daily:2026-08-28",
+  occurrenceKey: `daily:${performanceDate}`,
   periodKey: null,
   periodStart: null,
   periodEnd: null,
-  deadlineDate: "2026-08-28",
+  deadlineDate: performanceDate,
   completedCount: 0,
   overdue: false
 };
@@ -51,7 +53,7 @@ const task = {
 const completedRecord = {
   id: "record-1",
   taskId: task.id,
-  targetDate: "2026-08-28",
+  targetDate: performanceDate,
   targetWeekStart: null,
   occurrenceKey: task.occurrenceKey,
   periodKey: null,
@@ -60,14 +62,14 @@ const completedRecord = {
   taskActive: true,
   actualCompleter: { userId: "user-1", displayName: "Performance", avatarUrl: null },
   assignedUser: null,
-  completedAt: "2026-08-28T00:00:00.000Z",
+  completedAt: performanceDateTime,
   skippedAt: null,
-  createdAt: "2026-08-28T00:00:00.000Z",
-  updatedAt: "2026-08-28T00:00:00.000Z"
+  createdAt: performanceDateTime,
+  updatedAt: performanceDateTime
 };
 
 const homeData = (completed) => ({
-  date: "2026-08-28",
+  date: performanceDate,
   homeTasks: completed ? [] : [task],
   completedRecords: completed ? [completedRecord] : [],
   passedRecords: [],
@@ -119,9 +121,12 @@ const createMockPage = async (browser) => {
       delay = 45;
       completed = true;
       data = { result: { ...task, status: "completed" } };
-    } else if (path === "/api/tasks/calendar") {
+    } else if (path === "/api/tasks/calendar/range") {
       delay = 35;
-      data = { from: "2026-08-23", to: "2026-10-03", today: "2026-08-28", timezone: "Asia/Tokyo", selectedDate: "2026-08-28", dates: {}, selected: { fixed: [], weeklyFlexible: [], monthlyFlexible: [], completed: [], shopping: [] } };
+      data = { from: performanceDate, to: performanceDate, today: performanceDate, timezone: "Asia/Tokyo", dates: {} };
+    } else if (path === "/api/tasks/calendar/day") {
+      delay = 35;
+      data = { today: performanceDate, timezone: "Asia/Tokyo", selectedDate: performanceDate, selected: { fixed: [], weeklyFlexible: [], monthlyFlexible: [], completed: [], shopping: [] } };
     } else if (path === "/api/shopping/items") {
       delay = 35;
       data = { pending: [], purchased: [] };
@@ -234,7 +239,7 @@ await navigationPage.page.goto(`${baseUrl}/home`);
 await navigationPage.page.getByRole("button", { name: "Performance taskの詳細" }).waitFor({ state: "visible" });
 await navigationPage.page.getByRole("button", { name: "カレンダー" }).click();
 await navigationPage.page.locator(".calendar-page").waitFor({ state: "visible" });
-await navigationPage.page.waitForFunction(() => window.__performanceBaseline.some((mark) => mark.kind === "fetch-response" && mark.path === "/api/tasks/calendar"));
+await navigationPage.page.waitForFunction(() => window.__performanceBaseline.some((mark) => mark.kind === "fetch-response" && ["/api/tasks/calendar/range", "/api/tasks/calendar/day"].includes(mark.path)));
 await navigationPage.page.getByRole("button", { name: "ホーム" }).click();
 await navigationPage.page.getByRole("button", { name: "Performance taskの詳細" }).waitFor({ state: "visible" });
 await navigationPage.page.getByRole("button", { name: "買い物", exact: true }).click();
@@ -242,7 +247,7 @@ await navigationPage.page.locator(".shopping-m4").waitFor({ state: "visible" });
 await navigationPage.page.waitForFunction(() => ["/api/shopping/items", "/api/shopping/templates", "/api/households/current/members"].every((path) => window.__performanceBaseline.some((mark) => mark.kind === "fetch-response" && mark.path === path)));
 await navigationPage.page.getByRole("button", { name: "ホーム" }).click();
 await navigationPage.page.getByRole("button", { name: "Performance taskの詳細" }).waitFor({ state: "visible" });
-const requestCounts = Object.fromEntries(["/api/auth/me", "/api/households/current", "/api/home/today", "/api/tasks/calendar", "/api/shopping/items", "/api/shopping/templates", "/api/households/current/members"].map((path) => [path, navigationEvents.filter((event) => event.type === "request" && event.path === path).length]));
+const requestCounts = Object.fromEntries(["/api/auth/me", "/api/households/current", "/api/home/today", "/api/tasks/calendar/range", "/api/tasks/calendar/day", "/api/shopping/items", "/api/shopping/templates", "/api/households/current/members"].map((path) => [path, navigationEvents.filter((event) => event.type === "request" && event.path === path).length]));
 const requestDurations = Object.fromEntries(Object.keys(requestCounts).map((path) => {
   const starts = navigationEvents.filter((event) => event.type === "request" && event.path === path);
   const responses = navigationEvents.filter((event) => event.type === "response" && event.path === path);
