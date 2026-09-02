@@ -102,6 +102,9 @@ const calendarData = (from, to, selectedDate, completed) => {
   };
 };
 
+const markerData = (data) => ({ from: data.from, to: data.to, today: data.today, timezone: data.timezone, dates: data.dates });
+const selectedData = (data) => ({ today: data.today, timezone: data.timezone, selectedDate: data.selectedDate, selected: data.selected });
+
 const homeData = () => ({
   date: "2026-08-28",
   homeTasks: [task("2026-08-28")],
@@ -113,6 +116,7 @@ const homeData = () => ({
 
 const createMockPage = async (browser) => {
   const page = await browser.newPage();
+  await page.clock.install({ time: new Date("2026-08-28T12:00:00+09:00") });
   await page.addInitScript(() => {
     window.__calendarBaseline = [{ kind: "document-start", at: performance.now() }];
     const mark = () => {
@@ -157,9 +161,12 @@ const createMockPage = async (browser) => {
       data = { household: { id: "household-1", name: "Calendar Performance House", timezone: "Asia/Tokyo", weekStartsOn: 1, role: "owner" } };
     } else if (path === "/api/home/today") {
       data = homeData();
-    } else if (path === "/api/tasks/calendar") {
+    } else if (path === "/api/tasks/calendar/range") {
       delay = 60;
-      data = calendarData(url.searchParams.get("from"), url.searchParams.get("to"), url.searchParams.get("selectedDate") ?? "2026-08-28", completed);
+      data = markerData(calendarData(url.searchParams.get("from"), url.searchParams.get("to"), "2026-08-28", completed));
+    } else if (path === "/api/tasks/calendar/day") {
+      delay = 60;
+      data = selectedData(calendarData(url.searchParams.get("date"), url.searchParams.get("date"), url.searchParams.get("date") ?? "2026-08-28", completed));
     } else if (path === "/api/tasks/calendar-task/complete" && method === "POST") {
       delay = 45;
       completed = true;
@@ -194,7 +201,7 @@ const pageMark = (marks, kind, path, occurrence = 0) => marks.filter((mark) => m
 
 const browser = await chromium.launch({ headless: true });
 const initialSamples = [];
-const requestCounts = { coldDirectCalendar: [], dateTap: [], monthChange: [], actionRefresh: [], inAppHomeToCalendar: [] };
+const requestCounts = { coldDirectMarkers: [], dateTapSelected: [], monthChangeMarkers: [], actionRefreshMarkers: [], actionRefreshSelected: [], inAppHomeToCalendarMarkers: [] };
 for (let index = 0; index < 10; index += 1) {
   const { page } = await createMockPage(browser);
   const events = collectEvents(page);
@@ -203,12 +210,12 @@ for (let index = 0; index < 10; index += 1) {
   await page.locator('.calendar-day-task[title="Calendar task 2026-08-28"]').waitFor({ state: "visible" });
   const gridVisible = performance.now();
   const marks = await page.evaluate(() => window.__calendarBaseline);
-  const request = events.find((event) => event.type === "request" && event.path === "/api/tasks/calendar");
-  const response = events.find((event) => event.type === "response" && event.path === "/api/tasks/calendar");
-  const fetchResponse = pageMark(marks, "fetch-response", "/api/tasks/calendar");
+  const request = events.find((event) => event.type === "request" && event.path === "/api/tasks/calendar/range");
+  const response = events.find((event) => event.type === "response" && event.path === "/api/tasks/calendar/range");
+  const fetchResponse = pageMark(marks, "fetch-response", "/api/tasks/calendar/range");
   const gridMark = pageMark(marks, "month-data-visible", undefined);
   if (!request || !response || !fetchResponse || !gridMark) throw new Error(JSON.stringify({ events, marks }));
-  requestCounts.coldDirectCalendar.push(events.filter((event) => event.type === "request" && event.path === "/api/tasks/calendar").length);
+  requestCounts.coldDirectMarkers.push(events.filter((event) => event.type === "request" && event.path === "/api/tasks/calendar/range").length);
   initialSamples.push({
     navigationToRequestStart: diff(navigationStart, request.at),
     requestToResponse: diff(request.at, response.at),
@@ -234,14 +241,14 @@ for (let index = 0; index < 10; index += 1) {
   await page.locator('.calendar-day-task[title="Calendar task 2026-08-28"]').waitFor({ state: "visible" });
   const marks = await page.evaluate(() => window.__calendarBaseline);
   const clickMark = pageMark(marks, "in-app-calendar-click");
-  const calendarStartMark = pageMark(marks, "fetch-start", "/api/tasks/calendar");
-  const calendarResponseMark = pageMark(marks, "fetch-response", "/api/tasks/calendar");
+  const calendarStartMark = pageMark(marks, "fetch-start", "/api/tasks/calendar/range");
+  const calendarResponseMark = pageMark(marks, "fetch-response", "/api/tasks/calendar/range");
   const monthDataMark = pageMark(marks, "month-data-visible");
   const authCount = events.filter((event) => event.type === "request" && event.path === "/api/auth/me").length;
   const householdCount = events.filter((event) => event.type === "request" && event.path === "/api/households/current").length;
-  const calendarCount = events.filter((event) => event.type === "request" && event.path === "/api/tasks/calendar").length;
+  const calendarCount = events.filter((event) => event.type === "request" && event.path === "/api/tasks/calendar/range").length;
   if (!clickMark || !calendarStartMark || !calendarResponseMark || !monthDataMark) throw new Error(JSON.stringify({ marks, events }));
-  requestCounts.inAppHomeToCalendar.push(calendarCount);
+  requestCounts.inAppHomeToCalendarMarkers.push(calendarCount);
   inAppHomeToCalendarSamples.push({
     navigationToCalendarRequestStart: diff(clickMark.at, calendarStartMark.at),
     calendarRequestToResponse: diff(calendarStartMark.at, calendarResponseMark.at),
@@ -249,7 +256,7 @@ for (let index = 0; index < 10; index += 1) {
     navigationToUsableCalendar: diff(clickMark.at, monthDataMark.at),
     additionalAuthRequests: Math.max(0, authCount - 1),
     additionalHouseholdRequests: Math.max(0, householdCount - 1),
-    calendarRequests: calendarCount
+    markerRequests: calendarCount
   });
   await page.close();
 }
@@ -267,15 +274,15 @@ for (let index = 0; index < 10; index += 1) {
     }, { capture: true, once: true });
   });
   await dateCell.click();
-  await page.waitForResponse((response) => pathOf(response.url()) === "/api/tasks/calendar");
+  await page.waitForResponse((response) => pathOf(response.url()) === "/api/tasks/calendar/day");
   await page.locator(".calendar-date-sheet .calendar-detail-task").first().waitFor({ state: "visible" });
   await page.evaluate(() => window.__calendarBaseline.push({ kind: "date-sheet-task-visible", at: performance.now() }));
   const marks = await page.evaluate(() => window.__calendarBaseline);
   const clickMark = pageMark(marks, "date-tap-click");
-  const request = pageMark(marks, "fetch-start", "/api/tasks/calendar", 1);
-  const response = pageMark(marks, "fetch-response", "/api/tasks/calendar", 1);
+  const request = pageMark(marks, "fetch-start", "/api/tasks/calendar/day");
+  const response = pageMark(marks, "fetch-response", "/api/tasks/calendar/day");
   const selectedVisible = pageMark(marks, "date-sheet-task-visible");
-  requestCounts.dateTap.push(events.filter((event) => event.type === "request" && event.path === "/api/tasks/calendar").length - 1);
+  requestCounts.dateTapSelected.push(events.filter((event) => event.type === "request" && event.path === "/api/tasks/calendar/day").length);
   if (!clickMark || !request || !response || !selectedVisible) throw new Error(JSON.stringify({ marks, events }));
   dateTapSamples.push({
     actualClickToRequestStart: diff(clickMark.at, request.at),
@@ -299,14 +306,14 @@ for (let index = 0; index < 10; index += 1) {
     }, { capture: true, once: true });
   });
   await nextMonthButton.click();
-  await page.waitForResponse((response) => pathOf(response.url()) === "/api/tasks/calendar");
+  await page.waitForResponse((response) => pathOf(response.url()) === "/api/tasks/calendar/range");
   await page.locator('.calendar-day-task[title="Calendar task 2026-09-15"]').waitFor({ state: "visible" });
   const marks = await page.evaluate(() => window.__calendarBaseline);
   const clickMark = pageMark(marks, "month-next-click");
-  const request = pageMark(marks, "fetch-start", "/api/tasks/calendar", 1);
-  const response = pageMark(marks, "fetch-response", "/api/tasks/calendar", 1);
+  const request = pageMark(marks, "fetch-start", "/api/tasks/calendar/range", 1);
+  const response = pageMark(marks, "fetch-response", "/api/tasks/calendar/range", 1);
   const newMonthVisible = pageMark(marks, "next-month-data-visible");
-  requestCounts.monthChange.push(events.filter((event) => event.type === "request" && event.path === "/api/tasks/calendar").length - 1);
+  requestCounts.monthChangeMarkers.push(events.filter((event) => event.type === "request" && event.path === "/api/tasks/calendar/range").length - 1);
   if (!clickMark || !request || !response || !newMonthVisible) throw new Error(JSON.stringify({ marks, events }));
   monthChangeSamples.push({
     actualClickToRequestStart: diff(clickMark.at, request.at),
@@ -333,17 +340,19 @@ for (let index = 0; index < 10; index += 1) {
   await completeButton.click();
   await page.getByRole("button", { name: /完了済み 1/ }).waitFor({ state: "visible" });
   const marks = await page.evaluate(() => window.__calendarBaseline);
-  const calendarRequests = events.filter((event) => event.type === "request" && event.path === "/api/tasks/calendar");
-  requestCounts.actionRefresh.push(calendarRequests.length - 1);
+  const markerRequests = events.filter((event) => event.type === "request" && event.path === "/api/tasks/calendar/range");
+  const selectedRequests = events.filter((event) => event.type === "request" && event.path === "/api/tasks/calendar/day");
+  requestCounts.actionRefreshMarkers.push(markerRequests.length - 1);
+  requestCounts.actionRefreshSelected.push(selectedRequests.length - 1);
   const clickMark = pageMark(marks, "complete-click", undefined);
   const postStartMark = pageMark(marks, "fetch-start", "/api/tasks/calendar-task/complete");
   const postResponseMark = pageMark(marks, "fetch-response", "/api/tasks/calendar-task/complete");
-  const calendarFetchStarts = marks.filter((mark) => mark.kind === "fetch-start" && mark.path === "/api/tasks/calendar");
-  const calendarFetchResponses = marks.filter((mark) => mark.kind === "fetch-response" && mark.path === "/api/tasks/calendar");
+  const calendarFetchStarts = marks.filter((mark) => mark.kind === "fetch-start" && mark.path === "/api/tasks/calendar/range");
+  const calendarFetchResponses = marks.filter((mark) => mark.kind === "fetch-response" && mark.path === "/api/tasks/calendar/range");
   const refreshStartMark = calendarFetchStarts.at(-1);
   const refreshResponseMark = calendarFetchResponses.at(-1);
   const completedVisibleMark = pageMark(marks, "completed-visible", undefined);
-  if (!clickMark || !postStartMark || !postResponseMark || !refreshStartMark || !refreshResponseMark || !completedVisibleMark) throw new Error(JSON.stringify({ marks, calendarRequests }));
+  if (!clickMark || !postStartMark || !postResponseMark || !refreshStartMark || !refreshResponseMark || !completedVisibleMark) throw new Error(JSON.stringify({ marks, markerRequests, selectedRequests }));
   actionSamples.push({
     clickToPostStart: diff(clickMark.at, postStartMark.at),
     clickToPostResponse: diff(clickMark.at, postResponseMark.at),

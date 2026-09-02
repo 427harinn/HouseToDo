@@ -15,6 +15,7 @@ import type { Handler } from "../middleware/error-handler";
 import { DashboardService } from "../services/dashboard-service";
 import { TaskService } from "../services/task-service";
 import { ShoppingService } from "../services/shopping-service";
+import { HouseholdService } from "../services/household-service";
 import type { AuthenticatedUser } from "../types/api";
 import type { ShoppingItem, Task, TaskRecord } from "../types/domain";
 
@@ -212,58 +213,109 @@ export const weekTasksRoute: Handler = requireAuth(async (context) => {
   );
 });
 
-export const calendarTasksRoute: Handler = requireAuth(async (context) => {
-  const user = requireUser(context.user);
-  const query = validateCalendarRangeQuery(context.request);
-  const shopping = new ShoppingService(context.env.DB);
-  const [data, plannedShoppingItems] = await Promise.all([
-    new TaskService(context.env.DB).listCalendar(user.id, query.from, query.to, query.selectedDate),
-    shopping.listPlannedItems(user.id, query.from, query.to)
-  ]);
-  const shoppingByDate = new Map<string, ShoppingItem[]>();
-  for (const item of plannedShoppingItems) {
+const shoppingByDate = (items: ShoppingItem[]) => {
+  const byDate = new Map<string, ShoppingItem[]>();
+  for (const item of items) {
     if (!item.plannedPurchaseDate) continue;
-    shoppingByDate.set(item.plannedPurchaseDate, [
-      ...(shoppingByDate.get(item.plannedPurchaseDate) ?? []),
-      item
-    ]);
+    byDate.set(item.plannedPurchaseDate, [...(byDate.get(item.plannedPurchaseDate) ?? []), item]);
   }
-  const selectedShopping = shoppingByDate.get(data.selectedDate) ?? [];
-  return okJson({
+  return byDate;
+};
+
+const calendarMarkersResponse = (
+  data: Awaited<ReturnType<TaskService["listCalendarMarkersForHousehold"]>>,
+  plannedShoppingItems: ShoppingItem[]
+) => {
+  const byDate = shoppingByDate(plannedShoppingItems);
+  return {
     from: data.from,
     to: data.to,
     today: data.today,
     timezone: data.timezone,
+    dates: Object.fromEntries(Object.entries(data.dates).map(([date, marker]) => {
+      const planned = byDate.get(date) ?? [];
+      return [date, { ...marker, shoppingCount: planned.length, purchasedShoppingCount: 0 }];
+    }))
+  };
+};
+
+const calendarSelectedResponse = (
+  data: Awaited<ReturnType<TaskService["listCalendarSelectedForHousehold"]>>,
+  plannedShoppingItems: ShoppingItem[]
+) => ({
+  today: data.today,
+  timezone: data.timezone,
+  selectedDate: data.selectedDate,
+  selected: {
+    fixed: data.selected.fixed.map(taskWithStatusResponse),
+    weeklyFlexible: data.selected.weeklyFlexible.map(taskWithStatusResponse),
+    monthlyFlexible: data.selected.monthlyFlexible.map(taskWithStatusResponse),
+    completed: data.selected.completed.map((entry) => ({
+      ...recordResponse(entry.record),
+      taskId: entry.record.taskId,
+      title: entry.record.taskTitleSnapshot ?? entry.task?.title ?? "家事",
+      taskActive: entry.taskActive,
+      selectedDate: entry.selectedDate,
+      actualCompleter: {
+        userId: entry.record.actedBy,
+        displayName: entry.record.actedByDisplayName,
+        avatarUrl: entry.record.actedByAvatarUrl
+      }
+    })),
+    shopping: plannedShoppingItems
+      .filter((item) => item.plannedPurchaseDate === data.selectedDate)
+      .map(calendarShoppingResponse)
+  }
+});
+
+export const calendarRangeRoute: Handler = requireAuth(async (context) => {
+  const user = requireUser(context.user);
+  const query = validateCalendarRangeQuery(context.request);
+  const household = await new HouseholdService(context.env.DB).requireCurrentHousehold(user.id);
+  const taskService = new TaskService(context.env.DB);
+  const shopping = new ShoppingService(context.env.DB);
+  const [markers, plannedShoppingItems] = await Promise.all([
+    taskService.listCalendarMarkersForHousehold(household, query.from, query.to),
+    shopping.listPlannedItemsForHousehold(household, query.from, query.to)
+  ]);
+  return okJson(calendarMarkersResponse(markers, plannedShoppingItems), context.requestId);
+});
+
+export const calendarDayRoute: Handler = requireAuth(async (context) => {
+  const user = requireUser(context.user);
+  const date = validateDateQuery(context.request, "date");
+  if (!date) throw validationError({ date: "date is required." });
+  const household = await new HouseholdService(context.env.DB).requireCurrentHousehold(user.id);
+  const taskService = new TaskService(context.env.DB);
+  const shopping = new ShoppingService(context.env.DB);
+  const [selected, plannedShoppingItems] = await Promise.all([
+    taskService.listCalendarSelectedForHousehold(household, date),
+    shopping.listPlannedItemsForHousehold(household, date, date)
+  ]);
+  return okJson(calendarSelectedResponse(selected, plannedShoppingItems), context.requestId);
+});
+
+export const calendarTasksRoute: Handler = requireAuth(async (context) => {
+  const user = requireUser(context.user);
+  const query = validateCalendarRangeQuery(context.request);
+  const household = await new HouseholdService(context.env.DB).requireCurrentHousehold(user.id);
+  const taskService = new TaskService(context.env.DB);
+  const shopping = new ShoppingService(context.env.DB);
+  const [data, plannedShoppingItems] = await Promise.all([
+    taskService.listCalendarForHousehold(household, query.from, query.to, query.selectedDate),
+    shopping.listPlannedItemsForHousehold(household, query.from, query.to)
+  ]);
+  const markers = calendarMarkersResponse(data, plannedShoppingItems);
+  const selected = calendarSelectedResponse({
+    today: data.today,
+    timezone: data.timezone,
     selectedDate: data.selectedDate,
-    dates: Object.fromEntries(
-      Object.entries(data.dates).map(([date, marker]) => {
-        const planned = shoppingByDate.get(date) ?? [];
-        return [date, {
-          ...marker,
-          tasks: marker.tasks,
-          shoppingCount: planned.length,
-          purchasedShoppingCount: 0
-        }];
-      })
-    ),
-    selected: {
-      fixed: data.selected.fixed.map(taskWithStatusResponse),
-      weeklyFlexible: data.selected.weeklyFlexible.map(taskWithStatusResponse),
-      monthlyFlexible: data.selected.monthlyFlexible.map(taskWithStatusResponse),
-      completed: data.selected.completed.map((entry) => ({
-        ...recordResponse(entry.record),
-        taskId: entry.record.taskId,
-        title: entry.record.taskTitleSnapshot ?? entry.task?.title ?? "家事",
-        taskActive: entry.taskActive,
-        selectedDate: entry.selectedDate,
-        actualCompleter: {
-          userId: entry.record.actedBy,
-          displayName: entry.record.actedByDisplayName,
-          avatarUrl: entry.record.actedByAvatarUrl
-        }
-      })),
-      shopping: selectedShopping.map(calendarShoppingResponse)
-    }
+    selected: data.selected
+  }, plannedShoppingItems);
+  return okJson({
+    ...markers,
+    selectedDate: selected.selectedDate,
+    selected: selected.selected
   }, context.requestId);
 });
 

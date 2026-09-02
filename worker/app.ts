@@ -41,6 +41,8 @@ import {
 } from "./routes/shopping-images";
 import {
   changeTaskStateRoute,
+  calendarDayRoute,
+  calendarRangeRoute,
   calendarTasksRoute,
   createTaskRoute,
   dashboardTodayRoute,
@@ -238,6 +240,10 @@ const routeApi = withErrorHandling(
         return weekTasksRoute(context);
       case "GET /api/tasks/calendar":
         return calendarTasksRoute(context);
+      case "GET /api/tasks/calendar/range":
+        return calendarRangeRoute(context);
+      case "GET /api/tasks/calendar/day":
+        return calendarDayRoute(context);
       case "GET /api/task-templates":
         return listTaskTemplatesRoute(context);
       case "POST /api/task-templates":

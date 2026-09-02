@@ -180,6 +180,9 @@ export type CalendarResponse = {
   };
 };
 
+export type CalendarMarkersResponse = Pick<CalendarResponse, "from" | "to" | "today" | "timezone" | "dates">;
+export type CalendarSelectedResponse = Pick<CalendarResponse, "today" | "timezone" | "selectedDate" | "selected">;
+
 export type CalendarCompletedRecord = {
   id: string;
   taskId: string;
@@ -285,6 +288,22 @@ export const listCalendarTasks = (
 ) =>
   apiRequest<CalendarResponse>(
     withQuery("/api/tasks/calendar", { from, to, selectedDate }),
+    { signal }
+  );
+
+export const listCalendarMarkers = (
+  from: string,
+  to: string,
+  signal?: AbortSignal
+) =>
+  apiRequest<CalendarMarkersResponse>(
+    withQuery("/api/tasks/calendar/range", { from, to }),
+    { signal }
+  );
+
+export const listCalendarSelected = (selectedDate: string, signal?: AbortSignal) =>
+  apiRequest<CalendarSelectedResponse>(
+    withQuery("/api/tasks/calendar/day", { date: selectedDate }),
     { signal }
   );
 

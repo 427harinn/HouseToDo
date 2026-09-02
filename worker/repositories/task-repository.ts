@@ -99,9 +99,8 @@ export class TaskRepository {
 
   private async attachWeekdays(rows: TaskRow[]): Promise<Task[]> {
     const tasks = rows.map((row) => toTask(row));
-    for (const task of tasks) {
-      task.weekdays = await this.listWeekdays(task.id);
-    }
+    const weekdaysByTaskId = await this.listWeekdaysByTaskIds(tasks.map((task) => task.id));
+    for (const task of tasks) task.weekdays = weekdaysByTaskId.get(task.id) ?? [];
     return tasks;
   }
 
@@ -159,6 +158,20 @@ export class TaskRepository {
       .bind(taskId)
       .all<{ weekday: number }>();
     return (result.results ?? []).map((row) => row.weekday);
+  }
+
+  async listWeekdaysByTaskIds(taskIds: string[]): Promise<Map<string, number[]>> {
+    const weekdaysByTaskId = new Map<string, number[]>();
+    if (taskIds.length === 0) return weekdaysByTaskId;
+    const placeholders = taskIds.map(() => "?").join(", ");
+    const result = await this.db
+      .prepare(`SELECT task_id, weekday FROM task_weekdays WHERE task_id IN (${placeholders}) ORDER BY task_id ASC, weekday ASC`)
+      .bind(...taskIds)
+      .all<{ task_id: string; weekday: number }>();
+    for (const row of result.results ?? []) {
+      weekdaysByTaskId.set(row.task_id, [...(weekdaysByTaskId.get(row.task_id) ?? []), row.weekday]);
+    }
+    return weekdaysByTaskId;
   }
 
   prepareCreate(input: TaskCreateRecordInput): D1PreparedStatement {
