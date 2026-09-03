@@ -29,6 +29,10 @@ test("opens the eight-page guide, follows scroll snap, and closes back to Other"
   await expect(page.locator(".guide-page__slide img")).toHaveCount(8);
   await expect(page.locator(".guide-page__dot")).toHaveCount(8);
   await expect(page.locator(".guide-page__dot").nth(0)).toHaveClass(/is-active/);
+  await expect(page.locator(".guide-page__indicator")).toHaveCSS("top", "16px");
+  await expect.poll(async () => page.locator(".guide-page__slide img").evaluateAll((images) => (
+    images as HTMLImageElement[]
+  ).every((image) => image.complete && image.naturalWidth > 0))).toBe(true);
   await expect(page.getByRole("navigation", { name: "主要画面" })).toHaveCount(0);
   await page.screenshot({ path: path.join(evidenceDir, "guide-page-1.png") });
 
