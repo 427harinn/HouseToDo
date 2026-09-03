@@ -162,6 +162,7 @@ import type {
   HouseholdState
 } from "./types";
 import { OtherLandingPage, OtherSettingsPage, type OtherSettingsPageKind } from "./pages/OtherSettingsPage";
+import { GuidePage } from "./pages/GuidePage";
 
 type StaticRoute =
   | "/"
@@ -174,6 +175,7 @@ type StaticRoute =
   | "/home"
   | "/calendar"
   | "/other"
+  | "/other/guide"
   | "/other/members"
   | "/other/notifications"
   | "/other/storage"
@@ -214,6 +216,7 @@ const staticRoutes = new Set<StaticRoute>([
   "/home",
   "/calendar",
   "/other",
+  "/other/guide",
   "/other/members",
   "/other/notifications",
   "/other/storage",
@@ -305,6 +308,7 @@ const isAppRoute = (route: Route) =>
   route.name === "/home" ||
   route.name === "/calendar" ||
   route.name === "/other" ||
+  route.name === "/other/guide" ||
   route.name === "/other/members" ||
   route.name === "/other/notifications" ||
   route.name === "/other/storage" ||
@@ -629,6 +633,7 @@ export function App() {
       </AppFrame>
     );
   }
+  if (route.name === "/other/guide") return <GuidePage onClose={() => navigate("/other")} />;
   const otherKinds: Partial<Record<Exclude<StaticRoute, "/other">, OtherSettingsPageKind>> = {
     "/other/members": "members",
     "/other/notifications": "notifications",

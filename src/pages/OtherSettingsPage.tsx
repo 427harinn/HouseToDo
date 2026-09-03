@@ -69,7 +69,8 @@ export function OtherLandingPage({ onNavigate }: { onNavigate: (route: string) =
     ["通知", "/other/notifications"],
     ["ストレージ", "/other/storage"],
     ["家庭設定", "/other/household"],
-    ["アカウント", "/other/account"]
+    ["アカウント", "/other/account"],
+    ["使い方", "/other/guide"]
   ] as const;
   return (
     <section className="m5-page m5-other-page">
