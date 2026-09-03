@@ -98,7 +98,7 @@ const basePages = [
     page: 4,
     baseOutput: "04-repeat-base.png",
     background: "screenimage/4.png",
-    screenshot: "raw/screenshots/task-form/task-repeat-options.png",
+    screenshot: "raw/screenshots/task-form/task-repeat-weekdays-selected.png",
   },
   {
     page: 5,
