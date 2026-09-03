@@ -18,9 +18,11 @@ The Canva handoff base images are generated with:
 npm run marketing:appstore:render:base
 ```
 
-This mode omits all marketing copy and annotations, leaving only the supplied background, the selected raw screenshot, and the light screenshot decoration. It writes `base/01-home-base.png` through `base/08-notifications-base.png` and `preview/contact-sheet-base.png`.
+This mode omits all marketing copy and annotations, leaving only the supplied background, the selected raw screenshot, and the light screenshot decoration. The base handoff order is defined separately from the original final-render order so the Canva composition can be revised without changing the comparison images. It writes the current eight files in `base/` and `preview/contact-sheet-base-v2.png`.
 
 ## Output
 
 - `screenshots/01-home.png` through `screenshots/08-notifications.png`: App Store candidate PNGs
 - `preview/contact-sheet.png`: review-only 4×2 contact sheet
+- `base/01-home-base.png`, `base/02-complete-base.png`, `base/03-task-date-base.png`, `base/04-repeat-base.png`, `base/05-swipe-base.png`, `base/06-calendar-month-base.png`, `base/07-calendar-day-base.png`, `base/08-shopping-base.png`: current Canva handoff base images
+- `preview/contact-sheet-base-v2.png`: review-only contact sheet for the current base order

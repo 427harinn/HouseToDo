@@ -73,6 +73,59 @@ const pages = [
   },
 ];
 
+// The Canva handoff uses a separate, reordered set of raw screenshots while
+// retaining the original final-render configuration above for comparison.
+const basePages = [
+  {
+    page: 1,
+    baseOutput: "01-home-base.png",
+    background: "screenimage/1.png",
+    screenshot: "raw/screenshots/home/home-assignees.png",
+  },
+  {
+    page: 2,
+    baseOutput: "02-complete-base.png",
+    background: "screenimage/2.png",
+    screenshot: "raw/screenshots/home/home-task-expanded.png",
+  },
+  {
+    page: 3,
+    baseOutput: "03-task-date-base.png",
+    background: "screenimage/3.png",
+    screenshot: "raw/screenshots/task-form/task-form-filled.png",
+  },
+  {
+    page: 4,
+    baseOutput: "04-repeat-base.png",
+    background: "screenimage/4.png",
+    screenshot: "raw/screenshots/task-form/task-repeat-options.png",
+  },
+  {
+    page: 5,
+    baseOutput: "05-swipe-base.png",
+    background: "screenimage/5.png",
+    screenshot: "raw/screenshots/home/home-swipe-actions.png",
+  },
+  {
+    page: 6,
+    baseOutput: "06-calendar-month-base.png",
+    background: "screenimage/6.png",
+    screenshot: "raw/screenshots/calendar/calendar-month.png",
+  },
+  {
+    page: 7,
+    baseOutput: "07-calendar-day-base.png",
+    background: "screenimage/7.png",
+    screenshot: "raw/screenshots/calendar/calendar-date-sheet.png",
+  },
+  {
+    page: 8,
+    baseOutput: "08-shopping-base.png",
+    background: "screenimage/8.png",
+    screenshot: "raw/screenshots/shopping/shopping-photo-memo.png",
+  },
+];
+
 const annotations = {
   2: `
     <svg class="annotation annotation-complete" viewBox="0 0 320 310" aria-hidden="true">
@@ -230,8 +283,9 @@ async function waitForAssets(page, { checkFonts = true } = {}) {
 
 async function renderContactSheet(browser, { base = false } = {}) {
   const page = await browser.newPage({ viewport: { width: 1400, height: 2000 }, deviceScaleFactor: 1 });
-  const cards = (await Promise.all(pages.map(async (item) => {
-    const outputName = base ? item.output.replace(".png", "-base.png") : item.output;
+  const renderPages = base ? basePages : pages;
+  const cards = (await Promise.all(renderPages.map(async (item) => {
+    const outputName = base ? item.baseOutput : item.output;
     const buffer = await fs.readFile(path.resolve(finalDir, base ? "base" : "screenshots", outputName));
     return `<figure><img src="${dataUrl(buffer, "image/png")}" alt="Page ${item.page}" /><figcaption>Page ${item.page}</figcaption></figure>`;
   }))).join("");
@@ -240,13 +294,14 @@ async function renderContactSheet(browser, { base = false } = {}) {
     .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; } figure { margin: 0; } img { display: block; width: 100%; height: auto; border-radius: 16px; box-shadow: 0 8px 24px rgba(48,53,49,.12); } figcaption { padding: 8px 4px 0; font-size: 15px; }
   </style></head><body><div class="grid">${cards}</div></body></html>`, { waitUntil: "load" });
   await page.waitForFunction(() => Array.from(document.images).every((image) => image.complete && image.naturalWidth > 0));
-  await page.screenshot({ path: path.resolve(finalDir, "preview", base ? "contact-sheet-base.png" : "contact-sheet.png"), fullPage: true, type: "png" });
+  await page.screenshot({ path: path.resolve(finalDir, "preview", base ? "contact-sheet-base-v2.png" : "contact-sheet.png"), fullPage: true, type: "png" });
   await page.close();
 }
 
 async function main() {
   const previewOnly = process.argv.includes("--preview-only");
   const base = process.argv.includes("--base");
+  const renderPages = base ? basePages : pages;
   const outputDir = path.resolve(finalDir, base ? "base" : "screenshots");
   await fs.mkdir(outputDir, { recursive: true });
   await fs.mkdir(path.resolve(finalDir, "preview"), { recursive: true });
@@ -266,8 +321,8 @@ async function main() {
         `;
       }
       const page = await browser.newPage({ viewport: { width: WIDTH, height: HEIGHT }, deviceScaleFactor: 1 });
-      for (const item of pages) {
-        const outputName = base ? item.output.replace(".png", "-base.png") : item.output;
+      for (const item of renderPages) {
+        const outputName = base ? item.baseOutput : item.output;
         console.log(`Rendering ${outputName}`);
         await page.setContent(await pageHtml(item, { base, fontFaceCss }), { waitUntil: "load" });
         await waitForAssets(page, { checkFonts: !base });
@@ -280,7 +335,7 @@ async function main() {
     await browser.close();
   }
   const label = base ? "base screenshots" : "App Store screenshots";
-  console.log(`${previewOnly ? "Preview updated" : `Rendered ${pages.length} ${label}`} in ${finalDir}`);
+  console.log(`${previewOnly ? "Preview updated" : `Rendered ${renderPages.length} ${label}`} in ${finalDir}`);
 }
 
 await main();
