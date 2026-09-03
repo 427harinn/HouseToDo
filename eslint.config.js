@@ -15,7 +15,8 @@ export default tseslint.config(
       "public/sw.js",
       "eslint.config.js",
       "playwright.config.ts",
-      "playwright.staging.config.ts"
+      "playwright.staging.config.ts",
+      "playwright.marketing.config.ts"
     ]
   },
   js.configs.recommended,
