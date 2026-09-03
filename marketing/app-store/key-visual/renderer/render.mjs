@@ -8,9 +8,9 @@ const __dirname = path.dirname(__filename);
 const keyVisualDir = path.resolve(__dirname, "..");
 const assetsDir = path.resolve(keyVisualDir, "assets");
 const outputDir = path.resolve(keyVisualDir, "output");
-const outputPath = path.resolve(outputDir, "key-visual-base-v2.png");
+const outputPath = path.resolve(outputDir, "key-visual-base-v3.png");
 const previewDir = path.resolve(keyVisualDir, "preview");
-const comparisonPath = path.resolve(previewDir, "key-visual-base-comparison.png");
+const comparisonPath = path.resolve(previewDir, "key-visual-base-v2-v3-comparison.png");
 
 const WIDTH = 2868;
 const HEIGHT = 1320;
@@ -20,7 +20,7 @@ const screens = [
     className: "shopping",
     fileName: "05-shopping.png",
     width: 500,
-    left: 1210,
+    left: 1300,
     top: 145,
     zIndex: 1,
   },
@@ -28,7 +28,7 @@ const screens = [
     className: "calendar",
     fileName: "calendar-month.png",
     width: 500,
-    left: 1935,
+    left: 2025,
     top: 145,
     zIndex: 2,
   },
@@ -36,7 +36,7 @@ const screens = [
     className: "home",
     fileName: "01-home.png",
     width: 565,
-    left: 1540,
+    left: 1630,
     top: 60,
     zIndex: 3,
   },
@@ -124,10 +124,10 @@ async function waitForAssets(page) {
   );
 }
 
-async function renderComparison(browser, currentBuffer, v2Buffer) {
+async function renderComparison(browser, beforeBuffer, afterBuffer) {
   const page = await browser.newPage({ viewport: { width: 1500, height: 820 }, deviceScaleFactor: 1 });
-  const current = dataUrl(currentBuffer);
-  const v2 = dataUrl(v2Buffer);
+  const before = dataUrl(beforeBuffer);
+  const after = dataUrl(afterBuffer);
   await page.setContent(`<!doctype html>
 <html>
   <head>
@@ -144,8 +144,8 @@ async function renderComparison(browser, currentBuffer, v2Buffer) {
   </head>
   <body>
     <div class="grid">
-      <figure><img src="${current}" alt="" /><figcaption>Current</figcaption></figure>
-      <figure><img src="${v2}" alt="" /><figcaption>V2</figcaption></figure>
+      <figure><img src="${before}" alt="" /><figcaption>V2</figcaption></figure>
+      <figure><img src="${after}" alt="" /><figcaption>V3</figcaption></figure>
     </div>
   </body>
 </html>`, { waitUntil: "load" });
@@ -167,10 +167,10 @@ async function main() {
     await waitForAssets(page);
     await page.screenshot({ path: outputPath, type: "png" });
     await page.close();
-    const currentPath = path.resolve(outputDir, "key-visual-base.png");
-    const currentBuffer = await fs.readFile(currentPath);
-    const v2Buffer = await fs.readFile(outputPath);
-    await renderComparison(browser, currentBuffer, v2Buffer);
+    const beforePath = path.resolve(outputDir, "key-visual-base-v2.png");
+    const beforeBuffer = await fs.readFile(beforePath);
+    const afterBuffer = await fs.readFile(outputPath);
+    await renderComparison(browser, beforeBuffer, afterBuffer);
   } finally {
     await browser.close();
   }
