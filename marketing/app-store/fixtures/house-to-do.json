@@ -1,0 +1,48 @@
+{
+  "captureTime": "2026-09-07T10:00:00+09:00",
+  "household": {
+    "id": "marketing-household",
+    "name": "サンプルハウス",
+    "timezone": "Asia/Tokyo",
+    "weekStartsOn": 1,
+    "role": "owner"
+  },
+  "user": {
+    "id": "sora",
+    "email": "sora@marketing.example",
+    "displayName": "ソラ"
+  },
+  "members": [
+    { "userId": "sora", "displayName": "ソラ", "role": "owner", "color": "#6f9b83", "joinedAt": "2026-09-01T00:00:00.000Z", "avatar": "marketing/app-store/assets/avatars/sora-avatar.png" },
+    { "userId": "mina", "displayName": "ミナ", "role": "member", "color": "#d39b72", "joinedAt": "2026-09-01T00:00:00.000Z", "avatar": "marketing/app-store/assets/avatars/mina-avatar.png" }
+  ],
+  "tasks": [
+    { "id": "task-trash", "title": "ゴミ出し", "description": null, "recurrenceType": "scheduled", "modelRecurrenceType": "weekly_fixed", "assignmentType": "specific", "assignedUserId": "sora", "scheduledTime": null, "notificationSlot": "none", "notificationTime": null, "weekdays": [1, 4], "weeklyTargetCount": null, "startDate": "2026-09-07", "targetDate": null, "deadlineDate": "2026-09-07", "deadlineTime": "08:30", "notificationOffsetMinutes": 30, "weeklyDeadlineWeekday": null, "monthlyDayOfMonth": null, "monthlyDeadlineType": null, "active": true, "sortOrder": 1, "createdBy": "sora", "createdAt": "2026-09-01T00:00:00.000Z", "updatedAt": "2026-09-01T00:00:00.000Z" },
+    { "id": "task-bird-food", "title": "インコの餌交換", "description": "水も一緒に確認", "recurrenceType": "daily", "modelRecurrenceType": "daily", "assignmentType": "anyone", "assignedUserId": null, "scheduledTime": null, "notificationSlot": "none", "notificationTime": null, "weekdays": [], "weeklyTargetCount": null, "startDate": "2026-09-07", "targetDate": null, "deadlineDate": "2026-09-07", "deadlineTime": null, "notificationOffsetMinutes": null, "weeklyDeadlineWeekday": null, "monthlyDayOfMonth": null, "monthlyDeadlineType": null, "active": true, "sortOrder": 2, "createdBy": "sora", "createdAt": "2026-09-01T00:00:00.000Z", "updatedAt": "2026-09-01T00:00:00.000Z" },
+    { "id": "task-bath", "title": "お風呂掃除", "description": "今週中に1回", "recurrenceType": "weekly", "modelRecurrenceType": "weekly_flexible", "assignmentType": "specific", "assignedUserId": "mina", "scheduledTime": null, "notificationSlot": "none", "notificationTime": null, "weekdays": [], "weeklyTargetCount": null, "startDate": "2026-09-07", "targetDate": null, "deadlineDate": "2026-09-13", "deadlineTime": null, "notificationOffsetMinutes": null, "weeklyDeadlineWeekday": 0, "monthlyDayOfMonth": null, "monthlyDeadlineType": null, "active": true, "sortOrder": 3, "createdBy": "sora", "createdAt": "2026-09-01T00:00:00.000Z", "updatedAt": "2026-09-01T00:00:00.000Z" },
+    { "id": "task-sheets", "title": "シーツ交換", "description": null, "recurrenceType": "weekly", "modelRecurrenceType": "monthly_flexible", "assignmentType": "specific", "assignedUserId": "sora", "scheduledTime": null, "notificationSlot": "none", "notificationTime": null, "weekdays": [], "weeklyTargetCount": null, "startDate": "2026-09-01", "targetDate": null, "deadlineDate": "2026-09-30", "deadlineTime": null, "notificationOffsetMinutes": null, "weeklyDeadlineWeekday": null, "monthlyDayOfMonth": null, "monthlyDeadlineType": "month_end", "active": true, "sortOrder": 4, "createdBy": "sora", "createdAt": "2026-09-01T00:00:00.000Z", "updatedAt": "2026-09-01T00:00:00.000Z" },
+    { "id": "task-plants", "title": "植物の水やり", "description": null, "recurrenceType": "scheduled", "modelRecurrenceType": "weekly_fixed", "assignmentType": "specific", "assignedUserId": "mina", "scheduledTime": null, "notificationSlot": "none", "notificationTime": null, "weekdays": [2, 5], "weeklyTargetCount": null, "startDate": "2026-09-07", "targetDate": null, "deadlineDate": "2026-09-08", "deadlineTime": "19:00", "notificationOffsetMinutes": 0, "weeklyDeadlineWeekday": null, "monthlyDayOfMonth": null, "monthlyDeadlineType": null, "active": true, "sortOrder": 5, "createdBy": "sora", "createdAt": "2026-09-01T00:00:00.000Z", "updatedAt": "2026-09-01T00:00:00.000Z" },
+    { "id": "task-drain", "title": "排水口の掃除", "description": null, "recurrenceType": "monthly", "modelRecurrenceType": "monthly_fixed", "assignmentType": "anyone", "assignedUserId": null, "scheduledTime": null, "notificationSlot": "none", "notificationTime": null, "weekdays": [], "weeklyTargetCount": null, "startDate": "2026-09-01", "targetDate": null, "deadlineDate": "2026-09-15", "deadlineTime": null, "notificationOffsetMinutes": null, "weeklyDeadlineWeekday": null, "monthlyDayOfMonth": 15, "monthlyDeadlineType": null, "active": true, "sortOrder": 6, "createdBy": "sora", "createdAt": "2026-09-01T00:00:00.000Z", "updatedAt": "2026-09-01T00:00:00.000Z" }
+  ],
+  "completedRecords": [
+    { "id": "record-laundry", "taskId": "task-laundry", "status": "completed", "title": "洗濯", "taskActive": true, "actualCompleter": { "userId": "mina", "displayName": "ミナ", "avatar": "marketing/app-store/assets/avatars/mina-avatar.png" }, "assignedUser": null, "completedAt": "2026-09-07T00:15:00.000Z", "skippedAt": null, "targetDate": "2026-09-07", "targetWeekStart": "2026-09-07", "createdAt": "2026-09-07T00:15:00.000Z", "updatedAt": "2026-09-07T00:15:00.000Z" }
+  ],
+  "shopping": {
+    "pending": [
+      { "id": "shopping-bird-food", "name": "インコの餌", "quantity": "1袋", "note": "いつもの小粒タイプ", "status": "pending", "image": "marketing/app-store/assets/shopping/bird-food.png", "addedBy": "sora", "sortOrder": 1 },
+      { "id": "shopping-milk", "name": "牛乳", "quantity": "1本", "note": "低脂肪", "status": "pending", "image": null, "addedBy": "sora", "sortOrder": 2 },
+      { "id": "shopping-eggs", "name": "卵", "quantity": "1パック", "note": null, "status": "pending", "image": null, "addedBy": "mina", "sortOrder": 3 },
+      { "id": "shopping-tissue", "name": "ティッシュ", "quantity": "1箱", "note": null, "status": "pending", "image": null, "addedBy": "sora", "sortOrder": 4 }
+    ],
+    "purchased": [
+      { "id": "shopping-detergent", "name": "洗剤", "quantity": "1本", "note": null, "status": "purchased", "image": null, "addedBy": "mina", "purchasedBy": "sora", "purchasedAt": "2026-09-07T00:30:00.000Z", "sortOrder": 5 }
+    ]
+  },
+  "notifications": {
+    "morningSummaryEnabled": true,
+    "morningSummaryTime": "09:00",
+    "eveningSummaryEnabled": true,
+    "eveningSummaryTime": "21:00",
+    "timezone": "Asia/Tokyo"
+  }
+}
