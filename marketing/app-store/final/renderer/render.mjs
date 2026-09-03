@@ -136,12 +136,14 @@ function dataUrl(buffer, mimeType) {
   return `data:${mimeType};base64,${buffer.toString("base64")}`;
 }
 
-async function pageHtml(page, fontFaceCss) {
+async function pageHtml(page, { base = false, fontFaceCss = "" } = {}) {
   const [backgroundBuffer, screenshotBuffer] = await Promise.all([
     fs.readFile(path.resolve(appStoreDir, page.background)),
     fs.readFile(path.resolve(appStoreDir, page.screenshot)),
   ]);
-  const copy = escapeHtml(page.copy).replaceAll("\n", "<br />");
+  const copy = base ? "" : escapeHtml(page.copy).replaceAll("\n", "<br />");
+  const copyMarkup = base ? "" : `<div class="copy">${copy}</div>`;
+  const annotationMarkup = base ? "" : `<div class="annotation-layer">${annotations[page.page] ?? ""}</div>`;
   return `<!doctype html>
 <html lang="ja">
   <head>
@@ -206,16 +208,17 @@ async function pageHtml(page, fontFaceCss) {
   <body>
     <main class="canvas" data-page="${page.page}">
       <img class="background" src="${dataUrl(backgroundBuffer, "image/png")}" alt="" />
-      <div class="copy">${copy}</div>
+      ${copyMarkup}
       <img class="screenshot" src="${dataUrl(screenshotBuffer, "image/png")}" alt="HouseToDo raw screenshot" />
-      <div class="annotation-layer">${annotations[page.page] ?? ""}</div>
+      ${annotationMarkup}
     </main>
   </body>
 </html>`;
 }
 
-async function waitForAssets(page) {
+async function waitForAssets(page, { checkFonts = true } = {}) {
   await page.waitForFunction(() => Array.from(document.images).every((image) => image.complete && image.naturalWidth > 0));
+  if (!checkFonts) return;
   await page.evaluate(async () => {
     await document.fonts.ready;
     const zen = await document.fonts.load('700 96px "Zen Kaku Gothic New"', "今日やること");
@@ -225,10 +228,11 @@ async function waitForAssets(page) {
   });
 }
 
-async function renderContactSheet(browser) {
+async function renderContactSheet(browser, { base = false } = {}) {
   const page = await browser.newPage({ viewport: { width: 1400, height: 2000 }, deviceScaleFactor: 1 });
   const cards = (await Promise.all(pages.map(async (item) => {
-    const buffer = await fs.readFile(path.resolve(finalDir, "screenshots", item.output));
+    const outputName = base ? item.output.replace(".png", "-base.png") : item.output;
+    const buffer = await fs.readFile(path.resolve(finalDir, base ? "base" : "screenshots", outputName));
     return `<figure><img src="${dataUrl(buffer, "image/png")}" alt="Page ${item.page}" /><figcaption>Page ${item.page}</figcaption></figure>`;
   }))).join("");
   await page.setContent(`<!doctype html><html><head><meta charset="utf-8"><style>
@@ -236,41 +240,47 @@ async function renderContactSheet(browser) {
     .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; } figure { margin: 0; } img { display: block; width: 100%; height: auto; border-radius: 16px; box-shadow: 0 8px 24px rgba(48,53,49,.12); } figcaption { padding: 8px 4px 0; font-size: 15px; }
   </style></head><body><div class="grid">${cards}</div></body></html>`, { waitUntil: "load" });
   await page.waitForFunction(() => Array.from(document.images).every((image) => image.complete && image.naturalWidth > 0));
-  await page.screenshot({ path: path.resolve(finalDir, "preview", "contact-sheet.png"), fullPage: true, type: "png" });
+  await page.screenshot({ path: path.resolve(finalDir, "preview", base ? "contact-sheet-base.png" : "contact-sheet.png"), fullPage: true, type: "png" });
   await page.close();
 }
 
 async function main() {
   const previewOnly = process.argv.includes("--preview-only");
-  const outputDir = path.resolve(finalDir, "screenshots");
+  const base = process.argv.includes("--base");
+  const outputDir = path.resolve(finalDir, base ? "base" : "screenshots");
   await fs.mkdir(outputDir, { recursive: true });
   await fs.mkdir(path.resolve(finalDir, "preview"), { recursive: true });
 
   const browser = await chromium.launch({ headless: true });
   try {
     if (!previewOnly) {
-      const [zenFont, yomogiFont] = await Promise.all([
-        fs.readFile(path.resolve(repoDir, "node_modules/@fontsource/zen-kaku-gothic-new/files/zen-kaku-gothic-new-japanese-700-normal.woff2")),
-        fs.readFile(path.resolve(repoDir, "node_modules/@fontsource/yomogi/files/yomogi-japanese-400-normal.woff2")),
-      ]);
-      const fontFaceCss = `
-        @font-face { font-family: "Zen Kaku Gothic New"; font-style: normal; font-weight: 700; font-display: block; src: url("${dataUrl(zenFont, "font/woff2")}") format("woff2"); }
-        @font-face { font-family: "Yomogi"; font-style: normal; font-weight: 400; font-display: block; src: url("${dataUrl(yomogiFont, "font/woff2")}") format("woff2"); }
-      `;
+      let fontFaceCss = "";
+      if (!base) {
+        const [zenFont, yomogiFont] = await Promise.all([
+          fs.readFile(path.resolve(repoDir, "node_modules/@fontsource/zen-kaku-gothic-new/files/zen-kaku-gothic-new-japanese-700-normal.woff2")),
+          fs.readFile(path.resolve(repoDir, "node_modules/@fontsource/yomogi/files/yomogi-japanese-400-normal.woff2")),
+        ]);
+        fontFaceCss = `
+          @font-face { font-family: "Zen Kaku Gothic New"; font-style: normal; font-weight: 700; font-display: block; src: url("${dataUrl(zenFont, "font/woff2")}") format("woff2"); }
+          @font-face { font-family: "Yomogi"; font-style: normal; font-weight: 400; font-display: block; src: url("${dataUrl(yomogiFont, "font/woff2")}") format("woff2"); }
+        `;
+      }
       const page = await browser.newPage({ viewport: { width: WIDTH, height: HEIGHT }, deviceScaleFactor: 1 });
       for (const item of pages) {
-        console.log(`Rendering ${item.output}`);
-        await page.setContent(await pageHtml(item, fontFaceCss), { waitUntil: "load" });
-        await waitForAssets(page);
-        await page.screenshot({ path: path.resolve(outputDir, item.output), type: "png" });
+        const outputName = base ? item.output.replace(".png", "-base.png") : item.output;
+        console.log(`Rendering ${outputName}`);
+        await page.setContent(await pageHtml(item, { base, fontFaceCss }), { waitUntil: "load" });
+        await waitForAssets(page, { checkFonts: !base });
+        await page.screenshot({ path: path.resolve(outputDir, outputName), type: "png" });
       }
       await page.close();
     }
-    await renderContactSheet(browser);
+    await renderContactSheet(browser, { base });
   } finally {
     await browser.close();
   }
-  console.log(`${previewOnly ? "Preview updated" : `Rendered ${pages.length} App Store screenshots`} in ${finalDir}`);
+  const label = base ? "base screenshots" : "App Store screenshots";
+  console.log(`${previewOnly ? "Preview updated" : `Rendered ${pages.length} ${label}`} in ${finalDir}`);
 }
 
 await main();

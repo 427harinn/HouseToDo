@@ -12,6 +12,14 @@ The renderer uses the supplied `screenimage/*.png` backgrounds and raw 390×844 
 
 Annotations are intentionally kept as inline SVG/HTML in `renderer/render.mjs` so their position and line weight can be adjusted without regenerating raster artwork. The contact sheet is written to `preview/contact-sheet.png`.
 
+The Canva handoff base images are generated with:
+
+```bash
+npm run marketing:appstore:render:base
+```
+
+This mode omits all marketing copy and annotations, leaving only the supplied background, the selected raw screenshot, and the light screenshot decoration. It writes `base/01-home-base.png` through `base/08-notifications-base.png` and `preview/contact-sheet-base.png`.
+
 ## Output
 
 - `screenshots/01-home.png` through `screenshots/08-notifications.png`: App Store candidate PNGs
