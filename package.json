@@ -17,6 +17,8 @@
     "marketing:capture:videos": "npm run marketing:seed && playwright test --config=playwright.marketing.config.ts --grep \"390x844 Playwright video\"",
     "marketing:videos:duration": "node scripts/marketing-video-duration.mjs",
     "marketing:capture:all": "npm run marketing:seed && playwright test --config=playwright.marketing.config.ts",
+    "marketing:appstore:render": "node marketing/app-store/final/renderer/render.mjs",
+    "marketing:appstore:preview": "node marketing/app-store/final/renderer/render.mjs --preview-only",
     "pwa:icons:generate": "node scripts/generate-pwa-icon-assets.mjs",
     "pwa:icons:validate": "node scripts/validate-pwa-icon.mjs",
     "test:watch": "vitest",
@@ -43,6 +45,8 @@
   "devDependencies": {
     "@cloudflare/workers-types": "5.20260722.1",
     "@eslint/js": "9.30.1",
+    "@fontsource/yomogi": "^5.3.0",
+    "@fontsource/zen-kaku-gothic-new": "^5.3.0",
     "@playwright/test": "^1.62.1",
     "@testing-library/jest-dom": "6.6.3",
     "@testing-library/react": "16.3.0",

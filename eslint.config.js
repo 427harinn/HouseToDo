@@ -57,5 +57,23 @@ export default tseslint.config(
         URL: "readonly"
       }
     }
+  },
+  {
+    files: ["marketing/app-store/final/renderer/**/*.mjs"],
+    ...tseslint.configs.disableTypeChecked,
+    languageOptions: {
+      ecmaVersion: "latest",
+      sourceType: "module",
+      parserOptions: {
+        project: false,
+        projectService: false
+      },
+      globals: {
+        console: "readonly",
+        process: "readonly",
+        URL: "readonly",
+        document: "readonly"
+      }
+    }
   }
 );
