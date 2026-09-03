@@ -1,5 +1,5 @@
-import { expect, test, type Browser, type BrowserContext, type Page, type Route } from "@playwright/test";
-import { copyFile, mkdir, readFile } from "node:fs/promises";
+import { expect, test, type Browser, type BrowserContext, type Locator, type Page, type Route } from "@playwright/test";
+import { copyFile, mkdir, readFile, unlink } from "node:fs/promises";
 import path from "node:path";
 
 type Fixture = {
@@ -135,15 +135,26 @@ async function seedApi(page: Page) {
       const fixed = ["task-trash", "task-bird-food"].map((id) => fixture.tasks.find((task) => task.id === id)).filter(Boolean).map((task) => taskResponse(task!));
       const weeklyFlexible = fixture.tasks.filter((task) => task.modelRecurrenceType === "weekly_flexible").map((task) => taskResponse(task));
       const monthlyFlexible = fixture.tasks.filter((task) => task.modelRecurrenceType === "monthly_flexible").map((task) => taskResponse(task));
-      return route.fulfill(apiEnvelope({ today: "2026-09-07", timezone: "Asia/Tokyo", selectedDate: date, selected: { fixed, weeklyFlexible, monthlyFlexible, completed: [], shopping: [] } }));
+      const completed = date === "2026-09-07" ? fixture.completedRecords.map((record) => ({
+        ...record,
+        taskId: record.taskId,
+        selectedDate: date,
+        actualCompleter: { ...record.actualCompleter, avatarUrl: avatarUrl(String((record.actualCompleter as Record<string, unknown>).userId)) }
+      })) : [];
+      return route.fulfill(apiEnvelope({ today: "2026-09-07", timezone: "Asia/Tokyo", selectedDate: date, selected: { fixed, weeklyFlexible, monthlyFlexible, completed, shopping: [] } }));
     }
     if (pathname === "/api/shopping/items") {
       const pending = fixture.shopping.pending.filter((item) => !state.purchasedItemIds.has(String(item.id))).map(shoppingResponse);
       const purchased = [...fixture.shopping.purchased, ...fixture.shopping.pending.filter((item) => state.purchasedItemIds.has(String(item.id)))].map(shoppingResponse);
       return route.fulfill(apiEnvelope({ pending, purchased }));
     }
-    if (pathname === "/api/shopping/recent") return route.fulfill(apiEnvelope({ items: [] }));
+    if (pathname === "/api/shopping/recent") return route.fulfill(apiEnvelope({ items: fixture.shopping.pending.map((item) => ({ name: item.name, quantity: item.quantity, note: item.note, createdAt: iso })) }));
     if (pathname === "/api/shopping/templates") return route.fulfill(apiEnvelope({ templates: [] }));
+    if (pathname.match(/^\/api\/shopping\/items\/[^/]+$/) && route.request().method() === "GET") {
+      const itemId = pathname.split("/")[4];
+      const item = [...fixture.shopping.pending, ...fixture.shopping.purchased].find((entry) => entry.id === itemId);
+      if (item) return route.fulfill(apiEnvelope({ item: shoppingResponse(item) }));
+    }
     if (pathname.match(/^\/api\/shopping\/items\/[^/]+\/purchase$/)) {
       const itemId = pathname.split("/")[4];
       state.purchasedItemIds.add(itemId);
@@ -174,9 +185,29 @@ const settle = async (page: Page) => {
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
 };
 
+const pause = (page: Page, milliseconds: number) => page.waitForTimeout(milliseconds);
+
+const swipeLeft = async (page: Page, row: Locator, distance = 100) => {
+  const box = await row.boundingBox();
+  expect(box).not.toBeNull();
+  await page.mouse.move(box!.x + box!.width - 30, box!.y + box!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box!.x + box!.width - 30 - distance, box!.y + box!.height / 2, { steps: 8 });
+  await page.mouse.up();
+};
+
 const openPage = async (page: Page, route: string) => {
   await page.goto(route);
   await settle(page);
+};
+
+const captureCandidate = async (page: Page, folder: string, fileName: string, route: string, prepare?: () => Promise<void>) => {
+  await openPage(page, route);
+  if (prepare) await prepare();
+  await settle(page);
+  await pause(page, 700);
+  await mkdir(path.join(screenshotsDir, folder), { recursive: true });
+  await page.screenshot({ path: path.join(screenshotsDir, folder, fileName), fullPage: false });
 };
 
 test.describe("raw screenshots", () => {
@@ -229,6 +260,138 @@ test.describe("raw screenshots", () => {
   });
 });
 
+test.describe("additional raw screenshot candidates", () => {
+  test.use({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
+
+  test("writes additional major screen and interaction states", async ({ page }) => {
+    await page.clock.install({ time: fixture.captureTime });
+    await seedApi(page);
+
+    await captureCandidate(page, "home", "home-normal.png", "/home");
+    await captureCandidate(page, "home", "home-assignees.png", "/home");
+    await captureCandidate(page, "home", "home-task-expanded.png", "/home", async () => {
+      await page.getByRole("button", { name: "ゴミ出しの詳細" }).click();
+    });
+    await captureCandidate(page, "home", "home-swipe-actions.png", "/home", async () => {
+      await swipeLeft(page, page.locator(".m2-home__row", { hasText: "ゴミ出し" }));
+      await expect(page.locator(".m2-home__row", { hasText: "ゴミ出し" }).getByRole("button", { name: "パス", exact: true })).toBeVisible();
+    });
+    await captureCandidate(page, "home", "home-completed-open.png", "/home", async () => {
+      await page.getByRole("button", { name: "完了済み 1" }).click();
+      await expect(page.getByText("洗濯", { exact: true })).toBeVisible();
+    });
+
+    const fillTaskForm = async () => {
+      await page.getByLabel("家事名").fill("換気扇の掃除");
+      await page.getByRole("button", { name: /繰り返し:/ }).click();
+      await page.getByRole("dialog", { name: "繰り返し" }).getByRole("button", { name: "今週のどこか", exact: true }).click();
+      await page.locator("#m2-task-start-date").fill("2026-09-07");
+      await page.getByLabel("終日").uncheck();
+      await page.locator("#m2-task-time").fill("18:00");
+      await page.locator("#m2-task-notification").selectOption("60");
+      await page.getByRole("button", { name: /^担当:/ }).click();
+      await page.getByRole("dialog").getByRole("button", { name: /ソラ/ }).click();
+      await page.getByLabel("メモ").fill("今週中にできればOK");
+    };
+    const openRepeat = async () => {
+      await page.getByRole("button", { name: /繰り返し:/ }).click();
+      return page.getByRole("dialog", { name: "繰り返し" });
+    };
+
+    await captureCandidate(page, "task-form", "task-form-filled.png", "/tasks/new", fillTaskForm);
+    await captureCandidate(page, "task-form", "task-repeat-options.png", "/tasks/new", async () => {
+      await openRepeat();
+    });
+    await captureCandidate(page, "task-form", "task-repeat-weekdays.png", "/tasks/new", async () => {
+      const dialog = await openRepeat();
+      await dialog.getByRole("button", { name: "曜日を決める", exact: true }).click();
+    });
+    await captureCandidate(page, "task-form", "task-repeat-weekdays-selected.png", "/tasks/new", async () => {
+      const dialog = await openRepeat();
+      await dialog.getByRole("button", { name: "曜日を決める", exact: true }).click();
+      await dialog.getByRole("button", { name: "月", exact: true }).click();
+      await dialog.getByRole("button", { name: "木", exact: true }).click();
+      await dialog.getByRole("button", { name: "金", exact: true }).click();
+    });
+    await captureCandidate(page, "task-form", "task-repeat-monthly-fixed.png", "/tasks/new", async () => {
+      const dialog = await openRepeat();
+      await dialog.getByRole("button", { name: "毎月○日", exact: true }).click();
+    });
+    await captureCandidate(page, "task-form", "task-repeat-weekly-flexible.png", "/tasks/new", async () => {
+      const dialog = await openRepeat();
+      await dialog.getByRole("button", { name: "今週のどこか", exact: true }).click();
+    });
+    await captureCandidate(page, "task-form", "task-repeat-monthly-flexible.png", "/tasks/new", async () => {
+      const dialog = await openRepeat();
+      await dialog.getByRole("button", { name: "今月のどこか", exact: true }).click();
+    });
+    await captureCandidate(page, "task-form", "task-assignee-sheet.png", "/tasks/new", async () => {
+      await page.getByRole("button", { name: /^担当:/ }).click();
+      await expect(page.getByRole("dialog", { name: "担当" }).getByText("ソラ", { exact: true })).toBeVisible();
+      await expect(page.getByRole("dialog", { name: "担当" }).getByText("ミナ", { exact: true })).toBeVisible();
+    });
+    await captureCandidate(page, "task-form", "task-form-time-notification.png", "/tasks/new", async () => {
+      await fillTaskForm();
+    });
+    await captureCandidate(page, "task-form", "task-reuse-sheet.png", "/tasks/new", async () => {
+      await page.getByRole("button", { name: "以前の項目から選ぶ" }).click();
+      await expect(page.getByRole("dialog", { name: "以前の項目から選ぶ" })).toBeVisible();
+    });
+
+    await captureCandidate(page, "calendar", "calendar-month.png", "/calendar");
+    await captureCandidate(page, "calendar", "calendar-date-sheet.png", "/calendar?date=2026-09-10");
+    await captureCandidate(page, "calendar", "calendar-date-task-expanded.png", "/calendar?date=2026-09-10", async () => {
+      await page.getByRole("button", { name: "ゴミ出しの詳細" }).click();
+    });
+    await captureCandidate(page, "calendar", "calendar-completed-open.png", "/calendar?date=2026-09-07", async () => {
+      await page.getByRole("button", { name: /完了済み 1/ }).click();
+      await expect(page.getByText("洗濯", { exact: true })).toBeVisible();
+    });
+
+    await captureCandidate(page, "shopping", "shopping-list.png", "/shopping");
+    await captureCandidate(page, "shopping", "shopping-item-expanded.png", "/shopping?item=shopping-bird-food");
+    await captureCandidate(page, "shopping", "shopping-photo-memo.png", "/shopping?item=shopping-bird-food", async () => {
+      await expect(page.getByText("いつもの小粒タイプ", { exact: true })).toBeVisible();
+      await expect(page.getByAltText("インコの餌の写真")).toBeVisible();
+    });
+    await captureCandidate(page, "shopping", "shopping-purchased-open.png", "/shopping", async () => {
+      await page.getByRole("button", { name: "購入済み 1件" }).click();
+      await expect(page.getByText("洗剤", { exact: true })).toBeVisible();
+    });
+    await captureCandidate(page, "shopping", "shopping-swipe-edit.png", "/shopping", async () => {
+      const row = page.locator("[data-shopping-m4-id='shopping-bird-food']");
+      await swipeLeft(page, row);
+      await expect(row.getByRole("button", { name: "編集", exact: true })).toBeVisible();
+    });
+    await captureCandidate(page, "shopping", "shopping-reuse-sheet.png", "/shopping/new", async () => {
+      await page.getByRole("button", { name: "以前の項目から選ぶ" }).click();
+      await expect(page.getByRole("dialog", { name: "以前の項目から選ぶ" })).toBeVisible();
+      await expect(page.getByRole("dialog").getByText("インコの餌", { exact: true })).toBeVisible();
+    });
+    await captureCandidate(page, "shopping", "shopping-new-form.png", "/shopping/new");
+    await captureCandidate(page, "shopping", "shopping-image-form.png", "/shopping/items/shopping-bird-food/edit", async () => {
+      await expect(page.getByAltText("インコの餌写真")).toBeVisible();
+    });
+
+    await captureCandidate(page, "settings", "settings-other.png", "/other");
+    await captureCandidate(page, "settings", "settings-notifications.png", "/other/notifications");
+    await captureCandidate(page, "settings", "settings-members.png", "/other/members", async () => {
+      await expect(page.getByText("ソラ", { exact: true })).toBeVisible();
+      await expect(page.getByText("ミナ", { exact: true })).toBeVisible();
+    });
+    await captureCandidate(page, "settings", "settings-account.png", "/other/account", async () => {
+      await expect(page.getByRole("img", { name: "アバター: ソラ" })).toBeVisible();
+    });
+    await captureCandidate(page, "settings", "settings-household.png", "/other/household");
+    await captureCandidate(page, "add-sheet", "add-sheet.png", "/home", async () => {
+      await page.getByRole("button", { name: "追加" }).click();
+      await expect(page.getByRole("dialog", { name: "追加" })).toBeVisible();
+      await expect(page.getByRole("dialog", { name: "追加" }).getByRole("button", { name: "家事" })).toBeVisible();
+      await expect(page.getByRole("dialog", { name: "追加" }).getByRole("button", { name: "買い物" })).toBeVisible();
+    });
+  });
+});
+
 const makeVideoContext = async (browser: Browser): Promise<{ context: BrowserContext; page: Page; videoPath: () => Promise<string | null> }> => {
   const context = await browser.newContext({ baseURL: "http://127.0.0.1:4173", viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, recordVideo: { dir: videosDir, size: { width: 390, height: 844 } } });
   const page = await context.newPage();
@@ -238,6 +401,16 @@ const makeVideoContext = async (browser: Browser): Promise<{ context: BrowserCon
   return { context, page, videoPath: async () => video ? video.path() : null };
 };
 
+const saveVideo = async (capture: Awaited<ReturnType<typeof makeVideoContext>>, fileName: string) => {
+  await capture.page.close();
+  await capture.context.close();
+  const videoPath = await capture.videoPath();
+  if (!videoPath) return;
+  const destination = path.join(videosDir, fileName);
+  await copyFile(videoPath, destination);
+  if (path.resolve(videoPath) !== path.resolve(destination)) await unlink(videoPath);
+};
+
 test.describe("raw videos", () => {
   test("records basic home actions as a 390x844 Playwright video", async ({ browser }) => {
     await mkdir(videosDir, { recursive: true });
@@ -245,10 +418,14 @@ test.describe("raw videos", () => {
     try {
       await capture.page.goto("/home");
       await settle(capture.page);
+      await pause(capture.page, 1_500);
       await capture.page.getByRole("button", { name: "ゴミ出しの詳細" }).click();
+      await pause(capture.page, 1_800);
       await capture.page.getByRole("button", { name: "完了", exact: true }).click();
       await expect(capture.page.getByRole("button", { name: "ゴミ出しの詳細" })).toHaveCount(0);
+      await pause(capture.page, 1_700);
       const row = capture.page.locator(".m2-home__row", { hasText: "インコの餌交換" });
+      await pause(capture.page, 700);
       const box = await row.boundingBox();
       expect(box).not.toBeNull();
       await capture.page.mouse.move(box!.x + box!.width - 30, box!.y + box!.height / 2);
@@ -256,16 +433,9 @@ test.describe("raw videos", () => {
       await capture.page.mouse.move(box!.x + box!.width - 130, box!.y + box!.height / 2, { steps: 8 });
       await capture.page.mouse.up();
       await expect(row.getByRole("button", { name: "パス", exact: true })).toBeVisible();
-      await capture.page.mouse.move(box!.x + box!.width - 130, box!.y + box!.height / 2);
-      await capture.page.mouse.down();
-      await capture.page.mouse.move(box!.x + box!.width - 10, box!.y + box!.height / 2, { steps: 8 });
-      await capture.page.mouse.up();
-      await capture.page.waitForTimeout(400);
+      await pause(capture.page, 2_000);
     } finally {
-      await capture.page.close();
-      await capture.context.close();
-      const videoPath = await capture.videoPath();
-      if (videoPath) await copyFile(videoPath, path.join(videosDir, "01-basic-home-actions.webm"));
+      await saveVideo(capture, "01-basic-home-actions.webm");
     }
   });
 
@@ -275,28 +445,41 @@ test.describe("raw videos", () => {
     try {
       await capture.page.goto("/home");
       await settle(capture.page);
+      await pause(capture.page, 1_500);
       await capture.page.getByRole("button", { name: "追加" }).click();
+      await pause(capture.page, 2_200);
       await capture.page.getByRole("dialog", { name: "追加" }).getByRole("button", { name: "家事" }).click();
       await expect(capture.page).toHaveURL(/\/tasks\/new$/);
+      await pause(capture.page, 1_500);
       await capture.page.getByRole("button", { name: /繰り返し:/ }).click();
-      await capture.page.getByRole("dialog", { name: "繰り返し" }).getByRole("button", { name: "今週のどこか" }).click();
+      await pause(capture.page, 2_300);
+      await capture.page.getByRole("dialog", { name: "繰り返し" }).getByRole("button", { name: "今週のどこか", exact: true }).click();
+      await pause(capture.page, 800);
       await capture.page.getByRole("button", { name: "戻る" }).click();
+      await pause(capture.page, 1_500);
       await capture.page.getByRole("button", { name: "カレンダー" }).click();
       await expect(capture.page).toHaveURL(/\/calendar$/);
+      await pause(capture.page, 1_500);
+      await capture.page.getByRole("gridcell", { name: /9月10日/ }).click();
+      await expect(capture.page.getByRole("dialog", { name: /9月10日/ })).toBeVisible();
+      await pause(capture.page, 2_300);
+      await capture.page.getByRole("dialog", { name: /9月10日/ }).getByRole("button", { name: "閉じる" }).click();
+      await pause(capture.page, 500);
       await capture.page.getByRole("button", { name: "買い物" }).click();
+      await pause(capture.page, 1_500);
       await capture.page.getByRole("button", { name: "インコの餌" }).click();
+      await pause(capture.page, 1_800);
       await capture.page.getByRole("button", { name: "購入", exact: true }).click();
       await expect(capture.page.getByText("購入済み 2件")).toBeVisible();
+      await pause(capture.page, 1_800);
       await capture.page.getByRole("button", { name: "その他" }).click();
+      await pause(capture.page, 1_500);
       await capture.page.getByRole("link", { name: "通知" }).click();
       await expect(capture.page).toHaveURL(/\/other\/notifications$/);
       await expect(capture.page.getByRole("heading", { name: "通知" })).toBeVisible();
-      await capture.page.waitForTimeout(400);
+      await pause(capture.page, 1_800);
     } finally {
-      await capture.page.close();
-      await capture.context.close();
-      const videoPath = await capture.videoPath();
-      if (videoPath) await copyFile(videoPath, path.join(videosDir, "02-feature-walkthrough.webm"));
+      await saveVideo(capture, "02-feature-walkthrough.webm");
     }
   });
 });
