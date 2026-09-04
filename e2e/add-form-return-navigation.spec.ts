@@ -1,9 +1,14 @@
 import { expect, test, type Page } from "@playwright/test";
+import { mkdir } from "node:fs/promises";
+import path from "node:path";
 
 const date = "2026-09-04";
+const evidenceDir = path.resolve("docs/evidence/add-form-return-navigation");
 const user = { id: "user-1", email: "navigation@example.test", displayName: "さや" };
 const household = { id: "household-1", name: "わが家", timezone: "Asia/Tokyo", weekStartsOn: 1, role: "owner" };
 const member = { userId: user.id, displayName: user.displayName, role: "owner", color: "#d9f2eb", avatarUrl: null };
+
+test.use({ viewport: { width: 390, height: 844 } });
 
 const json = (data: unknown, status = 200) => ({
   status,
@@ -113,6 +118,11 @@ const openAddForm = async (page: Page, label: "家事" | "買い物") => {
   await expect(page.getByRole("heading", { name: label === "家事" ? "家事を追加" : "買い物を追加" })).toBeVisible();
 };
 
+const captureEvidence = async (page: Page, filename: string) => {
+  await mkdir(evidenceDir, { recursive: true });
+  await page.screenshot({ path: path.join(evidenceDir, filename), fullPage: false });
+};
+
 test("central add menu preserves every supported origin for task and shopping forms", async ({ page }) => {
   await installRoutes(page);
   const cases: Array<{ origin: string; label: "家事" | "買い物" }> = [
@@ -129,14 +139,29 @@ test("central add menu preserves every supported origin for task and shopping fo
 
   for (const { origin, label } of cases) {
     await page.goto(origin);
+    if (origin === "/home" && label === "家事") await captureEvidence(page, "home-task-add-origin.png");
+    if (origin === "/shopping" && label === "買い物") await captureEvidence(page, "shopping-add-origin.png");
+    if (origin === `/calendar?date=${date}` && label === "家事") {
+      await expect(page.getByRole("dialog")).toBeVisible();
+      await captureEvidence(page, "calendar-task-add-selected-date.png");
+    }
     if (origin.includes("?date=")) {
       await page.getByRole("button", { name: "閉じる", exact: true }).click();
       await page.evaluate((nextOrigin) => window.history.replaceState({}, "", nextOrigin), origin);
     }
     await openAddForm(page, label);
+    if (origin === "/home" && label === "家事") await captureEvidence(page, "home-task-add-form.png");
+    if (origin === "/shopping" && label === "買い物") await captureEvidence(page, "shopping-add-form.png");
+    if (origin === `/calendar?date=${date}` && label === "家事") await captureEvidence(page, "calendar-task-add-form.png");
     expect(new URL(page.url()).searchParams.get("returnTo")).toBe(origin);
     await page.getByRole("button", { name: "戻る" }).click();
     await expect(page).toHaveURL(new RegExp(`${origin.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`));
+    if (origin === "/home" && label === "家事") await captureEvidence(page, "home-task-return.png");
+    if (origin === "/shopping" && label === "買い物") await captureEvidence(page, "shopping-add-return.png");
+    if (origin === `/calendar?date=${date}` && label === "家事") {
+      await expect(page.getByRole("dialog")).toBeVisible();
+      await captureEvidence(page, "calendar-task-return-same-date.png");
+    }
   }
 });
 
