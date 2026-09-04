@@ -1,4 +1,4 @@
-import type { CreateTaskInput, CreateTaskTemplateInput, Task, TaskAssignmentType, TaskModelRecurrenceType, TaskTemplate } from "./api/tasks";
+import type { CreateTaskInput, CreateTaskTemplateInput, Task, TaskAssignmentType, TaskExecutionTiming, TaskModelRecurrenceType, TaskTemplate } from "./api/tasks";
 
 export type TaskFormRecurrence = TaskModelRecurrenceType | "legacy_weekly";
 
@@ -6,10 +6,12 @@ export type TaskFormState = {
   title: string;
   description: string;
   recurrence: TaskFormRecurrence;
+  executionTiming: TaskExecutionTiming;
   assignmentType: TaskAssignmentType;
   assignedUserId: string | null;
   startDate: string;
   targetDate: string;
+  deadlineDate: string;
   deadlineTime: string;
   notificationOffsetMinutes: number | null;
   weekdays: number[];
@@ -25,10 +27,12 @@ export const defaultTaskForm = (): TaskFormState => ({
   title: "",
   description: "",
   recurrence: "once",
+  executionTiming: "on_date",
   assignmentType: "anyone",
   assignedUserId: null,
   startDate: "",
   targetDate: "",
+  deadlineDate: "",
   deadlineTime: "",
   notificationOffsetMinutes: null,
   weekdays: [],
@@ -47,15 +51,21 @@ export const taskToFormState = (task: Task): TaskFormState => {
     : task.modelRecurrenceType ?? (task.recurrenceType === "scheduled" ? "weekly_fixed" : task.recurrenceType === "weekly" ? "weekly_flexible" : "daily");
   const canonicalDate = task.startDate ?? task.targetDate ?? "";
   const onceDate = recurrence === "once" ? task.targetDate ?? task.startDate ?? "" : "";
+  const executionTiming: TaskExecutionTiming = task.executionTiming
+    ?? (task.modelRecurrenceType === "weekly_flexible" ? "this_week"
+      : task.modelRecurrenceType === "monthly_flexible" ? "this_month"
+        : "on_date");
   return {
     ...defaultTaskForm(),
     title: task.title,
     description: task.description ?? "",
     recurrence,
+    executionTiming,
     assignmentType: task.assignmentType,
     assignedUserId: task.assignedUserId,
     startDate: canonicalDate,
     targetDate: onceDate,
+    deadlineDate: task.deadlineDate ?? "",
     deadlineTime: task.deadlineTime ?? "",
     notificationOffsetMinutes: task.deadlineTime ? (task.notificationOffsetMinutes ?? null) : null,
     weekdays: [...task.weekdays],
@@ -73,10 +83,12 @@ export const taskTemplateToFormState = (template: TaskTemplate): TaskFormState =
   title: template.title,
   description: template.description ?? "",
   recurrence: template.modelRecurrenceType,
+  executionTiming: template.executionTiming ?? (template.modelRecurrenceType === "weekly_flexible" ? "this_week" : template.modelRecurrenceType === "monthly_flexible" ? "this_month" : "on_date"),
   assignmentType: template.assignmentType,
   assignedUserId: template.assignedUserId,
   weekdays: [...template.weekdays],
   deadlineTime: template.deadlineTime ?? "",
+  deadlineDate: template.deadlineDate ?? "",
   notificationOffsetMinutes: template.deadlineTime ? template.notificationOffsetMinutes : null,
   weeklyDeadlineWeekday: template.weeklyDeadlineWeekday ?? 0,
   monthlyDayOfMonth: template.monthlyDayOfMonth ?? 1,
@@ -86,7 +98,9 @@ export const taskTemplateToFormState = (template: TaskTemplate): TaskFormState =
 export const changeTaskFormRecurrence = (state: TaskFormState, recurrence: TaskFormRecurrence): TaskFormState => ({
   ...state,
   recurrence,
+  executionTiming: recurrence === "weekly_flexible" ? "this_week" : recurrence === "monthly_flexible" ? "this_month" : recurrence === "once" ? (state.executionTiming === "by_deadline" ? "by_deadline" : "on_date") : "on_date",
   targetDate: recurrence === "once" ? state.startDate || state.targetDate : "",
+  deadlineDate: recurrence === "once" && state.executionTiming === "by_deadline" ? state.deadlineDate : "",
   weekdays: recurrence === "weekly_fixed" ? state.weekdays : [],
   monthlyDayOfMonth: recurrence === "monthly_fixed" || recurrence === "monthly_flexible" ? (state.monthlyDayOfMonth ?? 1) : null,
   weeklyDeadlineWeekday: recurrence === "weekly_flexible" ? state.weeklyDeadlineWeekday : 0,
@@ -103,7 +117,8 @@ export const normalizeTaskForm = (state: TaskFormState): TaskFormState => {
     description: state.description.trim(),
     assignedUserId: state.assignmentType === "specific" ? state.assignedUserId : null,
     startDate: canonicalDate,
-    targetDate: state.recurrence === "once" ? canonicalDate : "",
+    targetDate: state.recurrence === "once" && state.executionTiming !== "by_deadline" ? canonicalDate : "",
+    deadlineDate: state.executionTiming === "by_deadline" ? state.deadlineDate : "",
     notificationOffsetMinutes: state.deadlineTime ? state.notificationOffsetMinutes : null,
     weekdays: state.recurrence === "weekly_fixed" ? [...new Set(state.weekdays)].sort((a, b) => a - b) : []
   };
@@ -124,7 +139,9 @@ export const taskFormToPayload = (raw: TaskFormState): CreateTaskInput => {
     scheduledTime: null, notificationSlot: "none", notificationTime: null,
     weekdays: state.recurrence === "weekly_fixed" ? state.weekdays : [], weeklyTargetCount: null,
     startDate: state.startDate || (state.recurrence === "once" ? state.targetDate : "") || null,
-    targetDate: state.recurrence === "once" ? (state.startDate || state.targetDate || null) : null,
+    targetDate: state.recurrence === "once" && state.executionTiming !== "by_deadline" ? (state.startDate || state.targetDate || null) : null,
+    executionTiming: state.executionTiming,
+    deadlineDate: state.executionTiming === "by_deadline" ? (state.deadlineDate || null) : null,
     deadlineTime: state.deadlineTime || null,
     notificationOffsetMinutes: state.deadlineTime ? state.notificationOffsetMinutes : null,
     weeklyDeadlineWeekday: state.recurrence === "weekly_flexible" ? state.weeklyDeadlineWeekday : null,
@@ -145,6 +162,8 @@ export const taskFormToTemplatePayload = (raw: TaskFormState): CreateTaskTemplat
     title: state.title.trim(),
     description: state.description || null,
     modelRecurrenceType: state.recurrence as TaskModelRecurrenceType,
+    executionTiming: state.executionTiming,
+    deadlineDate: state.executionTiming === "by_deadline" ? (state.deadlineDate || null) : null,
     assignmentType: state.assignmentType,
     assignedUserId: state.assignedUserId,
     weekdays: state.recurrence === "weekly_fixed" ? state.weekdays : [],
@@ -163,7 +182,9 @@ export const validateTaskFormState = (state: TaskFormState, options: { template?
   if (!state.title.trim()) errors.title = "タスク名を入力してください。";
   else if (state.title.trim().length > 100) errors.title = "タスク名は100文字以内で入力してください。";
   if (state.assignmentType === "specific" && !state.assignedUserId) errors.assignedUserId = "担当メンバーを選択してください。";
-  if (!options.template && state.recurrence === "once" && !(state.startDate || state.targetDate)) errors.startDate = "開始日を選択してください。";
+  if (!options.template && state.recurrence === "once" && state.executionTiming !== "by_deadline" && !(state.startDate || state.targetDate)) errors.startDate = "開始日を選択してください。";
+  if (state.recurrence === "once" && state.executionTiming === "by_deadline" && !options.template && !state.deadlineDate) errors.deadlineDate = "期限を選択してください。";
+  if (state.recurrence === "once" && state.executionTiming === "by_deadline" && state.startDate && state.deadlineDate && state.deadlineDate < state.startDate) errors.deadlineDate = "期限は開始日以降で指定してください。";
   if (state.recurrence === "weekly_fixed" && state.weekdays.length === 0) errors.weekdays = "曜日を1つ以上選択してください。";
   if (state.recurrence === "monthly_fixed" && (!Number.isInteger(state.monthlyDayOfMonth) || state.monthlyDayOfMonth! < 1 || state.monthlyDayOfMonth! > 31)) errors.monthlyDayOfMonth = "1〜31日で入力してください。";
   if (state.recurrence === "weekly_flexible" && (!Number.isInteger(state.weeklyDeadlineWeekday) || state.weeklyDeadlineWeekday < 0 || state.weeklyDeadlineWeekday > 6)) errors.weeklyDeadlineWeekday = "締め切り曜日を選択してください。";
@@ -188,6 +209,13 @@ export const recurrenceDescription = (task: Pick<Task, "modelRecurrenceType" | "
   if (type === "daily") return "毎日";
   if (type === "weekly_fixed") return `毎週 ${task.weekdays.map((day) => ["日", "月", "火", "水", "木", "金", "土"][day]).join("・")}`;
   if (type === "monthly_fixed") return `毎月${task.monthlyDayOfMonth}日`;
-  if (type === "weekly_flexible") return `週1回・日付不定（${["日", "月", "火", "水", "木", "金", "土"][task.weeklyDeadlineWeekday ?? 0]}曜まで）`;
-  return `月1回・日付不定（${task.monthlyDeadlineType === "day_of_month" ? `${task.monthlyDayOfMonth}日まで` : "月末まで"}）`;
+  if (type === "weekly_flexible") return "毎週";
+  return "毎月";
 };
+
+export const executionTimingLabel = (timing: TaskExecutionTiming): string => ({
+  on_date: "日付を指定",
+  this_week: "今週中",
+  this_month: "今月中",
+  by_deadline: "期限までに"
+}[timing]);

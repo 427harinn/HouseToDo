@@ -1,4 +1,4 @@
-import type { MonthlyDeadlineType, TaskAssignmentType, TaskModelRecurrenceType, TaskTemplate } from "../types/domain";
+import type { MonthlyDeadlineType, TaskAssignmentType, TaskExecutionTiming, TaskModelRecurrenceType, TaskTemplate } from "../types/domain";
 
 type TaskTemplateRow = {
   id: string;
@@ -6,6 +6,8 @@ type TaskTemplateRow = {
   title: string;
   description: string | null;
   model_recurrence_type: TaskModelRecurrenceType;
+  execution_timing: TaskExecutionTiming | null;
+  deadline_date: string | null;
   assignment_type: TaskAssignmentType;
   assigned_user_id: string | null;
   weekdays_json: string;
@@ -47,6 +49,8 @@ const toTemplate = (row: TaskTemplateRow | null): TaskTemplate | null => row ? (
   title: row.title,
   description: row.description,
   modelRecurrenceType: row.model_recurrence_type,
+  executionTiming: row.execution_timing ?? null,
+  deadlineDate: row.deadline_date ?? null,
   assignmentType: row.assignment_type,
   assignedUserId: row.assigned_user_id,
   weekdays: parseWeekdays(row.weekdays_json),
@@ -63,7 +67,7 @@ const toTemplate = (row: TaskTemplateRow | null): TaskTemplate | null => row ? (
 }) : null;
 
 const columns = `id, household_id, title, description, model_recurrence_type, assignment_type,
-  assigned_user_id, weekdays_json, deadline_time, notification_offset_minutes,
+  assigned_user_id, weekdays_json, execution_timing, deadline_date, deadline_time, notification_offset_minutes,
   weekly_deadline_weekday, monthly_day_of_month, monthly_deadline_type,
   active, sort_order, created_by, created_at, updated_at`;
 
@@ -95,13 +99,13 @@ export class TaskTemplateRepository {
     await this.db.prepare(
       `INSERT INTO task_templates (
         id, household_id, title, description, model_recurrence_type, assignment_type,
-        assigned_user_id, weekdays_json, deadline_time, notification_offset_minutes,
+        assigned_user_id, weekdays_json, execution_timing, deadline_date, deadline_time, notification_offset_minutes,
         weekly_deadline_weekday, monthly_day_of_month, monthly_deadline_type,
         active, sort_order, created_by, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`
     ).bind(
       input.id, input.householdId, input.title, input.description, input.modelRecurrenceType,
-      input.assignmentType, input.assignedUserId, JSON.stringify(input.weekdays), input.deadlineTime,
+      input.assignmentType, input.assignedUserId, JSON.stringify(input.weekdays), input.executionTiming ?? null, input.deadlineDate ?? null, input.deadlineTime,
       input.notificationOffsetMinutes, input.weeklyDeadlineWeekday, input.monthlyDayOfMonth,
       input.monthlyDeadlineType, input.sortOrder, input.createdBy, input.now, input.now
     ).run();
@@ -113,14 +117,16 @@ export class TaskTemplateRepository {
     if (!current) return null;
     await this.db.prepare(
       `UPDATE task_templates SET title = ?, description = ?, model_recurrence_type = ?, assignment_type = ?,
-       assigned_user_id = ?, weekdays_json = ?, deadline_time = ?, notification_offset_minutes = ?,
+       assigned_user_id = ?, weekdays_json = ?, execution_timing = ?, deadline_date = ?, deadline_time = ?, notification_offset_minutes = ?,
        weekly_deadline_weekday = ?, monthly_day_of_month = ?, monthly_deadline_type = ?, updated_at = ?
        WHERE household_id = ? AND id = ?`
     ).bind(
       input.title ?? current.title, "description" in input ? input.description ?? null : current.description,
       input.modelRecurrenceType ?? current.modelRecurrenceType, input.assignmentType ?? current.assignmentType,
       input.assignedUserId === undefined ? current.assignedUserId : input.assignedUserId,
-      JSON.stringify(input.weekdays ?? current.weekdays), input.deadlineTime === undefined ? current.deadlineTime : input.deadlineTime,
+      JSON.stringify(input.weekdays ?? current.weekdays), input.executionTiming === undefined ? current.executionTiming : input.executionTiming,
+      input.deadlineDate === undefined ? current.deadlineDate : input.deadlineDate,
+      input.deadlineTime === undefined ? current.deadlineTime : input.deadlineTime,
       input.notificationOffsetMinutes === undefined ? current.notificationOffsetMinutes : input.notificationOffsetMinutes,
       input.weeklyDeadlineWeekday === undefined ? current.weeklyDeadlineWeekday : input.weeklyDeadlineWeekday,
       input.monthlyDayOfMonth === undefined ? current.monthlyDayOfMonth : input.monthlyDayOfMonth,

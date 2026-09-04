@@ -788,6 +788,35 @@ describe("notification scheduler rules", () => {
         "Asia/Tokyo"
       )[0]?.targetKey
     ).toContain("task:period:task-1:month:");
+
+    const deadline = canonicalTask({
+      recurrenceType: "once",
+      modelRecurrenceType: "once",
+      executionTiming: "by_deadline",
+      startDate: "2026-09-10",
+      targetDate: null,
+      deadlineDate: "2026-09-20",
+      deadlineTime: "21:00",
+      notificationOffsetMinutes: 60
+    });
+    expect(
+      resolveCanonicalNotifications(
+        deadline,
+        new Date("2026-09-20T11:00:00.000Z"),
+        "Asia/Tokyo"
+      )[0]
+    ).toMatchObject({
+      scheduledDate: "2026-09-20",
+      scheduledTime: "20:00",
+      scope: { deadlineDate: "2026-09-20" }
+    });
+    expect(
+      resolveCanonicalNotifications(
+        deadline,
+        new Date("2026-09-15T12:00:00.000Z"),
+        "Asia/Tokyo"
+      )
+    ).toEqual([]);
   });
 
   it("handles previous-day offsets, start dates, and household timezone boundaries", () => {

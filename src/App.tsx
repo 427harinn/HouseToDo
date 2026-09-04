@@ -80,6 +80,7 @@ import {
 import {
   changeTaskFormRecurrence,
   defaultTaskForm,
+  executionTimingLabel,
   normalizeTaskForm,
   recurrenceDescription,
   taskFormToPayload,
@@ -1898,12 +1899,12 @@ function HomeScreen({
                 rowClassName={mutationClass(task.id, "complete") || mutationClass(task.id, "pass") || mutationClass(task.id, "restore")}
               >
                 <button className="m2-home__row-main" type="button" disabled={isBusy(task.id)} onClick={() => toggleTaskDetail(task.id)} aria-label={`${task.title}の詳細`} aria-expanded={expandedTaskId === task.id} aria-controls={`home-task-detail-${task.id}`}>
-                  <span className={`m2-home__check m2-home__check--${homeTaskScope(task)}${activeMutationFor(task.id)?.type === "complete" ? " is-completing" : ""}`} aria-hidden="true">
+                  <span className={`m2-home__check m2-home__check--${homeTaskScope(task, today, household.weekStartsOn)}${activeMutationFor(task.id)?.type === "complete" ? " is-completing" : ""}`} aria-hidden="true">
                     {activeMutationFor(task.id)?.type === "complete" ? <Check /> : null}
                   </span>
                   <span className="m2-home__row-details">
                     <span className="m2-home__task-title">{task.title}</span>
-                    <span className="m2-home__deadline">{formatHomeDeadline(task, today)}</span>
+                    <span className="m2-home__deadline">{formatHomeDeadline(task, today, household.weekStartsOn)}</span>
                   </span>
                   {homeMemberForTask(task, displayedData?.members ?? []) ? <HomeAvatar member={homeMemberForTask(task, displayedData?.members ?? [])!} label="担当" /> : null}
                 </button>
@@ -1948,12 +1949,18 @@ function homeTaskActionScope(task: TodayTask, household: Household) {
   return { targetDate: today };
 }
 
-function homeTaskScope(task: TodayTask): "date" | "week" | "month" | "none" | "overdue" {
+function homeTaskScope(task: TodayTask, today = "", weekStartsOn = 1): "date" | "week" | "month" | "none" | "overdue" {
   if (task.overdue) return "overdue";
   const hasDeadline = Boolean(task.deadlineDate ?? (task.modelRecurrenceType === "once" ? task.targetDate : null) ?? task.deadlineTime ?? task.scheduledTime);
   if (!hasDeadline) return "none";
   if (task.modelRecurrenceType === "weekly_flexible") return "week";
   if (task.modelRecurrenceType === "monthly_flexible") return "month";
+  if (task.executionTiming === "by_deadline" && task.deadlineDate) {
+    if (task.deadlineDate === today) return "date";
+    if (today && task.deadlineDate <= addDays(weekStartFor(today, weekStartsOn), 6)) return "week";
+    if (today && task.deadlineDate.slice(0, 7) === today.slice(0, 7)) return "month";
+    return "month";
+  }
   if (task.modelRecurrenceType || task.recurrenceType === "daily" || task.recurrenceType === "scheduled") return "date";
   return "none";
 }
@@ -1966,14 +1973,14 @@ function formatHomeDate(dateKey: string) {
   return `${month}月${day}日 ${weekday}`;
 }
 
-function formatHomeDeadline(task: TodayTask, today: string) {
+function formatHomeDeadline(task: TodayTask, today: string, weekStartsOn = 1) {
   const date = task.deadlineDate ?? (task.modelRecurrenceType === "once" ? task.targetDate : null);
   const time = task.deadlineTime ?? task.scheduledTime;
   if (!date && !time) return "締切なし";
   if (!date) return `${time}まで`;
   if (date === today && !time) return "今日中";
   const dateLabel = date === today ? "" : `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`;
-  if (date !== today && homeTaskScope(task) === "week") {
+  if (date !== today && homeTaskScope(task, today, weekStartsOn) === "week") {
     return `${new Intl.DateTimeFormat("ja-JP", { weekday: "short", timeZone: "UTC" }).format(new Date(`${date}T00:00:00Z`))}曜${time ? ` ${time}` : ""}まで`;
   }
   return `${dateLabel}${time ? (dateLabel ? ` ${time}` : time) : ""}まで`;
@@ -2095,15 +2102,22 @@ function TaskFormScreen({
   );
 }
 
-type M2TaskSheet = "repeat" | "assignee" | "reuse" | "delete" | null;
+type M2TaskSheet = "repeat" | "timing" | "assignee" | "reuse" | "delete" | null;
 
 const m2RepeatOptions: Array<{ value: TaskFormRecurrence; label: string }> = [
   { value: "once", label: "今回だけ" },
   { value: "daily", label: "毎日" },
   { value: "weekly_fixed", label: "曜日を決める" },
   { value: "monthly_fixed", label: "毎月○日" },
-  { value: "weekly_flexible", label: "今週のどこか" },
-  { value: "monthly_flexible", label: "今月のどこか" }
+  { value: "weekly_flexible", label: "毎週" },
+  { value: "monthly_flexible", label: "毎月" }
+];
+
+const m2TimingOptions: Array<{ value: TaskFormState["executionTiming"]; label: string }> = [
+  { value: "this_week", label: "今週中" },
+  { value: "this_month", label: "今月中" },
+  { value: "on_date", label: "日付を指定" },
+  { value: "by_deadline", label: "期限までに" }
 ];
 
 function m2RepeatLabel(form: TaskFormState) {
@@ -2111,7 +2125,13 @@ function m2RepeatLabel(form: TaskFormState) {
   const option = m2RepeatOptions.find((item) => item.value === form.recurrence)?.label ?? "毎日";
   if (form.recurrence === "weekly_fixed" && form.weekdays.length > 0) return form.weekdays.map((day) => weekdayLabels[day]).join("・");
   if (form.recurrence === "monthly_fixed") return `毎月${form.monthlyDayOfMonth ?? 1}日`;
+  if (form.recurrence === "weekly_flexible") return "毎週";
+  if (form.recurrence === "monthly_flexible") return "毎月";
   return option;
+}
+
+function m2TimingLabel(form: TaskFormState) {
+  return executionTimingLabel(form.executionTiming);
 }
 
 function M2TaskFormScreen({ household, user, mode, taskId, onNavigate }: { household: Household; user: AuthUser; mode: "create" | "edit"; taskId?: string; onNavigate: (route: NavigationPath, replace?: boolean) => void; onLogout: () => void }) {
@@ -2177,9 +2197,28 @@ function M2TaskFormScreen({ household, user, mode, taskId, onNavigate }: { house
     setForm((current) => changeTaskFormRecurrence(current, value));
     if (value !== "weekly_fixed" && value !== "monthly_fixed") setSheet(null);
   };
+  const chooseTiming = (value: TaskFormState["executionTiming"]) => {
+    if (value === "this_week") {
+      setForm((current) => changeTaskFormRecurrence({ ...current, executionTiming: value }, "weekly_flexible"));
+    } else if (value === "this_month") {
+      setForm((current) => changeTaskFormRecurrence({ ...current, executionTiming: value }, "monthly_flexible"));
+    } else if (value === "by_deadline") {
+      setForm((current) => normalizeTaskForm({ ...current, recurrence: "once", executionTiming: value, targetDate: "" }));
+    } else {
+      setForm((current) => current.recurrence === "weekly_flexible" || current.recurrence === "monthly_flexible"
+        ? changeTaskFormRecurrence({ ...current, executionTiming: value }, "once")
+        : normalizeTaskForm({ ...current, executionTiming: value, targetDate: current.recurrence === "once" ? current.startDate || current.targetDate : "" }));
+    }
+    setErrors((current) => ({ ...current, deadlineDate: undefined, startDate: undefined }));
+    setSheet(null);
+  };
   const selectReuse = (task: Task) => {
     const next = taskToFormState(task);
-    setForm({ ...next, startDate: today, targetDate: next.recurrence === "once" ? today : "" });
+    setForm({
+      ...next,
+      startDate: today,
+      targetDate: next.recurrence === "once" && next.executionTiming !== "by_deadline" ? today : ""
+    });
     setErrors({});
     setMessage("以前の項目を反映しました");
     setSheet(null);
@@ -2238,6 +2277,8 @@ function M2TaskFormScreen({ household, user, mode, taskId, onNavigate }: { house
           <ErrorMessage message={message} />
           <FormField id="m2-task-title" label="家事名" error={errors.title}><TextInput id="m2-task-title" value={form.title} error={errors.title} onChange={(value) => setField("title", value)} placeholder="家事名を入力" /></FormField>
           <button className="m2-task-form__row m2-task-form__row--button" type="button" aria-label={`繰り返し: ${m2RepeatLabel(form)}`} onClick={() => setSheet("repeat")}><span>繰り返し</span><span className="m2-task-form__row-current"><span>{m2RepeatLabel(form)}</span><ChevronRight aria-hidden="true" /></span></button>
+          <button className="m2-task-form__row m2-task-form__row--button" type="button" aria-label={`実施時期: ${m2TimingLabel(form)}`} onClick={() => setSheet("timing")}><span>実施時期</span><span className="m2-task-form__row-current"><span>{m2TimingLabel(form)}</span><ChevronRight aria-hidden="true" /></span></button>
+          {form.executionTiming === "by_deadline" ? <FormField className="mobile-compact-input-row" id="m2-task-deadline-date" label="期限" error={errors.deadlineDate}><input id="m2-task-deadline-date" type="date" value={form.deadlineDate} onChange={(event) => setField("deadlineDate", event.target.value)} aria-invalid={errors.deadlineDate ? "true" : "false"} /></FormField> : null}
           {form.recurrence === "legacy_weekly" ? <div className="legacy-task-notice" role="note"><strong>週に{form.weeklyTargetCount}回（旧形式）</strong><span>回数の意味を変えずに編集します。新しい繰り返しへ自動変換しません。</span></div> : null}
           <FormField className="mobile-compact-input-row" id="m2-task-start-date" label="開始日" error={errors.startDate}><input id="m2-task-start-date" type="date" value={form.startDate || today} onChange={(event) => updateStartDate(event.target.value)} aria-invalid={errors.startDate ? "true" : "false"} /></FormField>
           <label className="m2-task-form__toggle"><span>終日</span><span className="m2-task-form__toggle-current">{form.deadlineTime ? "オフ" : "オン"}</span><span className={`m2-task-form__switch${!form.deadlineTime ? " is-on" : ""}`}><input className="m2-task-form__switch-input" type="checkbox" checked={!form.deadlineTime} aria-label="終日" onChange={(event) => setField("deadlineTime", event.target.checked ? "" : "09:00")} /><span className="m2-task-form__switch-track" aria-hidden="true"><span /></span></span></label>
@@ -2248,6 +2289,7 @@ function M2TaskFormScreen({ household, user, mode, taskId, onNavigate }: { house
           <div className={`m2-task-form__actions${mode === "edit" ? " m2-task-form__actions--edit" : ""}`}><button type="submit" className="m2-task-form__save" disabled={submitting}>{submitting ? "保存中…" : "保存"}</button>{mode === "edit" ? <button type="button" className="m2-task-form__delete" onClick={() => setSheet("delete")}>この家事を削除</button> : null}</div>
         </form>
         <BottomSheet open={sheet === "repeat"} title="繰り返し" onClose={() => setSheet(null)}><div className="m2-task-sheet__list">{m2RepeatOptions.map((option) => <button key={option.value} type="button" onClick={() => chooseRepeat(option.value)}><span>{option.label}</span>{form.recurrence === option.value ? <Check aria-hidden="true" /> : null}</button>)}{form.recurrence === "weekly_fixed" ? <div className="m2-task-sheet__detail"><span>曜日を選択</span><div className="m2-task-sheet__weekdays">{weekdayLabels.map((label, day) => <button key={label} type="button" aria-pressed={form.weekdays.includes(day)} onClick={() => setField("weekdays", form.weekdays.includes(day) ? form.weekdays.filter((item) => item !== day) : [...form.weekdays, day])}>{label}</button>)}</div><button type="button" className="m2-task-sheet__confirm" disabled={form.weekdays.length === 0} onClick={() => setSheet(null)}>決定</button></div> : null}{form.recurrence === "monthly_fixed" ? <div className="m2-task-sheet__detail"><FormField id="m2-month-day" label="毎月の日" error={errors.monthlyDayOfMonth}><input id="m2-month-day" type="number" min="1" max="31" value={form.monthlyDayOfMonth ?? 1} onChange={(event) => setField("monthlyDayOfMonth", Number(event.target.value))} /></FormField><button type="button" className="m2-task-sheet__confirm" onClick={() => setSheet(null)}>決定</button></div> : null}</div></BottomSheet>
+        <BottomSheet open={sheet === "timing"} title="実施時期" onClose={() => setSheet(null)}><div className="m2-task-sheet__list">{m2TimingOptions.map((option) => <button key={option.value} type="button" onClick={() => chooseTiming(option.value)}><span>{option.label}</span>{form.executionTiming === option.value ? <Check aria-hidden="true" /> : null}</button>)}</div></BottomSheet>
         <BottomSheet open={sheet === "assignee"} title="担当" onClose={() => setSheet(null)}><div className="m2-task-sheet__list"><button type="button" onClick={() => { setForm((current) => ({ ...current, assignmentType: "anyone", assignedUserId: null })); setSheet(null); }}><span>誰でも</span>{form.assignmentType === "anyone" ? <Check aria-hidden="true" /> : null}</button>{members.map((member) => <button key={member.userId} type="button" onClick={() => { setForm((current) => ({ ...current, assignmentType: "specific", assignedUserId: member.userId })); setSheet(null); }}><span className="m2-task-form__assignee">{member.avatarUrl ? <img src={member.avatarUrl} alt="" /> : <span>{member.displayName.slice(0, 1)}</span>}{member.displayName}</span>{form.assignedUserId === member.userId ? <Check aria-hidden="true" /> : null}</button>)}</div></BottomSheet>
         <BottomSheet open={sheet === "reuse"} title="以前の項目から選ぶ" onClose={() => setSheet(null)}><div className="m2-task-sheet__reuse"><input aria-label="以前の項目を検索" placeholder="検索" value={reuseQuery} onChange={(event) => setReuseQuery(event.target.value)} />{filteredRecent.length > 0 ? <div className="m2-task-sheet__list">{filteredRecent.map((task) => <button key={task.id} type="button" onClick={() => selectReuse(task)}><span><strong>{task.title}</strong><small>{recurrenceDescription(task)}</small></span></button>)}</div> : <p>見つかりませんでした</p>}</div></BottomSheet>
         <BottomSheet open={sheet === "delete"} title="家事を削除しますか？" onClose={() => setSheet(null)}><div className="m2-task-sheet__delete"><p>この家事を削除します。</p><button type="button" className="m2-task-form__delete" disabled={deleting} onClick={() => void confirmDelete()}>削除する</button><button type="button" className="m2-task-sheet__cancel" onClick={() => setSheet(null)}>キャンセル</button></div></BottomSheet>

@@ -12,6 +12,7 @@ import type {
   MonthlyDeadlineType,
   NotificationSlot,
   TaskAssignmentType,
+  TaskExecutionTiming,
   TaskModelRecurrenceType,
   TaskRecurrenceType
 } from "../types/domain";
@@ -101,6 +102,7 @@ export type TaskWriteInput = {
   description: string | null;
   recurrenceType: TaskRecurrenceType;
   modelRecurrenceType?: TaskModelRecurrenceType | null;
+  executionTiming?: TaskExecutionTiming | null;
   assignmentType: TaskAssignmentType;
   assignedUserId: string | null;
   scheduledTime: string | null;
@@ -110,6 +112,7 @@ export type TaskWriteInput = {
   weeklyTargetCount: number | null;
   startDate?: string | null;
   targetDate?: string | null;
+  deadlineDate?: string | null;
   deadlineTime?: string | null;
   notificationOffsetMinutes?: number | null;
   weeklyDeadlineWeekday?: number | null;
@@ -124,6 +127,8 @@ export type TaskTemplateWriteInput = {
   title: string;
   description: string | null;
   modelRecurrenceType: TaskModelRecurrenceType;
+  executionTiming?: TaskExecutionTiming | null;
+  deadlineDate?: string | null;
   assignmentType: TaskAssignmentType;
   assignedUserId: string | null;
   weekdays: number[];
@@ -175,6 +180,7 @@ const recurrenceTypes = new Set([
 ]);
 const assignmentTypes = new Set(["anyone", "specific"]);
 const notificationSlots = new Set(["morning", "night", "none"]);
+const executionTimings = new Set(["on_date", "this_week", "this_month", "by_deadline"]);
 const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 const optionalString = (
@@ -210,6 +216,7 @@ export const validateTaskWriteInput = (value: unknown): TaskWriteInput => {
   const input = asObject(value);
   const title = requiredString(input, "title" in input ? "title" : "name", "title", 100).trim();
   const modelRecurrenceType = input.modelRecurrenceType;
+  const executionTiming = input.executionTiming;
   const recurrenceType = modelRecurrenceType ?? input.recurrenceType;
   const assignment = input.assignment && typeof input.assignment === "object" ? asObject(input.assignment) : null;
   const assignee = input.assignee && typeof input.assignee === "object" ? asObject(input.assignee) : null;
@@ -239,6 +246,7 @@ export const validateTaskWriteInput = (value: unknown): TaskWriteInput => {
   const weeklyTargetCount = input.weeklyTargetCount;
   const startDate = input.startDate === undefined || input.startDate === null ? null : input.startDate;
   const targetDate = input.targetDate === undefined || input.targetDate === null ? null : input.targetDate;
+  const deadlineDate = input.deadlineDate === undefined || input.deadlineDate === null ? null : input.deadlineDate;
   const deadlineTime =
     input.deadlineTime === undefined || input.deadlineTime === null
       ? null
@@ -289,6 +297,12 @@ export const validateTaskWriteInput = (value: unknown): TaskWriteInput => {
   }
   if (targetDate !== null && (typeof targetDate !== "string" || !isValidDateKey(targetDate))) {
     details.targetDate = "targetDate must be YYYY-MM-DD.";
+  }
+  if (executionTiming !== undefined && executionTiming !== null && (typeof executionTiming !== "string" || !executionTimings.has(executionTiming))) {
+    details.executionTiming = "executionTiming is invalid.";
+  }
+  if (deadlineDate !== null && (typeof deadlineDate !== "string" || !isValidDateKey(deadlineDate))) {
+    details.deadlineDate = "deadlineDate must be YYYY-MM-DD.";
   }
   if (deadlineTime !== null && (typeof deadlineTime !== "string" || !timePattern.test(deadlineTime))) {
     details.deadlineTime = "deadlineTime must be HH:mm.";
@@ -361,7 +375,7 @@ export const validateTaskWriteInput = (value: unknown): TaskWriteInput => {
     details.weeklyTargetCount = "weeklyTargetCount is only allowed for weekly tasks.";
   }
 
-  if (recurrenceType === "once" && targetDate === null) details.targetDate = "once tasks require targetDate.";
+  if (recurrenceType === "once" && executionTiming !== "by_deadline" && targetDate === null) details.targetDate = "once tasks require targetDate.";
   if (recurrenceType === "once" && startDate !== null && targetDate !== null && targetDate < startDate) {
     details.targetDate = "targetDate must be on or after startDate.";
   }
@@ -383,6 +397,21 @@ export const validateTaskWriteInput = (value: unknown): TaskWriteInput => {
   if (recurrenceType === "monthly_fixed" && monthlyDeadlineType !== null && monthlyDeadlineType !== undefined) {
     details.monthlyDeadlineType = "monthlyDeadlineType is only allowed for monthly_flexible tasks.";
   }
+  const resolvedExecutionTiming = typeof executionTiming === "string"
+    ? executionTiming as TaskExecutionTiming
+    : recurrenceType === "weekly_flexible" ? "this_week"
+      : recurrenceType === "monthly_flexible" ? "this_month"
+        : "on_date";
+  if (resolvedExecutionTiming === "by_deadline") {
+    if (recurrenceType !== "once") details.executionTiming = "by_deadline is currently supported for once tasks only.";
+    if (deadlineDate === null) details.deadlineDate = "deadlineDate is required for by_deadline tasks.";
+    if (targetDate !== null) details.targetDate = "targetDate must be null for by_deadline tasks.";
+    if (startDate !== null && deadlineDate !== null && deadlineDate < startDate) details.deadlineDate = "deadlineDate must be on or after startDate.";
+  } else if (deadlineDate !== null) {
+    details.deadlineDate = "deadlineDate is only allowed for by_deadline tasks.";
+  }
+  if (resolvedExecutionTiming === "this_week" && recurrenceType !== "weekly_flexible") details.executionTiming = "this_week requires weekly_flexible recurrence.";
+  if (resolvedExecutionTiming === "this_month" && recurrenceType !== "monthly_flexible") details.executionTiming = "this_month requires monthly_flexible recurrence.";
   if (recurrenceType === "weekly_flexible" && weekdays.length > 0) {
     details.weekdays = "weekdays are only allowed for fixed weekday tasks.";
   }
@@ -437,6 +466,8 @@ export const validateTaskWriteInput = (value: unknown): TaskWriteInput => {
     weeklyTargetCount: normalizedWeeklyTargetCount,
     startDate: typeof startDate === "string" ? startDate : null,
     targetDate: typeof targetDate === "string" ? targetDate : null,
+    executionTiming: resolvedExecutionTiming,
+    deadlineDate: typeof deadlineDate === "string" ? deadlineDate : null,
     deadlineTime: typeof deadlineTime === "string" ? deadlineTime : null,
     notificationOffsetMinutes:
       notificationOffsetMinutes === undefined
@@ -482,12 +513,12 @@ const toLegacyRecurrenceType = (
 const patchKeys = new Set([
   "title", "name", "description", "note", "recurrenceType", "modelRecurrenceType", "assignmentType",
   "assignment", "assignedUserId", "assignee", "scheduledTime", "notificationSlot", "notificationTime",
-  "weekdays", "weeklyTargetCount", "startDate", "targetDate", "deadlineTime", "notificationOffsetMinutes",
+  "weekdays", "weeklyTargetCount", "startDate", "targetDate", "executionTiming", "deadlineDate", "deadlineTime", "notificationOffsetMinutes",
   "weeklyDeadlineWeekday", "monthlyDayOfMonth", "monthlyDeadlineDay", "monthlyDeadlineType"
 ]);
 
 const templateKeys = new Set([
-  "title", "name", "description", "note", "modelRecurrenceType", "assignmentType",
+  "title", "name", "description", "note", "modelRecurrenceType", "executionTiming", "deadlineDate", "assignmentType",
   "assignment", "assignedUserId", "assignee", "weekdays", "deadlineTime",
   "notificationOffsetMinutes", "weeklyDeadlineWeekday", "monthlyDayOfMonth",
   "monthlyDeadlineDay", "monthlyDeadlineType"
@@ -512,6 +543,7 @@ export const validateTaskTemplateWriteInput = (value: unknown): TaskTemplateWrit
     description: "description" in input ? input.description : input.note,
     recurrenceType: recurrence,
     modelRecurrenceType,
+    executionTiming: input.executionTiming,
     assignmentType,
     assignedUserId,
     scheduledTime: null,
@@ -520,7 +552,8 @@ export const validateTaskTemplateWriteInput = (value: unknown): TaskTemplateWrit
     weekdays: input.weekdays,
     weeklyTargetCount: null,
     startDate: null,
-    targetDate: recurrence === "once" ? "2000-01-01" : null,
+    targetDate: recurrence === "once" && input.executionTiming !== "by_deadline" ? "2000-01-01" : null,
+    deadlineDate: input.deadlineDate,
     deadlineTime: input.deadlineTime,
     notificationOffsetMinutes: input.notificationOffsetMinutes,
     weeklyDeadlineWeekday: input.weeklyDeadlineWeekday,
@@ -532,6 +565,8 @@ export const validateTaskTemplateWriteInput = (value: unknown): TaskTemplateWrit
     title: normalized.title,
     description: normalized.description,
     modelRecurrenceType: normalized.modelRecurrenceType,
+    executionTiming: normalized.executionTiming ?? null,
+    deadlineDate: normalized.deadlineDate ?? null,
     assignmentType: normalized.assignmentType,
     assignedUserId: normalized.assignedUserId,
     weekdays: normalized.weekdays,

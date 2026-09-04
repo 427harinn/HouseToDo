@@ -19,6 +19,8 @@ const templateResponse = (template: TaskTemplate) => ({
   description: template.description,
   note: template.description,
   modelRecurrenceType: template.modelRecurrenceType,
+  executionTiming: template.executionTiming,
+  deadlineDate: template.deadlineDate,
   assignmentType: template.assignmentType,
   assignedUserId: template.assignedUserId,
   assignment: { type: template.assignmentType, user: template.assignedUserId ? { userId: template.assignedUserId } : null },

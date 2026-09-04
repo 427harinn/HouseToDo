@@ -53,6 +53,8 @@ export class TaskTemplateService {
       title: current.title,
       description: current.description,
       modelRecurrenceType: current.modelRecurrenceType,
+      executionTiming: current.executionTiming,
+      deadlineDate: current.deadlineDate,
       assignmentType: current.assignmentType,
       assignedUserId: current.assignedUserId,
       weekdays: current.weekdays,

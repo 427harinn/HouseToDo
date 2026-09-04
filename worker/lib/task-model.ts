@@ -1,5 +1,5 @@
 import { addDateKey, getWeekday, isTaskScheduledForDate } from "./date-time";
-import type { Task, TaskModelRecurrenceType } from "../types/domain";
+import type { Task, TaskExecutionTiming, TaskModelRecurrenceType } from "../types/domain";
 
 export const TASK_MODEL_RECURRENCE_TYPES: readonly TaskModelRecurrenceType[] = ["once", "daily", "weekly_fixed", "monthly_fixed", "weekly_flexible", "monthly_flexible"];
 export const NOTIFICATION_OFFSET_MINUTES = [null, 0, 5, 10, 30, 60, 120] as const;
@@ -14,6 +14,7 @@ export type TaskScope = {
   periodEnd: string;
   deadlineDate: string;
   deadlineTime: string | null;
+  executionTiming: TaskExecutionTiming | null;
   recurrenceType: TaskModelRecurrenceType | null;
 };
 
@@ -80,6 +81,17 @@ export const getMonthlyFlexiblePeriod = (dateKey: string, deadlineType: "month_e
   return { startDate: startDate && startDate > naturalStart ? startDate : naturalStart, endDate: end, deadlineDate: end };
 };
 
+export const effectiveTaskExecutionTiming = (task: Task): TaskExecutionTiming | null =>
+  task.executionTiming
+    ?? (task.modelRecurrenceType === "weekly_flexible" ? "this_week"
+      : task.modelRecurrenceType === "monthly_flexible" ? "this_month"
+        : task.modelRecurrenceType === "once" ? "on_date" : null);
+
+export const isPeriodScopedTask = (task: Task): boolean =>
+  task.modelRecurrenceType === "weekly_flexible"
+  || task.modelRecurrenceType === "monthly_flexible"
+  || (task.modelRecurrenceType === "once" && effectiveTaskExecutionTiming(task) === "by_deadline" && Boolean(task.deadlineDate));
+
 export const isTaskModelOccurrenceOnDate = (input: { recurrenceType: TaskModelRecurrenceType; dateKey: string; startDate?: string | null; targetDate?: string | null; weekdays?: number[]; monthlyDayOfMonth?: number | null }): boolean => {
   if (input.startDate && input.dateKey < input.startDate) return false;
   if (input.recurrenceType === "once") return input.targetDate === input.dateKey;
@@ -114,13 +126,32 @@ export const projectTaskOnDate = (task: Task, targetDate: string): TaskScope => 
       periodEnd: targetDate,
       deadlineDate: targetDate,
       deadlineTime: task.notificationTime,
+      executionTiming: null,
       recurrenceType: null
     };
   }
 
   if (type === "once") {
+    if (effectiveTaskExecutionTiming(task) === "by_deadline" && task.deadlineDate) {
+      const start = task.startDate && task.startDate < task.deadlineDate ? task.startDate : task.deadlineDate;
+      const matches = targetDate >= start && targetDate <= task.deadlineDate;
+      const key = matches ? `period:${task.id}:deadline:${start}:${task.deadlineDate}` : null;
+      return {
+        matchesDate: matches,
+        scopeType: "period",
+        occurrenceKey: null,
+        periodKey: key,
+        targetDate,
+        periodStart: start,
+        periodEnd: task.deadlineDate,
+        deadlineDate: task.deadlineDate,
+        deadlineTime: task.deadlineTime ?? null,
+        executionTiming: "by_deadline",
+        recurrenceType: type
+      };
+    }
     const matches = task.targetDate === targetDate;
-    return { matchesDate: matches, scopeType: "occurrence", occurrenceKey: matches ? `occurrence:${task.id}:${targetDate}` : null, periodKey: null, targetDate, periodStart: targetDate, periodEnd: targetDate, deadlineDate: targetDate, deadlineTime: task.deadlineTime ?? null, recurrenceType: type };
+    return { matchesDate: matches, scopeType: "occurrence", occurrenceKey: matches ? `occurrence:${task.id}:${targetDate}` : null, periodKey: null, targetDate, periodStart: targetDate, periodEnd: targetDate, deadlineDate: targetDate, deadlineTime: task.deadlineTime ?? null, executionTiming: effectiveTaskExecutionTiming(task), recurrenceType: type };
   }
   if (type === "daily" || type === "weekly_fixed" || type === "monthly_fixed") {
     let matches = !task.startDate || targetDate >= task.startDate;
@@ -129,10 +160,10 @@ export const projectTaskOnDate = (task: Task, targetDate: string): TaskScope => 
       const { year, month } = monthParts(targetDate);
       matches = matches && targetDate === monthKey(year, month, Math.min(task.monthlyDayOfMonth ?? 1, daysInMonth(year, month)));
     }
-    return { matchesDate: matches, scopeType: "occurrence", occurrenceKey: matches ? `occurrence:${task.id}:${targetDate}` : null, periodKey: null, targetDate, periodStart: targetDate, periodEnd: targetDate, deadlineDate: targetDate, deadlineTime: task.deadlineTime ?? null, recurrenceType: type };
+    return { matchesDate: matches, scopeType: "occurrence", occurrenceKey: matches ? `occurrence:${task.id}:${targetDate}` : null, periodKey: null, targetDate, periodStart: targetDate, periodEnd: targetDate, deadlineDate: targetDate, deadlineTime: task.deadlineTime ?? null, executionTiming: effectiveTaskExecutionTiming(task), recurrenceType: type };
   }
   const period = type === "weekly_flexible" ? flexibleWeekPeriod(task, targetDate) : flexibleMonthPeriod(task, targetDate);
   const matches = targetDate >= period.start && targetDate <= period.end;
   const key = matches ? `period:${task.id}:${type === "weekly_flexible" ? "week" : "month"}:${period.start}:${period.end}` : null;
-  return { matchesDate: matches, scopeType: "period", occurrenceKey: null, periodKey: key, targetDate, periodStart: period.start, periodEnd: period.end, deadlineDate: period.end, deadlineTime: task.deadlineTime ?? null, recurrenceType: type };
+  return { matchesDate: matches, scopeType: "period", occurrenceKey: null, periodKey: key, targetDate, periodStart: period.start, periodEnd: period.end, deadlineDate: period.end, deadlineTime: task.deadlineTime ?? null, executionTiming: effectiveTaskExecutionTiming(task), recurrenceType: type };
 };

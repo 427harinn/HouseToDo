@@ -4,6 +4,7 @@ import {
   getStableTaskScopeKey,
   getWeeklyFlexiblePeriod,
   isTaskModelOccurrenceOnDate,
+  projectTaskOnDate,
   resolveMonthlyDate
 } from "./task-model";
 
@@ -61,5 +62,28 @@ describe("task model domain helpers", () => {
       periodStart: "2026-08-17",
       periodEnd: "2026-08-23"
     })).toBe("period:task-1:week:2026-08-17:2026-08-23");
+  });
+
+  it("projects an arbitrary deadline as one period instead of a fixed occurrence", () => {
+    const task = {
+      id: "deadline-task",
+      modelRecurrenceType: "once",
+      executionTiming: "by_deadline",
+      startDate: "2026-09-10",
+      targetDate: null,
+      deadlineDate: "2026-09-20"
+    } as never;
+    const inPeriod = projectTaskOnDate(task, "2026-09-15");
+    expect(inPeriod).toMatchObject({
+      matchesDate: true,
+      scopeType: "period",
+      targetDate: "2026-09-15",
+      periodStart: "2026-09-10",
+      periodEnd: "2026-09-20",
+      deadlineDate: "2026-09-20",
+      executionTiming: "by_deadline"
+    });
+    expect(inPeriod.periodKey).toContain("period:deadline-task:deadline:");
+    expect(projectTaskOnDate(task, "2026-09-21").matchesDate).toBe(false);
   });
 });
