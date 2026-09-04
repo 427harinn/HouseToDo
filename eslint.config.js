@@ -59,7 +59,10 @@ export default tseslint.config(
     }
   },
   {
-    files: ["marketing/app-store/final/renderer/**/*.mjs"],
+    files: [
+      "marketing/app-store/final/renderer/**/*.mjs",
+      "marketing/app-store/key-visual/renderer/**/*.mjs"
+    ],
     ...tseslint.configs.disableTypeChecked,
     languageOptions: {
       ecmaVersion: "latest",
