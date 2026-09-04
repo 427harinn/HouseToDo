@@ -392,6 +392,18 @@ describe("App task form payload", () => {
     expect(container.querySelectorAll("input[type=\"date\"]")).toHaveLength(1);
     expect(container.querySelector("#m2-task-date")).not.toBeInTheDocument();
   });
+
+  it("places the date certainty toggle before the fixed date input", async () => {
+    mockFetch();
+    window.history.replaceState({}, "", "/tasks/new");
+    const { container } = render(<App />);
+
+    await waitFor(() => expect(screen.getByLabelText("日にちを決めない")).toBeInTheDocument());
+    const toggle = screen.getByLabelText("日にちを決めない");
+    const date = container.querySelector("#m2-task-start-date");
+    expect(date).not.toBeNull();
+    expect(toggle.compareDocumentPosition(date!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
 });
 
 describe("M5 Other / Settings routes", () => {
