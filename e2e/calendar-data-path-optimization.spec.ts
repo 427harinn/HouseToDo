@@ -172,12 +172,18 @@ test("optimizes Calendar marker/detail paths, actions, stale responses, and scre
   const dailyRow = page.locator(".calendar-detail-task").filter({ hasText: dailyTitle }).first();
   await dailyRow.locator(".calendar-detail-task__main").click();
   await dailyRow.getByRole("button", { name: "完了" }).click();
-  await expect(page.getByRole("button", { name: /完了済み 1/ })).toBeVisible({ timeout: 3_000 });
+  await expect(page.getByRole("heading", { name: /完了済み 1/ })).toBeVisible({ timeout: 3_000 });
+  await expect(page.locator(".calendar-history-row__check")).toHaveCount(1);
+  await expect(page.locator(".calendar-history-row .m2-home__task-title").first()).toHaveCSS("text-decoration-line", "none");
   await waitForCount(requests, (url) => url.pathname.endsWith("/calendar/range"), rangeBeforeComplete + 1);
   await waitForCount(requests, (url) => url.pathname.endsWith("/calendar/day"), dayBeforeComplete + 1);
   await shot(page, "04-completed-task-390x844.png");
+  await page.getByRole("button", { name: "閉じる", exact: true }).click();
+  await expect(page.locator(".calendar-day-task.is-completed").filter({ hasText: dailyTitle })).toBeVisible({ timeout: 3_000 });
+  await shot(page, "04b-calendar-completed-marker-390x844.png");
+  await cell(page, today).click();
+  await expect(page.locator(".calendar-history-row").filter({ hasText: dailyTitle })).toBeVisible();
 
-  await page.getByRole("button", { name: /完了済み 1/ }).click();
   const completedRow = page.locator(".calendar-history-row").first();
   await swipeLeft(page, completedRow);
   await completedRow.getByRole("button", { name: "戻す", exact: true }).click();
@@ -212,9 +218,8 @@ test("optimizes Calendar marker/detail paths, actions, stale responses, and scre
   const dailyRow375 = page.locator(".calendar-detail-task").filter({ hasText: dailyTitle }).first();
   await dailyRow375.locator(".calendar-detail-task__main").click();
   await dailyRow375.getByRole("button", { name: "完了" }).click();
-  await expect(page.getByRole("button", { name: /完了済み/ })).toBeVisible({ timeout: 3_000 });
+  await expect(page.getByRole("heading", { name: /完了済み/ })).toBeVisible({ timeout: 3_000 });
   await shot(page, "04-completed-task-375x812.png");
-  await page.getByRole("button", { name: /完了済み/ }).first().click();
   const restoredAgain = page.locator(".calendar-history-row").filter({ hasText: dailyTitle }).first();
   await swipeLeft(page, restoredAgain);
   await restoredAgain.getByRole("button", { name: "戻す", exact: true }).click();

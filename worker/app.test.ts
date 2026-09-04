@@ -833,9 +833,10 @@ describe("redesigned task model API", () => {
 
     await app.fetch(postJson(`/api/tasks/${dailyId}/complete`, { targetDate: "2026-08-14", calendarDate: "2026-08-14" }, owner.cookie), env);
     const completed = await app.fetch(new Request("https://example.test/api/tasks/calendar?from=2026-08-01&to=2026-08-31&selectedDate=2026-08-14", { headers: { cookie: owner.cookie } }), env);
-    const completedBody: { data: { selected: { fixed: Array<{ title: string; status: string }>; completed: Array<{ title: string }> } } } = await completed.json();
+    const completedBody: { data: { dates: Record<string, { tasks: Array<{ title: string; status: string }> }>; selected: { fixed: Array<{ title: string; status: string }>; completed: Array<{ title: string }> } } } = await completed.json();
     expect(completedBody.data.selected.fixed.find((task) => task.title === "daily")).toBeUndefined();
     expect(completedBody.data.selected.completed.find((task) => task.title === "daily")).toBeTruthy();
+    expect(completedBody.data.dates["2026-08-14"]?.tasks).toEqual(expect.arrayContaining([expect.objectContaining({ title: "daily", status: "completed" })]));
     expect((env.DB as unknown as MemoryD1).taskRecords.size).toBe(1);
 
     await app.fetch(postJson(`/api/tasks/${weeklyFlexibleId}/complete`, { targetDate: "2026-08-14", calendarDate: "2026-08-14" }, owner.cookie), env);
@@ -847,6 +848,41 @@ describe("redesigned task model API", () => {
     const nextWeekBody: { data: { selected: { weeklyFlexible: Array<{ title: string; status: string; completedCount?: number }> } } } = await nextWeek.json();
     expect(nextWeekBody.data.selected.weeklyFlexible[0]?.status).toBe("pending");
     expect(nextWeekBody.data.selected.weeklyFlexible[0]?.completedCount).toBe(0);
+  });
+
+  it("places completed Calendar markers on the action date and excludes skipped records", async () => {
+    const app = createApp();
+    const env = createTestEnv();
+    const owner = await registerUser(env, { email: "calendar-action-date@example.com", password: "very-long-password", displayName: "Calendar Action Date" });
+    await app.fetch(postJson("/api/households", { name: "Calendar Action Date House" }, owner.cookie), env);
+    const create = async (title: string, modelRecurrenceType: string, extra: Record<string, unknown> = {}) => {
+      const response = await app.fetch(postJson("/api/tasks", {
+        title,
+        modelRecurrenceType,
+        assignmentType: "anyone",
+        notificationSlot: "none",
+        startDate: "2026-08-01",
+        ...extra
+      }, owner.cookie), env);
+      expect(response.status).toBe(201);
+      const body: { data: { task: { id: string } } } = await response.json();
+      return body.data.task.id;
+    };
+    const completedId = await create("実際にやった家事", "weekly_flexible", { weeklyDeadlineWeekday: 5 });
+    const skippedId = await create("パスした家事", "daily");
+
+    const completedResponse = await app.fetch(postJson(`/api/tasks/${completedId}/complete`, { targetDate: "2026-08-14", calendarDate: "2026-08-12" }, owner.cookie), env);
+    expect(completedResponse.status).toBe(200);
+    const skippedResponse = await app.fetch(postJson(`/api/tasks/${skippedId}/skip`, { targetDate: "2026-08-14", calendarDate: "2026-08-14" }, owner.cookie), env);
+    expect(skippedResponse.status).toBe(200);
+
+    const calendar = await app.fetch(new Request("https://example.test/api/tasks/calendar?from=2026-08-01&to=2026-08-31&selectedDate=2026-08-12", { headers: { cookie: owner.cookie } }), env);
+    expect(calendar.status).toBe(200);
+    const body: { data: { dates: Record<string, { tasks: Array<{ title: string; status: string }> }>; selected: { completed: Array<{ title: string }> } } } = await calendar.json();
+    expect(body.data.dates["2026-08-12"]?.tasks).toEqual(expect.arrayContaining([expect.objectContaining({ title: "実際にやった家事", status: "completed" })]));
+    expect(body.data.dates["2026-08-14"]?.tasks).not.toEqual(expect.arrayContaining([expect.objectContaining({ title: "実際にやった家事" })]));
+    expect(body.data.dates["2026-08-14"]?.tasks).not.toEqual(expect.arrayContaining([expect.objectContaining({ title: "パスした家事" })]));
+    expect(body.data.selected.completed).toEqual(expect.arrayContaining([expect.objectContaining({ title: "実際にやった家事" })]));
   });
 
   it("clamps monthly fixed markers and rejects oversized calendar ranges", async () => {
@@ -904,8 +940,9 @@ describe("redesigned task model API", () => {
 
     const calendar = await app.fetch(new Request("https://example.test/api/tasks/calendar?from=2026-08-01&to=2026-08-31&selectedDate=2026-08-20", { headers: { cookie: owner.cookie } }), env);
     expect(calendar.status).toBe(200);
-    const body: { data: { selected: { completed: Array<{ id: string; periodKey: string | null; title: string; taskActive: boolean }> } } } = await calendar.json();
+    const body: { data: { dates: Record<string, { tasks: Array<{ title: string; status: string }> }>; selected: { completed: Array<{ id: string; periodKey: string | null; title: string; taskActive: boolean }> } } } = await calendar.json();
     expect(body.data.selected.completed).toEqual([expect.objectContaining({ id: record.id, periodKey: record.period_key, title: "旧週次家事", taskActive: false })]);
+    expect(body.data.dates["2026-08-20"]?.tasks).toEqual(expect.arrayContaining([expect.objectContaining({ title: "旧週次家事", status: "completed" })]));
 
     const restored = await app.fetch(postJson(`/api/tasks/${taskId}/calendar-restore`, { recordId: record.id, calendarDate: "2026-08-20" }, owner.cookie), env);
     expect(restored.status).toBe(200);

@@ -49,7 +49,7 @@ export const calendarDaySnapshotKey = (identity: CalendarDaySnapshotIdentity) =>
 
 const isCalendarDateMarker = (value: unknown): value is CalendarDateMarker => {
   if (!isRecord(value) || !isFiniteNumber(value.fixedCount) || !isFiniteNumber(value.fixedCompletedCount) || !isFiniteNumber(value.fixedSkippedCount) || !isFiniteNumber(value.shoppingCount) || !isFiniteNumber(value.purchasedShoppingCount) || !Array.isArray(value.tasks)) return false;
-  return value.tasks.every((task) => isRecord(task) && isString(task.id) && isString(task.title) && typeof task.deadline === "boolean");
+  return value.tasks.every((task) => isRecord(task) && isString(task.id) && isString(task.title) && typeof task.deadline === "boolean" && (task.status === undefined || task.status === "pending" || task.status === "in_progress" || task.status === "completed"));
 };
 
 export const isCalendarMarkersResponse = (value: unknown): value is CalendarMarkersResponse => {

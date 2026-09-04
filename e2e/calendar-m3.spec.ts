@@ -8,6 +8,10 @@ const response = (data: unknown) => ({ ok: true, data, requestId: "e2e-m3" });
 const expectNoHorizontalScroll = async (page: import("@playwright/test").Page) => {
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
 };
+const shot = async (page: import("@playwright/test").Page, name: string) => {
+  await mkdir(artifactRoot, { recursive: true });
+  await page.screenshot({ path: path.join(artifactRoot, name), fullPage: true });
+};
 
 function calendarTask(id: string, title: string, selectedDate: string, description: string | null = null) {
   return { id, title, description, recurrenceType: "model_only", modelRecurrenceType: "once", assignmentType: "anyone", assignedUserId: null, assignment: { type: "anyone", user: null }, scheduledTime: null, notificationSlot: "none", weekdays: [], weeklyTargetCount: null, targetDate: selectedDate, active: true, sortOrder: 1, createdBy: "user-1", createdAt: "2026-08-01", updatedAt: "2026-08-01", status: "pending", actedBy: null, startedAt: null, completedAt: null, skippedAt: null, note: null, scopeKind: "occurrence", occurrenceKey: `occurrence:${id}:${selectedDate}`, periodKey: null, periodStart: selectedDate, periodEnd: selectedDate, deadlineDate: selectedDate, overdue: false };
@@ -27,7 +31,11 @@ function calendarData(selectedDate: string, completed = false, passed = false, m
       fixedSkippedCount: 0,
       shoppingCount: key === "2026-08-20" ? 1 : 0,
       purchasedShoppingCount: 0,
-      tasks: key === "2026-08-20" && !completed && !passed ? [{ id: "task-1", title: "朝食の片付け", deadline: false }, ...(hasMultiple ? [{ id: "task-2", title: "夕食の片付け", deadline: false }] : [])] : []
+      tasks: key === "2026-08-20" && !completed && !passed
+        ? [{ id: "task-1", title: "朝食の片付け", deadline: false }, ...(hasMultiple ? [{ id: "task-2", title: "夕食の片付け", deadline: false }] : [])]
+        : key === "2026-08-20" && completed
+          ? [{ id: "record-1", title: "朝食の片付け", deadline: false, status: "completed" }]
+          : []
     };
   }
   return {
@@ -91,6 +99,7 @@ test.describe("Calendar M3", () => {
     await expect(page.getByRole("heading", { name: "2026年8月" })).toBeVisible();
     await expect(page.locator(".calendar-day-cell").filter({ hasText: "朝食の片付け" })).toHaveCount(1);
     await expect(page.locator(".calendar-day-shopping")).toHaveCount(1);
+    await shot(page, "01-calendar-month-before-390x844.png");
   });
 
   test("opens Date Sheet and completes the selected task", async ({ page }) => {
@@ -108,6 +117,7 @@ test.describe("Calendar M3", () => {
     expect(dialogBox.y + dialogBox.height).toBeGreaterThanOrEqual(navBox.y + navBox.height - 1);
     await expect(page.getByRole("heading", { name: "8月20日 木曜日" })).toBeVisible();
     await expect(page.getByText("この日")).toBeVisible();
+    await shot(page, "02-calendar-detail-before-390x844.png");
     const task = page.locator(".calendar-detail-task").first();
     await task.locator(".calendar-detail-task__main").click();
     await expect(task).toHaveClass(/is-expanded/);
@@ -115,7 +125,13 @@ test.describe("Calendar M3", () => {
     await expect(task.getByText("朝食後に確認")).toBeVisible();
     expect(await task.locator(".m2-home__primary").evaluate((button) => button.parentElement?.firstElementChild === button)).toBe(true);
     await task.getByRole("button", { name: "完了" }).click();
-    await expect(page.getByRole("button", { name: /完了済み 1/ })).toBeVisible({ timeout: 2_000 });
+    await expect(page.getByRole("heading", { name: /完了済み 1/ })).toBeVisible({ timeout: 2_000 });
+    await expect(page.locator(".calendar-history-row__check")).toHaveCount(1);
+    await shot(page, "03-calendar-detail-completed-390x844.png");
+    await page.getByRole("button", { name: "閉じる", exact: true }).click();
+    await expect(page.locator(".calendar-day-task.is-completed")).toHaveCount(1);
+    await expect(page.locator(".calendar-day-task.is-completed svg")).toHaveCount(0);
+    await shot(page, "04-calendar-month-completed-390x844.png");
   });
 
   test("passes without showing a completion check", async ({ page }) => {
@@ -248,8 +264,7 @@ test.describe("Calendar M3", () => {
     await page.goto("/calendar?date=2026-08-20");
     await page.locator(".calendar-detail-task__main").click();
     await page.getByRole("button", { name: "完了" }).click();
-    await expect(page.getByRole("button", { name: /完了済み 1/ })).toBeVisible({ timeout: 2_000 });
-    await page.getByRole("button", { name: /完了済み 1/ }).click();
+    await expect(page.getByRole("heading", { name: /完了済み 1/ })).toBeVisible({ timeout: 2_000 });
     const row = page.locator(".calendar-history-row");
     await expect(row.locator(".m2-home__row-content")).toHaveCSS("background-color", "rgb(255, 255, 255)");
     const box = await row.boundingBox();
@@ -261,7 +276,8 @@ test.describe("Calendar M3", () => {
     await page.getByRole("button", { name: "戻す" }).click();
     await expect(page.getByRole("dialog")).toBeVisible();
     await expect(page.locator(".calendar-detail-task__main")).toBeVisible();
-    await expect(page.getByRole("button", { name: /完了済み/ })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: /完了済み/ })).toHaveCount(0);
+    await shot(page, "05-calendar-detail-restored-390x844.png");
   });
 
   test("axis-locks month swipes and suppresses accidental grid opens", async ({ page }) => {
