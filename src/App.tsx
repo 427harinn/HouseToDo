@@ -163,6 +163,7 @@ import type {
 } from "./types";
 import { OtherLandingPage, OtherSettingsPage, type OtherSettingsPageKind } from "./pages/OtherSettingsPage";
 import { GuidePage } from "./pages/GuidePage";
+import { formRouteWithReturnTo, resolveReturnTo } from "./lib/navigation";
 
 type StaticRoute =
   | "/"
@@ -1018,7 +1019,7 @@ function AppFrame({
 }: {
   current: "/home" | "/calendar" | "/shopping" | "/other";
   children: ReactNode;
-  onNavigate: (route: NavigationPath) => void;
+  onNavigate: (route: NavigationPath, replace?: boolean) => void;
   showBottomNavigation?: boolean;
 }) {
   const [isAddSheetOpen, setIsAddSheetOpen] = useState(false);
@@ -1044,7 +1045,7 @@ function AppFrame({
               className="add-action-sheet__option motion-pressable"
               onClick={() => {
                 setIsAddSheetOpen(false);
-                onNavigate("/tasks/new");
+                onNavigate(formRouteWithReturnTo("/tasks/new"));
               }}
             >
               家事
@@ -1054,7 +1055,7 @@ function AppFrame({
               className="add-action-sheet__option motion-pressable"
               onClick={() => {
                 setIsAddSheetOpen(false);
-                onNavigate("/shopping/new");
+                onNavigate(formRouteWithReturnTo("/shopping/new"));
               }}
             >
               買い物
@@ -2083,7 +2084,7 @@ function m2RepeatLabel(form: TaskFormState) {
   return option;
 }
 
-function M2TaskFormScreen({ household, mode, taskId, onNavigate }: { household: Household; user: AuthUser; mode: "create" | "edit"; taskId?: string; onNavigate: (route: NavigationPath) => void; onLogout: () => void }) {
+function M2TaskFormScreen({ household, mode, taskId, onNavigate }: { household: Household; user: AuthUser; mode: "create" | "edit"; taskId?: string; onNavigate: (route: NavigationPath, replace?: boolean) => void; onLogout: () => void }) {
   const [members, setMembers] = useState<HouseholdMember[]>([]);
   const [recentTasks, setRecentTasks] = useState<Task[]>([]);
   const [form, setForm] = useState<TaskFormState>(() => ({ ...defaultTaskForm(), startDate: todayInTimezone(household.timezone), targetDate: todayInTimezone(household.timezone) }));
@@ -2099,7 +2100,10 @@ function M2TaskFormScreen({ household, mode, taskId, onNavigate }: { household: 
   const today = todayInTimezone(household.timezone);
   const returnSearch = new URLSearchParams(window.location.search);
   const calendarReturnDate = returnSearch.get("origin") === "calendar" && /^\d{4}-\d{2}-\d{2}$/.test(returnSearch.get("calendarDate") ?? "") ? returnSearch.get("calendarDate") : null;
-  const returnRoute = calendarReturnDate ? `/calendar?date=${encodeURIComponent(calendarReturnDate)}` : "/home";
+  const returnRoute = mode === "create"
+    ? resolveReturnTo(window.location.search, "/home")
+    : calendarReturnDate ? `/calendar?date=${encodeURIComponent(calendarReturnDate)}` : "/home";
+  const leaveForm = () => onNavigate(returnRoute, mode === "create");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -2162,7 +2166,7 @@ function M2TaskFormScreen({ household, mode, taskId, onNavigate }: { household: 
       const patch = originalPayload ? Object.fromEntries(Object.entries(payload).filter(([key, value]) => JSON.stringify(value) !== JSON.stringify(originalPayload[key as keyof typeof originalPayload]))) : payload;
       if (mode === "edit" && taskId) await updateTask(taskId, patch);
       else await createTask(payload);
-      onNavigate(returnRoute);
+      leaveForm();
     } catch (error) {
       setMessage(apiErrorMessage(error));
       if (error instanceof ApiError && error.details) setErrors(error.details);
@@ -2176,7 +2180,7 @@ function M2TaskFormScreen({ household, mode, taskId, onNavigate }: { household: 
     setMessage("");
     try {
       await deactivateTask(taskId);
-      onNavigate(returnRoute);
+      leaveForm();
     } catch (error) {
       setMessage(apiErrorMessage(error));
       setDeleting(false);
@@ -2189,7 +2193,7 @@ function M2TaskFormScreen({ household, mode, taskId, onNavigate }: { household: 
     <AppFrame current="/home" onNavigate={onNavigate} showBottomNavigation={false}>
       <main className="m2-task-form-page">
         <header className="m2-task-form__header">
-          <button type="button" className="m2-task-form__back" aria-label="戻る" onClick={() => onNavigate(returnRoute)}><ChevronLeft aria-hidden="true" /><span>戻る</span></button>
+          <button type="button" className="m2-task-form__back" aria-label="戻る" onClick={leaveForm}><ChevronLeft aria-hidden="true" /><span>戻る</span></button>
           <h1>{mode === "create" ? "家事を追加" : "家事を編集"}</h1>
           <span aria-hidden="true" />
         </header>
@@ -2843,7 +2847,7 @@ function ShoppingItemFormScreen({
   user: AuthUser;
   mode: "create" | "edit";
   itemId?: string;
-  onNavigate: (route: NavigationPath) => void;
+  onNavigate: (route: NavigationPath, replace?: boolean) => void;
   onLogout: () => void;
 }) {
   const [form, setForm] = useState<CreateShoppingItemInput>(emptyShoppingForm);
@@ -2866,6 +2870,8 @@ function ShoppingItemFormScreen({
   const [imageUsage, setImageUsage] = useState<ImageUsage | null>(null);
   const [imageUsageLoading, setImageUsageLoading] = useState(true);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const returnRoute = mode === "create" ? resolveReturnTo(window.location.search, "/shopping") : "/shopping";
+  const leaveForm = () => onNavigate(returnRoute, mode === "create");
   const libraryInputRef = useRef<HTMLInputElement>(null);
   const refreshImageUsage = useCallback(async (signal?: AbortSignal) => {
     setImageUsageLoading(true);
@@ -3032,7 +3038,8 @@ function ShoppingItemFormScreen({
         }
         setImageStatus("idle");
       }
-      onNavigate(`/shopping?item=${encodeURIComponent(result.item.id)}`);
+      if (mode === "create") leaveForm();
+      else onNavigate(`/shopping?item=${encodeURIComponent(result.item.id)}`);
     } catch (error) {
       setMessage(shoppingErrorMessage(error));
       if (error instanceof ApiError && error.details) setErrors(error.details);
@@ -3059,7 +3066,7 @@ function ShoppingItemFormScreen({
   return (
     <AppFrame current="/shopping" onNavigate={onNavigate} showBottomNavigation={false}>
       <header className="shopping-m4-form-header">
-        <button type="button" className="shopping-m4-form-back" aria-label="戻る" onClick={() => onNavigate("/shopping")}><ChevronLeft aria-hidden="true" /><span>戻る</span></button>
+        <button type="button" className="shopping-m4-form-back" aria-label="戻る" onClick={leaveForm}><ChevronLeft aria-hidden="true" /><span>戻る</span></button>
         <h1>{mode === "create" ? "買い物を追加" : "買い物を編集"}</h1>
       </header>
       {mode === "create" ? (
