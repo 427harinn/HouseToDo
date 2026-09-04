@@ -150,7 +150,7 @@ export type CalendarDateMarker = {
   fixedSkippedCount: number;
   shoppingCount: number;
   purchasedShoppingCount: number;
-  tasks: Array<{ id: string; title: string; deadline: boolean }>;
+  tasks: Array<{ id: string; title: string; deadline: boolean; status?: "pending" | "in_progress" | "completed" }>;
 };
 
 export type CalendarShoppingItem = {
@@ -196,6 +196,7 @@ export type CalendarCompletedRecord = {
   occurrenceKey?: string | null;
   periodKey?: string | null;
   status: "completed";
+  completedAt: string | null;
 };
 
 export type CreateTaskInput = {

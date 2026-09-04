@@ -57,7 +57,7 @@ export type CalendarDateMarker = {
   fixedCount: number;
   fixedCompletedCount: number;
   fixedSkippedCount: number;
-  tasks: Array<{ id: string; title: string; deadline: boolean }>;
+  tasks: Array<{ id: string; title: string; deadline: boolean; status: "pending" | "in_progress" | "completed" }>;
 };
 
 export type CalendarCompletedRecord = {
@@ -410,7 +410,7 @@ export class TaskService {
   }
 
   private projectCalendarMarkers(context: CalendarContext): CalendarMarkerData {
-    const { household, from, to, dateKeys, activeTasks, recordsByTaskId } = context;
+    const { household, from, to, dateKeys, allTasks, activeTasks, records, recordsByTaskId } = context;
     const isFlexible = (task: Task) => task.modelRecurrenceType === "weekly_flexible" || task.modelRecurrenceType === "monthly_flexible";
     const isMonthFixed = (task: Task) => task.modelRecurrenceType
       ? task.modelRecurrenceType !== "daily" && !isFlexible(task)
@@ -424,6 +424,21 @@ export class TaskService {
           : false);
     };
     const dates: Record<string, CalendarDateMarker> = {};
+    const taskById = new Map(allTasks.map((task) => [task.id, task]));
+    const completedByDate = new Map<string, CalendarDateMarker["tasks"]>();
+    for (const record of records) {
+      if (record.status !== "completed") continue;
+      const completedDate = this.calendarRecordDate(record, household.timezone);
+      if (completedDate < from || completedDate > to) continue;
+      const task = taskById.get(record.taskId);
+      const entry = {
+        id: record.id,
+        title: record.taskTitleSnapshot ?? task?.title ?? "家事",
+        deadline: false,
+        status: "completed" as const
+      };
+      completedByDate.set(completedDate, [...(completedByDate.get(completedDate) ?? []), entry]);
+    }
     for (const date of dateKeys) {
       const projected = activeTasks
         .filter((task) => isMonthFixed(task) || isFlexible(task))
@@ -431,13 +446,14 @@ export class TaskService {
         .filter(({ task, scope }) => scope.matchesDate && (isMonthFixed(task) || scope.deadlineDate === date))
         .map(({ task, scope }) => this.mergeProjectedStatus(task, scope, recordsForScope(task, scope), household.timezone));
       const visible = projected.filter((task) => task.status === "pending" || task.status === "in_progress");
+      const pendingTasks = visible
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+        .map((task) => ({ id: task.id, title: task.title, deadline: Boolean(task.deadlineDate === date), status: task.status as "pending" | "in_progress" }));
       dates[date] = {
         fixedCount: visible.length,
         fixedCompletedCount: projected.filter((task) => task.status === "completed").length,
         fixedSkippedCount: projected.filter((task) => task.status === "skipped").length,
-        tasks: visible
-          .sort((a, b) => a.sortOrder - b.sortOrder)
-          .map((task) => ({ id: task.id, title: task.title, deadline: Boolean(task.deadlineDate === date) }))
+        tasks: [...pendingTasks, ...(completedByDate.get(date) ?? [])]
       };
     }
     return { from, to, today: getLocalDate(new Date(), household.timezone), timezone: household.timezone, dates };
@@ -474,7 +490,7 @@ export class TaskService {
     const taskById = new Map(allTasks.map((task) => [task.id, task]));
     const completed = records
       .filter((record) => record.status === "completed")
-      .filter((record) => (record.calendarActionDate ?? record.targetDate ?? getLocalDate(record.completedAt ?? record.updatedAt, household.timezone)) === targetDate)
+      .filter((record) => this.calendarRecordDate(record, household.timezone) === targetDate)
       .map((record) => ({
         record,
         task: taskById.get(record.taskId) ?? null,
@@ -487,6 +503,12 @@ export class TaskService {
       monthlyFlexible: selectedFlexible.filter((task) => task.modelRecurrenceType === "monthly_flexible"),
       completed
     };
+  }
+
+  private calendarRecordDate(record: TaskRecord, timezone: string): string {
+    return record.calendarActionDate
+      ?? record.targetDate
+      ?? getLocalDate(record.completedAt ?? record.updatedAt, timezone);
   }
 
   async changeState(
