@@ -726,6 +726,23 @@ export class MemoryD1 {
     }
     if (
       sql.includes("FROM task_records tr") &&
+      sql.includes("tr.status = 'completed'") &&
+      sql.includes("ORDER BY tr.completed_at DESC, tr.id DESC")
+    ) {
+      const hasCursor = values.length === 5;
+      const householdId = String(values[0]);
+      const cursorCompletedAt = hasCursor ? String(values[1]) : null;
+      const cursorId = hasCursor ? String(values[3]) : null;
+      const limit = Number(values[values.length - 1]);
+      return Array.from(this.taskRecords.values())
+        .filter((item) => item.household_id === householdId && item.status === "completed" && item.completed_at !== null)
+        .filter((item) => !hasCursor || item.completed_at! < cursorCompletedAt! || (item.completed_at === cursorCompletedAt && item.id < cursorId!))
+        .sort((a, b) => b.completed_at!.localeCompare(a.completed_at!) || b.id.localeCompare(a.id))
+        .slice(0, limit)
+        .map((item) => this.withActedByName(item));
+    }
+    if (
+      sql.includes("FROM task_records tr") &&
       sql.includes("tr.completed_at >= ? AND tr.completed_at < ?") &&
       sql.includes("tr.skipped_at >= ? AND tr.skipped_at < ?")
     ) {

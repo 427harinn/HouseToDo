@@ -49,6 +49,16 @@ export type RecordStateInput = {
   now: string;
 };
 
+export type CompletedHistoryCursor = {
+  completedAt: string;
+  id: string;
+};
+
+export type CompletedHistoryPage = {
+  records: TaskRecord[];
+  nextCursor: CompletedHistoryCursor | null;
+};
+
 const selectRecord = `tr.id, tr.household_id, tr.task_id, tr.target_date, tr.target_week_start,
   tr.occurrence_key, tr.period_key, tr.calendar_action_date, tr.status, tr.acted_by, u.display_name AS acted_by_display_name,
   CASE WHEN u.avatar_size_bytes IS NOT NULL THEN '/api/users/' || u.id || '/avatar' ELSE NULL END AS acted_by_avatar_url,
@@ -370,5 +380,40 @@ export class TaskRecordRepository {
       .bind(householdId, taskId, limit)
       .all<TaskRecordRow>();
     return (result.results ?? []).map((row) => toRecord(row)!);
+  }
+
+  async listCompletedHistory(
+    householdId: string,
+    limit: number,
+    cursor: CompletedHistoryCursor | null = null
+  ): Promise<CompletedHistoryPage> {
+    const cursorClause = cursor
+      ? "AND (tr.completed_at < ? OR (tr.completed_at = ? AND tr.id < ?))"
+      : "";
+    const values = cursor
+      ? [householdId, cursor.completedAt, cursor.completedAt, cursor.id, limit + 1]
+      : [householdId, limit + 1];
+    const result = await this.db
+      .prepare(
+        `SELECT ${selectRecord}
+         FROM task_records tr
+         LEFT JOIN users u ON u.id = tr.acted_by
+         WHERE tr.household_id = ?
+           AND tr.status = 'completed'
+           AND tr.completed_at IS NOT NULL
+           ${cursorClause}
+         ORDER BY tr.completed_at DESC, tr.id DESC
+         LIMIT ?`
+      )
+      .bind(...values)
+      .all<TaskRecordRow>();
+    const records = (result.results ?? []).map((row) => toRecord(row)!);
+    const hasMore = records.length > limit;
+    const page = hasMore ? records.slice(0, limit) : records;
+    const last = page.at(-1);
+    return {
+      records: page,
+      nextCursor: hasMore && last?.completedAt ? { completedAt: last.completedAt, id: last.id } : null
+    };
   }
 }

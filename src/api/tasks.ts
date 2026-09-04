@@ -199,6 +199,20 @@ export type CalendarCompletedRecord = {
   completedAt: string | null;
 };
 
+export type HouseholdCompletedHistoryRecord = {
+  id: string;
+  taskId: string;
+  title: string;
+  completedAt: string;
+  actualCompleter: { userId: string; displayName: string | null; avatarUrl: string | null };
+  taskActive: boolean;
+};
+
+export type HouseholdCompletedHistoryResponse = {
+  records: HouseholdCompletedHistoryRecord[];
+  nextCursor: string | null;
+};
+
 export type CreateTaskInput = {
   title: string;
   description: string | null;
@@ -336,5 +350,14 @@ export const restoreCalendarTaskRecord = (taskId: string, recordId: string, cale
 
 export const listTaskHistory = (taskId: string, limit = 10, signal?: AbortSignal) =>
   apiRequest<{ records: TaskRecord[] }>(withQuery(`/api/tasks/${taskId}/history`, { limit }), {
+    signal
+  });
+
+export const listHouseholdCompletedHistory = (
+  limit = 40,
+  cursor?: string,
+  signal?: AbortSignal
+) =>
+  apiRequest<HouseholdCompletedHistoryResponse>(withQuery("/api/history/tasks", { limit, cursor }), {
     signal
   });

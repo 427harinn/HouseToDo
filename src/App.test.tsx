@@ -110,7 +110,8 @@ const failure = (code: string, status: number) =>
 
 const mockFetch = (
   householdData: typeof household | null = household,
-  imageUsageData: typeof imageUsage | null = imageUsage
+  imageUsageData: typeof imageUsage | null = imageUsage,
+  historyData: unknown = { records: [], nextCursor: null }
 ) =>
   vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
@@ -132,6 +133,7 @@ const mockFetch = (
         members
       }));
     }
+    if (url.startsWith("/api/history/tasks")) return Promise.resolve(ok(historyData));
     return Promise.resolve(failure("NOT_FOUND", 404));
   });
 
@@ -407,6 +409,31 @@ describe("M5 Other / Settings routes", () => {
     fireEvent.click(screen.getByRole("button", { name: "戻る" }));
     await waitFor(() => expect(window.location.pathname).toBe("/other"));
     expect(screen.getByRole("navigation", { name: "主要画面" })).toBeInTheDocument();
+  });
+
+  it("opens household completed history and renders timezone-aware grouped records", async () => {
+    mockFetch(household, imageUsage, {
+      records: [
+        { id: "history-1", taskId: "task-1", title: "ゴミ出し", completedAt: "2026-09-03T23:31:00.000Z", actualCompleter: { userId: "user-1", displayName: "さや", avatarUrl: null }, taskActive: true },
+        { id: "history-2", taskId: "task-2", title: "お風呂掃除", completedAt: "2026-09-02T00:15:00.000Z", actualCompleter: { userId: "user-2", displayName: "たくや", avatarUrl: null }, taskActive: false }
+      ],
+      nextCursor: null
+    });
+    window.history.replaceState({}, "", "/other");
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("link", { name: "履歴" }));
+    expect(await screen.findByRole("heading", { name: "履歴" })).toBeInTheDocument();
+    expect(await screen.findByText("ゴミ出し")).toBeInTheDocument();
+    expect(screen.getByText("お風呂掃除")).toBeInTheDocument();
+    expect(screen.getByText("さや")).toBeInTheDocument();
+    expect(screen.getByText("たくや")).toBeInTheDocument();
+    expect(screen.getByText("8:31")).toBeInTheDocument();
+    expect(screen.getByText("9:15")).toBeInTheDocument();
+    expect(document.querySelectorAll(".calendar-history-row__check")).toHaveLength(2);
+    expect(screen.getAllByRole("heading").filter((heading) => heading.textContent?.match(/月/))).toHaveLength(2);
+    fireEvent.click(screen.getByRole("button", { name: "戻る" }));
+    await waitFor(() => expect(window.location.pathname).toBe("/other"));
   });
 });
 

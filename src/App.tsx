@@ -177,6 +177,7 @@ type StaticRoute =
   | "/calendar"
   | "/other"
   | "/other/guide"
+  | "/other/history"
   | "/other/members"
   | "/other/notifications"
   | "/other/storage"
@@ -218,6 +219,7 @@ const staticRoutes = new Set<StaticRoute>([
   "/calendar",
   "/other",
   "/other/guide",
+  "/other/history",
   "/other/members",
   "/other/notifications",
   "/other/storage",
@@ -310,6 +312,7 @@ const isAppRoute = (route: Route) =>
   route.name === "/calendar" ||
   route.name === "/other" ||
   route.name === "/other/guide" ||
+  route.name === "/other/history" ||
   route.name === "/other/members" ||
   route.name === "/other/notifications" ||
   route.name === "/other/storage" ||
@@ -636,6 +639,7 @@ export function App() {
   }
   if (route.name === "/other/guide") return <GuidePage onClose={() => navigate("/other")} />;
   const otherKinds: Partial<Record<Exclude<StaticRoute, "/other">, OtherSettingsPageKind>> = {
+    "/other/history": "history",
     "/other/members": "members",
     "/other/notifications": "notifications",
     "/other/storage": "storage",
