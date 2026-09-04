@@ -9,7 +9,7 @@ import {
 } from "../lib/errors";
 import { nowIso } from "../lib/date";
 import { HouseholdMemberRepository } from "../repositories/household-member-repository";
-import { TaskRecordRepository, type RecordStateInput } from "../repositories/task-record-repository";
+import { TaskRecordRepository, type CompletedHistoryCursor, type RecordStateInput } from "../repositories/task-record-repository";
 import { TaskRepository } from "../repositories/task-repository";
 import { validateTaskWriteInput, type TaskPatchInput, type TaskStateInput, type TaskWriteInput } from "../lib/validation";
 import type {
@@ -58,6 +58,13 @@ export type CalendarDateMarker = {
   fixedCompletedCount: number;
   fixedSkippedCount: number;
   tasks: Array<{ id: string; title: string; deadline: boolean; status: "pending" | "in_progress" | "completed" }>;
+};
+
+export type CompletedTaskHistoryRecord = HomeHistoryRecord;
+
+export type CompletedTaskHistoryPage = {
+  records: CompletedTaskHistoryRecord[];
+  nextCursor: CompletedHistoryCursor | null;
 };
 
 export type CalendarCompletedRecord = {
@@ -532,6 +539,27 @@ export class TaskService {
     return this.records.listHistory(household.id, taskId, limit);
   }
 
+  async listCompletedHistory(
+    userId: string,
+    limit: number,
+    cursor: CompletedHistoryCursor | null
+  ): Promise<CompletedTaskHistoryPage> {
+    const household = await this.households.requireCurrentHousehold(userId);
+    const [page, tasks] = await Promise.all([
+      this.records.listCompletedHistory(household.id, limit, cursor),
+      this.tasks.listByHouseholdId(household.id, { includeInactive: true })
+    ]);
+    const taskById = new Map(tasks.map((task) => [task.id, task]));
+    return {
+      records: page.records.map((record) => ({
+        record,
+        task: taskById.get(record.taskId) ?? null,
+        taskActive: Boolean(taskById.get(record.taskId)?.active)
+      })),
+      nextCursor: page.nextCursor
+    };
+  }
+
   async restoreRecord(userId: string, taskId: string, recordId: string): Promise<{ reset: true }> {
     const household = await this.households.requireCurrentHousehold(userId);
     const task = await this.requireTask(household.id, taskId);
@@ -714,6 +742,7 @@ export class TaskService {
       skippedAt: action === "skip" ? now : null,
       note: action === "skip" ? note ?? null : null,
       taskTitleSnapshot: task.title,
+      taskDescriptionSnapshot: task.description,
       assignedUserIdSnapshot: task.assignedUserId,
       assignedUserDisplayNameSnapshot: assignee?.displayName ?? null,
       assignedUserColorSnapshot: assignee?.color ?? null,

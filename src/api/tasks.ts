@@ -122,6 +122,8 @@ export type TaskRecord = {
   note: string | null;
   calendarActionDate?: string | null;
   taskTitleSnapshot?: string | null;
+  taskDescriptionSnapshot?: string | null;
+  description?: string | null;
   actualCompleter?: { userId: string; displayName: string | null; avatarUrl: string | null };
   createdAt: string;
   updatedAt: string;
@@ -187,6 +189,7 @@ export type CalendarCompletedRecord = {
   id: string;
   taskId: string;
   title: string;
+  description: string | null;
   taskActive: boolean;
   selectedDate: string;
   actualCompleter: { userId: string; displayName: string | null; avatarUrl: string | null };
@@ -197,6 +200,21 @@ export type CalendarCompletedRecord = {
   periodKey?: string | null;
   status: "completed";
   completedAt: string | null;
+};
+
+export type HouseholdCompletedHistoryRecord = {
+  id: string;
+  taskId: string;
+  title: string;
+  description: string | null;
+  completedAt: string;
+  actualCompleter: { userId: string; displayName: string | null; avatarUrl: string | null };
+  taskActive: boolean;
+};
+
+export type HouseholdCompletedHistoryResponse = {
+  records: HouseholdCompletedHistoryRecord[];
+  nextCursor: string | null;
 };
 
 export type CreateTaskInput = {
@@ -336,5 +354,14 @@ export const restoreCalendarTaskRecord = (taskId: string, recordId: string, cale
 
 export const listTaskHistory = (taskId: string, limit = 10, signal?: AbortSignal) =>
   apiRequest<{ records: TaskRecord[] }>(withQuery(`/api/tasks/${taskId}/history`, { limit }), {
+    signal
+  });
+
+export const listHouseholdCompletedHistory = (
+  limit = 40,
+  cursor?: string,
+  signal?: AbortSignal
+) =>
+  apiRequest<HouseholdCompletedHistoryResponse>(withQuery("/api/history/tasks", { limit, cursor }), {
     signal
   });

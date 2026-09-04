@@ -122,6 +122,7 @@ export type TaskRecordDbRecord = {
   skipped_at: string | null;
   note: string | null;
   task_title_snapshot?: string | null;
+  task_description_snapshot?: string | null;
   assigned_user_id_snapshot?: string | null;
   assigned_user_display_name_snapshot?: string | null;
   assigned_user_color_snapshot?: string | null;
@@ -723,6 +724,23 @@ export class MemoryD1 {
           ...member,
           display_name: this.users.get(member.user_id)?.display_name ?? ""
         }));
+    }
+    if (
+      sql.includes("FROM task_records tr") &&
+      sql.includes("tr.status = 'completed'") &&
+      sql.includes("ORDER BY tr.completed_at DESC, tr.id DESC")
+    ) {
+      const hasCursor = values.length === 5;
+      const householdId = String(values[0]);
+      const cursorCompletedAt = hasCursor ? String(values[1]) : null;
+      const cursorId = hasCursor ? String(values[3]) : null;
+      const limit = Number(values[values.length - 1]);
+      return Array.from(this.taskRecords.values())
+        .filter((item) => item.household_id === householdId && item.status === "completed" && item.completed_at !== null)
+        .filter((item) => !hasCursor || item.completed_at! < cursorCompletedAt! || (item.completed_at === cursorCompletedAt && item.id < cursorId!))
+        .sort((a, b) => b.completed_at!.localeCompare(a.completed_at!) || b.id.localeCompare(a.id))
+        .slice(0, limit)
+        .map((item) => this.withActedByName(item));
     }
     if (
       sql.includes("FROM task_records tr") &&
@@ -1351,23 +1369,24 @@ export class MemoryD1 {
         skipped_at: toNullableText(values[12]),
         note: toNullableText(values[13]),
         task_title_snapshot: toNullableText(values[14]),
-        assigned_user_id_snapshot: toNullableText(values[15]),
-        assigned_user_display_name_snapshot: toNullableText(values[16]),
-        assigned_user_color_snapshot: toNullableText(values[17]),
-        assigned_user_avatar_url_snapshot: toNullableText(values[18]),
-        created_at: toText(values[19]),
-        updated_at: toText(values[20])
+        task_description_snapshot: toNullableText(values[15]),
+        assigned_user_id_snapshot: toNullableText(values[16]),
+        assigned_user_display_name_snapshot: toNullableText(values[17]),
+        assigned_user_color_snapshot: toNullableText(values[18]),
+        assigned_user_avatar_url_snapshot: toNullableText(values[19]),
+        created_at: toText(values[20]),
+        updated_at: toText(values[21])
       });
     }
     if (sql.startsWith("UPDATE task_records")) {
       const id = sql.includes("WHERE household_id = ? AND id = ?")
-        ? toText(values[14])
-        : toText(values[13]);
+        ? toText(values[15])
+        : toText(values[14]);
       const record = this.taskRecords.get(id);
       if (
         record &&
           (!sql.includes("WHERE household_id = ? AND id = ?") ||
-          record.household_id === values[13])
+          record.household_id === values[14])
       ) {
         this.taskRecords.set(id, {
           ...record,
@@ -1378,12 +1397,13 @@ export class MemoryD1 {
           skipped_at: toNullableText(values[4]),
           note: toNullableText(values[5]),
           task_title_snapshot: sql.includes("task_title_snapshot") ? toNullableText(values[6]) : record.task_title_snapshot,
-          assigned_user_id_snapshot: sql.includes("assigned_user_id_snapshot") ? toNullableText(values[7]) : record.assigned_user_id_snapshot,
-          assigned_user_display_name_snapshot: sql.includes("assigned_user_display_name_snapshot") ? toNullableText(values[8]) : record.assigned_user_display_name_snapshot,
-          assigned_user_color_snapshot: sql.includes("assigned_user_color_snapshot") ? toNullableText(values[9]) : record.assigned_user_color_snapshot,
-          assigned_user_avatar_url_snapshot: sql.includes("assigned_user_avatar_url_snapshot") ? toNullableText(values[10]) : record.assigned_user_avatar_url_snapshot,
-          calendar_action_date: sql.includes("calendar_action_date") ? toNullableText(values[11]) : record.calendar_action_date,
-          updated_at: toText(values[sql.includes("task_title_snapshot") ? 12 : 6])
+          task_description_snapshot: sql.includes("task_description_snapshot") ? toNullableText(values[7]) : record.task_description_snapshot,
+          assigned_user_id_snapshot: sql.includes("assigned_user_id_snapshot") ? toNullableText(values[8]) : record.assigned_user_id_snapshot,
+          assigned_user_display_name_snapshot: sql.includes("assigned_user_display_name_snapshot") ? toNullableText(values[9]) : record.assigned_user_display_name_snapshot,
+          assigned_user_color_snapshot: sql.includes("assigned_user_color_snapshot") ? toNullableText(values[10]) : record.assigned_user_color_snapshot,
+          assigned_user_avatar_url_snapshot: sql.includes("assigned_user_avatar_url_snapshot") ? toNullableText(values[11]) : record.assigned_user_avatar_url_snapshot,
+          calendar_action_date: sql.includes("calendar_action_date") ? toNullableText(values[12]) : record.calendar_action_date,
+          updated_at: toText(values[sql.includes("task_title_snapshot") ? 13 : 6])
         });
       } else {
         changes = 0;

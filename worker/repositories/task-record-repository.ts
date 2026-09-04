@@ -18,6 +18,7 @@ type TaskRecordRow = {
   skipped_at: string | null;
   note: string | null;
   task_title_snapshot: string | null;
+  task_description_snapshot: string | null;
   assigned_user_id_snapshot: string | null;
   assigned_user_display_name_snapshot: string | null;
   assigned_user_color_snapshot: string | null;
@@ -42,6 +43,7 @@ export type RecordStateInput = {
   skippedAt: string | null;
   note: string | null;
   taskTitleSnapshot?: string | null;
+  taskDescriptionSnapshot?: string | null;
   assignedUserIdSnapshot?: string | null;
   assignedUserDisplayNameSnapshot?: string | null;
   assignedUserColorSnapshot?: string | null;
@@ -49,11 +51,21 @@ export type RecordStateInput = {
   now: string;
 };
 
+export type CompletedHistoryCursor = {
+  completedAt: string;
+  id: string;
+};
+
+export type CompletedHistoryPage = {
+  records: TaskRecord[];
+  nextCursor: CompletedHistoryCursor | null;
+};
+
 const selectRecord = `tr.id, tr.household_id, tr.task_id, tr.target_date, tr.target_week_start,
   tr.occurrence_key, tr.period_key, tr.calendar_action_date, tr.status, tr.acted_by, u.display_name AS acted_by_display_name,
   CASE WHEN u.avatar_size_bytes IS NOT NULL THEN '/api/users/' || u.id || '/avatar' ELSE NULL END AS acted_by_avatar_url,
   tr.started_at, tr.completed_at,
-  tr.skipped_at, tr.note, tr.task_title_snapshot, tr.assigned_user_id_snapshot,
+  tr.skipped_at, tr.note, tr.task_title_snapshot, tr.task_description_snapshot, tr.assigned_user_id_snapshot,
   tr.assigned_user_display_name_snapshot, tr.assigned_user_color_snapshot,
   tr.assigned_user_avatar_url_snapshot, tr.created_at, tr.updated_at`;
 
@@ -77,6 +89,7 @@ const toRecord = (row: TaskRecordRow | null): TaskRecord | null =>
         skippedAt: row.skipped_at,
         note: row.note,
         taskTitleSnapshot: row.task_title_snapshot ?? null,
+        taskDescriptionSnapshot: row.task_description_snapshot ?? null,
         assignedUserIdSnapshot: row.assigned_user_id_snapshot ?? null,
         assignedUserDisplayNameSnapshot: row.assigned_user_display_name_snapshot ?? null,
         assignedUserColorSnapshot: row.assigned_user_color_snapshot ?? null,
@@ -203,7 +216,7 @@ export class TaskRecordRepository {
         .prepare(
           `UPDATE task_records
            SET status = ?, acted_by = ?, started_at = ?, completed_at = ?, skipped_at = ?,
-               note = ?, task_title_snapshot = ?,
+               note = ?, task_title_snapshot = ?, task_description_snapshot = ?,
                assigned_user_id_snapshot = ?,
                assigned_user_display_name_snapshot = ?,
                assigned_user_color_snapshot = ?,
@@ -220,6 +233,7 @@ export class TaskRecordRepository {
           input.skippedAt,
           input.note,
           input.taskTitleSnapshot ?? null,
+          input.taskDescriptionSnapshot ?? null,
           input.assignedUserIdSnapshot ?? null,
           input.assignedUserDisplayNameSnapshot ?? null,
           input.assignedUserColorSnapshot ?? null,
@@ -246,7 +260,7 @@ export class TaskRecordRepository {
       .prepare(
         `UPDATE task_records
          SET status = ?, acted_by = ?, started_at = ?, completed_at = ?, skipped_at = ?,
-             note = ?, task_title_snapshot = ?,
+             note = ?, task_title_snapshot = ?, task_description_snapshot = ?,
              assigned_user_id_snapshot = ?,
              assigned_user_display_name_snapshot = ?,
              assigned_user_color_snapshot = ?,
@@ -263,6 +277,7 @@ export class TaskRecordRepository {
         input.skippedAt,
         input.note,
         input.taskTitleSnapshot ?? null,
+        input.taskDescriptionSnapshot ?? null,
         input.assignedUserIdSnapshot ?? null,
         input.assignedUserDisplayNameSnapshot ?? null,
         input.assignedUserColorSnapshot ?? null,
@@ -283,9 +298,9 @@ export class TaskRecordRepository {
         `INSERT INTO task_records (
           id, household_id, task_id, target_date, target_week_start, occurrence_key, period_key, calendar_action_date,
           status, acted_by, started_at, completed_at, skipped_at, note,
-          task_title_snapshot, assigned_user_id_snapshot, assigned_user_display_name_snapshot,
+          task_title_snapshot, task_description_snapshot, assigned_user_id_snapshot, assigned_user_display_name_snapshot,
           assigned_user_color_snapshot, assigned_user_avatar_url_snapshot, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .bind(
         input.id,
@@ -303,6 +318,7 @@ export class TaskRecordRepository {
         input.skippedAt,
         input.note,
         input.taskTitleSnapshot ?? null,
+        input.taskDescriptionSnapshot ?? null,
         input.assignedUserIdSnapshot ?? null,
         input.assignedUserDisplayNameSnapshot ?? null,
         input.assignedUserColorSnapshot ?? null,
@@ -370,5 +386,40 @@ export class TaskRecordRepository {
       .bind(householdId, taskId, limit)
       .all<TaskRecordRow>();
     return (result.results ?? []).map((row) => toRecord(row)!);
+  }
+
+  async listCompletedHistory(
+    householdId: string,
+    limit: number,
+    cursor: CompletedHistoryCursor | null = null
+  ): Promise<CompletedHistoryPage> {
+    const cursorClause = cursor
+      ? "AND (tr.completed_at < ? OR (tr.completed_at = ? AND tr.id < ?))"
+      : "";
+    const values = cursor
+      ? [householdId, cursor.completedAt, cursor.completedAt, cursor.id, limit + 1]
+      : [householdId, limit + 1];
+    const result = await this.db
+      .prepare(
+        `SELECT ${selectRecord}
+         FROM task_records tr
+         LEFT JOIN users u ON u.id = tr.acted_by
+         WHERE tr.household_id = ?
+           AND tr.status = 'completed'
+           AND tr.completed_at IS NOT NULL
+           ${cursorClause}
+         ORDER BY tr.completed_at DESC, tr.id DESC
+         LIMIT ?`
+      )
+      .bind(...values)
+      .all<TaskRecordRow>();
+    const records = (result.results ?? []).map((row) => toRecord(row)!);
+    const hasMore = records.length > limit;
+    const page = hasMore ? records.slice(0, limit) : records;
+    const last = page.at(-1);
+    return {
+      records: page,
+      nextCursor: hasMore && last?.completedAt ? { completedAt: last.completedAt, id: last.id } : null
+    };
   }
 }

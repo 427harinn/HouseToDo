@@ -44,6 +44,7 @@ import {
   calendarDayRoute,
   calendarRangeRoute,
   calendarTasksRoute,
+  completedTaskHistoryRoute,
   createTaskRoute,
   dashboardTodayRoute,
   deleteTaskRoute,
@@ -244,6 +245,8 @@ const routeApi = withErrorHandling(
         return calendarRangeRoute(context);
       case "GET /api/tasks/calendar/day":
         return calendarDayRoute(context);
+      case "GET /api/history/tasks":
+        return completedTaskHistoryRoute(context);
       case "GET /api/task-templates":
         return listTaskTemplatesRoute(context);
       case "POST /api/task-templates":

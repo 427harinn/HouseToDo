@@ -16,6 +16,7 @@ import { DashboardService } from "../services/dashboard-service";
 import { TaskService } from "../services/task-service";
 import { ShoppingService } from "../services/shopping-service";
 import { HouseholdService } from "../services/household-service";
+import type { CompletedHistoryCursor } from "../repositories/task-record-repository";
 import type { AuthenticatedUser } from "../types/api";
 import type { ShoppingItem, Task, TaskRecord } from "../types/domain";
 
@@ -91,6 +92,7 @@ const recordResponse = (record: TaskRecord) => ({
   skippedAt: record.skippedAt,
   note: record.note,
   taskTitleSnapshot: record.taskTitleSnapshot,
+  taskDescriptionSnapshot: record.taskDescriptionSnapshot,
   assignedUserIdSnapshot: record.assignedUserIdSnapshot,
   assignedUserDisplayNameSnapshot: record.assignedUserDisplayNameSnapshot,
   assignedUserColorSnapshot: record.assignedUserColorSnapshot,
@@ -254,6 +256,7 @@ const calendarSelectedResponse = (
       ...recordResponse(entry.record),
       taskId: entry.record.taskId,
       title: entry.record.taskTitleSnapshot ?? entry.task?.title ?? "家事",
+      description: entry.record.taskDescriptionSnapshot ?? entry.task?.description ?? null,
       taskActive: entry.taskActive,
       selectedDate: entry.selectedDate,
       actualCompleter: {
@@ -266,6 +269,33 @@ const calendarSelectedResponse = (
       .filter((item) => item.plannedPurchaseDate === data.selectedDate)
       .map(calendarShoppingResponse)
   }
+});
+
+const parseHistoryCursor = (request: Request): CompletedHistoryCursor | null => {
+  const value = new URL(request.url).searchParams.get("cursor");
+  if (value === null) return null;
+  const separator = value.lastIndexOf("|");
+  if (separator <= 0 || separator === value.length - 1) {
+    throw validationError({ cursor: "cursor is invalid." });
+  }
+  const completedAt = value.slice(0, separator);
+  const id = value.slice(separator + 1);
+  if (!Number.isFinite(Date.parse(completedAt))) throw validationError({ cursor: "cursor is invalid." });
+  return { completedAt, id };
+};
+
+const completedHistoryResponse = (entry: Awaited<ReturnType<TaskService["listCompletedHistory"]>>["records"][number]) => ({
+  id: entry.record.id,
+  taskId: entry.record.taskId,
+  title: entry.record.taskTitleSnapshot ?? entry.task?.title ?? "家事",
+  description: entry.record.taskDescriptionSnapshot ?? entry.task?.description ?? null,
+  completedAt: entry.record.completedAt,
+  actualCompleter: {
+    userId: entry.record.actedBy,
+    displayName: entry.record.actedByDisplayName,
+    avatarUrl: entry.record.actedByAvatarUrl
+  },
+  taskActive: entry.taskActive
 });
 
 export const calendarRangeRoute: Handler = requireAuth(async (context) => {
@@ -355,6 +385,17 @@ export const taskHistoryRoute = (taskId: string): Handler =>
     const records = await new TaskService(context.env.DB).listHistory(user.id, taskId, limit);
     return okJson({ records: records.map(recordResponse) }, context.requestId);
   });
+
+export const completedTaskHistoryRoute: Handler = requireAuth(async (context) => {
+  const user = requireUser(context.user);
+  const limit = validateLimitQuery(context.request, 40, 100);
+  const page = await new TaskService(context.env.DB).listCompletedHistory(user.id, limit, parseHistoryCursor(context.request));
+  const nextCursor = page.nextCursor ? `${page.nextCursor.completedAt}|${page.nextCursor.id}` : null;
+  return okJson({
+    records: page.records.map(completedHistoryResponse),
+    nextCursor
+  }, context.requestId);
+});
 
 export const dashboardTodayRoute: Handler = requireAuth(async (context) => {
   const user = requireUser(context.user);

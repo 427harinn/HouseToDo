@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { Camera, Check, ChevronLeft, ChevronRight } from "lucide-react";
 import { BottomSheet } from "../components/BottomSheet";
 import { ApiError, apiMessage } from "../api/client";
@@ -13,6 +13,7 @@ import {
   type NotificationSettings
 } from "../api/notifications";
 import { getCurrentImageUsage, type ImageUsage } from "../api/image-usage";
+import { listHouseholdCompletedHistory, type HouseholdCompletedHistoryRecord } from "../api/tasks";
 import type { ProcessedImage } from "../lib/image-processing";
 import { ProfileImagePicker } from "../components/ProfileImageCropper";
 import { formatBytes } from "../lib/format";
@@ -21,6 +22,7 @@ import { urlBase64ToUint8Array } from "../lib/vapid";
 import type { AuthUser, Household, HouseholdMember } from "../types";
 
 export type OtherSettingsPageKind =
+  | "history"
   | "members"
   | "notifications"
   | "storage"
@@ -65,6 +67,7 @@ function SettingsHeader({ title, onBack }: { title: string; onBack: () => void }
 
 export function OtherLandingPage({ onNavigate }: { onNavigate: (route: string) => void }) {
   const rows = [
+    ["履歴", "/other/history"],
     ["メンバー", "/other/members"],
     ["通知", "/other/notifications"],
     ["ストレージ", "/other/storage"],
@@ -87,6 +90,97 @@ export function OtherLandingPage({ onNavigate }: { onNavigate: (route: string) =
           </a>
         ))}
       </nav>
+    </section>
+  );
+}
+
+const historyDateKey = (value: string, timezone: string) => {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(new Date(value));
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+};
+
+const formatHistoryDate = (dateKey: string, timezone: string) => {
+  const currentYear = new Intl.DateTimeFormat("en", { year: "numeric", timeZone: timezone }).format(new Date());
+  const [year, month, day] = dateKey.split("-");
+  return year === currentYear ? `${Number(month)}月${Number(day)}日` : `${year}年${Number(month)}月${Number(day)}日`;
+};
+
+const formatHistoryTime = (value: string, timezone: string) =>
+  new Intl.DateTimeFormat("ja-JP", { hour: "numeric", minute: "2-digit", hourCycle: "h23", timeZone: timezone }).format(new Date(value));
+
+function CompletedHistoryPage({ household }: { household: Household }) {
+  const [records, setRecords] = useState<HouseholdCompletedHistoryRecord[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState("");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const load = useCallback(async (cursor: string | undefined, append: boolean) => {
+    if (append) setLoadingMore(true);
+    else setLoading(true);
+    setError("");
+    try {
+      const result = await listHouseholdCompletedHistory(40, cursor);
+      setRecords((current) => append ? [...current, ...result.records] : result.records);
+      setNextCursor(result.nextCursor);
+    } catch (nextError) {
+      setError(errorMessage(nextError));
+    } finally {
+      if (append) setLoadingMore(false);
+      else setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void load(undefined, false); }, [load, household.id, household.timezone]);
+
+  const toggleDetail = (recordId: string) => setExpandedId((current) => current === recordId ? null : recordId);
+
+  const groups = useMemo(() => {
+    const grouped = new Map<string, HouseholdCompletedHistoryRecord[]>();
+    records.forEach((record) => {
+      const dateKey = historyDateKey(record.completedAt, household.timezone);
+      grouped.set(dateKey, [...(grouped.get(dateKey) ?? []), record]);
+    });
+    return Array.from(grouped.entries());
+  }, [household.timezone, records]);
+
+  return (
+    <section className="m5-page m5-settings-page m5-history-page" aria-busy={loading || loadingMore}>
+      <SettingsHeader title="履歴" onBack={() => { window.history.pushState({}, "", "/other"); window.dispatchEvent(new PopStateEvent("popstate")); }} />
+      <div className="m5-history-content">
+        {loading ? <p className="m5-inline-status" role="status">履歴を読み込んでいます。</p> : null}
+        {error ? <p className="m5-error" role="alert">{error}</p> : null}
+        {!loading && !error && records.length === 0 ? <p className="m5-history-empty">まだ完了した家事はありません</p> : null}
+        {!error ? groups.map(([dateKey, dateRecords]) => (
+          <section className="m5-history-group" key={dateKey} aria-labelledby={`history-date-${dateKey}`}>
+            <h2 id={`history-date-${dateKey}`}>{formatHistoryDate(dateKey, household.timezone)}</h2>
+            <div className="m5-history-list">
+              {dateRecords.map((record) => (
+                <div className={`m5-history-row${expandedId === record.id ? " is-expanded" : ""}`} key={record.id}>
+                  <span className="calendar-detail-task__check calendar-history-row__check" aria-hidden="true"><Check /></span>
+                  <div className="m5-history-row__main" role="button" tabIndex={0} aria-expanded={expandedId === record.id} aria-controls={`m5-history-detail-${record.id}`} onClick={() => toggleDetail(record.id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); toggleDetail(record.id); } }}>
+                    <span className="m5-history-row__title">{record.title}</span>
+                    <span className="m5-history-row__completer">
+                      <OtherAvatar name={record.actualCompleter.displayName ?? "不明"} imageUrl={record.actualCompleter.avatarUrl} />
+                      <span>{record.actualCompleter.displayName ?? "不明"}</span>
+                    </span>
+                  </div>
+                  <time dateTime={record.completedAt}>{formatHistoryTime(record.completedAt, household.timezone)}</time>
+                  {expandedId === record.id ? <div className="m5-history-row__detail" id={`m5-history-detail-${record.id}`}><div><span>メモ</span><p>{record.description?.trim() || "メモなし"}</p></div><div><span>完了日時</span><p>{formatHistoryTime(record.completedAt, household.timezone)}</p></div></div> : null}
+                </div>
+              ))}
+            </div>
+          </section>
+        )) : null}
+        {nextCursor ? <button type="button" className="m5-history-more m5-secondary-action" disabled={loadingMore} onClick={() => void load(nextCursor, true)}>{loadingMore ? "読み込み中…" : "もっと見る"}</button> : null}
+      </div>
     </section>
   );
 }
@@ -429,6 +523,7 @@ function AccountPage({ user, onUserUpdated, onLogout }: { user: AuthUser; onUser
 }
 
 export function OtherSettingsPage(props: OtherSettingsProps) {
+  if (props.kind === "history") return <CompletedHistoryPage household={props.household} />;
   if (props.kind === "members") return <MembersPage household={props.household} />;
   if (props.kind === "notifications") return <NotificationsPage />;
   if (props.kind === "storage") return <StoragePage />;

@@ -43,7 +43,7 @@ function calendarData(selectedDate: string, completed = false, passed = false, m
     selected: {
       fixed: completed || passed ? [] : [calendarTask("task-1", "朝食の片付け", selectedDate, "朝食後に確認"), ...(hasMultiple ? [calendarTask("task-2", "夕食の片付け", selectedDate)] : [])],
       weeklyFlexible: [], monthlyFlexible: [],
-      completed: completed ? [{ id: "record-1", taskId: "task-1", title: "朝食の片付け", taskActive: true, selectedDate, actualCompleter: { userId: "user-1", displayName: "はる", avatarUrl: null }, targetDate: selectedDate, targetWeekStart: null, status: "completed" }] : [],
+      completed: completed ? [{ id: "record-1", taskId: "task-1", title: "朝食の片付け", description: "朝食後に確認", completedAt: "2026-08-20T00:32:00.000Z", taskActive: true, selectedDate, actualCompleter: { userId: "user-1", displayName: "はる", avatarUrl: null }, targetDate: selectedDate, targetWeekStart: null, status: "completed" }] : [],
       shopping: [{ id: "shopping-1", name: "牛乳", quantity: "2本", note: "hidden", status: "pending", plannedPurchaseDate: selectedDate, purchasedAt: null, purchasedBy: null }]
     }
   };
@@ -130,7 +130,16 @@ test.describe("Calendar M3", () => {
     await expect(page.locator(".calendar-history-row__check")).toHaveClass(/calendar-detail-task__check/);
     await expect(page.locator(".calendar-history-row__check")).toHaveCSS("border-radius", "50%");
     await expect(page.locator(".calendar-history-row__check svg")).toHaveCount(1);
-    await shot(page, "03-calendar-detail-completed-390x844.png");
+    await page.locator(".calendar-history-row__main").click();
+    await expect(page.locator(".calendar-history-row")).toHaveClass(/is-expanded/);
+    await expect(page.locator(".calendar-history-row")).not.toHaveClass(/is-actions-open/);
+    await expect(page.getByText("朝食後に確認").last()).toBeVisible();
+    await expect(page.getByText("完了日時")).toBeVisible();
+    await expect(page.getByText("8月20日 9:32")).toBeVisible();
+    await shot(page, "05-calendar-history-expanded-390x844.png");
+    await page.locator(".calendar-history-row__main").click();
+    await expect(page.locator(".calendar-history-row")).not.toHaveClass(/is-expanded/);
+    await shot(page, "06-calendar-history-closed-390x844.png");
     await page.getByRole("button", { name: "閉じる", exact: true }).click();
     await expect(page.locator(".calendar-day-task.is-completed")).toHaveCount(1);
     await expect(page.locator(".calendar-day-task.is-completed svg")).toHaveCount(0);
