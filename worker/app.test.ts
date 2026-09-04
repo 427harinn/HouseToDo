@@ -205,9 +205,10 @@ describe("household completed history API", () => {
     await app.fetch(postJson("/api/households", { name: "履歴家庭" }, owner.cookie), env);
     await app.fetch(postJson("/api/households", { name: "別家庭" }, other.cookie), env);
     const today = getLocalDate(new Date(), "Asia/Tokyo");
-    const complete = async (cookie: string, title: string) => {
+    const complete = async (cookie: string, title: string, description = `${title} の完了時メモ`) => {
       const created = await app.fetch(postJson("/api/tasks", {
         title,
+        description,
         modelRecurrenceType: "daily",
         startDate: today,
         assignmentType: "anyone",
@@ -219,8 +220,8 @@ describe("household completed history API", () => {
       return createdBody.data.task.id;
     };
 
-    const firstTaskId = await complete(owner.cookie, "古い表示名");
-    const secondTaskId = await complete(owner.cookie, "新しい表示名");
+    const firstTaskId = await complete(owner.cookie, "古い表示名", "完了時点の古いメモ");
+    const secondTaskId = await complete(owner.cookie, "新しい表示名", "完了時点の新しいメモ");
     await complete(other.cookie, "別家庭の家事");
     const skippedCreated = await app.fetch(postJson("/api/tasks", {
       title: "パスした家事",
@@ -236,23 +237,33 @@ describe("household completed history API", () => {
     const firstRecord = ownerRecords.find((record) => record.task_id === firstTaskId);
     const secondRecord = ownerRecords.find((record) => record.task_id === secondTaskId);
     if (!firstRecord || !secondRecord) throw new Error("history records were not created");
-    db.taskRecords.set(firstRecord.id, { ...firstRecord, completed_at: "2026-09-03T23:30:00.000Z", task_title_snapshot: "保存された古い表示名" });
-    db.taskRecords.set(secondRecord.id, { ...secondRecord, completed_at: "2026-09-03T23:31:00.000Z", task_title_snapshot: "保存された新しい表示名" });
+    expect(firstRecord.task_description_snapshot).toBe("完了時点の古いメモ");
+    expect(secondRecord.task_description_snapshot).toBe("完了時点の新しいメモ");
+    db.taskRecords.set(firstRecord.id, { ...firstRecord, completed_at: "2026-09-03T23:30:00.000Z", task_title_snapshot: "保存された古い表示名", task_description_snapshot: "完了時点の古いメモ" });
+    db.taskRecords.set(secondRecord.id, { ...secondRecord, completed_at: "2026-09-03T23:31:00.000Z", task_title_snapshot: "保存された新しい表示名", task_description_snapshot: "完了時点の新しいメモ" });
     await app.fetch(new Request(`https://example.test/api/tasks/${firstTaskId}`, { method: "DELETE", headers: { cookie: owner.cookie, origin: "https://example.test", "content-type": "application/json" }, body: "{}" }), env);
 
     const firstPage = await app.fetch(new Request("https://example.test/api/history/tasks?limit=1", { headers: { cookie: owner.cookie } }), env);
     expect(firstPage.status).toBe(200);
-    const firstPageBody: { data: { records: Array<{ id: string; title: string; taskActive: boolean; actualCompleter: { displayName: string } }>; nextCursor: string | null } } = await firstPage.json();
+    const firstPageBody: { data: { records: Array<{ id: string; title: string; description: string | null; taskActive: boolean; actualCompleter: { displayName: string } }>; nextCursor: string | null } } = await firstPage.json();
     expect(firstPageBody.data.records).toHaveLength(1);
-    expect(firstPageBody.data.records[0]).toMatchObject({ title: "保存された新しい表示名", taskActive: true, actualCompleter: { displayName: "履歴オーナー" } });
+    expect(firstPageBody.data.records[0]).toMatchObject({ title: "保存された新しい表示名", description: "完了時点の新しいメモ", taskActive: true, actualCompleter: { displayName: "履歴オーナー" } });
     expect(firstPageBody.data.nextCursor).toBeTruthy();
 
     const secondPage = await app.fetch(new Request(`https://example.test/api/history/tasks?limit=1&cursor=${encodeURIComponent(firstPageBody.data.nextCursor!)}`, { headers: { cookie: owner.cookie } }), env);
-    const secondPageBody: { data: { records: Array<{ id: string; title: string; taskActive: boolean }>; nextCursor: string | null } } = await secondPage.json();
+    const secondPageBody: { data: { records: Array<{ id: string; title: string; description: string | null; taskActive: boolean }>; nextCursor: string | null } } = await secondPage.json();
     expect(secondPageBody.data.records).toHaveLength(1);
-    expect(secondPageBody.data.records[0]).toMatchObject({ title: "保存された古い表示名", taskActive: false });
+    expect(secondPageBody.data.records[0]).toMatchObject({ title: "保存された古い表示名", description: "完了時点の古いメモ", taskActive: false });
     expect(secondPageBody.data.nextCursor).toBeNull();
     expect(secondPageBody.data.records[0]?.id).not.toBe(firstPageBody.data.records[0]?.id);
+
+    db.taskRecords.set(firstRecord.id, { ...firstRecord, completed_at: "2026-09-03T23:30:00.000Z", task_title_snapshot: "保存された古い表示名", task_description_snapshot: null });
+    const fallbackTask = db.tasks.get(firstTaskId);
+    if (!fallbackTask) throw new Error("fallback task was not found");
+    db.tasks.set(firstTaskId, { ...fallbackTask, description: "現在の家事メモ" });
+    const fallbackPage = await app.fetch(new Request("https://example.test/api/history/tasks?limit=10", { headers: { cookie: owner.cookie } }), env);
+    const fallbackBody: { data: { records: Array<{ id: string; description: string | null }> } } = await fallbackPage.json();
+    expect(fallbackBody.data.records.find((record) => record.id === firstRecord.id)?.description).toBe("現在の家事メモ");
 
     const invalidLimit = await app.fetch(new Request("https://example.test/api/history/tasks?limit=0", { headers: { cookie: owner.cookie } }), env);
     expect(invalidLimit.status).toBe(400);

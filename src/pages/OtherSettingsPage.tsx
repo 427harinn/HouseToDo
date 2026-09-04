@@ -120,6 +120,7 @@ function CompletedHistoryPage({ household }: { household: Household }) {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const load = useCallback(async (cursor: string | undefined, append: boolean) => {
     if (append) setLoadingMore(true);
@@ -138,6 +139,8 @@ function CompletedHistoryPage({ household }: { household: Household }) {
   }, []);
 
   useEffect(() => { void load(undefined, false); }, [load, household.id, household.timezone]);
+
+  const toggleDetail = (recordId: string) => setExpandedId((current) => current === recordId ? null : recordId);
 
   const groups = useMemo(() => {
     const grouped = new Map<string, HouseholdCompletedHistoryRecord[]>();
@@ -160,9 +163,9 @@ function CompletedHistoryPage({ household }: { household: Household }) {
             <h2 id={`history-date-${dateKey}`}>{formatHistoryDate(dateKey, household.timezone)}</h2>
             <div className="m5-history-list">
               {dateRecords.map((record) => (
-                <div className="m5-history-row" key={record.id}>
+                <div className={`m5-history-row${expandedId === record.id ? " is-expanded" : ""}`} key={record.id}>
                   <span className="calendar-detail-task__check calendar-history-row__check" aria-hidden="true"><Check /></span>
-                  <div className="m5-history-row__main">
+                  <div className="m5-history-row__main" role="button" tabIndex={0} aria-expanded={expandedId === record.id} aria-controls={`m5-history-detail-${record.id}`} onClick={() => toggleDetail(record.id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); toggleDetail(record.id); } }}>
                     <span className="m5-history-row__title">{record.title}</span>
                     <span className="m5-history-row__completer">
                       <OtherAvatar name={record.actualCompleter.displayName ?? "不明"} imageUrl={record.actualCompleter.avatarUrl} />
@@ -170,6 +173,7 @@ function CompletedHistoryPage({ household }: { household: Household }) {
                     </span>
                   </div>
                   <time dateTime={record.completedAt}>{formatHistoryTime(record.completedAt, household.timezone)}</time>
+                  {expandedId === record.id ? <div className="m5-history-row__detail" id={`m5-history-detail-${record.id}`}><div><span>メモ</span><p>{record.description?.trim() || "メモなし"}</p></div><div><span>完了日時</span><p>{formatHistoryTime(record.completedAt, household.timezone)}</p></div></div> : null}
                 </div>
               ))}
             </div>

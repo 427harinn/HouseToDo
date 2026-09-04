@@ -155,6 +155,7 @@ export type TaskRecord = {
   skippedAt: string | null;
   note: string | null;
   taskTitleSnapshot: string | null;
+  taskDescriptionSnapshot: string | null;
   assignedUserIdSnapshot: string | null;
   assignedUserDisplayNameSnapshot: string | null;
   assignedUserColorSnapshot: string | null;

@@ -92,6 +92,7 @@ const recordResponse = (record: TaskRecord) => ({
   skippedAt: record.skippedAt,
   note: record.note,
   taskTitleSnapshot: record.taskTitleSnapshot,
+  taskDescriptionSnapshot: record.taskDescriptionSnapshot,
   assignedUserIdSnapshot: record.assignedUserIdSnapshot,
   assignedUserDisplayNameSnapshot: record.assignedUserDisplayNameSnapshot,
   assignedUserColorSnapshot: record.assignedUserColorSnapshot,
@@ -255,6 +256,7 @@ const calendarSelectedResponse = (
       ...recordResponse(entry.record),
       taskId: entry.record.taskId,
       title: entry.record.taskTitleSnapshot ?? entry.task?.title ?? "家事",
+      description: entry.record.taskDescriptionSnapshot ?? entry.task?.description ?? null,
       taskActive: entry.taskActive,
       selectedDate: entry.selectedDate,
       actualCompleter: {
@@ -286,6 +288,7 @@ const completedHistoryResponse = (entry: Awaited<ReturnType<TaskService["listCom
   id: entry.record.id,
   taskId: entry.record.taskId,
   title: entry.record.taskTitleSnapshot ?? entry.task?.title ?? "家事",
+  description: entry.record.taskDescriptionSnapshot ?? entry.task?.description ?? null,
   completedAt: entry.record.completedAt,
   actualCompleter: {
     userId: entry.record.actedBy,

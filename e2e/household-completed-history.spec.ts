@@ -10,6 +10,7 @@ const historyRecords = Array.from({ length: 42 }, (_, index) => ({
   id: `history-${index}`,
   taskId: `task-${index}`,
   title: index === 0 ? "ゴミ出し" : index === 1 ? "食器洗い" : `家事 ${index + 1}`,
+  description: index === 0 ? "ゴミ袋は玄関に置いてあります" : index === 1 ? "洗剤を補充しておく" : null,
   completedAt: new Date(Date.UTC(2026, 8, 4, 0, 30) - index * 60 * 60 * 1000).toISOString(),
   actualCompleter: {
     userId: index % 2 === 0 ? "user-1" : "user-2",
@@ -55,6 +56,11 @@ test.describe("Household completed history", () => {
     await expect(page.getByText("食器洗い")).toBeVisible();
     await expect(page.getByText("はる").first()).toBeVisible();
     await expect(page.getByText("しば").first()).toBeVisible();
+    await page.getByText("ゴミ出し").click();
+    await expect(page.getByText("ゴミ袋は玄関に置いてあります")).toBeVisible();
+    await page.screenshot({ path: "docs/evidence/household-completed-history/05-other-history-expanded-390x844.png" });
+    await page.getByText("ゴミ出し").click();
+    await page.screenshot({ path: "docs/evidence/household-completed-history/06-other-history-closed-390x844.png" });
     await page.screenshot({ path: "docs/evidence/household-completed-history/02-history-grouped-390x844.png" });
 
     const more = page.getByRole("button", { name: "もっと見る" });

@@ -414,8 +414,8 @@ describe("M5 Other / Settings routes", () => {
   it("opens household completed history and renders timezone-aware grouped records", async () => {
     mockFetch(household, imageUsage, {
       records: [
-        { id: "history-1", taskId: "task-1", title: "ゴミ出し", completedAt: "2026-09-03T23:31:00.000Z", actualCompleter: { userId: "user-1", displayName: "さや", avatarUrl: null }, taskActive: true },
-        { id: "history-2", taskId: "task-2", title: "お風呂掃除", completedAt: "2026-09-02T00:15:00.000Z", actualCompleter: { userId: "user-2", displayName: "たくや", avatarUrl: null }, taskActive: false }
+        { id: "history-1", taskId: "task-1", title: "ゴミ出し", description: "玄関の横に置いてあります", completedAt: "2026-09-03T23:31:00.000Z", actualCompleter: { userId: "user-1", displayName: "さや", avatarUrl: null }, taskActive: true },
+        { id: "history-2", taskId: "task-2", title: "お風呂掃除", description: null, completedAt: "2026-09-02T00:15:00.000Z", actualCompleter: { userId: "user-2", displayName: "たくや", avatarUrl: null }, taskActive: false }
       ],
       nextCursor: null
     });
@@ -432,6 +432,15 @@ describe("M5 Other / Settings routes", () => {
     expect(screen.getByText("9:15")).toBeInTheDocument();
     expect(document.querySelectorAll(".calendar-history-row__check")).toHaveLength(2);
     expect(screen.getAllByRole("heading").filter((heading) => heading.textContent?.match(/月/))).toHaveLength(2);
+    const firstHistoryTitle = screen.getByText("ゴミ出し");
+    fireEvent.click(firstHistoryTitle);
+    expect(screen.getByText("玄関の横に置いてあります")).toBeInTheDocument();
+    expect(firstHistoryTitle.closest(".m5-history-row")?.querySelector("[aria-expanded='true']")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("お風呂掃除"));
+    expect(screen.getByText("メモなし")).toBeInTheDocument();
+    expect(screen.queryByText("玄関の横に置いてあります")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText("お風呂掃除"));
+    expect(screen.queryByText("メモなし")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "戻る" }));
     await waitFor(() => expect(window.location.pathname).toBe("/other"));
   });

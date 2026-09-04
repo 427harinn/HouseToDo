@@ -18,6 +18,18 @@
 
 履歴がない場合は「まだ完了した家事はありません」を表示します。
 
+![Calendar履歴の展開](./05-calendar-history-expanded-390x844.png)
+
+Calendarの完了履歴行をタップすると、完了時点のメモと household timezone の完了日時を展開します。
+
+![Calendar履歴の閉じた状態](./06-calendar-history-closed-390x844.png)
+
+![その他履歴の展開](./05-other-history-expanded-390x844.png)
+
+その他の履歴も同じ行内でメモを確認できます。再タップで閉じます。
+
+![その他履歴の閉じた状態](./06-other-history-closed-390x844.png)
+
 ## 検証
 
 - `e2e/household-completed-history.spec.ts`
@@ -25,3 +37,4 @@
 - `npm run lint`
 - `npm run build`
 - `npm test -- --run worker/app.test.ts src/App.test.tsx`
+- `npx playwright test e2e/calendar-m3.spec.ts e2e/household-completed-history.spec.ts`

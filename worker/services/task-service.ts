@@ -742,6 +742,7 @@ export class TaskService {
       skippedAt: action === "skip" ? now : null,
       note: action === "skip" ? note ?? null : null,
       taskTitleSnapshot: task.title,
+      taskDescriptionSnapshot: task.description,
       assignedUserIdSnapshot: task.assignedUserId,
       assignedUserDisplayNameSnapshot: assignee?.displayName ?? null,
       assignedUserColorSnapshot: assignee?.color ?? null,
