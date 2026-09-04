@@ -141,7 +141,7 @@ export const clearCalendarSnapshotRecords = async (): Promise<void> => {
   return closeAfter(database, operation);
 };
 
-export const deleteCalendarShoppingDateRecords = async (identity: { userId: string; householdId: string; timezone: string }, date: string): Promise<void> => {
+export const deleteCalendarDateRecords = async (identity: { userId: string; householdId: string; timezone: string }, date: string): Promise<void> => {
   const database = await openDatabase();
   const operation = new Promise<void>((resolve, reject) => {
     const transaction = database.transaction([CALENDAR_RANGE_STORE_NAME, CALENDAR_DAY_STORE_NAME], "readwrite");

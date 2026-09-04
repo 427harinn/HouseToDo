@@ -1,7 +1,7 @@
 import type { CalendarDateMarker, CalendarMarkersResponse, CalendarSelectedResponse, CalendarShoppingItem, TodayTask } from "../api/tasks";
 import {
   clearCalendarSnapshotRecords,
-  deleteCalendarShoppingDateRecords,
+  deleteCalendarDateRecords,
   readCalendarDaySnapshotRecord,
   readCalendarRangeSnapshotRecord,
   writeCalendarDaySnapshotRecord,
@@ -180,8 +180,8 @@ export const clearCalendarSnapshots = async (): Promise<void> => {
   }
 };
 
-/** Invalidate only Calendar marker/day snapshots whose Shopping projection includes date. */
-export const invalidateCalendarShoppingDate = async (identity: CalendarShoppingInvalidationIdentity, date: string | null | undefined): Promise<void> => {
+/** Invalidate Calendar marker/day snapshots that include the affected date. */
+export const invalidateCalendarDate = async (identity: CalendarShoppingInvalidationIdentity, date: string | null | undefined): Promise<void> => {
   if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
   cacheEpoch += 1;
   for (const [key, record] of memoryRanges) {
@@ -192,8 +192,11 @@ export const invalidateCalendarShoppingDate = async (identity: CalendarShoppingI
   }
   latestRequestSequences.clear();
   try {
-    await deleteCalendarShoppingDateRecords(identity, date);
+    await deleteCalendarDateRecords(identity, date);
   } catch {
     // IndexedDB invalidation is best effort; the incremented epoch protects in-flight writes.
   }
 };
+
+/** @deprecated Use invalidateCalendarDate for all Calendar projections. */
+export const invalidateCalendarShoppingDate = invalidateCalendarDate;

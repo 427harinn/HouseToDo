@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { formRouteWithReturnTo, resolveReturnTo } from "./navigation";
+import { formRouteWithReturnTo, isValidDateKey, resolveReturnTo } from "./navigation";
 
 describe("returnTo navigation", () => {
   beforeEach(() => {
@@ -11,6 +11,23 @@ describe("returnTo navigation", () => {
       "/tasks/new?returnTo=%2Fcalendar%3Fdate%3D2026-09-04%23selected"
     );
   });
+
+  it("adds explicit form parameters without mixing them with returnTo", () => {
+    expect(formRouteWithReturnTo("/tasks/new", { date: "2026-09-04", origin: "calendar" })).toBe(
+      "/tasks/new?returnTo=%2Fcalendar%3Fdate%3D2026-09-04%23selected&date=2026-09-04&origin=calendar"
+    );
+  });
+
+  it.each(["2026-09-04", "2000-02-29"])("accepts valid date key %s", (value) => {
+    expect(isValidDateKey(value)).toBe(true);
+  });
+
+  it.each(["2026-02-29", "2026-09-31", "2026-9-04", "not-a-date", null])(
+    "rejects invalid date key %s",
+    (value) => {
+      expect(isValidDateKey(value)).toBe(false);
+    }
+  );
 
   it.each([
     ["/home", "/home"],
