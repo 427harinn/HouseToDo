@@ -1,5 +1,5 @@
 import { getLocalDate, getLocalTime, getWeekEndDate, getWeekStartDate, zonedDateRangeToUtc } from "../lib/date-time";
-import { projectTaskOnDate } from "../lib/task-model";
+import { isPeriodScopedTask, projectTaskOnDate } from "../lib/task-model";
 import {
   AppError,
   inactiveTaskError,
@@ -178,6 +178,8 @@ export class TaskService {
       weeklyTargetCount: current.weeklyTargetCount,
       startDate: current.startDate,
       targetDate: current.targetDate,
+      executionTiming: current.executionTiming,
+      deadlineDate: current.deadlineDate,
       deadlineTime: current.deadlineTime,
       notificationOffsetMinutes: current.notificationOffsetMinutes,
       weeklyDeadlineWeekday: current.weeklyDeadlineWeekday,
@@ -193,6 +195,8 @@ export class TaskService {
       mergedCandidate.weeklyDeadlineWeekday = type === "weekly_flexible" ? input.weeklyDeadlineWeekday ?? null : null;
       mergedCandidate.monthlyDayOfMonth = ["monthly_fixed", "monthly_flexible"].includes(type) ? input.monthlyDayOfMonth ?? input.monthlyDeadlineDay ?? null : null;
       mergedCandidate.monthlyDeadlineType = type === "monthly_flexible" ? input.monthlyDeadlineType ?? null : null;
+      mergedCandidate.executionTiming = type === "weekly_flexible" ? "this_week" : type === "monthly_flexible" ? "this_month" : type === "once" ? input.executionTiming ?? "on_date" : "on_date";
+      if (type !== "once") mergedCandidate.deadlineDate = null;
     }
     const merged = validateTaskWriteInput(mergedCandidate);
     await this.validateAssignee(household.id, merged);
@@ -402,7 +406,7 @@ export class TaskService {
     const targetDate = selectedDate ?? getLocalDate(new Date(), household.timezone);
     const allTasks = await this.tasks.listByHouseholdId(household.id, { includeInactive: true });
     const activeTasks = allTasks.filter((task) => task.active);
-    const isFlexible = (task: Task) => task.modelRecurrenceType === "weekly_flexible" || task.modelRecurrenceType === "monthly_flexible";
+    const isFlexible = (task: Task) => isPeriodScopedTask(task);
     // Completed Calendar history must remain visible after a flexible task is
     // deactivated. Legacy period records may have only period_key populated,
     // so include scopes from inactive flexible tasks for history lookup while
@@ -418,7 +422,7 @@ export class TaskService {
 
   private projectCalendarMarkers(context: CalendarContext): CalendarMarkerData {
     const { household, from, to, dateKeys, allTasks, activeTasks, records, recordsByTaskId } = context;
-    const isFlexible = (task: Task) => task.modelRecurrenceType === "weekly_flexible" || task.modelRecurrenceType === "monthly_flexible";
+    const isFlexible = (task: Task) => isPeriodScopedTask(task);
     const isMonthFixed = (task: Task) => task.modelRecurrenceType
       ? task.modelRecurrenceType !== "daily" && !isFlexible(task)
       : task.recurrenceType === "scheduled";
@@ -468,7 +472,7 @@ export class TaskService {
 
   private projectCalendarSelected(context: CalendarContext): CalendarData["selected"] {
     const { household, targetDate, activeTasks, allTasks, records, recordsByTaskId } = context;
-    const isFlexible = (task: Task) => task.modelRecurrenceType === "weekly_flexible" || task.modelRecurrenceType === "monthly_flexible";
+    const isFlexible = (task: Task) => isPeriodScopedTask(task);
     const isSelectedDirect = (task: Task) => task.modelRecurrenceType
       ? !isFlexible(task)
       : task.recurrenceType === "daily" || task.recurrenceType === "scheduled";
@@ -506,8 +510,8 @@ export class TaskService {
       }));
     return {
       fixed: selectedFixed,
-      weeklyFlexible: selectedFlexible.filter((task) => task.modelRecurrenceType === "weekly_flexible"),
-      monthlyFlexible: selectedFlexible.filter((task) => task.modelRecurrenceType === "monthly_flexible"),
+      weeklyFlexible: selectedFlexible.filter((task) => task.modelRecurrenceType === "weekly_flexible" || (task.modelRecurrenceType === "once" && (task.executionTiming === "by_deadline" || task.executionTiming === "this_week"))),
+      monthlyFlexible: selectedFlexible.filter((task) => task.modelRecurrenceType === "monthly_flexible" || (task.modelRecurrenceType === "once" && task.executionTiming === "this_month")),
       completed
     };
   }
@@ -786,7 +790,7 @@ export class TaskService {
     const status: TaskDisplayStatus = skipped ? "skipped" : completed ? "completed" : inProgress ? "in_progress" : "pending";
     const today = getLocalDate(new Date(), timezone);
     const time = getLocalTime(new Date(), timezone);
-    const overdue = status === "pending" && Boolean(scope.deadlineTime) && (scope.deadlineDate < today || (scope.deadlineDate === today && scope.deadlineTime! < time));
+    const overdue = status === "pending" && (scope.deadlineDate < today || (scope.deadlineDate === today && Boolean(scope.deadlineTime) && scope.deadlineTime! < time));
     return { ...this.mergeDailyStatus(task, record), status, scopeKind: scope.scopeType, occurrenceKey: scope.occurrenceKey, periodKey: scope.periodKey, periodStart: scope.periodStart, periodEnd: scope.periodEnd, deadlineDate: scope.deadlineDate, deadlineTime: scope.deadlineTime, completedCount, overdue };
   }
 

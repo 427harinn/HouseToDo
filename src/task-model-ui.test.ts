@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Task } from "./api/tasks";
 import {
   changeTaskFormRecurrence,
+  changeTaskFormNoSpecificDate,
   defaultTaskForm,
   taskFormToPayload,
   taskFormToTemplatePayload,
@@ -13,12 +14,34 @@ import {
 
 describe("task model form mapping", () => {
   it("defaults new task forms to a one-time recurrence", () => {
-    expect(defaultTaskForm()).toMatchObject({ recurrence: "once", startDate: "", targetDate: "" });
+    expect(defaultTaskForm()).toMatchObject({ recurrence: "once", executionTiming: "on_date", startDate: "", targetDate: "" });
     expect(taskFormToPayload({
       ...defaultTaskForm(), title: "今日の家事", startDate: "2026-09-01", targetDate: "2026-09-01"
     })).toMatchObject({
       recurrenceType: "once", modelRecurrenceType: "once", startDate: "2026-09-01", targetDate: "2026-09-01"
     });
+  });
+
+  it("maps deadline timing to a period-scoped once task", () => {
+    const form = {
+      ...defaultTaskForm(),
+      title: "エアコン掃除",
+      executionTiming: "by_deadline" as const,
+      noSpecificDate: true,
+      startDate: "2026-09-10",
+      deadlineDate: "2026-09-20"
+    };
+    expect(validateTaskFormState(form)).toEqual({});
+    expect(taskFormToPayload(form)).toMatchObject({
+      recurrenceType: "once",
+      modelRecurrenceType: "once",
+      executionTiming: "by_deadline",
+      startDate: "2026-09-10",
+      targetDate: null,
+      deadlineDate: "2026-09-20"
+    });
+    expect(validateTaskFormState({ ...form, deadlineDate: "" })).toHaveProperty("deadlineDate");
+    expect(validateTaskFormState({ ...form, deadlineDate: "2026-09-01" })).toHaveProperty("deadlineDate");
   });
 
   it("cleans recurrence-specific state when the type changes", () => {
@@ -58,7 +81,7 @@ describe("task model form mapping", () => {
   it("validates recurrence-specific fields near the form", () => {
     expect(validateTaskFormState({ ...defaultTaskForm(), recurrence: "once" })).toMatchObject({
       title: "タスク名を入力してください。",
-      startDate: "開始日を選択してください。"
+      startDate: "日付を選択してください。"
     });
     expect(validateTaskFormState({ ...defaultTaskForm(), title: "曜日", recurrence: "weekly_fixed" })).toHaveProperty("weekdays");
     expect(validateTaskFormState({ ...defaultTaskForm(), title: "月", recurrence: "monthly_fixed", monthlyDayOfMonth: 32 })).toHaveProperty("monthlyDayOfMonth");
@@ -98,6 +121,34 @@ describe("task model form mapping", () => {
     expect(taskFormToPayload(legacy)).toMatchObject({ recurrenceType: "weekly", weeklyTargetCount: 3, notificationTime: "20:00" });
   });
 
+  it("uses the registration date as the first fixed weekly/monthly value", () => {
+    const base = { ...defaultTaskForm(), startDate: "2026-09-04", targetDate: "2026-09-04" };
+    expect(changeTaskFormRecurrence(base, "weekly_fixed")).toMatchObject({ recurrence: "weekly_fixed", weekdays: [5], noSpecificDate: false });
+    expect(changeTaskFormRecurrence(base, "monthly_fixed")).toMatchObject({ recurrence: "monthly_fixed", monthlyDayOfMonth: 4, noSpecificDate: false });
+  });
+
+  it("switches fixed and period modes without leaking fixed dates into payloads", () => {
+    const base = { ...defaultTaskForm(), title: "掃除", startDate: "2026-09-04", targetDate: "2026-09-04" };
+    const week = changeTaskFormNoSpecificDate(changeTaskFormRecurrence(base, "weekly_fixed"), true);
+    expect(week).toMatchObject({ recurrence: "weekly_flexible", executionTiming: "this_week", noSpecificDate: true, weekdays: [] });
+    expect(taskFormToPayload(week)).toMatchObject({ modelRecurrenceType: "weekly_flexible", executionTiming: "this_week", targetDate: null });
+    const fixed = changeTaskFormNoSpecificDate(week, false);
+    expect(fixed).toMatchObject({ recurrence: "weekly_fixed", executionTiming: "on_date", noSpecificDate: false, weekdays: [5] });
+  });
+
+  it("restores flexible compatibility as separate recurrence and timing labels", () => {
+    const form = taskToFormState({
+      id: "flexible", title: "週の家事", description: null, recurrenceType: "weekly", modelRecurrenceType: "weekly_flexible",
+      assignmentType: "anyone", assignedUserId: null, assignment: { type: "anyone", user: null }, scheduledTime: null,
+      notificationSlot: "none", notificationTime: null, weekdays: [], weeklyTargetCount: null,
+      startDate: "2026-09-01", targetDate: null, deadlineDate: null, deadlineTime: null, notificationOffsetMinutes: null,
+      weeklyDeadlineWeekday: 0, monthlyDayOfMonth: null, monthlyDeadlineType: null, active: true, sortOrder: 1,
+      createdBy: "user", createdAt: "2026-09-01", updatedAt: "2026-09-01"
+    } satisfies Task);
+    expect(form).toMatchObject({ recurrence: "weekly_flexible", executionTiming: "this_week" });
+    expect(taskFormToPayload(form)).toMatchObject({ modelRecurrenceType: "weekly_flexible", executionTiming: "this_week" });
+  });
+
   it("prefills reusable definitions without copying dates or task identity", () => {
     const task = {
       id: "old-task", title: "ゴミ出し", description: "朝", recurrenceType: "weekly_fixed", modelRecurrenceType: "weekly_fixed",
@@ -126,5 +177,15 @@ describe("task model form mapping", () => {
     expect(validateTaskFormState(form)).toHaveProperty("startDate");
     expect(validateTaskFormState(form, { template: true })).not.toHaveProperty("startDate");
     expect(taskFormToTemplatePayload(form)).toMatchObject({ modelRecurrenceType: "once" });
+  });
+
+  it("does not copy an absolute deadline into a template or its form", () => {
+    const template = taskTemplateToFormState({
+      id: "deadline-template", title: "期限掃除", description: null, modelRecurrenceType: "once", executionTiming: "by_deadline", deadlineDate: "2026-09-20",
+      assignmentType: "anyone", assignedUserId: null, weekdays: [], deadlineTime: null, notificationOffsetMinutes: null,
+      weeklyDeadlineWeekday: null, monthlyDayOfMonth: null, monthlyDeadlineType: null, active: true, sortOrder: 1, createdBy: "user", createdAt: "2026-01-01", updatedAt: "2026-01-01"
+    });
+    expect(template).toMatchObject({ noSpecificDate: true, executionTiming: "by_deadline", deadlineDate: "" });
+    expect(taskFormToTemplatePayload({ ...template, deadlineDate: "2026-09-20" }).deadlineDate).toBeNull();
   });
 });

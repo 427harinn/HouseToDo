@@ -81,6 +81,7 @@ export type TaskDbRecord = {
   description: string | null;
   recurrence_type: TaskRecurrenceType;
   model_recurrence_type?: Exclude<TaskRecurrenceType, "scheduled" | "weekly"> | null;
+  execution_timing?: "on_date" | "this_week" | "this_month" | "by_deadline" | null;
   assignment_type: TaskAssignmentType;
   assigned_user_id: string | null;
   scheduled_time: string | null;
@@ -89,6 +90,7 @@ export type TaskDbRecord = {
   weekly_target_count: number | null;
   start_date?: string | null;
   target_date?: string | null;
+  deadline_date?: string | null;
   deadline_time?: string | null;
   notification_offset_minutes?: number | null;
   weekly_deadline_weekday?: number | null;
@@ -169,6 +171,8 @@ export type TaskTemplateDbRecord = {
     TaskRecurrenceType,
     "scheduled" | "weekly" | "model_only"
   >;
+  execution_timing?: "on_date" | "this_week" | "this_month" | "by_deadline" | null;
+  deadline_date?: string | null;
   assignment_type: TaskAssignmentType;
   assigned_user_id: string | null;
   weekdays_json: string;
@@ -1281,21 +1285,23 @@ export class MemoryD1 {
         weekly_target_count: values[11] === null ? null : Number(values[11]),
         start_date: toNullableText(values[12]),
         target_date: toNullableText(values[13]),
-        deadline_time: toNullableText(values[14]),
-        notification_offset_minutes: values[15] === null ? null : Number(values[15]),
-        weekly_deadline_weekday: values[16] === null ? null : Number(values[16]),
-        monthly_day_of_month: values[17] === null ? null : Number(values[17]),
-        monthly_deadline_type: values[18] as "month_end" | "day_of_month" | null,
+        execution_timing: values[14] as TaskDbRecord["execution_timing"],
+        deadline_date: toNullableText(values[15]),
+        deadline_time: toNullableText(values[16]),
+        notification_offset_minutes: values[17] === null ? null : Number(values[17]),
+        weekly_deadline_weekday: values[18] === null ? null : Number(values[18]),
+        monthly_day_of_month: values[19] === null ? null : Number(values[19]),
+        monthly_deadline_type: values[20] as "month_end" | "day_of_month" | null,
         active: 1,
-        sort_order: Number(values[19]),
-        created_by: toText(values[20]),
-        created_at: toText(values[21]),
-        updated_at: toText(values[22])
+        sort_order: Number(values[21]),
+        created_by: toText(values[22]),
+        created_at: toText(values[23]),
+        updated_at: toText(values[24])
       });
     }
     if (sql.startsWith("UPDATE tasks") && sql.includes("SET title")) {
-      const task = this.tasks.get(toText(values[20]));
-      if (task && task.household_id === values[19]) {
+      const task = this.tasks.get(toText(values[22]));
+      if (task && task.household_id === values[21]) {
         this.tasks.set(task.id, {
           ...task,
           title: toText(values[0]),
@@ -1313,13 +1319,15 @@ export class MemoryD1 {
           weekly_target_count: values[9] === null ? null : Number(values[9]),
           start_date: toNullableText(values[10]),
           target_date: toNullableText(values[11]),
-          deadline_time: toNullableText(values[12]),
-          notification_offset_minutes: values[13] === null ? null : Number(values[13]),
-          weekly_deadline_weekday: values[14] === null ? null : Number(values[14]),
-          monthly_day_of_month: values[15] === null ? null : Number(values[15]),
-          monthly_deadline_type: values[16] as "month_end" | "day_of_month" | null,
-          sort_order: Number(values[17]),
-          updated_at: toText(values[18])
+          execution_timing: values[12] as TaskDbRecord["execution_timing"],
+          deadline_date: toNullableText(values[13]),
+          deadline_time: toNullableText(values[14]),
+          notification_offset_minutes: values[15] === null ? null : Number(values[15]),
+          weekly_deadline_weekday: values[16] === null ? null : Number(values[16]),
+          monthly_day_of_month: values[17] === null ? null : Number(values[17]),
+          monthly_deadline_type: values[18] as "month_end" | "day_of_month" | null,
+          sort_order: Number(values[19]),
+          updated_at: toText(values[20])
         });
       } else {
         changes = 0;
@@ -1943,22 +1951,24 @@ export class MemoryD1 {
         assignment_type: values[5] as TaskAssignmentType,
         assigned_user_id: toNullableText(values[6]),
         weekdays_json: toText(values[7]),
-        deadline_time: toNullableText(values[8]),
-        notification_offset_minutes: values[9] === null ? null : Number(values[9]),
-        weekly_deadline_weekday: values[10] === null ? null : Number(values[10]),
-        monthly_day_of_month: values[11] === null ? null : Number(values[11]),
+        execution_timing: values[8] as TaskTemplateDbRecord["execution_timing"],
+        deadline_date: toNullableText(values[9]),
+        deadline_time: toNullableText(values[10]),
+        notification_offset_minutes: values[11] === null ? null : Number(values[11]),
+        weekly_deadline_weekday: values[12] === null ? null : Number(values[12]),
+        monthly_day_of_month: values[13] === null ? null : Number(values[13]),
         monthly_deadline_type:
-          values[12] as TaskTemplateDbRecord["monthly_deadline_type"],
+          values[14] as TaskTemplateDbRecord["monthly_deadline_type"],
         active: 1,
-        sort_order: Number(values[13]),
-        created_by: toText(values[14]),
-        created_at: toText(values[15]),
-        updated_at: toText(values[16])
+        sort_order: Number(values[15]),
+        created_by: toText(values[16]),
+        created_at: toText(values[17]),
+        updated_at: toText(values[18])
       });
     }
     if (sql.startsWith("UPDATE task_templates") && sql.includes("SET title")) {
-      const template = this.taskTemplates.get(toText(values[13]));
-      if (template && template.household_id === values[12]) {
+      const template = this.taskTemplates.get(toText(values[15]));
+      if (template && template.household_id === values[14]) {
         this.taskTemplates.set(template.id, {
           ...template,
           title: toText(values[0]),
@@ -1968,13 +1978,15 @@ export class MemoryD1 {
           assignment_type: values[3] as TaskAssignmentType,
           assigned_user_id: toNullableText(values[4]),
           weekdays_json: toText(values[5]),
-          deadline_time: toNullableText(values[6]),
-          notification_offset_minutes: values[7] === null ? null : Number(values[7]),
-          weekly_deadline_weekday: values[8] === null ? null : Number(values[8]),
-          monthly_day_of_month: values[9] === null ? null : Number(values[9]),
+          execution_timing: values[6] as TaskTemplateDbRecord["execution_timing"],
+          deadline_date: toNullableText(values[7]),
+          deadline_time: toNullableText(values[8]),
+          notification_offset_minutes: values[9] === null ? null : Number(values[9]),
+          weekly_deadline_weekday: values[10] === null ? null : Number(values[10]),
+          monthly_day_of_month: values[11] === null ? null : Number(values[11]),
           monthly_deadline_type:
-            values[10] as TaskTemplateDbRecord["monthly_deadline_type"],
-          updated_at: toText(values[11])
+            values[12] as TaskTemplateDbRecord["monthly_deadline_type"],
+          updated_at: toText(values[13])
         });
       } else changes = 0;
     }

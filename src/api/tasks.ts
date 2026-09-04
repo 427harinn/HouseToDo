@@ -12,6 +12,7 @@ export type TaskRecurrenceType =
   | "monthly_flexible"
   | "model_only";
 export type TaskModelRecurrenceType = "once" | "daily" | "weekly_fixed" | "monthly_fixed" | "weekly_flexible" | "monthly_flexible";
+export type TaskExecutionTiming = "on_date" | "this_week" | "this_month" | "by_deadline";
 export type TaskAssignmentType = "anyone" | "specific";
 export type NotificationSlot = "morning" | "night" | "none";
 export type TaskDisplayStatus = "pending" | "in_progress" | "completed" | "skipped";
@@ -27,6 +28,7 @@ export type Task = {
   description: string | null;
   recurrenceType: TaskRecurrenceType;
   modelRecurrenceType?: TaskModelRecurrenceType | null;
+  executionTiming?: TaskExecutionTiming | null;
   assignmentType: TaskAssignmentType;
   assignedUserId: string | null;
   assignment: {
@@ -40,6 +42,7 @@ export type Task = {
   weeklyTargetCount: number | null;
   startDate?: string | null;
   targetDate?: string | null;
+  deadlineDate?: string | null;
   deadlineTime?: string | null;
   notificationOffsetMinutes?: number | null;
   weeklyDeadlineWeekday?: number | null;
@@ -58,6 +61,8 @@ export type TaskTemplate = {
   title: string;
   description: string | null;
   modelRecurrenceType: TaskModelRecurrenceType;
+  executionTiming?: TaskExecutionTiming | null;
+  deadlineDate?: string | null;
   assignmentType: TaskAssignmentType;
   assignedUserId: string | null;
   weekdays: number[];
@@ -222,6 +227,7 @@ export type CreateTaskInput = {
   description: string | null;
   recurrenceType: TaskRecurrenceType;
   modelRecurrenceType?: TaskModelRecurrenceType | null;
+  executionTiming?: TaskExecutionTiming | null;
   assignmentType: TaskAssignmentType;
   assignedUserId: string | null;
   scheduledTime: string | null;
@@ -231,6 +237,7 @@ export type CreateTaskInput = {
   weeklyTargetCount: number | null;
   startDate?: string | null;
   targetDate?: string | null;
+  deadlineDate?: string | null;
   deadlineTime?: string | null;
   notificationOffsetMinutes?: number | null;
   weeklyDeadlineWeekday?: number | null;
@@ -245,6 +252,8 @@ export type CreateTaskTemplateInput = {
   title: string;
   description: string | null;
   modelRecurrenceType: TaskModelRecurrenceType;
+  executionTiming?: TaskExecutionTiming | null;
+  deadlineDate?: string | null;
   assignmentType: TaskAssignmentType;
   assignedUserId: string | null;
   weekdays: number[];

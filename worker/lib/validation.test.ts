@@ -129,4 +129,21 @@ describe("validation helpers", () => {
       weeklyTargetCount: 2
     })).not.toThrow();
   });
+
+  it("accepts only the new recurrence/timing combinations", () => {
+    const base = { title: "Task", assignmentType: "anyone", notificationSlot: "none" };
+    for (const input of [
+      { recurrenceType: "once", modelRecurrenceType: "once", executionTiming: "on_date", targetDate: "2026-09-04" },
+      { recurrenceType: "once", modelRecurrenceType: "once", executionTiming: "this_week", startDate: "2026-09-04", targetDate: null },
+      { recurrenceType: "once", modelRecurrenceType: "once", executionTiming: "this_month", startDate: "2026-09-04", targetDate: null },
+      { recurrenceType: "once", modelRecurrenceType: "once", executionTiming: "by_deadline", startDate: "2026-09-04", targetDate: null, deadlineDate: "2026-09-20" },
+      { recurrenceType: "daily", modelRecurrenceType: "daily", executionTiming: "on_date" },
+      { recurrenceType: "scheduled", modelRecurrenceType: "weekly_fixed", executionTiming: "on_date", weekdays: [5] },
+      { recurrenceType: "weekly", modelRecurrenceType: "weekly_flexible", executionTiming: "this_week" },
+      { recurrenceType: "model_only", modelRecurrenceType: "monthly_fixed", executionTiming: "on_date", monthlyDayOfMonth: 4 },
+      { recurrenceType: "model_only", modelRecurrenceType: "monthly_flexible", executionTiming: "this_month" }
+    ]) expect(() => validateTaskWriteInput({ ...base, ...input })).not.toThrow();
+    expect(() => validateTaskWriteInput({ ...base, recurrenceType: "daily", modelRecurrenceType: "daily", executionTiming: "this_week" })).toThrow(AppError);
+    expect(() => validateTaskWriteInput({ ...base, recurrenceType: "scheduled", modelRecurrenceType: "weekly_fixed", executionTiming: "this_month", weekdays: [5] })).toThrow(AppError);
+  });
 });

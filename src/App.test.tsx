@@ -233,8 +233,8 @@ describe("App task form payload", () => {
     window.history.replaceState({}, "", "/tasks/new");
 
     const { container } = render(<App />);
-    await waitFor(() => expect(screen.getByRole("checkbox")).toBeInTheDocument());
-    fireEvent.click(screen.getByRole("checkbox"));
+    await waitFor(() => expect(screen.getByLabelText("終日")).toBeInTheDocument());
+    fireEvent.click(screen.getByLabelText("終日"));
     await waitFor(() => expect(container.querySelector("#m2-task-time")).toBeInTheDocument());
     fireEvent.change(container.querySelector("#m2-task-title")!, { target: { value: "Daily task" } });
     fireEvent.change(container.querySelector("#m2-task-time")!, { target: { value: "09:00" } });
@@ -353,8 +353,8 @@ describe("App task form payload", () => {
 
     window.history.replaceState({}, "", "/tasks/new");
     const { container } = render(<App />);
-    await waitFor(() => expect(screen.getByRole("checkbox")).toBeInTheDocument());
-    fireEvent.click(screen.getByRole("checkbox"));
+    await waitFor(() => expect(screen.getByLabelText("終日")).toBeInTheDocument());
+    fireEvent.click(screen.getByLabelText("終日"));
     await waitFor(() => expect(container.querySelector("#m2-task-time")).toBeInTheDocument());
     fireEvent.change(container.querySelector("#m2-task-title")!, { target: { value: "Daily task" } });
     fireEvent.change(container.querySelector("#m2-task-time")!, { target: { value: "07:30" } });
@@ -391,6 +391,18 @@ describe("App task form payload", () => {
     await waitFor(() => expect(container.querySelector("#m2-task-time")).toBeInTheDocument());
     expect(container.querySelectorAll("input[type=\"date\"]")).toHaveLength(1);
     expect(container.querySelector("#m2-task-date")).not.toBeInTheDocument();
+  });
+
+  it("places the date certainty toggle before the fixed date input", async () => {
+    mockFetch();
+    window.history.replaceState({}, "", "/tasks/new");
+    const { container } = render(<App />);
+
+    await waitFor(() => expect(screen.getByLabelText("日にちを決めない")).toBeInTheDocument());
+    const toggle = screen.getByLabelText("日にちを決めない");
+    const date = container.querySelector("#m2-task-start-date");
+    expect(date).not.toBeNull();
+    expect(toggle.compareDocumentPosition(date!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 });
 
