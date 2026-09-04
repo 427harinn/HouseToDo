@@ -233,8 +233,8 @@ describe("App task form payload", () => {
     window.history.replaceState({}, "", "/tasks/new");
 
     const { container } = render(<App />);
-    await waitFor(() => expect(screen.getByRole("checkbox")).toBeInTheDocument());
-    fireEvent.click(screen.getByRole("checkbox"));
+    await waitFor(() => expect(screen.getByLabelText("終日")).toBeInTheDocument());
+    fireEvent.click(screen.getByLabelText("終日"));
     await waitFor(() => expect(container.querySelector("#m2-task-time")).toBeInTheDocument());
     fireEvent.change(container.querySelector("#m2-task-title")!, { target: { value: "Daily task" } });
     fireEvent.change(container.querySelector("#m2-task-time")!, { target: { value: "09:00" } });
@@ -353,8 +353,8 @@ describe("App task form payload", () => {
 
     window.history.replaceState({}, "", "/tasks/new");
     const { container } = render(<App />);
-    await waitFor(() => expect(screen.getByRole("checkbox")).toBeInTheDocument());
-    fireEvent.click(screen.getByRole("checkbox"));
+    await waitFor(() => expect(screen.getByLabelText("終日")).toBeInTheDocument());
+    fireEvent.click(screen.getByLabelText("終日"));
     await waitFor(() => expect(container.querySelector("#m2-task-time")).toBeInTheDocument());
     fireEvent.change(container.querySelector("#m2-task-title")!, { target: { value: "Daily task" } });
     fireEvent.change(container.querySelector("#m2-task-time")!, { target: { value: "07:30" } });

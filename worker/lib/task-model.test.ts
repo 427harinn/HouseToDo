@@ -86,4 +86,11 @@ describe("task model domain helpers", () => {
     expect(inPeriod.periodKey).toContain("period:deadline-task:deadline:");
     expect(projectTaskOnDate(task, "2026-09-21").matchesDate).toBe(false);
   });
+
+  it("projects one-time week/month timing as a single period", () => {
+    const week = projectTaskOnDate({ id: "week", modelRecurrenceType: "once", executionTiming: "this_week", startDate: "2026-09-04", targetDate: null } as never, "2026-09-06");
+    expect(week).toMatchObject({ matchesDate: true, scopeType: "period", periodStart: "2026-09-04", periodEnd: "2026-09-06", deadlineDate: "2026-09-06" });
+    const month = projectTaskOnDate({ id: "month", modelRecurrenceType: "once", executionTiming: "this_month", startDate: "2026-09-04", targetDate: null } as never, "2026-09-20");
+    expect(month).toMatchObject({ matchesDate: true, scopeType: "period", periodStart: "2026-09-04", periodEnd: "2026-09-30", deadlineDate: "2026-09-30" });
+  });
 });

@@ -375,7 +375,8 @@ export const validateTaskWriteInput = (value: unknown): TaskWriteInput => {
     details.weeklyTargetCount = "weeklyTargetCount is only allowed for weekly tasks.";
   }
 
-  if (recurrenceType === "once" && executionTiming !== "by_deadline" && targetDate === null) details.targetDate = "once tasks require targetDate.";
+  if (recurrenceType === "once" && !["by_deadline", "this_week", "this_month"].includes(String(executionTiming)) && targetDate === null) details.targetDate = "once fixed-date tasks require targetDate.";
+  if (recurrenceType === "once" && ["this_week", "this_month"].includes(String(executionTiming)) && startDate === null) details.startDate = "period-scoped once tasks require startDate.";
   if (recurrenceType === "once" && startDate !== null && targetDate !== null && targetDate < startDate) {
     details.targetDate = "targetDate must be on or after startDate.";
   }
@@ -410,8 +411,9 @@ export const validateTaskWriteInput = (value: unknown): TaskWriteInput => {
   } else if (deadlineDate !== null) {
     details.deadlineDate = "deadlineDate is only allowed for by_deadline tasks.";
   }
-  if (resolvedExecutionTiming === "this_week" && recurrenceType !== "weekly_flexible") details.executionTiming = "this_week requires weekly_flexible recurrence.";
-  if (resolvedExecutionTiming === "this_month" && recurrenceType !== "monthly_flexible") details.executionTiming = "this_month requires monthly_flexible recurrence.";
+  if (resolvedExecutionTiming === "this_week" && recurrenceType !== "once" && recurrenceType !== "weekly_flexible") details.executionTiming = "this_week requires once or weekly_flexible recurrence.";
+  if (resolvedExecutionTiming === "this_month" && recurrenceType !== "once" && recurrenceType !== "monthly_flexible") details.executionTiming = "this_month requires once or monthly_flexible recurrence.";
+  if (resolvedExecutionTiming === "on_date" && modelRecurrenceType !== undefined && modelRecurrenceType !== null && !["once", "daily", "weekly_fixed", "monthly_fixed"].includes(String(recurrenceType))) details.executionTiming = "on_date requires a fixed-date recurrence.";
   if (recurrenceType === "weekly_flexible" && weekdays.length > 0) {
     details.weekdays = "weekdays are only allowed for fixed weekday tasks.";
   }
@@ -551,9 +553,11 @@ export const validateTaskTemplateWriteInput = (value: unknown): TaskTemplateWrit
     notificationTime: null,
     weekdays: input.weekdays,
     weeklyTargetCount: null,
-    startDate: null,
+    startDate: recurrence === "once" && ["this_week", "this_month"].includes(String(input.executionTiming)) ? "2000-01-01" : null,
     targetDate: recurrence === "once" && input.executionTiming !== "by_deadline" ? "2000-01-01" : null,
-    deadlineDate: input.deadlineDate,
+    // A template stores the deadline mode only. Use a validation sentinel and
+    // discard it from the normalized template below.
+    deadlineDate: input.executionTiming === "by_deadline" ? "2000-01-01" : null,
     deadlineTime: input.deadlineTime,
     notificationOffsetMinutes: input.notificationOffsetMinutes,
     weeklyDeadlineWeekday: input.weeklyDeadlineWeekday,
@@ -566,7 +570,7 @@ export const validateTaskTemplateWriteInput = (value: unknown): TaskTemplateWrit
     description: normalized.description,
     modelRecurrenceType: normalized.modelRecurrenceType,
     executionTiming: normalized.executionTiming ?? null,
-    deadlineDate: normalized.deadlineDate ?? null,
+    deadlineDate: null,
     assignmentType: normalized.assignmentType,
     assignedUserId: normalized.assignedUserId,
     weekdays: normalized.weekdays,

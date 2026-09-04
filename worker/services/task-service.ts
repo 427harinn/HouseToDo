@@ -406,7 +406,7 @@ export class TaskService {
     const targetDate = selectedDate ?? getLocalDate(new Date(), household.timezone);
     const allTasks = await this.tasks.listByHouseholdId(household.id, { includeInactive: true });
     const activeTasks = allTasks.filter((task) => task.active);
-    const isFlexible = (task: Task) => task.modelRecurrenceType === "weekly_flexible" || task.modelRecurrenceType === "monthly_flexible";
+    const isFlexible = (task: Task) => isPeriodScopedTask(task);
     // Completed Calendar history must remain visible after a flexible task is
     // deactivated. Legacy period records may have only period_key populated,
     // so include scopes from inactive flexible tasks for history lookup while
@@ -510,8 +510,8 @@ export class TaskService {
       }));
     return {
       fixed: selectedFixed,
-      weeklyFlexible: selectedFlexible.filter((task) => task.modelRecurrenceType === "weekly_flexible" || (task.modelRecurrenceType === "once" && task.executionTiming === "by_deadline")),
-      monthlyFlexible: selectedFlexible.filter((task) => task.modelRecurrenceType === "monthly_flexible"),
+      weeklyFlexible: selectedFlexible.filter((task) => task.modelRecurrenceType === "weekly_flexible" || (task.modelRecurrenceType === "once" && (task.executionTiming === "by_deadline" || task.executionTiming === "this_week"))),
+      monthlyFlexible: selectedFlexible.filter((task) => task.modelRecurrenceType === "monthly_flexible" || (task.modelRecurrenceType === "once" && task.executionTiming === "this_month")),
       completed
     };
   }

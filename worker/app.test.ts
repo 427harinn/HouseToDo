@@ -905,6 +905,36 @@ describe("redesigned task model API", () => {
     await expect(deadlineDay.json()).resolves.toMatchObject({ ok: true, data: { homeTasks: [] } });
   });
 
+  it("projects one-time week/month modes as period tasks and records actual completion dates", async () => {
+    const app = createApp();
+    const env = createTestEnv();
+    const owner = await registerUser(env, { email: "period-once-owner@example.com", password: "very-long-password", displayName: "Period Once Owner" });
+    await app.fetch(postJson("/api/households", { name: "Period Once House" }, owner.cookie), env);
+    const create = async (title: string, executionTiming: "this_week" | "this_month") => {
+      const response = await app.fetch(postJson("/api/tasks", { title, modelRecurrenceType: "once", recurrenceType: "once", executionTiming, startDate: "2026-09-04", targetDate: null, assignmentType: "anyone", notificationSlot: "none" }, owner.cookie), env);
+      expect(response.status).toBe(201);
+      const body: { data: { task: { id: string } } } = await response.json();
+      return body.data.task.id;
+    };
+    const weekId = await create("週内家事", "this_week");
+    const monthId = await create("月内家事", "this_month");
+    const home = await app.fetch(new Request("https://example.test/api/home/today?date=2026-09-05", { headers: { cookie: owner.cookie } }), env);
+    const homeBody: unknown = await home.json();
+    expect(JSON.stringify(homeBody)).toContain(`"id":"${weekId}"`);
+    expect(JSON.stringify(homeBody)).toContain(`"id":"${monthId}"`);
+    expect(JSON.stringify(homeBody)).toContain('"deadlineDate":"2026-09-06"');
+    expect(JSON.stringify(homeBody)).toContain('"deadlineDate":"2026-09-30"');
+    const calendar = await app.fetch(new Request("https://example.test/api/tasks/calendar?from=2026-09-04&to=2026-09-30&selectedDate=2026-09-05", { headers: { cookie: owner.cookie } }), env);
+    await expect(calendar.json()).resolves.toMatchObject({ ok: true, data: { dates: { "2026-09-05": { tasks: [] } }, selected: { weeklyFlexible: [expect.objectContaining({ id: weekId })], monthlyFlexible: [expect.objectContaining({ id: monthId })] } } });
+    await app.fetch(postJson(`/api/tasks/${weekId}/complete`, { targetDate: "2026-09-05", calendarDate: "2026-09-05" }, owner.cookie), env);
+    const history = await app.fetch(new Request(`https://example.test/api/tasks/${weekId}/history`, { headers: { cookie: owner.cookie } }), env);
+    const historyBody: unknown = await history.json();
+    expect(JSON.stringify(historyBody)).toContain('"targetDate":null');
+    expect(JSON.stringify(historyBody)).toContain('"periodKey":"period:');
+    expect(JSON.stringify(historyBody)).toContain("once-week");
+    expect(JSON.stringify(historyBody)).toContain('"calendarActionDate":"2026-09-05"');
+  });
+
   it("projects fixed markers and flexible selected-date detail without generating occurrence rows", async () => {
     const app = createApp();
     const env = createTestEnv();

@@ -50,7 +50,8 @@ const toTemplate = (row: TaskTemplateRow | null): TaskTemplate | null => row ? (
   description: row.description,
   modelRecurrenceType: row.model_recurrence_type,
   executionTiming: row.execution_timing ?? null,
-  deadlineDate: row.deadline_date ?? null,
+  // Templates retain the timing mode, never an absolute deadline to copy.
+  deadlineDate: null,
   assignmentType: row.assignment_type,
   assignedUserId: row.assigned_user_id,
   weekdays: parseWeekdays(row.weekdays_json),
@@ -105,7 +106,7 @@ export class TaskTemplateRepository {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`
     ).bind(
       input.id, input.householdId, input.title, input.description, input.modelRecurrenceType,
-      input.assignmentType, input.assignedUserId, JSON.stringify(input.weekdays), input.executionTiming ?? null, input.deadlineDate ?? null, input.deadlineTime,
+      input.assignmentType, input.assignedUserId, JSON.stringify(input.weekdays), input.executionTiming ?? null, null, input.deadlineTime,
       input.notificationOffsetMinutes, input.weeklyDeadlineWeekday, input.monthlyDayOfMonth,
       input.monthlyDeadlineType, input.sortOrder, input.createdBy, input.now, input.now
     ).run();
@@ -125,7 +126,7 @@ export class TaskTemplateRepository {
       input.modelRecurrenceType ?? current.modelRecurrenceType, input.assignmentType ?? current.assignmentType,
       input.assignedUserId === undefined ? current.assignedUserId : input.assignedUserId,
       JSON.stringify(input.weekdays ?? current.weekdays), input.executionTiming === undefined ? current.executionTiming : input.executionTiming,
-      input.deadlineDate === undefined ? current.deadlineDate : input.deadlineDate,
+      null,
       input.deadlineTime === undefined ? current.deadlineTime : input.deadlineTime,
       input.notificationOffsetMinutes === undefined ? current.notificationOffsetMinutes : input.notificationOffsetMinutes,
       input.weeklyDeadlineWeekday === undefined ? current.weeklyDeadlineWeekday : input.weeklyDeadlineWeekday,

@@ -284,8 +284,10 @@ test.describe("additional raw screenshot candidates", () => {
     const fillTaskForm = async () => {
       await page.getByLabel("家事名").fill("換気扇の掃除");
       await page.getByRole("button", { name: /繰り返し:/ }).click();
-      await page.getByRole("dialog", { name: "繰り返し" }).getByRole("button", { name: "今週のどこか", exact: true }).click();
-      await page.locator("#m2-task-start-date").fill("2026-09-07");
+      await page.getByRole("dialog", { name: "繰り返し" }).getByRole("button", { name: "毎週", exact: true }).click();
+      await page.getByRole("dialog", { name: "繰り返し" }).getByRole("button", { name: "月", exact: true }).click();
+      await page.getByRole("dialog", { name: "繰り返し" }).getByRole("button", { name: "決定", exact: true }).click();
+      await page.getByLabel("日にちを決めない").check();
       await page.getByLabel("終日").uncheck();
       await page.locator("#m2-task-time").fill("18:00");
       await page.locator("#m2-task-notification").selectOption("60");
@@ -304,26 +306,30 @@ test.describe("additional raw screenshot candidates", () => {
     });
     await captureCandidate(page, "task-form", "task-repeat-weekdays.png", "/tasks/new", async () => {
       const dialog = await openRepeat();
-      await dialog.getByRole("button", { name: "曜日を決める", exact: true }).click();
+      await dialog.getByRole("button", { name: "毎週", exact: true }).click();
     });
     await captureCandidate(page, "task-form", "task-repeat-weekdays-selected.png", "/tasks/new", async () => {
       const dialog = await openRepeat();
-      await dialog.getByRole("button", { name: "曜日を決める", exact: true }).click();
+      await dialog.getByRole("button", { name: "毎週", exact: true }).click();
       await dialog.getByRole("button", { name: "月", exact: true }).click();
       await dialog.getByRole("button", { name: "木", exact: true }).click();
       await dialog.getByRole("button", { name: "金", exact: true }).click();
     });
     await captureCandidate(page, "task-form", "task-repeat-monthly-fixed.png", "/tasks/new", async () => {
       const dialog = await openRepeat();
-      await dialog.getByRole("button", { name: "毎月○日", exact: true }).click();
+      await dialog.getByRole("button", { name: "毎月", exact: true }).click();
     });
     await captureCandidate(page, "task-form", "task-repeat-weekly-flexible.png", "/tasks/new", async () => {
       const dialog = await openRepeat();
-      await dialog.getByRole("button", { name: "今週のどこか", exact: true }).click();
+      await dialog.getByRole("button", { name: "毎週", exact: true }).click();
+      await dialog.getByRole("button", { name: "決定", exact: true }).click();
+      await page.getByLabel("日にちを決めない").check();
     });
     await captureCandidate(page, "task-form", "task-repeat-monthly-flexible.png", "/tasks/new", async () => {
       const dialog = await openRepeat();
-      await dialog.getByRole("button", { name: "今月のどこか", exact: true }).click();
+      await dialog.getByRole("button", { name: "毎月", exact: true }).click();
+      await dialog.getByRole("button", { name: "決定", exact: true }).click();
+      await page.getByLabel("日にちを決めない").check();
     });
     await captureCandidate(page, "task-form", "task-assignee-sheet.png", "/tasks/new", async () => {
       await page.getByRole("button", { name: /^担当:/ }).click();

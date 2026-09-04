@@ -90,7 +90,22 @@ export const effectiveTaskExecutionTiming = (task: Task): TaskExecutionTiming | 
 export const isPeriodScopedTask = (task: Task): boolean =>
   task.modelRecurrenceType === "weekly_flexible"
   || task.modelRecurrenceType === "monthly_flexible"
-  || (task.modelRecurrenceType === "once" && effectiveTaskExecutionTiming(task) === "by_deadline" && Boolean(task.deadlineDate));
+  || (task.modelRecurrenceType === "once" && ["this_week", "this_month", "by_deadline"].includes(effectiveTaskExecutionTiming(task) ?? "") && (effectiveTaskExecutionTiming(task) !== "by_deadline" || Boolean(task.deadlineDate)));
+
+const oncePeriod = (task: Task): { start: string; end: string } | null => {
+  const start = task.startDate ?? task.targetDate;
+  if (!start) return null;
+  const timing = effectiveTaskExecutionTiming(task);
+  if (timing === "this_week") {
+    const end = addDateKey(start, (0 - getWeekday(start) + 7) % 7);
+    return { start, end };
+  }
+  if (timing === "this_month") {
+    const { year, month } = monthParts(start);
+    return { start, end: monthKey(year, month, daysInMonth(year, month)) };
+  }
+  return null;
+};
 
 export const isTaskModelOccurrenceOnDate = (input: { recurrenceType: TaskModelRecurrenceType; dateKey: string; startDate?: string | null; targetDate?: string | null; weekdays?: number[]; monthlyDayOfMonth?: number | null }): boolean => {
   if (input.startDate && input.dateKey < input.startDate) return false;
@@ -147,6 +162,25 @@ export const projectTaskOnDate = (task: Task, targetDate: string): TaskScope => 
         deadlineDate: task.deadlineDate,
         deadlineTime: task.deadlineTime ?? null,
         executionTiming: "by_deadline",
+        recurrenceType: type
+      };
+    }
+    const period = oncePeriod(task);
+    if (period) {
+      const matches = targetDate >= period.start && targetDate <= period.end;
+      const periodName = effectiveTaskExecutionTiming(task) === "this_week" ? "week" : "month";
+      const key = matches ? `period:${task.id}:once-${periodName}:${period.start}:${period.end}` : null;
+      return {
+        matchesDate: matches,
+        scopeType: "period",
+        occurrenceKey: null,
+        periodKey: key,
+        targetDate,
+        periodStart: period.start,
+        periodEnd: period.end,
+        deadlineDate: period.end,
+        deadlineTime: task.deadlineTime ?? null,
+        executionTiming: effectiveTaskExecutionTiming(task),
         recurrenceType: type
       };
     }
