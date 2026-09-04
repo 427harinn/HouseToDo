@@ -1,7 +1,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
 import type { ChangeEvent } from "react";
 import type { ReactNode } from "react";
-import { Check, ChevronLeft, ChevronRight, Ellipsis, House, Image as ImageIcon, MessageCircle, ShoppingCart, SquareCheck, X } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Ellipsis, House, Image as ImageIcon, MessageCircle, ShoppingCart, X } from "lucide-react";
 import { login, logout, me, register } from "./api/auth";
 import { ApiError, apiMessage } from "./api/client";
 import { getHomeToday, type HomeToday } from "./api/home";
@@ -1426,7 +1426,7 @@ function CalendarDetailTask({ task, rowId, expanded, onToggle, date, openRowId, 
     </button>
   </HomeSwipeRow>;
 }
-function CalendarHistoryRow({ record, busy, openRowId, onOpenRow, onEdit, onRestore, mutationsDisabled }: { record: CalendarCompletedRecord; busy: boolean; openRowId: string | null; onOpenRow: (rowId: string | null) => void; onEdit: () => void; onRestore: () => void; mutationsDisabled: boolean }) { const avatar = record.actualCompleter; return <HomeSwipeRow rowId={`calendar-history-${record.id}`} openRowId={openRowId} onOpenRow={onOpenRow} busy={busy} onEdit={record.taskActive ? onEdit : undefined} onSecondary={onRestore} secondaryLabel="戻す" restoreOnly={!record.taskActive} mutationsDisabled={mutationsDisabled} rowClassName="calendar-history-row"><div className="m2-home__row-main m2-home__history-main"><SquareCheck className="calendar-history-row__check" aria-hidden="true" /><span className="m2-home__row-details"><span className="m2-home__task-title">{record.title}</span></span>{avatar.displayName ? <HomeAvatar member={avatar} label="完了者" /> : null}</div></HomeSwipeRow>; }
+function CalendarHistoryRow({ record, busy, openRowId, onOpenRow, onEdit, onRestore, mutationsDisabled }: { record: CalendarCompletedRecord; busy: boolean; openRowId: string | null; onOpenRow: (rowId: string | null) => void; onEdit: () => void; onRestore: () => void; mutationsDisabled: boolean }) { const avatar = record.actualCompleter; return <HomeSwipeRow rowId={`calendar-history-${record.id}`} openRowId={openRowId} onOpenRow={onOpenRow} busy={busy} onEdit={record.taskActive ? onEdit : undefined} onSecondary={onRestore} secondaryLabel="戻す" restoreOnly={!record.taskActive} mutationsDisabled={mutationsDisabled} rowClassName="calendar-history-row"><div className="m2-home__row-main m2-home__history-main"><span className="calendar-detail-task__check calendar-history-row__check" aria-hidden="true"><Check /></span><span className="m2-home__row-details"><span className="m2-home__task-title">{record.title}</span></span>{avatar.displayName ? <HomeAvatar member={avatar} label="完了者" /> : null}</div></HomeSwipeRow>; }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 function CalendarShoppingSection({

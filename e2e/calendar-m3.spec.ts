@@ -127,6 +127,9 @@ test.describe("Calendar M3", () => {
     await task.getByRole("button", { name: "完了" }).click();
     await expect(page.getByRole("heading", { name: /完了済み 1/ })).toBeVisible({ timeout: 2_000 });
     await expect(page.locator(".calendar-history-row__check")).toHaveCount(1);
+    await expect(page.locator(".calendar-history-row__check")).toHaveClass(/calendar-detail-task__check/);
+    await expect(page.locator(".calendar-history-row__check")).toHaveCSS("border-radius", "50%");
+    await expect(page.locator(".calendar-history-row__check svg")).toHaveCount(1);
     await shot(page, "03-calendar-detail-completed-390x844.png");
     await page.getByRole("button", { name: "閉じる", exact: true }).click();
     await expect(page.locator(".calendar-day-task.is-completed")).toHaveCount(1);
