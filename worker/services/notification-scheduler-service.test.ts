@@ -1368,7 +1368,7 @@ describe("notification scheduler rules", () => {
     ]);
     expect(
       resolveLegacyTaskFollowups(
-        task({ scheduledTime: null, notificationTime: "21:00" }),
+        task({ scheduledTime: "21:00", notificationTime: null }),
         new Date("2026-08-13T12:30:00.000Z"),
         "Asia/Tokyo"
       )
@@ -1396,6 +1396,13 @@ describe("notification scheduler rules", () => {
         targetKey: "task:occurrence:task-1:2026-08-13"
       }
     ]);
+    expect(
+      resolveCanonicalTaskFollowups(
+        canonicalTask({ deadlineTime: "23:45", notificationOffsetMinutes: null }),
+        new Date("2026-08-13T15:15:00.000Z"),
+        "Asia/Tokyo"
+      )
+    ).toEqual([]);
   });
 
   it("sends canonical followups only when due and still incomplete", async () => {
@@ -1408,7 +1415,7 @@ describe("notification scheduler rules", () => {
       const db = schedulerDb(null);
       addCanonicalTask(db, {
         deadline_time: "21:00",
-        notification_offset_minutes: null
+        notification_offset_minutes: 0
       });
       if (status)
         db.taskRecords.set("record-1", {
@@ -1457,7 +1464,7 @@ describe("notification scheduler rules", () => {
     const db = schedulerDb(null);
     addCanonicalTask(db, {
       deadline_time: "21:00",
-      notification_offset_minutes: null
+      notification_offset_minutes: 0
     });
     let sends = 0;
     const service = new NotificationSchedulerService(db as unknown as D1Database, {
@@ -1483,7 +1490,7 @@ describe("notification scheduler rules", () => {
     const inactiveDb = schedulerDb(null);
     addCanonicalTask(inactiveDb, {
       deadline_time: "21:00",
-      notification_offset_minutes: null,
+      notification_offset_minutes: 0,
       active: 0
     });
     let inactiveSends = 0;
@@ -1494,5 +1501,39 @@ describe("notification scheduler rules", () => {
       }
     }).run({}, new Date("2026-08-13T12:30:00.000Z"));
     expect(inactiveSends).toBe(0);
+  });
+
+  it("requires the existing legacy notification setting for a followup", async () => {
+    const canonicalDb = schedulerDb(null);
+    addCanonicalTask(canonicalDb, {
+      deadline_time: "21:00",
+      notification_offset_minutes: null
+    });
+    let canonicalSends = 0;
+    await new NotificationSchedulerService(canonicalDb as unknown as D1Database, {
+      sendPayload: (_userId, _householdId, payload) => {
+        if ((payload as { data?: { kind?: string } }).data?.kind === "task_followup") canonicalSends += 1;
+        return Promise.resolve({ sent: 1, failed: 0 });
+      }
+    }).run({}, new Date("2026-08-13T12:30:00.000Z"));
+    expect(canonicalSends).toBe(0);
+
+    const db = schedulerDb(null);
+    db.tasks.get("task-1")!.scheduled_time = "21:00";
+    db.tasks.get("task-1")!.notification_time = null;
+    let sends = 0;
+    const service = new NotificationSchedulerService(db as unknown as D1Database, {
+      sendPayload: (_userId, _householdId, payload) => {
+        if ((payload as { data?: { kind?: string } }).data?.kind === "task_followup") sends += 1;
+        return Promise.resolve({ sent: 1, failed: 0 });
+      }
+    });
+
+    await service.run({}, new Date("2026-08-13T12:30:00.000Z"));
+    expect(sends).toBe(0);
+
+    db.tasks.get("task-1")!.notification_time = "07:00";
+    await service.run({}, new Date("2026-08-13T12:30:00.000Z"));
+    expect(sends).toBe(1);
   });
 });

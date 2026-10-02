@@ -148,7 +148,13 @@ export const resolveLegacyTaskFollowups = (
   timezone: string,
   windowMinutes = NOTIFICATION_DELIVERY_WINDOW_MINUTES
 ): TaskFollowup[] => {
-  if (!task.active || task.modelRecurrenceType || !task.scheduledTime) return [];
+  if (
+    !task.active ||
+    task.modelRecurrenceType ||
+    !task.scheduledTime ||
+    !task.notificationTime
+  )
+    return [];
   const localDate = getLocalDate(at, timezone);
   return [addDateKey(localDate, -1), localDate, addDateKey(localDate, 1)]
     .filter((dateKey) => isTaskDueToday(task, dateKey))
@@ -167,7 +173,14 @@ export const resolveCanonicalTaskFollowups = (
   timezone: string,
   windowMinutes = NOTIFICATION_DELIVERY_WINDOW_MINUTES
 ): TaskFollowup[] => {
-  if (!task.active || !task.modelRecurrenceType || windowMinutes <= 0) return [];
+  if (
+    !task.active ||
+    !task.modelRecurrenceType ||
+    task.notificationOffsetMinutes === null ||
+    task.notificationOffsetMinutes === undefined ||
+    windowMinutes <= 0
+  )
+    return [];
   const localDate = getLocalDate(at, timezone);
   const unique = new Map<string, TaskFollowup>();
   for (const dateKey of [addDateKey(localDate, -1), localDate, addDateKey(localDate, 1)]) {
