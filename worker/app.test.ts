@@ -4,7 +4,7 @@ import { MemoryD1 } from "./test-utils/memory-d1";
 import type { Env } from "./types/env";
 import { MemoryR2 } from "./test-utils/memory-r2";
 import { ShoppingItemImageService } from "./services/shopping-item-image-service";
-import { getLocalDate } from "./lib/date-time";
+import { addDateKey, getLocalDate } from "./lib/date-time";
 
 const createTestEnv = (db = new MemoryD1()): Env =>
   ({
@@ -868,6 +868,8 @@ describe("redesigned task model API", () => {
   it("projects arbitrary deadline tasks through Home and Calendar without fixed-date occurrences", async () => {
     const app = createApp();
     const env = createTestEnv();
+    const today = getLocalDate(new Date(), "Asia/Tokyo");
+    const deadlineDate = addDateKey(today, 5);
     const owner = await registerUser(env, { email: "deadline-owner@example.com", password: "very-long-password", displayName: "Deadline Owner" });
     await app.fetch(postJson("/api/households", { name: "Deadline House" }, owner.cookie), env);
     const created = await app.fetch(postJson("/api/tasks", {
@@ -875,25 +877,25 @@ describe("redesigned task model API", () => {
       modelRecurrenceType: "once",
       recurrenceType: "once",
       executionTiming: "by_deadline",
-      startDate: "2026-09-10",
+      startDate: today,
       targetDate: null,
-      deadlineDate: "2026-09-20",
+      deadlineDate,
       assignmentType: "anyone",
       notificationSlot: "none"
     }, owner.cookie), env);
     expect(created.status).toBe(201);
     const createdBody: { data: { task: { id: string; targetDate: string | null; deadlineDate: string | null; executionTiming: string } } } = await created.json();
-    expect(createdBody.data.task).toMatchObject({ targetDate: null, deadlineDate: "2026-09-20", executionTiming: "by_deadline" });
+    expect(createdBody.data.task).toMatchObject({ targetDate: null, deadlineDate, executionTiming: "by_deadline" });
     const taskId = createdBody.data.task.id;
 
-    const homeBeforeDeadline = await app.fetch(new Request("https://example.test/api/home/today?date=2026-09-15", { headers: { cookie: owner.cookie } }), env);
-    await expect(homeBeforeDeadline.json()).resolves.toMatchObject({ ok: true, data: { homeTasks: [{ id: taskId, deadlineDate: "2026-09-20", scopeKind: "period", overdue: false }] } });
-    const calendar = await app.fetch(new Request("https://example.test/api/tasks/calendar?from=2026-09-10&to=2026-09-20&selectedDate=2026-09-15", { headers: { cookie: owner.cookie } }), env);
+    const homeBeforeDeadline = await app.fetch(new Request(`https://example.test/api/home/today?date=${today}`, { headers: { cookie: owner.cookie } }), env);
+    await expect(homeBeforeDeadline.json()).resolves.toMatchObject({ ok: true, data: { homeTasks: [{ id: taskId, deadlineDate, scopeKind: "period", overdue: false }] } });
+    const calendar = await app.fetch(new Request(`https://example.test/api/tasks/calendar?from=${today}&to=${deadlineDate}&selectedDate=${today}`, { headers: { cookie: owner.cookie } }), env);
     const calendarBody: { data: { dates: Record<string, { tasks: Array<{ id: string }> }>; selected: { weeklyFlexible: Array<{ id: string; executionTiming: string; deadlineDate: string }> } } } = await calendar.json();
-    expect(calendarBody.data.dates["2026-09-15"]?.tasks.find((item) => item.id === taskId)).toBeUndefined();
-    expect(calendarBody.data.selected.weeklyFlexible).toEqual([expect.objectContaining({ id: taskId, executionTiming: "by_deadline", deadlineDate: "2026-09-20" })]);
+    expect(calendarBody.data.dates[today]?.tasks.find((item) => item.id === taskId)).toBeUndefined();
+    expect(calendarBody.data.selected.weeklyFlexible).toEqual([expect.objectContaining({ id: taskId, executionTiming: "by_deadline", deadlineDate })]);
 
-    await app.fetch(postJson(`/api/tasks/${taskId}/complete`, { targetDate: "2026-09-15", calendarDate: "2026-09-15" }, owner.cookie), env);
+    await app.fetch(postJson(`/api/tasks/${taskId}/complete`, { targetDate: today, calendarDate: today }, owner.cookie), env);
     const history = await app.fetch(new Request(`https://example.test/api/tasks/${taskId}/history`, { headers: { cookie: owner.cookie } }), env);
     const historyBody: unknown = await history.json();
     expect(JSON.stringify(historyBody)).toContain('"targetDate":null');
@@ -901,7 +903,7 @@ describe("redesigned task model API", () => {
     expect(JSON.stringify(historyBody)).toContain('deadline');
     expect(JSON.stringify(historyBody)).toContain('"status":"completed"');
 
-    const deadlineDay = await app.fetch(new Request("https://example.test/api/home/today?date=2026-09-20", { headers: { cookie: owner.cookie } }), env);
+    const deadlineDay = await app.fetch(new Request(`https://example.test/api/home/today?date=${deadlineDate}`, { headers: { cookie: owner.cookie } }), env);
     await expect(deadlineDay.json()).resolves.toMatchObject({ ok: true, data: { homeTasks: [] } });
   });
 

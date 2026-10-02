@@ -49,6 +49,11 @@ type CanonicalScheduledNotification = ScheduledNotification & {
   targetKey: string;
 };
 
+export type TaskFollowup = {
+  targetDate: string;
+  targetKey: string;
+};
+
 const minutesFromTime = (value: string): number | null => {
   const match = /^(\d{2}):(\d{2})$/.exec(value);
   if (!match) return null;
@@ -122,6 +127,74 @@ export const resolveCanonicalNotifications = (
   return Array.from(unique.values());
 };
 
+const resolveTaskFollowupWindow = (
+  taskDate: string,
+  taskTime: string,
+  at: Date,
+  timezone: string,
+  windowMinutes: number
+): boolean => {
+  const taskMinutes = minutesFromTime(taskTime);
+  if (taskMinutes === null || windowMinutes <= 0) return false;
+  const taskAt = zonedDateTimeToDate(taskDate, taskTime, timezone);
+  const followupAt = taskAt.getTime() + 30 * 60_000;
+  const delta = at.getTime() - followupAt;
+  return delta >= 0 && delta < windowMinutes * 60_000;
+};
+
+export const resolveLegacyTaskFollowups = (
+  task: Task,
+  at: Date,
+  timezone: string,
+  windowMinutes = NOTIFICATION_DELIVERY_WINDOW_MINUTES
+): TaskFollowup[] => {
+  if (!task.active || task.modelRecurrenceType || !task.scheduledTime) return [];
+  const localDate = getLocalDate(at, timezone);
+  return [addDateKey(localDate, -1), localDate, addDateKey(localDate, 1)]
+    .filter((dateKey) => isTaskDueToday(task, dateKey))
+    .filter((dateKey) =>
+      resolveTaskFollowupWindow(dateKey, task.scheduledTime!, at, timezone, windowMinutes)
+    )
+    .map((dateKey) => ({
+      targetDate: dateKey,
+      targetKey: `task:occurrence:${task.id}:${dateKey}`
+    }));
+};
+
+export const resolveCanonicalTaskFollowups = (
+  task: Task,
+  at: Date,
+  timezone: string,
+  windowMinutes = NOTIFICATION_DELIVERY_WINDOW_MINUTES
+): TaskFollowup[] => {
+  if (!task.active || !task.modelRecurrenceType || windowMinutes <= 0) return [];
+  const localDate = getLocalDate(at, timezone);
+  const unique = new Map<string, TaskFollowup>();
+  for (const dateKey of [addDateKey(localDate, -1), localDate, addDateKey(localDate, 1)]) {
+    const scope = projectTaskOnDate(task, dateKey);
+    const stableKey = scope.occurrenceKey ?? scope.periodKey;
+    if (
+      !scope.matchesDate ||
+      !stableKey ||
+      !scope.deadlineTime ||
+      unique.has(stableKey) ||
+      !resolveTaskFollowupWindow(
+        scope.deadlineDate,
+        scope.deadlineTime,
+        at,
+        timezone,
+        windowMinutes
+      )
+    )
+      continue;
+    unique.set(stableKey, {
+      targetDate: scope.targetDate,
+      targetKey: `task:${stableKey}`
+    });
+  }
+  return Array.from(unique.values());
+};
+
 type SchedulerRepositories = ReturnType<typeof createNotificationSchedulerRepositories>;
 
 type NotificationPushSender = Pick<WebPushService, "sendPayload">;
@@ -186,6 +259,12 @@ export class NotificationSchedulerService {
             (schedule) => ({ task, schedule })
           )
         );
+      const legacyFollowups = tasks.flatMap((task) =>
+        resolveLegacyTaskFollowups(task, at, household.timezone).map((followup) => ({ task, followup }))
+      );
+      const canonicalFollowups = tasks.flatMap((task) =>
+        resolveCanonicalTaskFollowups(task, at, household.timezone).map((followup) => ({ task, followup }))
+      );
       const recordsByDate = new Map<string, Map<string, string>>();
       const getLegacyIncompleteTasksForDate = async (dateKey: string): Promise<Task[]> => {
         if (!recordsByDate.has(dateKey)) {
@@ -254,6 +333,48 @@ export class NotificationSchedulerService {
       }
       const members = await this.repositories.members.listByHouseholdId(household.id);
       for (const member of members) {
+        for (const { task, followup } of legacyFollowups) {
+          if (!(await this.isFollowupIncomplete(task, followup.targetDate))) continue;
+          await this.deliver(
+            env,
+            member.userId,
+            household.id,
+            "task_followup",
+            followup.targetKey,
+            now,
+            {
+              title: "家事を忘れていませんか？",
+              body: `「${task.title}」がまだ完了していません`,
+              icon: "/icons/house-todo-v4-192.png",
+              data: {
+                kind: "task_followup",
+                taskId: task.id,
+                url: `/home?task=${encodeURIComponent(task.id)}`
+              }
+            }
+          );
+        }
+        for (const { task, followup } of canonicalFollowups) {
+          if (!(await this.isFollowupIncomplete(task, followup.targetDate))) continue;
+          await this.deliver(
+            env,
+            member.userId,
+            household.id,
+            "task_followup",
+            followup.targetKey,
+            now,
+            {
+              title: "家事を忘れていませんか？",
+              body: `「${task.title}」がまだ完了していません`,
+              icon: "/icons/house-todo-v4-192.png",
+              data: {
+                kind: "task_followup",
+                taskId: task.id,
+                url: `/home?task=${encodeURIComponent(task.id)}`
+              }
+            }
+          );
+        }
         for (const { task, schedule } of dueLegacyTasks) {
           await this.deliver(
             env,
@@ -360,6 +481,28 @@ export class NotificationSchedulerService {
           );
         }
       }
+  }
+
+  private async isFollowupIncomplete(task: Task, targetDate: string): Promise<boolean> {
+    if (!task.active) return false;
+    if (!task.modelRecurrenceType) {
+      const record = await this.repositories.records.findDailyRecord(task.id, targetDate);
+      return isIncomplete(record?.status);
+    }
+
+    const scope = projectTaskOnDate(task, targetDate);
+    if (!scope.matchesDate) return false;
+    let records = scope.occurrenceKey
+      ? [await this.repositories.records.findByOccurrenceKey(task.id, scope.occurrenceKey)].filter(Boolean)
+      : await this.repositories.records.listByPeriodKey(task.id, scope.periodKey!);
+    if (records.length === 0 && scope.occurrenceKey) {
+      records = [await this.repositories.records.findDailyRecord(task.id, scope.targetDate)].filter(Boolean);
+    }
+    if (records.length === 0 && task.modelRecurrenceType === "weekly_flexible") {
+      records = (await this.repositories.records.listWeeklyRecords(task.householdId, scope.periodStart))
+        .filter((record) => record.taskId === task.id);
+    }
+    return !records.some((record) => record?.status === "completed" || record?.status === "skipped");
   }
 
   private async deliver(

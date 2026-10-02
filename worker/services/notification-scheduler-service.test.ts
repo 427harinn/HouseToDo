@@ -10,6 +10,8 @@ import {
   NOTIFICATION_DELIVERY_WINDOW_MINUTES,
   NotificationSchedulerService,
   resolveCanonicalNotifications,
+  resolveCanonicalTaskFollowups,
+  resolveLegacyTaskFollowups,
   resolveScheduledNotification
 } from "./notification-scheduler-service";
 import type { Task } from "../types/domain";
@@ -1345,5 +1347,152 @@ describe("notification scheduler rules", () => {
     expect(Array.from(db.notificationDeliveries.values())[0]?.target_key).toBe(
       "task-1:2026-08-13:23:55"
     );
+  });
+
+  it("resolves a followup 30 minutes after the legacy chore time, not notificationTime", () => {
+    const legacy = task({
+      scheduledTime: "21:00",
+      notificationTime: "07:00"
+    });
+    expect(
+      resolveLegacyTaskFollowups(
+        legacy,
+        new Date("2026-08-13T12:30:00.000Z"),
+        "Asia/Tokyo"
+      )
+    ).toEqual([
+      {
+        targetDate: "2026-08-13",
+        targetKey: "task:occurrence:task-1:2026-08-13"
+      }
+    ]);
+    expect(
+      resolveLegacyTaskFollowups(
+        task({ scheduledTime: null, notificationTime: "21:00" }),
+        new Date("2026-08-13T12:30:00.000Z"),
+        "Asia/Tokyo"
+      )
+    ).toEqual([]);
+  });
+
+  it("does not resolve a followup before 30 minutes and handles household midnight rollover", () => {
+    const canonical = canonicalTask({ deadlineTime: "23:45" });
+    expect(
+      resolveCanonicalTaskFollowups(
+        canonical,
+        new Date("2026-08-13T15:14:59.000Z"),
+        "Asia/Tokyo"
+      )
+    ).toEqual([]);
+    expect(
+      resolveCanonicalTaskFollowups(
+        canonical,
+        new Date("2026-08-13T15:15:00.000Z"),
+        "Asia/Tokyo"
+      )
+    ).toEqual([
+      {
+        targetDate: "2026-08-13",
+        targetKey: "task:occurrence:task-1:2026-08-13"
+      }
+    ]);
+  });
+
+  it("sends canonical followups only when due and still incomplete", async () => {
+    for (const [status, expectedSends] of [
+      [undefined, 1],
+      ["in_progress", 1],
+      ["completed", 0],
+      ["skipped", 0]
+    ] as const) {
+      const db = schedulerDb(null);
+      addCanonicalTask(db, {
+        deadline_time: "21:00",
+        notification_offset_minutes: null
+      });
+      if (status)
+        db.taskRecords.set("record-1", {
+          id: "record-1",
+          household_id: "house-1",
+          task_id: "task-1",
+          target_date: "2026-08-13",
+          target_week_start: null,
+          occurrence_key: "occurrence:task-1:2026-08-13",
+          period_key: null,
+          status,
+          acted_by: "user-1",
+          started_at: status === "in_progress" ? "2026-08-13T12:10:00.000Z" : null,
+          completed_at: status === "completed" ? "2026-08-13T12:20:00.000Z" : null,
+          skipped_at: status === "skipped" ? "2026-08-13T12:20:00.000Z" : null,
+          note: null,
+          created_at: "2026-08-13T12:10:00.000Z",
+          updated_at: "2026-08-13T12:20:00.000Z"
+        });
+      const payloads: object[] = [];
+      const service = new NotificationSchedulerService(db as unknown as D1Database, {
+        sendPayload: (_userId, _householdId, payload) => {
+          payloads.push(payload);
+          return Promise.resolve({ sent: 1, failed: 0 });
+        }
+      });
+
+      await service.run({}, new Date("2026-08-13T12:29:59.000Z"));
+      expect(payloads.filter((payload) => (payload as { data?: { kind?: string } }).data?.kind === "task_followup")).toHaveLength(0);
+      await service.run({}, new Date("2026-08-13T12:30:00.000Z"));
+
+      const followups = payloads.filter(
+        (payload) => (payload as { data?: { kind?: string } }).data?.kind === "task_followup"
+      );
+      expect(followups).toHaveLength(expectedSends);
+      if (expectedSends)
+        expect(followups[0]).toMatchObject({
+          title: "家事を忘れていませんか？",
+          body: "「Task」がまだ完了していません",
+          data: { kind: "task_followup", taskId: "task-1", url: "/home?task=task-1" }
+        });
+    }
+  });
+
+  it("suppresses inactive tasks and deduplicates each occurrence while allowing tomorrow's occurrence", async () => {
+    const db = schedulerDb(null);
+    addCanonicalTask(db, {
+      deadline_time: "21:00",
+      notification_offset_minutes: null
+    });
+    let sends = 0;
+    const service = new NotificationSchedulerService(db as unknown as D1Database, {
+      sendPayload: (_userId, _householdId, payload) => {
+        if ((payload as { data?: { kind?: string } }).data?.kind === "task_followup") sends += 1;
+        return Promise.resolve({ sent: 1, failed: 0 });
+      }
+    });
+
+    await service.run({}, new Date("2026-08-13T12:30:00.000Z"));
+    await service.run({}, new Date("2026-08-13T12:35:00.000Z"));
+    await service.run({}, new Date("2026-08-14T12:30:00.000Z"));
+    expect(sends).toBe(2);
+    expect(
+      Array.from(db.notificationDeliveries.values())
+        .filter((delivery) => delivery.notification_type === "task_followup")
+        .map((delivery) => delivery.target_key)
+    ).toEqual([
+      "task:occurrence:task-1:2026-08-13",
+      "task:occurrence:task-1:2026-08-14"
+    ]);
+
+    const inactiveDb = schedulerDb(null);
+    addCanonicalTask(inactiveDb, {
+      deadline_time: "21:00",
+      notification_offset_minutes: null,
+      active: 0
+    });
+    let inactiveSends = 0;
+    await new NotificationSchedulerService(inactiveDb as unknown as D1Database, {
+      sendPayload: () => {
+        inactiveSends += 1;
+        return Promise.resolve({ sent: 1, failed: 0 });
+      }
+    }).run({}, new Date("2026-08-13T12:30:00.000Z"));
+    expect(inactiveSends).toBe(0);
   });
 });

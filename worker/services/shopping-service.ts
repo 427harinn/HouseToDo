@@ -13,6 +13,10 @@ import type { HouseholdWithRole } from "../types/domain";
 import { HouseholdService } from "./household-service";
 import { ShoppingItemImageService } from "./shopping-item-image-service";
 import { nowIso } from "../lib/date";
+import {
+  ShoppingAddedNotificationService,
+  type ShoppingNotificationEnvironment
+} from "./shopping-added-notification-service";
 
 export class ShoppingService {
   private readonly households: HouseholdService;
@@ -20,12 +24,19 @@ export class ShoppingService {
   private readonly templates: ShoppingTemplateRepository;
   private readonly imageRepository: ShoppingItemImageRepository;
   private readonly imageService?: ShoppingItemImageService;
+  private readonly addedNotifications: ShoppingAddedNotificationService;
 
-  constructor(db: D1Database, attachments?: R2Bucket) {
+  constructor(
+    db: D1Database,
+    attachments?: R2Bucket,
+    private readonly notificationEnv?: ShoppingNotificationEnvironment,
+    addedNotifications?: ShoppingAddedNotificationService
+  ) {
     this.households = new HouseholdService(db);
     this.items = new ShoppingItemRepository(db);
     this.templates = new ShoppingTemplateRepository(db);
     this.imageRepository = new ShoppingItemImageRepository(db);
+    this.addedNotifications = addedNotifications ?? new ShoppingAddedNotificationService(db);
     if (attachments) this.imageService = new ShoppingItemImageService(db, attachments);
   }
 
@@ -77,10 +88,14 @@ export class ShoppingService {
     return item;
   }
 
-  async createItem(userId: string, input: ShoppingWriteInput): Promise<ShoppingItem> {
+  async createItem(
+    userId: string,
+    input: ShoppingWriteInput,
+    actorDisplayName = "メンバー"
+  ): Promise<ShoppingItem> {
     const household = await this.households.requireCurrentHousehold(userId);
     const now = nowIso();
-    return this.items.create({
+    const item = await this.items.create({
       id: crypto.randomUUID(),
       householdId: household.id,
       ...input,
@@ -88,6 +103,25 @@ export class ShoppingService {
       sortOrder: await this.items.getNextSortOrder(household.id),
       now
     });
+    if (this.notificationEnv) {
+      try {
+        await this.addedNotifications.notifyAdded(
+          item,
+          userId,
+          actorDisplayName,
+          this.notificationEnv
+        );
+      } catch (error) {
+        console.error(
+          JSON.stringify({
+            event: "shopping_added_notification_failed",
+            householdId: household.id,
+            errorName: error instanceof Error ? error.name : "UnknownError"
+          })
+        );
+      }
+    }
+    return item;
   }
 
   async updateItem(userId: string, itemId: string, input: ShoppingUpdateInput): Promise<ShoppingItem> {
@@ -148,7 +182,11 @@ export class ShoppingService {
     return cleared;
   }
 
-  async addFromTemplate(userId: string, templateId: string): Promise<ShoppingItem> {
+  async addFromTemplate(
+    userId: string,
+    templateId: string,
+    actorDisplayName = "メンバー"
+  ): Promise<ShoppingItem> {
     const household = await this.households.requireCurrentHousehold(userId);
     const template = await this.templates.findByIdForHousehold(household.id, templateId);
     if (!template) throw shoppingTemplateNotFoundError();
@@ -158,6 +196,6 @@ export class ShoppingService {
       quantity: template.quantity,
       note: template.note,
       plannedPurchaseDate: null
-    });
+    }, actorDisplayName);
   }
 }

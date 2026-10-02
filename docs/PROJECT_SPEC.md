@@ -32,7 +32,7 @@ HomeとCalendarの未完了タスク行は、タップでインライン詳細�
 
 manifestとService Workerを提供します。Service Workerはpush payloadを安全に解釈し、同一originのdeep linkだけを開きます。通知権限はユーザー操作時に要求し、PushSubscriptionはユーザー・端末単位で登録・解除します。
 
-タスクのdeadline reminder、ユーザーのevening summary、Push送信、delivery log、重複防止、pending claim leaseを実装しています。canonical taskはhousehold timezoneのdeadlineからpreset offsetを引き、stable occurrence/period keyで重複を防止します。完了・skip済みscopeは通知しません。legacy taskは従来のnotification timeを維持します。evening summaryは当日未完了タスクがある場合に限り送信対象になります。test Push APIはproductionでは無効です。
+タスクのdeadline reminderと家事時刻30分後のfollow-up、買い物追加、ユーザーのevening summary、Push送信、delivery log、重複防止、pending claim leaseを実装しています。canonical taskはhousehold timezoneの`deadlineDate` / `deadlineTime`から各通知時刻を解決し、stable occurrence/period keyで重複を防止します。follow-upは30分経過後の既存20分 delivery windowでrecordを再確認し、完了・skip済みscopeとinactive taskを除外します。legacy follow-upは実際の家事時刻である`scheduledTime`を使い、既存の`notificationTime`による通知挙動を維持します。買い物追加通知は同じhouseholdの追加者以外へ送信します。evening summaryは当日未完了タスクがある場合に限り送信対象になります。test Push APIはproductionでは無効です。
 
 ### 現在のUX
 
