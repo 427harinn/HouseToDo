@@ -119,6 +119,7 @@ const mockFetch = (
     if (url.endsWith("/api/households/current")) return Promise.resolve(ok({ household: householdData }));
     if (url.endsWith("/api/households/current/members")) return Promise.resolve(ok({ members }));
     if (url.endsWith("/api/households/current/image-usage")) return Promise.resolve(imageUsageData ? ok(imageUsageData) : failure("INTERNAL_ERROR", 500));
+    if (url.endsWith("/api/integrations")) return Promise.resolve(ok({ integrations: [] }));
     if (url.endsWith("/api/shopping/items/shop-2")) return Promise.resolve(ok({ item: purchasedItem }));
     if (url.endsWith("/api/shopping/items")) return Promise.resolve(ok({ pending: [shoppingItem], purchased: [purchasedItem] }));
     if (url.startsWith("/api/shopping/recent")) return Promise.resolve(ok({ items: [{ name: "牛乳", quantity: "2本", note: "低脂肪ではないもの", createdAt: "2026-08-02T00:00:00Z" }] }));
@@ -421,6 +422,12 @@ describe("M5 Other / Settings routes", () => {
     fireEvent.click(screen.getByRole("button", { name: "戻る" }));
     await waitFor(() => expect(window.location.pathname).toBe("/other"));
     expect(screen.getByRole("navigation", { name: "主要画面" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("link", { name: "AI連携" }));
+    await waitFor(() => expect(window.location.pathname).toBe("/other/ai"));
+    expect(await screen.findByRole("heading", { name: "AI連携" })).toBeInTheDocument();
+    expect(screen.getByText("Meta AI / Muse")).toBeInTheDocument();
+    expect(screen.getByText("ChatGPT")).toBeInTheDocument();
+    expect(screen.getByText("その他のAI")).toBeInTheDocument();
   });
 
   it("opens household completed history and renders timezone-aware grouped records", async () => {

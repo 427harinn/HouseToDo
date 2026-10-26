@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { Camera, Check, ChevronLeft, ChevronRight } from "lucide-react";
+import { Camera, Check, ChevronRight } from "lucide-react";
 import { BottomSheet } from "../components/BottomSheet";
+import { SettingsHeader } from "../components/SettingsHeader";
 import { ApiError, apiMessage } from "../api/client";
 import { createInvite, listMembers, updateCurrentHousehold } from "../api/households";
 import { deleteProfileImage, updateProfile, uploadProfileImage } from "../api/account";
@@ -13,6 +14,7 @@ import {
   type NotificationSettings
 } from "../api/notifications";
 import { getCurrentImageUsage, type ImageUsage } from "../api/image-usage";
+import { AIIntegrationsPage } from "./AIIntegrationsPage";
 import { listHouseholdCompletedHistory, type HouseholdCompletedHistoryRecord } from "../api/tasks";
 import type { ProcessedImage } from "../lib/image-processing";
 import { ProfileImagePicker } from "../components/ProfileImageCropper";
@@ -22,6 +24,7 @@ import { urlBase64ToUint8Array } from "../lib/vapid";
 import type { AuthUser, Household, HouseholdMember } from "../types";
 
 export type OtherSettingsPageKind =
+  | "ai"
   | "history"
   | "members"
   | "notifications"
@@ -53,23 +56,12 @@ function OtherAvatar({ name, imageUrl, large = false }: { name: string; imageUrl
   );
 }
 
-function SettingsHeader({ title, onBack }: { title: string; onBack: () => void }) {
-  return (
-    <header className="m5-settings-header">
-      <button type="button" className="m5-settings-back" aria-label="戻る" onClick={onBack}>
-        <ChevronLeft aria-hidden="true" />
-        <span>戻る</span>
-      </button>
-      <h1>{title}</h1>
-    </header>
-  );
-}
-
 export function OtherLandingPage({ onNavigate }: { onNavigate: (route: string) => void }) {
   const rows = [
     ["履歴", "/other/history"],
     ["メンバー", "/other/members"],
     ["通知", "/other/notifications"],
+    ["AI連携", "/other/ai"],
     ["ストレージ", "/other/storage"],
     ["家庭設定", "/other/household"],
     ["アカウント", "/other/account"],
@@ -523,6 +515,7 @@ function AccountPage({ user, onUserUpdated, onLogout }: { user: AuthUser; onUser
 }
 
 export function OtherSettingsPage(props: OtherSettingsProps) {
+  if (props.kind === "ai") return <AIIntegrationsPage onNavigate={props.onNavigate} />;
   if (props.kind === "history") return <CompletedHistoryPage household={props.household} />;
   if (props.kind === "members") return <MembersPage household={props.household} />;
   if (props.kind === "notifications") return <NotificationsPage />;
