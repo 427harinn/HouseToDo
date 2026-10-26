@@ -13,6 +13,7 @@ export const OAUTH_SCOPES = [
   "shopping:write"
 ] as const;
 export type OAuthScope = (typeof OAUTH_SCOPES)[number];
+export type TokenEndpointAuthMethod = "client_secret_basic" | "none";
 
 export const OAUTH_ACCESS_TTL_SECONDS = 60 * 60;
 export const OAUTH_REFRESH_TTL_SECONDS = 60 * 60 * 24 * 30;
@@ -26,7 +27,7 @@ type ClientRow = {
   client_name: string;
   client_secret_hash: string | null;
   allowed_scopes: string;
-  token_endpoint_auth_method: string;
+  token_endpoint_auth_method: TokenEndpointAuthMethod;
   enabled: number;
 };
 
@@ -211,8 +212,16 @@ export class OAuthService {
     if (!OAuthService.isEnabled(this.env)) throw new OAuthError("server_error", "OAuth is unavailable", 404);
   }
 
+  getIssuer(): string {
+    const configured = this.env.OAUTH_ISSUER_URL?.trim();
+    if (configured) return configured.replace(/\/$/, "");
+    if (this.env.APP_ENV === "production") return "https://house-to-do.427harinn.workers.dev";
+    if (this.env.APP_ENV === "staging") return "https://house-to-do-staging.427harinn.workers.dev";
+    return "https://example.test";
+  }
+
   private mcpResource(origin: string): string {
-    return `${(this.env.OAUTH_ISSUER_URL || origin).replace(/\/$/, "")}/mcp`;
+    return `${this.getIssuer() || origin}/mcp`;
   }
 
   async getCurrentUser(request: Request): Promise<OAuthUser | null> {
@@ -255,7 +264,7 @@ export class OAuthService {
     return true;
   }
 
-  async authenticateClient(request: Request): Promise<ClientRow> {
+  async authenticateClient(request: Request, form = new URLSearchParams()): Promise<ClientRow> {
     this.assertEnabled();
     const authorization = request.headers.get("authorization") ?? "";
     const credentials = decodeBasic(authorization);
@@ -265,20 +274,31 @@ export class OAuthService {
       else if (this.debug.clientId) this.debug.clientAuthMethod = "none";
       else this.debug.clientAuthMethod = authorization ? "none" : "missing";
     }
-    if (!credentials) {
+    const bodyClientId = form.get("client_id") ?? "";
+    const bodySecret = form.get("client_secret") ?? "";
+    if (bodySecret) {
+      if (this.debug) this.debug.failure = "client_secret_post_unsupported";
+      throw new OAuthError("invalid_client", "Client authentication failed", 401, true);
+    }
+    if (!credentials && !bodyClientId) {
       if (this.debug) this.debug.failure = authorization ? "client_auth_parse" : "client_auth_missing";
       throw new OAuthError("invalid_client", "Client authentication failed", 401, true);
     }
+    if (credentials && bodyClientId && credentials.clientId !== bodyClientId) {
+      if (this.debug) this.debug.failure = "client_id_mismatch";
+      throw new OAuthError("invalid_client", "Client authentication failed", 401, true);
+    }
+    const clientId = credentials?.clientId ?? bodyClientId;
     if (this.debug) {
-      this.debug.clientId = credentials.clientId.slice(0, 256);
-      this.debug.secretPresent = credentials.secret.length > 0;
-      this.debug.secretLength = credentials.secret.length;
+      this.debug.clientId = clientId.slice(0, 256);
+      this.debug.secretPresent = Boolean(credentials?.secret);
+      this.debug.secretLength = credentials?.secret.length ?? 0;
     }
     const client = await this.db
       .prepare(
         "SELECT client_id, client_name, client_secret_hash, allowed_scopes, token_endpoint_auth_method, enabled FROM oauth_clients WHERE client_id = ?"
       )
-      .bind(credentials.clientId)
+      .bind(clientId)
       .first<ClientRow>();
     if (this.debug) this.debug.clientFound = Boolean(client);
     if (!client) {
@@ -289,8 +309,19 @@ export class OAuthService {
       if (this.debug) this.debug.failure = "client_disabled";
       throw new OAuthError("invalid_client", "Client authentication failed", 401, true);
     }
-    if (client.token_endpoint_auth_method !== "client_secret_basic") {
+    if (client.token_endpoint_auth_method !== "client_secret_basic" && client.token_endpoint_auth_method !== "none") {
       if (this.debug) this.debug.failure = "client_auth_method_mismatch";
+      throw new OAuthError("invalid_client", "Client authentication failed", 401, true);
+    }
+    if (client.token_endpoint_auth_method === "none") {
+      if (authorization || credentials || client.client_secret_hash) {
+        if (this.debug) this.debug.failure = "public_client_auth_mismatch";
+        throw new OAuthError("invalid_client", "Client authentication failed", 401, true);
+      }
+      return client;
+    }
+    if (!credentials) {
+      if (this.debug) this.debug.failure = "client_auth_missing";
       throw new OAuthError("invalid_client", "Client authentication failed", 401, true);
     }
     const hashMatches = Boolean(client.client_secret_hash) &&
@@ -339,6 +370,10 @@ export class OAuthService {
       if (this.debug) this.debug.failure = client ? "client_disabled" : "client_not_found";
       throw new OAuthError("unauthorized_client");
     }
+    if (client.token_endpoint_auth_method !== "client_secret_basic" && client.token_endpoint_auth_method !== "none") {
+      if (this.debug) this.debug.failure = "client_auth_method_mismatch";
+      throw new OAuthError("unauthorized_client");
+    }
     const redirect = await this.db
       .prepare(
         "SELECT redirect_uri FROM oauth_client_redirect_uris WHERE client_id = ? AND redirect_uri = ?"
@@ -358,6 +393,10 @@ export class OAuthService {
 
     const challenge = url.searchParams.get("code_challenge");
     const challengeMethod = url.searchParams.get("code_challenge_method");
+    if (client.token_endpoint_auth_method === "none" && (!challenge || challengeMethod !== "S256")) {
+      if (this.debug) this.debug.failure = "pkce_required";
+      throw new OAuthError("invalid_request", "Public clients must use S256 PKCE");
+    }
     if ((challenge && challengeMethod !== "S256") || (!challenge && challengeMethod)) {
       if (this.debug) this.debug.failure = "pkce_method_validation";
       throw new OAuthError("invalid_request", "Only S256 PKCE is supported");
@@ -583,7 +622,7 @@ export class OAuthService {
       this.debug.secretPresent = secret.length > 0;
       this.debug.secretLength = secret.length;
     }
-    const client = await this.authenticateClient(request);
+    const client = await this.authenticateClient(request, form);
     const grantType = form.get("grant_type");
     if (grantType === "authorization_code") return this.exchangeCode(client, form, request);
     if (grantType === "refresh_token") return this.rotateRefreshToken(client, form, request);
@@ -631,7 +670,7 @@ export class OAuthService {
       if (this.debug) this.debug.failure = "authorization_code_resource_mismatch";
       throw new OAuthError("invalid_target");
     }
-    if (row.code_challenge) {
+    if (row.code_challenge || client.token_endpoint_auth_method === "none") {
       const verifier = form.get("code_verifier") ?? "";
       if (!/^[A-Za-z0-9._~-]{43,128}$/.test(verifier) || (await pkceChallenge(verifier)) !== row.code_challenge) {
         if (this.debug) this.debug.failure = "pkce_verification";
@@ -821,7 +860,7 @@ export class OAuthService {
   }
 
   async revoke(request: Request, form: URLSearchParams): Promise<Response> {
-    const client = await this.authenticateClient(request);
+    const client = await this.authenticateClient(request, form);
     const token = form.get("token") ?? "";
     if (token) {
       const tokenHash = await sha256Hex(token);
