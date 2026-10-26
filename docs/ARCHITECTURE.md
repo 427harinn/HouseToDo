@@ -30,7 +30,7 @@ routeのsource of truthは `worker/app.ts` と `worker/routes/`です。認証�
 
 ## Scheduler
 
-`worker/index.ts`のscheduled handlerは、期限切れimage reservation cleanup、orphan R2 cleanup、notification schedulerを同じscheduled invocationで実行します。stagingのCronは `*/5 * * * *`、localのwrangler設定は `0 18 * * *` です。canonical taskは`worker/lib/task-model.ts`のscope/deadline resolverを共有し、household timezoneでdeadline instantを解決してoffsetを引きます。stable occurrence/period keyをdelivery target keyに使います。legacy taskだけは`notification_time`を使用します。delivery window、dedup、pending claim lease、retry/release semanticsは共通です。
+`worker/index.ts`のscheduled handlerは、期限切れimage reservation cleanup、orphan R2 cleanup、notification schedulerを同じscheduled invocationで実行します。stagingのCronは `*/5 * * * *`、local/defaultのwrangler設定は `0 18 * * *` です。canonical taskは`worker/lib/task-model.ts`のscope/deadline resolverを共有し、household timezoneで`deadlineDate` / `deadlineTime`を解決します。通常のtask reminderは既存のnotification offsetを、follow-upは通常通知が設定されたtaskに限り家事時刻の30分後を基準にします。legacy follow-upは`scheduled_time`を実際の家事時刻、`notification_time`をfollow-up対象判定に使い、既存reminderの意味を維持します。stable occurrence/period keyをdelivery target keyに使い、follow-up直前にもTaskRecordを再確認します。Shopping追加通知とtask follow-upは既存`notification_deliveries`のclaim lease、delivery window、dedup、retry/release semanticsを共有します。
 
 ## Phase 3 task projection boundary
 
