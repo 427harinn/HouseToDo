@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AIIntegrationsPage } from "./AIIntegrationsPage";
-import { HOUSETODO_MCP_URL } from "../ai/providers";
+import { HOUSETODO_MCP_URL, MUSE_PUBLIC_CLIENT_ID } from "../ai/providers";
 
 const ok = (data: unknown, status = 200) => new Response(JSON.stringify({
   ok: true, data, requestId: "req-1"
@@ -58,7 +58,12 @@ describe("AI integrations settings", () => {
     expect(screen.queryByRole("button", { name: "コピー" })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Museに送る内容をコピー" }));
-    const message = `HouseToDoをMuseから使えるように接続したいです。\n\n以下のMCPサーバーに接続してください。\n\n${HOUSETODO_MCP_URL}\n\n接続にHouseToDoへのログインや認証が必要な場合は、その手順を案内してください。`;
+    const message = `HouseToDoをMuseから使えるように接続したいです。\n\n以下のMCPサーバーに接続してください。\n\n${HOUSETODO_MCP_URL}\n\nClient IDが必要な場合は、次を使用してください。\n\n${MUSE_PUBLIC_CLIENT_ID}\n\nClient Secretは不要です。\n\n接続にHouseToDoへのログインや認証が必要な場合は、その手順を案内してください。`;
+    expect(MUSE_PUBLIC_CLIENT_ID).toBe("housetodo-muse");
+    expect(message).toContain("housetodo-muse");
+    expect(message).toContain("Client Secretは不要です。");
+    expect(screen.getByText(/Client ID:/)).toHaveTextContent("Client ID: housetodo-muse");
+    expect(screen.getByText(/Client ID:/)).toHaveTextContent(/Client Secret: 不要$/);
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("コピーしました。Museを開いて貼り付けてください。"));
     expect(writeText).toHaveBeenCalledWith(message);
   });
@@ -87,6 +92,17 @@ describe("AI integrations settings", () => {
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("接続を解除しました"));
     expect(document.querySelector(".ai-integration-row")).toBeNull();
     expect(fetch).toHaveBeenCalledWith(expect.stringContaining("/api/integrations/grant-muse"), expect.objectContaining({ method: "DELETE" }));
+  });
+
+  it("recognizes a grant from the new public Muse client as Muse", async () => {
+    const publicMuseGrant = { ...museGrant, grantId: "grant-muse-public", clientId: MUSE_PUBLIC_CLIENT_ID };
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(ok({ integrations: [publicMuseGrant] }));
+    render(<AIIntegrationsPage onNavigate={vi.fn()} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Meta AI \/ Muse.*接続済み/ }));
+    expect(screen.getByText("家事を見る")).toBeInTheDocument();
+    expect(screen.getByText("買い物を追加・変更する")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "接続を解除" })).toBeInTheDocument();
   });
 
   it("exposes loading and retryable error states", async () => {

@@ -1,8 +1,9 @@
 export const HOUSETODO_MCP_URL = "https://house-to-do.427harinn.workers.dev/mcp";
+export const MUSE_PUBLIC_CLIENT_ID = "housetodo-muse";
 
 export type AIProviderKey = "muse" | "chatgpt" | "other";
 
-const museClientIds = ["housetodo-muse-production", "housetodo-muse-staging"];
+const museClientIds = [MUSE_PUBLIC_CLIENT_ID, "housetodo-muse-production", "housetodo-muse-staging"];
 
 export const AI_PROVIDERS: Array<{
   key: AIProviderKey;

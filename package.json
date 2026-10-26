@@ -36,6 +36,7 @@
     "cf:d1:migrations:apply:staging:remote": "wrangler d1 migrations apply DB --env staging --remote",
     "oauth:provision:staging": "node scripts/provision-staging-oauth-client.mjs",
     "oauth:provision:production": "node scripts/provision-production-oauth-client.mjs",
+    "oauth:provision:production:public": "node scripts/provision-production-muse-public-client.mjs",
     "db:migrate:local": "wrangler d1 migrations apply house-to-do --local",
     "db:migrate:remote": "wrangler d1 migrations apply house-to-do --remote"
   },
