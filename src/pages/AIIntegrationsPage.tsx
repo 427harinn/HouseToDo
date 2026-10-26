@@ -73,6 +73,18 @@ export function AIIntegrationsPage({ onNavigate }: { onNavigate: (route: string)
     }
   };
 
+  const copyMuseConnectionGuide = async () => {
+    setStatus("");
+    setActionError("");
+    const message = `HouseToDoをMuseから使えるように接続したいです。\n\n以下のMCPサーバーに接続してください。\n\n${HOUSETODO_MCP_URL}\n\n接続にHouseToDoへのログインや認証が必要な場合は、その手順を案内してください。`;
+    try {
+      await navigator.clipboard.writeText(message);
+      setStatus("コピーしました。Museを開いて貼り付けてください。");
+    } catch {
+      setActionError("コピーできませんでした。");
+    }
+  };
+
   const revoke = async () => {
     if (!grant || busy) return;
     setBusy(true);
@@ -128,13 +140,18 @@ export function AIIntegrationsPage({ onNavigate }: { onNavigate: (route: string)
 
       <BottomSheet open={provider !== null} title={selectedProvider?.key === "muse" ? "Museの接続" : selectedProvider?.key === "chatgpt" ? "ChatGPTの接続" : "その他のAI"} onClose={() => setProvider(null)}>
         <div className="m5-sheet-content ai-guide-content">
-          {provider === "muse" ? <p>Museの設定でHouseToDoを追加し、表示される許可画面で接続してください。</p> : null}
+          {provider === "muse" ? <>
+            <p>下の内容をコピーしてMuseに送ると、HouseToDoとの接続を始められます。</p>
+            <button type="button" className="m5-primary-action" onClick={() => void copyMuseConnectionGuide()}>Museに送る内容をコピー</button>
+            <p>Museで接続を進めると、HouseToDoへのログインとアクセス許可を求められる場合があります。</p>
+          </> : null}
           {provider === "chatgpt" ? <>
             <p>ChatGPTのWeb版でカスタムMCPサーバーを追加します。利用できるプランやワークスペースの設定が必要な場合があります。</p>
             <a className="ai-guide-link" href="https://help.openai.com/en/articles/12584461-connecting-custom-mcp-servers-in-chatgpt" target="_blank" rel="noreferrer">ChatGPTの設定方法を見る</a>
           </> : null}
           {provider === "other" ? <p>MCPに対応したAIの設定で、HouseToDoのサーバーURLを登録してください。</p> : null}
-          {provider !== null ? <McpUrlRow onCopy={() => void copyMcpUrl()} /> : null}
+          {provider === "muse" ? <McpUrlDisplay /> : null}
+          {provider === "chatgpt" || provider === "other" ? <McpUrlRow onCopy={() => void copyMcpUrl()} /> : null}
           {status && provider !== null ? <p className="m5-status" role="status" aria-live="polite">{status}</p> : null}
           {actionError ? <p className="m5-error" role="alert">{actionError}</p> : null}
         </div>
@@ -168,6 +185,15 @@ function McpUrlRow({ onCopy }: { onCopy: () => void }) {
       <div className="ai-mcp-url-label">MCPサーバー</div>
       <code>{HOUSETODO_MCP_URL}</code>
       <button type="button" className="m5-secondary-action ai-copy-button" onClick={onCopy}>コピー</button>
+    </div>
+  );
+}
+
+function McpUrlDisplay() {
+  return (
+    <div className="ai-mcp-url">
+      <div className="ai-mcp-url-label">MCPサーバー</div>
+      <code>{HOUSETODO_MCP_URL}</code>
     </div>
   );
 }

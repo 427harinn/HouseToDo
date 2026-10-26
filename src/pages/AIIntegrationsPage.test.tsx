@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AIIntegrationsPage } from "./AIIntegrationsPage";
+import { HOUSETODO_MCP_URL } from "../ai/providers";
 
 const ok = (data: unknown, status = 200) => new Response(JSON.stringify({
   ok: true, data, requestId: "req-1"
@@ -41,6 +42,25 @@ describe("AI integrations settings", () => {
     fireEvent.click(screen.getByRole("button", { name: "閉じる" }));
     fireEvent.click(screen.getByRole("button", { name: /ChatGPT/ }));
     expect(screen.getByRole("link", { name: "ChatGPTの設定方法を見る" })).toHaveAttribute("href", expect.stringContaining("help.openai.com"));
+  });
+
+  it("copies a Muse-ready connection request containing the configured MCP URL", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(ok({ integrations: [] }));
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    render(<AIIntegrationsPage onNavigate={vi.fn()} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Muse/ }));
+    expect(screen.getByText("下の内容をコピーしてMuseに送ると、HouseToDoとの接続を始められます。")).toBeInTheDocument();
+    expect(screen.getByText("Museで接続を進めると、HouseToDoへのログインとアクセス許可を求められる場合があります。")).toBeInTheDocument();
+    expect(screen.getByText(HOUSETODO_MCP_URL)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Museに送る内容をコピー" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "コピー" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Museに送る内容をコピー" }));
+    const message = `HouseToDoをMuseから使えるように接続したいです。\n\n以下のMCPサーバーに接続してください。\n\n${HOUSETODO_MCP_URL}\n\n接続にHouseToDoへのログインや認証が必要な場合は、その手順を案内してください。`;
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("コピーしました。Museを開いて貼り付けてください。"));
+    expect(writeText).toHaveBeenCalledWith(message);
   });
 
   it("shows Japanese scopes and removes a grant immediately after confirmed revoke", async () => {
