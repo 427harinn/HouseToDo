@@ -164,6 +164,7 @@ const consent = async (request: Request, env: Env, service: OAuthService): Promi
   if (decision === "deny") {
     callback.searchParams.set("error", "access_denied");
     callback.searchParams.set("state", tx.state);
+    callback.searchParams.set("iss", service.getIssuer());
     await env.DB.prepare("DELETE FROM oauth_authorization_transactions WHERE transaction_hash = ?")
       .bind(tx.transaction_hash).run();
     return redirect(callback.toString());
@@ -202,6 +203,7 @@ const continueAuthorization = async (request: Request, env: Env, service: OAuthS
     const callback = new URL(completion.redirectUri);
     callback.searchParams.set("code", completion.code);
     callback.searchParams.set("state", completion.state);
+    callback.searchParams.set("iss", service.getIssuer());
     return redirect(callback.toString(), 303);
   } catch (error) {
     if (error instanceof OAuthError) return consentError(error.message, error.status);
@@ -209,8 +211,8 @@ const continueAuthorization = async (request: Request, env: Env, service: OAuthS
   }
 };
 
-const authorizationServerMetadata = (request: Request, env: Env): Response => {
-  const issuer = env.OAUTH_ISSUER_URL?.replace(/\/$/, "") ?? new URL(request.url).origin;
+const authorizationServerMetadata = (service: OAuthService): Response => {
+  const issuer = service.getIssuer();
   return new Response(JSON.stringify({
     issuer,
     authorization_endpoint: `${issuer}/oauth/authorize`,
@@ -218,10 +220,11 @@ const authorizationServerMetadata = (request: Request, env: Env): Response => {
     revocation_endpoint: `${issuer}/oauth/revoke`,
     response_types_supported: ["code"],
     grant_types_supported: ["authorization_code", "refresh_token"],
-    token_endpoint_auth_methods_supported: ["client_secret_basic"],
-    revocation_endpoint_auth_methods_supported: ["client_secret_basic"],
+    token_endpoint_auth_methods_supported: ["client_secret_basic", "none"],
+    revocation_endpoint_auth_methods_supported: ["client_secret_basic", "none"],
     scopes_supported: [...OAUTH_SCOPES],
-    code_challenge_methods_supported: ["S256"]
+    code_challenge_methods_supported: ["S256"],
+    authorization_response_iss_parameter_supported: true
   }), { status: 200, headers: tokenHeaders() });
 };
 
@@ -254,7 +257,7 @@ export const handleOAuthRequest = async (request: Request, env: Env): Promise<Re
   try {
     if (url.pathname === "/.well-known/oauth-authorization-server" && request.method === "GET") {
       if (!OAuthService.isEnabled(env)) throw new OAuthError("server_error", "OAuth is unavailable", 404);
-      response = authorizationServerMetadata(request, env);
+      response = authorizationServerMetadata(service);
     } else if (url.pathname === "/oauth/authorize" && request.method === "GET") {
       if (debug) {
         debug.statePresent = url.searchParams.has("state");

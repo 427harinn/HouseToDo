@@ -13,6 +13,8 @@ const CLIENT_SECRET = "oauth-client-secret-for-tests";
 const REDIRECT_URI = "https://muse.example/callback";
 const ORIGIN = "https://example.test";
 const STAGING_ORIGIN = "https://house-to-do-staging.427harinn.workers.dev";
+const PUBLIC_CLIENT_ID = "public-client-test";
+const PUBLIC_REDIRECT_URI = "https://public.example/callback";
 
 const envFor = async (): Promise<Env> => {
   const db = new MemoryD1();
@@ -43,6 +45,22 @@ const envFor = async (): Promise<Env> => {
 };
 
 const memoryOf = (env: Env) => env.DB as unknown as MemoryD1;
+const registerPublicFixture = (env: Env) => {
+  const memory = memoryOf(env);
+  memory.oauthClients.set(PUBLIC_CLIENT_ID, {
+    client_id: PUBLIC_CLIENT_ID,
+    client_name: "Public test client",
+    client_secret_hash: null,
+    allowed_scopes: JSON.stringify(OAUTH_SCOPES),
+    token_endpoint_auth_method: "none",
+    enabled: 1
+  });
+  memory.oauthRedirectUris.set(`${PUBLIC_CLIENT_ID}:${PUBLIC_REDIRECT_URI}`, {
+    client_id: PUBLIC_CLIENT_ID,
+    redirect_uri: PUBLIC_REDIRECT_URI,
+    created_at: new Date().toISOString()
+  });
+};
 const jsonAs = async <T>(response: Response): Promise<T> => {
   const value: unknown = await response.json();
   return value as T;
@@ -68,13 +86,15 @@ const registerAndHousehold = async (env: Env, email: string) => {
   return cookie;
 };
 
-const authorize = async (env: Env, cookie: string | null, scopes: string) => {
+const authorize = async (env: Env, cookie: string | null, scopes: string, challenge?: string, method?: string) => {
   const url = new URL("/oauth/authorize", ORIGIN);
   url.searchParams.set("response_type", "code");
   url.searchParams.set("client_id", CLIENT_ID);
   url.searchParams.set("redirect_uri", REDIRECT_URI);
   url.searchParams.set("scope", scopes);
   url.searchParams.set("state", "muse-state+value/keep");
+  if (challenge !== undefined) url.searchParams.set("code_challenge", challenge);
+  if (method !== undefined) url.searchParams.set("code_challenge_method", method);
   return createApp().fetch(new Request(url, { headers: cookie ? { cookie } : {} }), env);
 };
 
@@ -118,6 +138,44 @@ const tokenRequest = (env: Env, form: URLSearchParams, secret = CLIENT_SECRET) =
     },
     body: form.toString()
   }), env);
+
+const unauthenticatedTokenRequest = (env: Env, form: URLSearchParams) =>
+  createApp().fetch(new Request(`${ORIGIN}/oauth/token`, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: form.toString()
+  }), env);
+
+const pkceChallenge = async (verifier: string) => {
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)));
+  let binary = "";
+  digest.forEach((value) => { binary += String.fromCharCode(value); });
+  return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
+};
+
+const authorizePublic = async (env: Env, cookie: string | null, challenge?: string, method?: string) => {
+  const url = new URL("/oauth/authorize", ORIGIN);
+  url.search = new URLSearchParams({
+    response_type: "code", client_id: PUBLIC_CLIENT_ID, redirect_uri: PUBLIC_REDIRECT_URI,
+    scope: "tasks:read", state: "public-state"
+  }).toString();
+  if (challenge !== undefined) url.searchParams.set("code_challenge", challenge);
+  if (method !== undefined) url.searchParams.set("code_challenge_method", method);
+  return createApp().fetch(new Request(url, { headers: cookie ? { cookie } : {} }), env);
+};
+
+const tokenRequestForPublicClient = (env: Env, form: URLSearchParams, basic = false) => {
+  const requestForm = new URLSearchParams(form);
+  requestForm.set("client_id", PUBLIC_CLIENT_ID);
+  return createApp().fetch(new Request(`${ORIGIN}/oauth/token`, {
+    method: "POST",
+    headers: {
+      ...(basic ? { authorization: encodeClientCredentials(PUBLIC_CLIENT_ID, "unexpected-secret") } : {}),
+      "content-type": "application/x-www-form-urlencoded"
+    },
+    body: requestForm.toString()
+  }), env);
+};
 
 afterEach(() => {
   vi.useRealTimers();
@@ -354,10 +412,12 @@ describe("OAuth Authorization Code for staging Agent API", () => {
         const callback = new URL(continued.headers.get("location") ?? "");
         expect(callback.searchParams.get("code")).toBeTruthy();
         expect(callback.searchParams.get("state")).toBe("muse-state+value/keep");
+        expect(callback.searchParams.get("iss")).toBe(ORIGIN);
       } else {
         expect(consent.status).toBe(302);
         const callback = new URL(consent.headers.get("location") ?? "");
         expect(callback.searchParams.get("error")).toBe("access_denied");
+        expect(callback.searchParams.get("iss")).toBe(ORIGIN);
       }
     } finally {
       submitted.dom.window.close();
@@ -470,6 +530,7 @@ describe("OAuth Authorization Code for staging Agent API", () => {
     expect(callback.origin).toBe("https://muse.example");
     expect(callback.searchParams.get("error")).toBe("access_denied");
     expect(callback.searchParams.get("state")).toBe("muse-state+value/keep");
+    expect(callback.searchParams.get("iss")).toBe(ORIGIN);
   });
 
   it.each([
@@ -614,6 +675,7 @@ describe("OAuth Authorization Code for staging Agent API", () => {
     expect(callback.pathname).toBe(new URL(REDIRECT_URI).pathname);
     expect(callback.searchParams.get("code")).toBeTruthy();
     expect(callback.searchParams.get("state")).toBe("muse-state+value/keep");
+    expect(callback.searchParams.get("iss")).toBe(ORIGIN);
     expect(memoryOf(env).oauthCodes.size).toBe(1);
 
     const replay = await createApp().fetch(new Request(continueUrl!), env);
@@ -648,6 +710,87 @@ describe("OAuth Authorization Code for staging Agent API", () => {
     const badSecret = await tokenRequest(env, new URLSearchParams({ grant_type: "authorization_code", code: "invalid", redirect_uri: REDIRECT_URI }), "wrong-secret");
     expect(badSecret.status).toBe(401);
     expect(await badSecret.json()).toMatchObject({ error: "invalid_client" });
+    const missingSecret = await unauthenticatedTokenRequest(env, new URLSearchParams({
+      grant_type: "authorization_code", code: "invalid", redirect_uri: REDIRECT_URI, client_id: CLIENT_ID
+    }));
+    expect(missingSecret.status).toBe(401);
+    expect(await missingSecret.json()).toMatchObject({ error: "invalid_client" });
+  });
+
+  it("keeps confidential client PKCE optional while validating it when supplied", async () => {
+    const env = await envFor();
+    const cookie = await registerAndHousehold(env, "oauth-confidential-pkce@example.com");
+    const noPkceConsent = await completeConsent(env, cookie, "tasks:read");
+    expect((await exchangeRedirectCode(env, noPkceConsent)).tokenResponse.status).toBe(200);
+
+    const verifier = "confidential-client-verifier-with-at-least-43-characters";
+    const authorizeResponse = await authorize(env, cookie, "tasks:read", await pkceChallenge(verifier), "S256");
+    const form = consentForm(await authorizeResponse.text(), "allow");
+    const consent = await createApp().fetch(new Request(`${ORIGIN}/oauth/consent`, {
+      method: "POST", headers: { origin: ORIGIN, cookie, "content-type": "application/x-www-form-urlencoded" }, body: form.toString()
+    }), env);
+    const handoff = new URL(consent.headers.get("location") ?? "", ORIGIN);
+    const { continueUrl } = await openCompletionPage(env, handoff);
+    const continued = await createApp().fetch(new Request(continueUrl!), env);
+    const callback = new URL(continued.headers.get("location") ?? "");
+    const code = callback.searchParams.get("code") ?? "";
+    const tokenForm = new URLSearchParams({ grant_type: "authorization_code", code, redirect_uri: REDIRECT_URI });
+    expect((await tokenRequest(env, tokenForm)).status).toBe(400);
+    tokenForm.set("code_verifier", `${verifier}wrong`);
+    expect((await tokenRequest(env, tokenForm)).status).toBe(400);
+    tokenForm.set("code_verifier", verifier);
+    expect((await tokenRequest(env, tokenForm)).status).toBe(200);
+  });
+
+  it("supports public clients without secrets and requires S256 PKCE", async () => {
+    const env = await envFor();
+    registerPublicFixture(env);
+    const cookie = await registerAndHousehold(env, "oauth-public-client@example.com");
+    const publicClient = memoryOf(env).oauthClients.get(PUBLIC_CLIENT_ID)!;
+    publicClient.token_endpoint_auth_method = "private_key_jwt";
+    expect((await authorizePublic(env, cookie, await pkceChallenge("public-client-verifier-with-at-least-43-characters"), "S256")).status).toBe(400);
+    const unsupportedAuth = await tokenRequestForPublicClient(env, new URLSearchParams({ grant_type: "refresh_token", refresh_token: "opaque" }));
+    expect(unsupportedAuth.status).toBe(401);
+    publicClient.token_endpoint_auth_method = "none";
+    expect((await authorizePublic(env, cookie)).status).toBe(400);
+    expect((await authorizePublic(env, cookie, "plain-challenge-value", "plain")).status).toBe(400);
+    expect((await authorizePublic(env, cookie, "short", "S256")).status).toBe(400);
+
+    const verifier = "public-client-verifier-with-at-least-43-characters";
+    const challenge = await pkceChallenge(verifier);
+    const authorizeResponse = await authorizePublic(env, cookie, challenge, "S256");
+    expect(authorizeResponse.status).toBe(200);
+    const form = consentForm(await authorizeResponse.text(), "allow");
+    const consent = await createApp().fetch(new Request(`${ORIGIN}/oauth/consent`, {
+      method: "POST", headers: { origin: ORIGIN, cookie, "content-type": "application/x-www-form-urlencoded" }, body: form.toString()
+    }), env);
+    const handoff = new URL(consent.headers.get("location") ?? "", ORIGIN);
+    const { continueUrl } = await openCompletionPage(env, handoff);
+    const continued = await createApp().fetch(new Request(continueUrl!), env);
+    const callback = new URL(continued.headers.get("location") ?? "");
+    expect(callback.searchParams.get("iss")).toBe(ORIGIN);
+    const code = callback.searchParams.get("code") ?? "";
+    const tokenForm = new URLSearchParams({ grant_type: "authorization_code", code, redirect_uri: PUBLIC_REDIRECT_URI });
+    expect((await tokenRequestForPublicClient(env, tokenForm)).status).toBe(400);
+    tokenForm.set("code_verifier", `${verifier}wrong`);
+    expect((await tokenRequestForPublicClient(env, tokenForm)).status).toBe(400);
+    tokenForm.set("code_verifier", verifier);
+    expect((await tokenRequestForPublicClient(env, tokenForm)).status).toBe(200);
+
+    const secondCode = await authorizePublic(env, cookie, challenge, "S256");
+    const secondForm = consentForm(await secondCode.text(), "allow");
+    const secondConsent = await createApp().fetch(new Request(`${ORIGIN}/oauth/consent`, {
+      method: "POST", headers: { origin: ORIGIN, cookie, "content-type": "application/x-www-form-urlencoded" }, body: secondForm.toString()
+    }), env);
+    const secondHandoff = new URL(secondConsent.headers.get("location") ?? "", ORIGIN);
+    const secondCompletion = await openCompletionPage(env, secondHandoff);
+    const secondContinue = await createApp().fetch(new Request(secondCompletion.continueUrl!), env);
+    const secondCallback = new URL(secondContinue.headers.get("location") ?? "");
+    const secondTokenForm = new URLSearchParams({
+      grant_type: "authorization_code", code: secondCallback.searchParams.get("code") ?? "",
+      redirect_uri: PUBLIC_REDIRECT_URI, code_verifier: verifier
+    });
+    expect((await tokenRequestForPublicClient(env, secondTokenForm, true)).status).toBe(401);
   });
 
   it("enforces access scopes, expiry, revoke, refresh rotation and replay revocation", async () => {
@@ -726,12 +869,20 @@ describe("OAuth Authorization Code for staging Agent API", () => {
     env.AGENT_API_USER_ID = owner.id;
     expect((await createApp().fetch(requestWithBearer("/api/agent/shopping", "phase-one-static-token"), env)).status).toBe(200);
 
-    const metadata = await createApp().fetch(new Request(`${ORIGIN}/.well-known/oauth-authorization-server`), env);
-    expect(await metadata.json()).toMatchObject({
+    const metadata = await createApp().fetch(new Request(`${ORIGIN}/.well-known/oauth-authorization-server`, {
+      headers: { host: "attacker.example" }
+    }), env);
+    const metadataBody = await jsonAs<Record<string, unknown>>(metadata);
+    expect(metadataBody).toMatchObject({
+      issuer: ORIGIN,
       authorization_endpoint: `${ORIGIN}/oauth/authorize`,
-      token_endpoint_auth_methods_supported: ["client_secret_basic"],
-      grant_types_supported: ["authorization_code", "refresh_token"]
+      token_endpoint_auth_methods_supported: ["client_secret_basic", "none"],
+      revocation_endpoint_auth_methods_supported: ["client_secret_basic", "none"],
+      grant_types_supported: ["authorization_code", "refresh_token"],
+      authorization_response_iss_parameter_supported: true
     });
+    expect(metadataBody).not.toHaveProperty("client_id_metadata_document_supported");
+    expect(metadataBody).not.toHaveProperty("registration_endpoint");
     env.APP_ENV = "production";
     expect((await createApp().fetch(new Request(`${ORIGIN}/.well-known/oauth-authorization-server`), env)).status).toBe(200);
     expect((await createApp().fetch(new Request(`${ORIGIN}/oauth/complete?ticket=opaque`), env)).status).toBe(400);
