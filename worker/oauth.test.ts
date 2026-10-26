@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "./app";
-import { encodeClientCredentials, OAUTH_SCOPES, OAUTH_TRANSACTION_TTL_SECONDS } from "./services/oauth-service";
+import { encodeClientCredentials, OAuthService, OAUTH_SCOPES, OAUTH_TRANSACTION_TTL_SECONDS } from "./services/oauth-service";
 import { sha256Hex } from "./lib/crypto";
 import { MemoryD1 } from "./test-utils/memory-d1";
 import { MemoryR2 } from "./test-utils/memory-r2";
@@ -214,12 +214,23 @@ describe("OAuth Authorization Code for staging Agent API", () => {
 
     log.mockClear();
     env.APP_ENV = "production";
-    await createApp().fetch(new Request(`${ORIGIN}/.well-known/oauth-authorization-server`), env);
+    const productionMetadata = await createApp().fetch(new Request(`${ORIGIN}/.well-known/oauth-authorization-server`), env);
     const productionConsent = await createApp().fetch(new Request(`${ORIGIN}/oauth/consent`, {
       method: "POST", headers: { origin: ORIGIN, "content-type": "application/x-www-form-urlencoded" }, body: ""
     }), env);
-    expect(productionConsent.status).toBe(404);
-    expect(log).not.toHaveBeenCalled();
+    expect(productionMetadata.status).toBe(200);
+    expect(productionConsent.status).toBe(400);
+    expect(log).toHaveBeenCalledTimes(2);
+    const productionRecords = log.mock.calls.map(([entry]) => JSON.parse(String(entry)) as Record<string, unknown>);
+    for (const record of productionRecords) {
+      expect(Object.keys(record).sort()).toEqual(["endpoint", "errorCategory", "event", "requestId", "status"]);
+      expect(record.event).toBe("oauth_request");
+      expect(typeof record.requestId).toBe("string");
+      expect(record).not.toHaveProperty("clientId");
+      expect(record).not.toHaveProperty("redirectUri");
+    }
+    expect(JSON.stringify(productionRecords)).not.toContain(CLIENT_SECRET);
+    expect(JSON.stringify(productionRecords)).not.toContain("csrf_token");
   });
 
   it("records metadata and authorize endpoint access without logging query secrets", async () => {
@@ -684,7 +695,7 @@ describe("OAuth Authorization Code for staging Agent API", () => {
     expect((await createApp().fetch(requestWithBearer("/api/agent/tasks/today", third.access_token), env)).status).toBe(401);
   });
 
-  it("keeps household isolation, Phase 1 coexistence, metadata and production OAuth disabled", async () => {
+  it("keeps household isolation, Phase 1 coexistence, and enables production OAuth", async () => {
     const env = await envFor();
     const firstCookie = await registerAndHousehold(env, "oauth-owner@example.com");
     const otherCookie = await registerAndHousehold(env, "oauth-other@example.com");
@@ -722,10 +733,65 @@ describe("OAuth Authorization Code for staging Agent API", () => {
       grant_types_supported: ["authorization_code", "refresh_token"]
     });
     env.APP_ENV = "production";
-    expect((await createApp().fetch(new Request(`${ORIGIN}/.well-known/oauth-authorization-server`), env)).status).toBe(404);
-    expect((await createApp().fetch(new Request(`${ORIGIN}/oauth/complete?ticket=opaque`), env)).status).toBe(404);
-    expect((await createApp().fetch(new Request(`${ORIGIN}/oauth/continue?h=opaque`), env)).status).toBe(404);
+    expect((await createApp().fetch(new Request(`${ORIGIN}/.well-known/oauth-authorization-server`), env)).status).toBe(200);
+    expect((await createApp().fetch(new Request(`${ORIGIN}/oauth/complete?ticket=opaque`), env)).status).toBe(400);
+    expect((await createApp().fetch(new Request(`${ORIGIN}/oauth/continue?h=opaque`), env)).status).toBe(400);
     expect((await createApp().fetch(requestWithBearer("/api/agent/tasks/today", tokens.access_token), env)).status).toBe(401);
+    env.APP_ENV = "development";
+    expect((await createApp().fetch(new Request(`${ORIGIN}/.well-known/oauth-authorization-server`), env)).status).toBe(404);
+    expect(OAuthService.isEnabled({ APP_ENV: "production" } as Env)).toBe(true);
+    expect(OAuthService.isEnabled({ APP_ENV: "staging" } as Env)).toBe(true);
+    expect(OAuthService.isEnabled({ APP_ENV: "test" } as Env)).toBe(true);
+    expect(OAuthService.isEnabled({ APP_ENV: "development" } as Env)).toBe(false);
+  });
+
+  it("supports production authorization, token, refresh, and revocation with minimal logs", async () => {
+    const env = await envFor();
+    env.APP_ENV = "production";
+    const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    const cookie = await registerAndHousehold(env, "production-oauth@example.com");
+    const metadata = await createApp().fetch(new Request(`${ORIGIN}/.well-known/oauth-authorization-server`), env);
+    expect(metadata.status).toBe(200);
+    const consent = await completeConsent(env, cookie, "tasks:read");
+    const { callback, tokenResponse } = await exchangeRedirectCode(env, consent);
+    expect(callback.searchParams.get("state")).toBe("muse-state+value/keep");
+    expect(tokenResponse.status).toBe(200);
+    const tokens = await jsonAs<{ access_token: string; refresh_token: string }>(tokenResponse);
+
+    const refreshedResponse = await tokenRequest(env, new URLSearchParams({
+      grant_type: "refresh_token",
+      refresh_token: tokens.refresh_token
+    }));
+    expect(refreshedResponse.status).toBe(200);
+    const refreshed = await jsonAs<{ access_token: string; refresh_token: string }>(refreshedResponse);
+    expect(refreshed.access_token).not.toBe(tokens.access_token);
+
+    const revoked = await createApp().fetch(new Request(`${ORIGIN}/oauth/revoke`, {
+      method: "POST",
+      headers: {
+        authorization: encodeClientCredentials(CLIENT_ID, CLIENT_SECRET),
+        "content-type": "application/x-www-form-urlencoded"
+      },
+      body: new URLSearchParams({ token: refreshed.refresh_token, token_type_hint: "refresh_token" }).toString()
+    }), env);
+    expect(revoked.status).toBe(200);
+
+    const records = info.mock.calls.map(([entry]) => JSON.parse(String(entry)) as Record<string, unknown>);
+    expect(records.map((record) => record.endpoint)).toEqual(expect.arrayContaining([
+      "/.well-known/oauth-authorization-server", "/oauth/authorize", "/oauth/consent",
+      "/oauth/complete", "/oauth/continue", "/oauth/token", "/oauth/revoke"
+    ]));
+    for (const record of records) {
+      expect(Object.keys(record).sort()).toEqual(["endpoint", "errorCategory", "event", "requestId", "status"]);
+      expect(record.event).toBe("oauth_request");
+    }
+    const serializedLogs = JSON.stringify(records);
+    expect(serializedLogs).not.toContain(CLIENT_SECRET);
+    expect(serializedLogs).not.toContain(tokens.access_token);
+    expect(serializedLogs).not.toContain(tokens.refresh_token);
+    expect(serializedLogs).not.toContain(refreshed.access_token);
+    expect(serializedLogs).not.toContain("muse-state+value/keep");
+    expect(serializedLogs).not.toContain(cookie);
   });
 
   it("expires the one-time completion handoff and does not create a code for arbitrary targets", async () => {

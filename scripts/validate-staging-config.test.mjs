@@ -14,4 +14,8 @@ describe("staging config validator", () => {
 
     expect(validateStagingConfig(oldCronConfig)).toContain(`staging Cron must contain exactly one ${STAGING_CRON} UTC trigger`);
   });
+
+  it("allows an isolated production environment alongside staging", () => {
+    expect(validateStagingConfig(config)).toEqual([]);
+  });
 });

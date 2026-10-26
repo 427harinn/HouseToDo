@@ -196,7 +196,7 @@ export class OAuthService {
   }
 
   static isEnabled(env: Env): boolean {
-    return env.APP_ENV === "staging" || env.APP_ENV === "test";
+    return env.APP_ENV === "production" || env.APP_ENV === "staging" || env.APP_ENV === "test";
   }
 
   private assertEnabled(): void {

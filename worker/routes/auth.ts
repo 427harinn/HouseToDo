@@ -11,7 +11,7 @@ export const registerRoute: Handler = async (context) => {
   let stage = "request-start";
   const setStage = (nextStage: string) => {
     stage = nextStage;
-    logRegisterStage(stage);
+    if (context.env.APP_ENV !== "production") logRegisterStage(stage);
   };
 
   try {
@@ -30,7 +30,7 @@ export const registerRoute: Handler = async (context) => {
       }
     );
   } catch (error) {
-    logRegisterFailure(error, stage);
+    if (context.env.APP_ENV !== "production") logRegisterFailure(error, stage);
     throw error;
   }
 };

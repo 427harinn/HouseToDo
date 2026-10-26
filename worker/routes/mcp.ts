@@ -401,7 +401,7 @@ const authenticate = async (
 }> => {
   const authorization = request.headers.get("authorization");
   const match = authorization ? /^Bearer\s+([^\s]+)$/i.exec(authorization) : null;
-  if (!match || (env.APP_ENV !== "staging" && env.APP_ENV !== "test")) {
+  if (!match || !OAuthService.isEnabled(env)) {
     return { principal: null, present: Boolean(authorization) };
   }
   try {
@@ -446,6 +446,7 @@ const challenge = (
 
 const logRequest = (
   env: Env,
+  request: Request,
   record: {
     path: string;
     method: string;
@@ -459,8 +460,22 @@ const logRequest = (
     responseStatus: number;
   }
 ): void => {
-  if (env.APP_ENV !== "staging") return;
-  console.log(JSON.stringify({ event: "mcp_request", ...record }));
+  if (env.APP_ENV === "staging") {
+    console.log(JSON.stringify({ event: "mcp_request", ...record }));
+    return;
+  }
+  if (env.APP_ENV === "production") {
+    console.info(JSON.stringify({
+      event: "mcp_request",
+      requestId: request.headers.get("cf-ray") ?? crypto.randomUUID(),
+      endpoint: record.path,
+      toolName: record.toolName?.slice(0, 128) ?? null,
+      status: record.responseStatus,
+      errorCategory: record.responseStatus >= 500
+        ? "server_error"
+        : record.responseStatus >= 400 ? "request_rejected" : null
+    }));
+  }
 };
 
 const validateOrigin = (request: Request, env: Env): boolean => {
@@ -1043,14 +1058,14 @@ export const handleMcpRequest = async (
 ): Promise<Response> => {
   const url = new URL(request.url);
   const path = url.pathname;
-  if (env.APP_ENV !== "staging" && env.APP_ENV !== "test")
+  if (!OAuthService.isEnabled(env))
     return new Response("Not Found", { status: 404 });
   if (
     path === "/.well-known/oauth-protected-resource/mcp" &&
     request.method === "GET"
   ) {
     const response = protectedResourceMetadata(request, env);
-    logRequest(env, {
+    logRequest(env, request, {
       path,
       method: request.method,
       jsonrpcMethod: null,
@@ -1070,7 +1085,7 @@ export const handleMcpRequest = async (
       status: 405,
       headers: { allow: "POST", "cache-control": "no-store" }
     });
-    logRequest(env, {
+    logRequest(env, request, {
       path,
       method: request.method,
       jsonrpcMethod: null,
@@ -1089,7 +1104,7 @@ export const handleMcpRequest = async (
       status: 405,
       headers: { allow: "POST", "cache-control": "no-store" }
     });
-    logRequest(env, {
+    logRequest(env, request, {
       path,
       method: request.method,
       jsonrpcMethod: null,
@@ -1105,7 +1120,7 @@ export const handleMcpRequest = async (
   }
   if (!validateOrigin(request, env)) {
     const response = responseJson({ error: "invalid_origin" }, 403);
-    logRequest(env, {
+    logRequest(env, request, {
       path,
       method: request.method,
       jsonrpcMethod: null,
@@ -1138,7 +1153,7 @@ export const handleMcpRequest = async (
   const auth = await authenticate(request, env);
   if (!auth.principal) {
     const response = challenge(request, env, 401, ALL_SCOPES, auth.present);
-    logRequest(env, {
+    logRequest(env, request, {
       path,
       method: request.method,
       jsonrpcMethod: method,
@@ -1154,7 +1169,7 @@ export const handleMcpRequest = async (
   }
   if (!body) {
     const response = responseJson(rpcError(null, -32700, "Parse error"), 400);
-    logRequest(env, {
+    logRequest(env, request, {
       path,
       method: request.method,
       jsonrpcMethod: method,
@@ -1194,7 +1209,7 @@ export const handleMcpRequest = async (
       (method === "tools/call" && headerName !== params.name)
     ) {
       const response = responseJson(rpcError(body.id, -32020, "Header mismatch"), 400);
-      logRequest(env, {
+      logRequest(env, request, {
         path,
         method: request.method,
         jsonrpcMethod: method,
@@ -1216,7 +1231,7 @@ export const handleMcpRequest = async (
     method !== "tools/call"
   ) {
     const response = responseJson(rpcError(body.id, -32601, "Method not found"), 404);
-    logRequest(env, {
+    logRequest(env, request, {
       path,
       method: request.method,
       jsonrpcMethod: method,
@@ -1231,7 +1246,7 @@ export const handleMcpRequest = async (
     return response;
   }
   const result = await serveRpc(body, modern, auth.principal, request, env);
-  logRequest(env, {
+  logRequest(env, request, {
     path,
     method: request.method,
     jsonrpcMethod: result.method,

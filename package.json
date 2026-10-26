@@ -31,6 +31,7 @@
     "cf:whoami": "wrangler whoami",
     "cf:deploy:staging:dry-run": "wrangler deploy --env staging --dry-run",
     "cf:validate:staging": "node scripts/validate-staging-config.mjs",
+    "cf:validate:production": "node scripts/validate-production-config.mjs",
     "cf:d1:migrations:list:staging:remote": "wrangler d1 migrations list DB --env staging --remote",
     "cf:d1:migrations:apply:staging:remote": "wrangler d1 migrations apply DB --env staging --remote",
     "oauth:provision:staging": "node scripts/provision-staging-oauth-client.mjs",
