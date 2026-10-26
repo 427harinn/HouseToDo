@@ -1,6 +1,8 @@
-# Agent API Phase 2 OAuth (staging)
+# Agent API Phase 2 OAuth (staging and production)
 
-This implements Muse's OAuth 2.0 Authorization Code flow and Streamable HTTP MCP endpoint for staging. Dynamic Client Registration is not enabled. OAuth and MCP are enabled only when `APP_ENV` is `staging` or `test`.
+This implements Muse's OAuth 2.0 Authorization Code flow and Streamable HTTP MCP endpoint. Dynamic Client Registration is not enabled. OAuth metadata, Authorization Code flow, token operations, and MCP are available in `staging`, `test`, and `production`. Production must use its own Worker, D1, OAuth client, and secrets, isolated from staging. Development remains unchanged.
+
+The Phase 1 fixed Bearer Agent API is not enabled in production, even if `AGENT_API_TOKEN` or `AGENT_API_USER_ID` were accidentally present. Production MCP requests authenticate only with OAuth access tokens. Staging-only diagnostics and test-only routes remain environment-limited.
 
 ## Staging client setup
 
@@ -17,6 +19,20 @@ Remove-Item Env:MUSE_OAUTH_REDIRECT_URI
 The command updates only the `DB` binding under Wrangler's `staging` environment. It creates or rotates the fixed `housetodo-muse-staging` client, stores only the SHA-256 hash in `oauth_clients`, and registers the exact redirect URI. The random client secret is printed once only after the database command succeeds. Save it directly in an approved secret manager and Muse's `client_secret_basic` configuration. Do not paste it into a command, source file, issue, or log. Running the command again rotates the secret and adds another redirect URI; remove obsolete redirect URI rows explicitly after confirming Muse no longer uses them.
 
 This command does not run as part of build, test, migration, or deployment tasks. It must only be used after the staging migration and explicit staging provisioning approval.
+
+## Production client setup
+
+Production uses the dedicated Worker `house-to-do` and production D1 database `house-to-do`. The production client is `housetodo-muse-production` (`Muse`), uses `client_secret_basic`, and has exactly this redirect URI: `https://agent.meta.ai/api/hatch/oauth/callback`. Its allowed scopes are `tasks:read`, `tasks:write`, `shopping:read`, and `shopping:write`.
+
+After verifying the production D1 name and ID in `wrangler.jsonc`, confirming all OAuth migrations are applied, and verifying that production `oauth_clients` is empty, run this command from the repository root:
+
+```powershell
+npm run oauth:provision:production -- --confirm-production
+```
+
+The production-only script checks that the configured production D1 ID is `f4877c95-59c1-4e42-9684-5bc51d880aa4`, that staging points to a different D1, and that production has no OAuth clients. It inserts rather than updates, stores only the SHA-256 hash, and verifies the enabled client, authentication method, scopes, hash shape, and sole redirect URI. It also compares a safe staging-client snapshot before and after. If any check fails, it does not print the generated secret. On success, the Client Secret is shown once in the command output; copy it directly into the approved production secret store and Muse's production `client_secret_basic` configuration. Do not save it in a file, command, shell history, source, Git, PR, or logs. Do not rerun the command: the script refuses to run when a production OAuth client already exists, and the secret cannot be recovered from D1.
+
+Never use the staging Client ID or secret, staging D1, tokens, or VAPID key pair in production. The production OAuth client must only be registered after production deploy readiness has been reviewed; do not use this script as part of CI, builds, tests, migration, or deploy.
 
 ## Endpoints
 
