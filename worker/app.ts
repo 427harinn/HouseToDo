@@ -66,6 +66,8 @@ import {
   updateTaskTemplateRoute
 } from "./routes/task-templates";
 import type { Env } from "./types/env";
+import { handleOAuthRequest } from "./routes/oauth";
+import { handleMcpRequest } from "./routes/mcp";
 import {
   vapidPublicKeyRoute,
   registerPushSubscriptionRoute,
@@ -83,9 +85,17 @@ import {
   updateProfileRoute,
   uploadProfileImageRoute
 } from "./routes/account";
+import {
+  agentCompleteTaskRoute,
+  agentCreateShoppingRoute,
+  agentCreateTaskRoute,
+  agentPurchaseShoppingRoute,
+  agentShoppingListRoute,
+  agentTasksByDateRoute,
+  agentTodayTasksRoute
+} from "./routes/agent";
 
-const routeApi = withErrorHandling(
-  withStateChangingRequestProtection((context) => {
+const browserRoute = withStateChangingRequestProtection((context) => {
     const url = new URL(context.request.url);
     const key = `${context.request.method} ${url.pathname}`;
     const taskPath = url.pathname.match(/^\/api\/tasks\/([^/]+)(?:\/([^/]+))?$/);
@@ -270,12 +280,34 @@ const routeApi = withErrorHandling(
       default:
         throw notFoundError();
     }
-  })
-);
+  });
+
+const routeApi = withErrorHandling((context) => {
+  const path = new URL(context.request.url).pathname;
+  if (!path.startsWith("/api/agent/")) return browserRoute(context);
+  const taskMatch = path.match(/^\/api\/agent\/tasks\/([^/]+)\/complete$/);
+  const shoppingMatch = path.match(/^\/api\/agent\/shopping\/([^/]+)\/purchase$/);
+  if (path === "/api/agent/tasks/today" && context.request.method === "GET") return agentTodayTasksRoute(context);
+  if (path === "/api/agent/tasks" && context.request.method === "GET") return agentTasksByDateRoute(context);
+  if (path === "/api/agent/tasks" && context.request.method === "POST") return agentCreateTaskRoute(context);
+  if (taskMatch && context.request.method === "POST") return agentCompleteTaskRoute(decodeURIComponent(taskMatch[1]))(context);
+  if (path === "/api/agent/shopping" && context.request.method === "GET") return agentShoppingListRoute(context);
+  if (path === "/api/agent/shopping" && context.request.method === "POST") return agentCreateShoppingRoute(context);
+  if (shoppingMatch && context.request.method === "POST") return agentPurchaseShoppingRoute(decodeURIComponent(shoppingMatch[1]))(context);
+  throw notFoundError();
+});
 
 export const createApp = () => ({
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+
+    if (url.pathname === "/mcp" || url.pathname === "/.well-known/oauth-protected-resource/mcp")
+      return handleMcpRequest(request, env);
+
+    if (
+      url.pathname.startsWith("/oauth/") ||
+      url.pathname.startsWith("/.well-known/")
+    ) return handleOAuthRequest(request, env);
 
     if (url.pathname.startsWith("/api/")) {
       const context = createRequestContext(request, env);

@@ -14,4 +14,7 @@ export interface Env {
   WEB_PUSH_VAPID_PUBLIC_KEY?: string;
   WEB_PUSH_VAPID_PRIVATE_KEY?: string;
   WEB_PUSH_SUBJECT?: string;
+  AGENT_API_TOKEN?: string;
+  AGENT_API_USER_ID?: string;
+  OAUTH_ISSUER_URL?: string;
 }

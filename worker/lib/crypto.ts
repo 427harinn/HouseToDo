@@ -27,6 +27,9 @@ export const generateInviteCode = (): string => {
   return bytesToBase64Url(bytes);
 };
 
+export const generateOpaqueToken = (byteLength = 32): string =>
+  bytesToBase64Url(crypto.getRandomValues(new Uint8Array(byteLength)));
+
 export const sha256Hex = async (value: string): Promise<string> => {
   const digest = await crypto.subtle.digest("SHA-256", encoder.encode(value));
   return Array.from(new Uint8Array(digest), (byte) =>

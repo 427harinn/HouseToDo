@@ -704,6 +704,11 @@ function LoginScreen({
     setSubmitting(true);
     try {
       const result = await login({ email: email.trim(), password });
+      const oauthTransaction = new URLSearchParams(window.location.search).get("oauth_tx");
+      if (oauthTransaction && /^[A-Za-z0-9_-]{40,64}$/.test(oauthTransaction)) {
+        window.location.assign(`/oauth/authorize?transaction_id=${encodeURIComponent(oauthTransaction)}`);
+        return;
+      }
       await onLogin(result.user);
     } catch (error) {
       if (error instanceof ApiError && error.code === "UNAUTHENTICATED") {

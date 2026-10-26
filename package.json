@@ -33,6 +33,7 @@
     "cf:validate:staging": "node scripts/validate-staging-config.mjs",
     "cf:d1:migrations:list:staging:remote": "wrangler d1 migrations list DB --env staging --remote",
     "cf:d1:migrations:apply:staging:remote": "wrangler d1 migrations apply DB --env staging --remote",
+    "oauth:provision:staging": "node scripts/provision-staging-oauth-client.mjs",
     "db:migrate:local": "wrangler d1 migrations apply house-to-do --local",
     "db:migrate:remote": "wrangler d1 migrations apply house-to-do --remote"
   },
