@@ -94,6 +94,14 @@ export type TokenPrincipal = {
   resource: string | null;
 };
 
+export type UserOAuthGrant = {
+  grantId: string;
+  clientId: string;
+  clientName: string;
+  scopes: string[];
+  connectedAt: string;
+};
+
 export type OAuthDebugRecord = {
   path: string;
   method: string;
@@ -213,6 +221,38 @@ export class OAuthService {
     } catch {
       return null;
     }
+  }
+
+  async listUserGrants(userId: string): Promise<UserOAuthGrant[]> {
+    const result = await this.db.prepare(
+      `SELECT g.id AS grant_id, g.client_id, c.client_name, g.scope, g.created_at
+       FROM oauth_grants g
+       INNER JOIN oauth_clients c ON c.client_id = g.client_id
+       WHERE g.user_id = ? AND g.revoked_at IS NULL AND c.enabled = 1
+       ORDER BY g.created_at DESC, g.id`
+    ).bind(userId).all<{
+      grant_id: string;
+      client_id: string;
+      client_name: string;
+      scope: string;
+      created_at: string;
+    }>();
+    return (result.results ?? []).map((row) => ({
+      grantId: row.grant_id,
+      clientId: row.client_id,
+      clientName: row.client_name,
+      scopes: parseScopes(row.scope),
+      connectedAt: row.created_at
+    }));
+  }
+
+  async revokeUserGrant(userId: string, grantId: string): Promise<boolean> {
+    const grant = await this.db.prepare(
+      "SELECT id FROM oauth_grants WHERE id = ? AND user_id = ? AND revoked_at IS NULL"
+    ).bind(grantId, userId).first<{ id: string }>();
+    if (!grant) return false;
+    await this.revokeGrant(grant.id);
+    return true;
   }
 
   async authenticateClient(request: Request): Promise<ClientRow> {

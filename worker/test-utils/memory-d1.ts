@@ -431,6 +431,12 @@ export class MemoryD1 {
     | { count: number }
     | Record<string, unknown>
     | null {
+    if (sql.includes("FROM oauth_grants WHERE id = ? AND user_id = ?")) {
+      const grant = this.oauthGrants.get(String(values[0]));
+      return grant && grant.user_id === values[1] && !grant.revoked_at
+        ? { id: grant.id }
+        : null;
+    }
     if (sql.includes("FROM oauth_clients WHERE client_id = ?")) {
       const client = this.oauthClients.get(String(values[0]));
       if (!client) return null;
@@ -756,6 +762,20 @@ export class MemoryD1 {
   }
 
   all(sql: string, values: unknown[]): unknown[] {
+    if (sql.includes("FROM oauth_grants g") && sql.includes("INNER JOIN oauth_clients")) {
+      return Array.from(this.oauthGrants.values())
+        .filter((grant) => grant.user_id === values[0] && !grant.revoked_at)
+        .filter((grant) => this.oauthClients.get(String(grant.client_id))?.enabled === 1)
+        .map((grant) => ({
+          grant_id: grant.id,
+          client_id: grant.client_id,
+          client_name: this.oauthClients.get(String(grant.client_id))?.client_name ?? "",
+          scope: grant.scope,
+          created_at: grant.created_at
+        }))
+        .filter((grant) => grant.client_name)
+        .sort((left, right) => String(left.created_at).localeCompare(String(right.created_at)));
+    }
     if (sql.includes("FROM households") && !sql.includes("household_members")) {
       return Array.from(this.households.values());
     }

@@ -78,6 +78,7 @@ import {
   getNotificationSettingsRoute,
   updateNotificationSettingsRoute
 } from "./routes/notification-settings";
+import { listIntegrationsRoute, revokeIntegrationRoute } from "./routes/integrations";
 import {
   deleteProfileImageRoute,
   getProfileImageRoute,
@@ -107,6 +108,12 @@ const browserRoute = withStateChangingRequestProtection((context) => {
       /^\/api\/shopping\/templates\/([^/]+)(?:\/([^/]+))?$/
     );
     const userAvatarPath = url.pathname.match(/^\/api\/users\/([^/]+)\/avatar$/);
+    const integrationPath = url.pathname.match(/^\/api\/integrations\/([^/]+)$/);
+
+    if (url.pathname === "/api/integrations" && context.request.method === "GET")
+      return listIntegrationsRoute(context);
+    if (integrationPath && context.request.method === "DELETE")
+      return revokeIntegrationRoute(decodeURIComponent(integrationPath[1]))(context);
 
     if (userAvatarPath && context.request.method === "GET") {
       return getProfileImageRoute(decodeURIComponent(userAvatarPath[1]))(context);
