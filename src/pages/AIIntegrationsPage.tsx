@@ -4,7 +4,7 @@ import { getAIIntegrations, revokeAIIntegration, type AIIntegration } from "../a
 import { ApiError, apiMessage } from "../api/client";
 import { BottomSheet } from "../components/BottomSheet";
 import { SettingsHeader } from "../components/SettingsHeader";
-import { AI_PROVIDERS, HOUSETODO_MCP_URL, isMuseClient, providerLabelForClient, type AIProviderKey } from "../ai/providers";
+import { AI_PROVIDERS, HOUSETODO_MCP_URL, MUSE_PUBLIC_CLIENT_ID, isMuseClient, providerLabelForClient, type AIProviderKey } from "../ai/providers";
 
 const scopeLabels: Record<string, string> = {
   "tasks:read": "家事を見る",
@@ -76,7 +76,7 @@ export function AIIntegrationsPage({ onNavigate }: { onNavigate: (route: string)
   const copyMuseConnectionGuide = async () => {
     setStatus("");
     setActionError("");
-    const message = `HouseToDoをMuseから使えるように接続したいです。\n\n以下のMCPサーバーに接続してください。\n\n${HOUSETODO_MCP_URL}\n\n接続にHouseToDoへのログインや認証が必要な場合は、その手順を案内してください。`;
+    const message = `HouseToDoをMuseから使えるように接続したいです。\n\n以下のMCPサーバーに接続してください。\n\n${HOUSETODO_MCP_URL}\n\nClient IDが必要な場合は、次を使用してください。\n\n${MUSE_PUBLIC_CLIENT_ID}\n\nClient Secretは不要です。\n\n接続にHouseToDoへのログインや認証が必要な場合は、その手順を案内してください。`;
     try {
       await navigator.clipboard.writeText(message);
       setStatus("コピーしました。Museを開いて貼り付けてください。");
@@ -143,6 +143,7 @@ export function AIIntegrationsPage({ onNavigate }: { onNavigate: (route: string)
           {provider === "muse" ? <>
             <p>下の内容をコピーしてMuseに送ると、HouseToDoとの接続を始められます。</p>
             <button type="button" className="m5-primary-action" onClick={() => void copyMuseConnectionGuide()}>Museに送る内容をコピー</button>
+            <p>Client ID: <code>{MUSE_PUBLIC_CLIENT_ID}</code><br />Client Secret: 不要</p>
             <p>Museで接続を進めると、HouseToDoへのログインとアクセス許可を求められる場合があります。</p>
           </> : null}
           {provider === "chatgpt" ? <>
