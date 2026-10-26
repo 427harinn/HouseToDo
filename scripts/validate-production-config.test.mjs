@@ -6,9 +6,9 @@ const config = JSON.parse(readFileSync("wrangler.jsonc", "utf8"));
 const cloneConfig = () => JSON.parse(JSON.stringify(config));
 
 describe("production config validator", () => {
-  it("accepts the isolated production environment with an unset future D1 ID", () => {
+  it("accepts the isolated production environment with its provisioned D1 ID", () => {
     expect(validateProductionConfig(JSON.stringify(config))).toEqual([]);
-    expect(config.env.production.d1_databases[0]).not.toHaveProperty("database_id");
+    expect(config.env.production.d1_databases[0].database_id).toBe("f4877c95-59c1-4e42-9684-5bc51d880aa4");
   });
 
   it("requires OAuth/MCP routes to run through the Worker before SPA fallback", () => {
