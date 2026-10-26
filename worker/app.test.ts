@@ -195,6 +195,69 @@ describe("worker app auth API", () => {
   });
 });
 
+describe("static asset cache policy", () => {
+  const request = (path: string) => new Request(`https://example.test${path}`);
+
+  it.each(["/", "/home", "/other", "/other/ai"])(
+    "marks the final HTML response for %s as no-store",
+    async (path) => {
+      const env = createTestEnv();
+      env.ASSETS = {
+        fetch: () => Promise.resolve(new Response("spa shell", {
+          headers: { "content-type": "text/html; charset=utf-8", "x-asset": "preserved" }
+        }))
+      } as unknown as Fetcher;
+
+      const response = await createApp().fetch(request(path), env);
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toBe("text/html; charset=utf-8");
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      expect(response.headers.get("x-asset")).toBe("preserved");
+      await expect(response.text()).resolves.toBe("spa shell");
+    }
+  );
+
+  it.each([
+    ["/assets/index-AbCd1234.js", "text/javascript; charset=utf-8"],
+    ["/assets/index-AbCd1234.css", "text/css; charset=utf-8"]
+  ])("long-caches fingerprinted asset %s", async (path, contentType) => {
+    const env = createTestEnv();
+    env.ASSETS = {
+      fetch: () => Promise.resolve(new Response("fingerprinted asset", { headers: { "content-type": contentType } }))
+    } as unknown as Fetcher;
+
+    const response = await createApp().fetch(request(path), env);
+
+    expect(response.headers.get("cache-control")).toBe("public, max-age=31536000, immutable");
+    await expect(response.text()).resolves.toBe("fingerprinted asset");
+  });
+
+  it("does not apply static asset cache policy to API, OAuth, metadata, or MCP responses", async () => {
+    const env = createTestEnv();
+    let assetFetches = 0;
+    env.ASSETS = {
+      fetch: () => {
+        assetFetches += 1;
+        return Promise.resolve(new Response("should not reach assets", { headers: { "content-type": "text/html" } }));
+      }
+    } as unknown as Fetcher;
+
+    const paths = [
+      "/api/auth/me",
+      "/api/integrations",
+      "/oauth/unknown",
+      "/.well-known/oauth-authorization-server",
+      "/mcp"
+    ];
+    for (const path of paths) {
+      const response = await createApp().fetch(request(path), env);
+      expect(response.headers.get("cache-control")).not.toBe("public, max-age=31536000, immutable");
+    }
+    expect(assetFetches).toBe(0);
+  });
+});
+
 describe("household completed history API", () => {
   it("isolates households, returns completed snapshots in cursor order, and validates limits", async () => {
     const app = createApp();

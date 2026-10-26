@@ -68,6 +68,7 @@ import {
 import type { Env } from "./types/env";
 import { handleOAuthRequest } from "./routes/oauth";
 import { handleMcpRequest } from "./routes/mcp";
+import { applyAssetCachePolicy } from "./lib/asset-cache";
 import {
   vapidPublicKeyRoute,
   registerPushSubscriptionRoute,
@@ -322,7 +323,8 @@ export const createApp = () => ({
     }
 
     if (env.ASSETS) {
-      return env.ASSETS.fetch(request);
+      const response = await env.ASSETS.fetch(request);
+      return applyAssetCachePolicy(request, response);
     }
 
     return errorJson(notFoundError(), crypto.randomUUID());
