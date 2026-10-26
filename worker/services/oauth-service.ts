@@ -21,14 +21,22 @@ const AUTHORIZATION_CODE_TTL_SECONDS = 5 * 60;
 const AUTHORIZATION_COMPLETION_TTL_SECONDS = 2 * 60;
 const encoder = new TextEncoder();
 
+export type TokenEndpointAuthMethod = "client_secret_basic" | "none";
+
 type ClientRow = {
   client_id: string;
   client_name: string;
   client_secret_hash: string | null;
   allowed_scopes: string;
-  token_endpoint_auth_method: string;
+  token_endpoint_auth_method: TokenEndpointAuthMethod;
   enabled: number;
 };
+
+const isTokenEndpointAuthMethod = (value: string): value is TokenEndpointAuthMethod =>
+  value === "client_secret_basic" || value === "none";
+
+const requiresPkce = (client: Pick<ClientRow, "token_endpoint_auth_method">): boolean =>
+  client.token_endpoint_auth_method === "none";
 
 type TransactionRow = {
   transaction_hash: string;
@@ -144,8 +152,9 @@ const equalSecret = (left: string, right: string): boolean => {
   return diff === 0;
 };
 
-const parseScopes = (scope: string): string[] =>
-  [...new Set(scope.trim().split(/\s+/).filter(Boolean))];
+const parseScopes = (scope: string): string[] => [
+  ...new Set(scope.trim().split(/\s+/).filter(Boolean))
+];
 
 const parseAllowedScopes = (serialized: string): string[] => {
   try {
@@ -158,12 +167,15 @@ const parseAllowedScopes = (serialized: string): string[] => {
   }
 };
 
-const constantTimeHashMatches = async (provided: string, stored: string): Promise<boolean> =>
-  equalSecret(await sha256Hex(provided), stored);
+const constantTimeHashMatches = async (
+  provided: string,
+  stored: string
+): Promise<boolean> => equalSecret(await sha256Hex(provided), stored);
 
 const encodeBasicPart = (value: string): string =>
-  encodeURIComponent(value).replace(/[!'()*]/g, (char) =>
-    `%${char.charCodeAt(0).toString(16).toUpperCase()}`
+  encodeURIComponent(value).replace(
+    /[!'()*]/g,
+    (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`
   );
 
 const decodeBasic = (header: string): { clientId: string; secret: string } | null => {
@@ -192,23 +204,43 @@ const base64Url = (bytes: Uint8Array): string => {
 };
 
 const pkceChallenge = async (verifier: string): Promise<string> =>
-  base64Url(new Uint8Array(await crypto.subtle.digest("SHA-256", encoder.encode(verifier))));
+  base64Url(
+    new Uint8Array(await crypto.subtle.digest("SHA-256", encoder.encode(verifier)))
+  );
 
 const readJsonScopes = (scope: string): Set<string> => new Set(parseScopes(scope));
 
 export class OAuthService {
-  constructor(private readonly env: Env, private readonly debug?: OAuthDebugRecord) {}
+  constructor(
+    private readonly env: Env,
+    private readonly debug?: OAuthDebugRecord
+  ) {}
 
   private get db(): D1Database {
     return this.env.DB;
   }
 
+  getIssuer(): string {
+    const configured = this.env.OAUTH_ISSUER_URL?.trim().replace(/\/$/, "");
+    if (configured) return configured;
+    if (this.env.APP_ENV === "production")
+      return "https://house-to-do.427harinn.workers.dev";
+    if (this.env.APP_ENV === "staging")
+      return "https://house-to-do-staging.427harinn.workers.dev";
+    throw new OAuthError("server_error", "OAuth issuer is not configured", 500);
+  }
+
   static isEnabled(env: Env): boolean {
-    return env.APP_ENV === "production" || env.APP_ENV === "staging" || env.APP_ENV === "test";
+    return (
+      env.APP_ENV === "production" ||
+      env.APP_ENV === "staging" ||
+      env.APP_ENV === "test"
+    );
   }
 
   private assertEnabled(): void {
-    if (!OAuthService.isEnabled(this.env)) throw new OAuthError("server_error", "OAuth is unavailable", 404);
+    if (!OAuthService.isEnabled(this.env))
+      throw new OAuthError("server_error", "OAuth is unavailable", 404);
   }
 
   private mcpResource(origin: string): string {
@@ -224,19 +256,22 @@ export class OAuthService {
   }
 
   async listUserGrants(userId: string): Promise<UserOAuthGrant[]> {
-    const result = await this.db.prepare(
-      `SELECT g.id AS grant_id, g.client_id, c.client_name, g.scope, g.created_at
+    const result = await this.db
+      .prepare(
+        `SELECT g.id AS grant_id, g.client_id, c.client_name, g.scope, g.created_at
        FROM oauth_grants g
        INNER JOIN oauth_clients c ON c.client_id = g.client_id
        WHERE g.user_id = ? AND g.revoked_at IS NULL AND c.enabled = 1
        ORDER BY g.created_at DESC, g.id`
-    ).bind(userId).all<{
-      grant_id: string;
-      client_id: string;
-      client_name: string;
-      scope: string;
-      created_at: string;
-    }>();
+      )
+      .bind(userId)
+      .all<{
+        grant_id: string;
+        client_id: string;
+        client_name: string;
+        scope: string;
+        created_at: string;
+      }>();
     return (result.results ?? []).map((row) => ({
       grantId: row.grant_id,
       clientId: row.client_id,
@@ -247,54 +282,87 @@ export class OAuthService {
   }
 
   async revokeUserGrant(userId: string, grantId: string): Promise<boolean> {
-    const grant = await this.db.prepare(
-      "SELECT id FROM oauth_grants WHERE id = ? AND user_id = ? AND revoked_at IS NULL"
-    ).bind(grantId, userId).first<{ id: string }>();
+    const grant = await this.db
+      .prepare(
+        "SELECT id FROM oauth_grants WHERE id = ? AND user_id = ? AND revoked_at IS NULL"
+      )
+      .bind(grantId, userId)
+      .first<{ id: string }>();
     if (!grant) return false;
     await this.revokeGrant(grant.id);
     return true;
   }
 
-  async authenticateClient(request: Request): Promise<ClientRow> {
+  async authenticateClient(
+    request: Request,
+    form = new URLSearchParams()
+  ): Promise<ClientRow> {
     this.assertEnabled();
     const authorization = request.headers.get("authorization") ?? "";
-    const credentials = decodeBasic(authorization);
+    const credentials = authorization ? decodeBasic(authorization) : null;
+    const bodySecret = form.get("client_secret");
+    const clientId =
+      credentials?.clientId ??
+      (!authorization && !bodySecret ? form.get("client_id") : null);
     if (this.debug) {
       if (/^basic\b/i.test(authorization)) this.debug.clientAuthMethod = "basic";
-      else if (this.debug.secretPresent) this.debug.clientAuthMethod = "post";
-      else if (this.debug.clientId) this.debug.clientAuthMethod = "none";
+      else if (bodySecret) this.debug.clientAuthMethod = "post";
+      else if (clientId) this.debug.clientAuthMethod = "none";
       else this.debug.clientAuthMethod = authorization ? "none" : "missing";
     }
-    if (!credentials) {
-      if (this.debug) this.debug.failure = authorization ? "client_auth_parse" : "client_auth_missing";
+    if (!clientId || bodySecret || (authorization && !credentials)) {
+      if (this.debug)
+        this.debug.failure = authorization
+          ? "client_auth_parse"
+          : "client_auth_missing";
       throw new OAuthError("invalid_client", "Client authentication failed", 401, true);
     }
     if (this.debug) {
-      this.debug.clientId = credentials.clientId.slice(0, 256);
-      this.debug.secretPresent = credentials.secret.length > 0;
-      this.debug.secretLength = credentials.secret.length;
+      this.debug.clientId = clientId.slice(0, 256);
+      this.debug.secretPresent = Boolean(credentials?.secret);
+      this.debug.secretLength = credentials?.secret.length ?? 0;
     }
     const client = await this.db
       .prepare(
         "SELECT client_id, client_name, client_secret_hash, allowed_scopes, token_endpoint_auth_method, enabled FROM oauth_clients WHERE client_id = ?"
       )
-      .bind(credentials.clientId)
+      .bind(clientId)
       .first<ClientRow>();
     if (this.debug) this.debug.clientFound = Boolean(client);
     if (!client) {
       if (this.debug) this.debug.failure = "client_not_found";
       throw new OAuthError("invalid_client", "Client authentication failed", 401, true);
     }
+    if (!isTokenEndpointAuthMethod(client.token_endpoint_auth_method)) {
+      if (this.debug) this.debug.failure = "client_auth_method_unsupported";
+      throw new OAuthError("unauthorized_client");
+    }
     if (client.enabled !== 1) {
       if (this.debug) this.debug.failure = "client_disabled";
       throw new OAuthError("invalid_client", "Client authentication failed", 401, true);
     }
-    if (client.token_endpoint_auth_method !== "client_secret_basic") {
+    if (client.token_endpoint_auth_method === "none") {
+      if (credentials || client.client_secret_hash !== null) {
+        if (this.debug) this.debug.failure = "client_auth_method_mismatch";
+        throw new OAuthError(
+          "invalid_client",
+          "Client authentication failed",
+          401,
+          true
+        );
+      }
+      return client;
+    }
+    if (client.token_endpoint_auth_method !== "client_secret_basic" || !credentials) {
       if (this.debug) this.debug.failure = "client_auth_method_mismatch";
       throw new OAuthError("invalid_client", "Client authentication failed", 401, true);
     }
-    const hashMatches = Boolean(client.client_secret_hash) &&
-      await constantTimeHashMatches(credentials.secret, client.client_secret_hash ?? "");
+    const hashMatches =
+      Boolean(client.client_secret_hash) &&
+      (await constantTimeHashMatches(
+        credentials.secret,
+        client.client_secret_hash ?? ""
+      ));
     if (this.debug) this.debug.secretHashMatches = hashMatches;
     if (!hashMatches) {
       if (this.debug) this.debug.failure = "client_secret_mismatch";
@@ -336,7 +404,12 @@ export class OAuthService {
       .first<ClientRow>();
     if (this.debug) this.debug.clientFound = Boolean(client);
     if (!client || client.enabled !== 1) {
-      if (this.debug) this.debug.failure = client ? "client_disabled" : "client_not_found";
+      if (this.debug)
+        this.debug.failure = client ? "client_disabled" : "client_not_found";
+      throw new OAuthError("unauthorized_client");
+    }
+    if (!isTokenEndpointAuthMethod(client.token_endpoint_auth_method)) {
+      if (this.debug) this.debug.failure = "client_auth_method_unsupported";
       throw new OAuthError("unauthorized_client");
     }
     const redirect = await this.db
@@ -351,13 +424,24 @@ export class OAuthService {
     }
     const allowed = new Set(parseAllowedScopes(client.allowed_scopes));
     const supportedScopes = new Set<string>(OAUTH_SCOPES);
-    if (scopeList.length === 0 || scopeList.some((scope) => !allowed.has(scope) || !supportedScopes.has(scope))) {
+    if (
+      scopeList.length === 0 ||
+      scopeList.some((scope) => !allowed.has(scope) || !supportedScopes.has(scope))
+    ) {
       if (this.debug) this.debug.failure = "scope_validation";
       throw new OAuthError("invalid_scope");
     }
 
     const challenge = url.searchParams.get("code_challenge");
     const challengeMethod = url.searchParams.get("code_challenge_method");
+    const pkceRequired = requiresPkce(client);
+    if (pkceRequired && (!challenge || challengeMethod !== "S256")) {
+      if (this.debug) this.debug.failure = "pkce_required";
+      throw new OAuthError(
+        "invalid_request",
+        "S256 PKCE is required for public clients"
+      );
+    }
     if ((challenge && challengeMethod !== "S256") || (!challenge && challengeMethod)) {
       if (this.debug) this.debug.failure = "pkce_method_validation";
       throw new OAuthError("invalid_request", "Only S256 PKCE is supported");
@@ -400,7 +484,11 @@ export class OAuthService {
         now
       )
       .run();
-    return { transactionId, clientName: client.client_name, requestedScopes: scopeList };
+    return {
+      transactionId,
+      clientName: client.client_name,
+      requestedScopes: scopeList
+    };
   }
 
   async loadTransaction(transactionId: string): Promise<{
@@ -421,7 +509,9 @@ export class OAuthService {
     if (!row) return null;
     const csrfToken = row.csrf_token;
     const client = await this.db
-      .prepare("SELECT client_name FROM oauth_clients WHERE client_id = ? AND enabled = 1")
+      .prepare(
+        "SELECT client_name FROM oauth_clients WHERE client_id = ? AND enabled = 1"
+      )
       .bind(row.client_id)
       .first<{ client_name: string }>();
     if (!client) return null;
@@ -443,39 +533,55 @@ export class OAuthService {
 
   async bindTransactionToUser(transactionId: string, userId: string): Promise<boolean> {
     this.assertEnabled();
-    const result = await this.db.prepare(
-      `UPDATE oauth_authorization_transactions SET user_id = ?
+    const result = await this.db
+      .prepare(
+        `UPDATE oauth_authorization_transactions SET user_id = ?
        WHERE transaction_hash = ? AND expires_at > ? AND consumed_at IS NULL
          AND (user_id IS NULL OR user_id = ?)`
-    ).bind(userId, await sha256Hex(transactionId), nowIso(), userId).run();
+      )
+      .bind(userId, await sha256Hex(transactionId), nowIso(), userId)
+      .run();
     return (result.meta?.changes ?? 0) === 1;
   }
 
   async validateConsentTransaction(transaction: TransactionRow): Promise<boolean> {
     this.assertEnabled();
-    const client = await this.db.prepare(
-      "SELECT allowed_scopes, enabled FROM oauth_clients WHERE client_id = ?"
-    ).bind(transaction.client_id).first<{ allowed_scopes: string; enabled: number }>();
+    const client = await this.db
+      .prepare("SELECT allowed_scopes, enabled FROM oauth_clients WHERE client_id = ?")
+      .bind(transaction.client_id)
+      .first<{ allowed_scopes: string; enabled: number }>();
     if (!client || client.enabled !== 1) return false;
 
-    const redirect = await this.db.prepare(
-      "SELECT redirect_uri FROM oauth_client_redirect_uris WHERE client_id = ? AND redirect_uri = ?"
-    ).bind(transaction.client_id, transaction.redirect_uri).first<{ redirect_uri: string }>();
+    const redirect = await this.db
+      .prepare(
+        "SELECT redirect_uri FROM oauth_client_redirect_uris WHERE client_id = ? AND redirect_uri = ?"
+      )
+      .bind(transaction.client_id, transaction.redirect_uri)
+      .first<{ redirect_uri: string }>();
     if (!redirect || redirect.redirect_uri !== transaction.redirect_uri) return false;
 
     const scopes = transaction.requested_scope.split(" ").filter(Boolean);
     const allowedScopes = new Set(parseAllowedScopes(client.allowed_scopes));
     const supportedScopes = new Set<string>(OAUTH_SCOPES);
-    return scopes.length > 0 && new Set(scopes).size === scopes.length &&
-      scopes.every((scope) => supportedScopes.has(scope) && allowedScopes.has(scope));
+    return (
+      scopes.length > 0 &&
+      new Set(scopes).size === scopes.length &&
+      scopes.every((scope) => supportedScopes.has(scope) && allowedScopes.has(scope))
+    );
   }
 
-  async consumeTransaction(transaction: TransactionRow, userId: string): Promise<boolean> {
+  async consumeTransaction(
+    transaction: TransactionRow,
+    userId: string
+  ): Promise<boolean> {
     this.assertEnabled();
-    const result = await this.db.prepare(
-      `UPDATE oauth_authorization_transactions SET consumed_at = ?
+    const result = await this.db
+      .prepare(
+        `UPDATE oauth_authorization_transactions SET consumed_at = ?
        WHERE transaction_hash = ? AND user_id = ? AND consumed_at IS NULL AND expires_at > ?`
-    ).bind(nowIso(), transaction.transaction_hash, userId, nowIso()).run();
+      )
+      .bind(nowIso(), transaction.transaction_hash, userId, nowIso())
+      .run();
     return (result.meta?.changes ?? 0) === 1;
   }
 
@@ -483,23 +589,38 @@ export class OAuthService {
     return Boolean(candidate) && equalSecret(candidate, storedToken);
   }
 
-  async createAuthorizationCompletion(transaction: TransactionRow, userId: string): Promise<string> {
+  async createAuthorizationCompletion(
+    transaction: TransactionRow,
+    userId: string
+  ): Promise<string> {
     this.assertEnabled();
     const completionHandle = generateOpaqueToken();
     const now = nowIso();
     await this.db.batch([
-      this.db.prepare(
-        `INSERT INTO oauth_authorization_completions
+      this.db
+        .prepare(
+          `INSERT INTO oauth_authorization_completions
           (completion_hash, client_id, user_id, redirect_uri, scope, state, code_challenge,
            code_challenge_method, resource, expires_at, consumed_at, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)`
-      ).bind(
-        await sha256Hex(completionHandle), transaction.client_id, userId, transaction.redirect_uri,
-        transaction.requested_scope, transaction.state, transaction.code_challenge,
-        transaction.code_challenge_method, transaction.resource,
-        isoAfter(AUTHORIZATION_COMPLETION_TTL_SECONDS), now
-      ),
-      this.db.prepare("DELETE FROM oauth_authorization_transactions WHERE transaction_hash = ?")
+        )
+        .bind(
+          await sha256Hex(completionHandle),
+          transaction.client_id,
+          userId,
+          transaction.redirect_uri,
+          transaction.requested_scope,
+          transaction.state,
+          transaction.code_challenge,
+          transaction.code_challenge_method,
+          transaction.resource,
+          isoAfter(AUTHORIZATION_COMPLETION_TTL_SECONDS),
+          now
+        ),
+      this.db
+        .prepare(
+          "DELETE FROM oauth_authorization_transactions WHERE transaction_hash = ?"
+        )
         .bind(transaction.transaction_hash)
     ]);
     return completionHandle;
@@ -510,29 +631,49 @@ export class OAuthService {
     return (await this.findValidAuthorizationCompletion(handle)) !== null;
   }
 
-  private async findValidAuthorizationCompletion(handle: string): Promise<CompletionRow | null> {
+  private async findValidAuthorizationCompletion(
+    handle: string
+  ): Promise<CompletionRow | null> {
     if (!handle || handle.length > 128) return null;
     const completionHash = await sha256Hex(handle);
-    const completion = await this.db.prepare(
-      `SELECT completion_hash, client_id, user_id, redirect_uri, scope, state, code_challenge,
+    const completion = await this.db
+      .prepare(
+        `SELECT completion_hash, client_id, user_id, redirect_uri, scope, state, code_challenge,
               code_challenge_method, resource, expires_at, consumed_at
        FROM oauth_authorization_completions
        WHERE completion_hash = ? AND expires_at > ? AND consumed_at IS NULL`
-    ).bind(completionHash, nowIso()).first<CompletionRow>();
+      )
+      .bind(completionHash, nowIso())
+      .first<CompletionRow>();
     if (!completion) return null;
 
-    const client = await this.db.prepare(
-      "SELECT allowed_scopes, enabled FROM oauth_clients WHERE client_id = ?"
-    ).bind(completion.client_id).first<{ allowed_scopes: string; enabled: number }>();
-    const registeredRedirect = await this.db.prepare(
-      "SELECT redirect_uri FROM oauth_client_redirect_uris WHERE client_id = ? AND redirect_uri = ?"
-    ).bind(completion.client_id, completion.redirect_uri).first<{ redirect_uri: string }>();
-    const allowedScopes = new Set(client ? parseAllowedScopes(client.allowed_scopes) : []);
+    const client = await this.db
+      .prepare("SELECT allowed_scopes, enabled FROM oauth_clients WHERE client_id = ?")
+      .bind(completion.client_id)
+      .first<{ allowed_scopes: string; enabled: number }>();
+    const registeredRedirect = await this.db
+      .prepare(
+        "SELECT redirect_uri FROM oauth_client_redirect_uris WHERE client_id = ? AND redirect_uri = ?"
+      )
+      .bind(completion.client_id, completion.redirect_uri)
+      .first<{ redirect_uri: string }>();
+    const allowedScopes = new Set(
+      client ? parseAllowedScopes(client.allowed_scopes) : []
+    );
     const scopes = parseScopes(completion.scope);
-    if (!client || client.enabled !== 1 || !registeredRedirect ||
-      registeredRedirect.redirect_uri !== completion.redirect_uri || !scopes.length ||
-      scopes.some((scope) => !OAUTH_SCOPES.includes(scope as OAuthScope) || !allowedScopes.has(scope)) ||
-      !await new HouseholdService(this.db).getCurrentHousehold(completion.user_id)) return null;
+    if (
+      !client ||
+      client.enabled !== 1 ||
+      !registeredRedirect ||
+      registeredRedirect.redirect_uri !== completion.redirect_uri ||
+      !scopes.length ||
+      scopes.some(
+        (scope) =>
+          !OAUTH_SCOPES.includes(scope as OAuthScope) || !allowedScopes.has(scope)
+      ) ||
+      !(await new HouseholdService(this.db).getCurrentHousehold(completion.user_id))
+    )
+      return null;
     return completion;
   }
 
@@ -550,12 +691,15 @@ export class OAuthService {
     const consumedAt = nowIso();
     const completionHash = completion.completion_hash;
     const result = await this.db.batch([
-      this.db.prepare(
-        `UPDATE oauth_authorization_completions SET consumed_at = ?
+      this.db
+        .prepare(
+          `UPDATE oauth_authorization_completions SET consumed_at = ?
          WHERE completion_hash = ? AND consumed_at IS NULL AND expires_at > ?`
-      ).bind(consumedAt, completionHash, consumedAt),
-      this.db.prepare(
-        `INSERT INTO oauth_authorization_codes
+        )
+        .bind(consumedAt, completionHash, consumedAt),
+      this.db
+        .prepare(
+          `INSERT INTO oauth_authorization_codes
           (code_hash, client_id, user_id, redirect_uri, scope, code_challenge,
            code_challenge_method, resource, expires_at, consumed_at, created_at)
          SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?
@@ -563,13 +707,24 @@ export class OAuthService {
            SELECT 1 FROM oauth_authorization_completions
            WHERE completion_hash = ? AND consumed_at = ?
          )`
-      ).bind(
-        codeHash, completion.client_id, completion.user_id, completion.redirect_uri, completion.scope,
-        completion.code_challenge, completion.code_challenge_method, completion.resource,
-        isoAfter(AUTHORIZATION_CODE_TTL_SECONDS), consumedAt, completionHash, consumedAt
-      )
+        )
+        .bind(
+          codeHash,
+          completion.client_id,
+          completion.user_id,
+          completion.redirect_uri,
+          completion.scope,
+          completion.code_challenge,
+          completion.code_challenge_method,
+          completion.resource,
+          isoAfter(AUTHORIZATION_CODE_TTL_SECONDS),
+          consumedAt,
+          completionHash,
+          consumedAt
+        )
     ]);
-    if ((result[0]?.meta?.changes ?? 0) !== 1 || (result[1]?.meta?.changes ?? 0) !== 1) return null;
+    if ((result[0]?.meta?.changes ?? 0) !== 1 || (result[1]?.meta?.changes ?? 0) !== 1)
+      return null;
     return { redirectUri: completion.redirect_uri, state: completion.state, code };
   }
 
@@ -583,15 +738,22 @@ export class OAuthService {
       this.debug.secretPresent = secret.length > 0;
       this.debug.secretLength = secret.length;
     }
-    const client = await this.authenticateClient(request);
+    const client = await this.authenticateClient(request, form);
     const grantType = form.get("grant_type");
-    if (grantType === "authorization_code") return this.exchangeCode(client, form, request);
-    if (grantType === "refresh_token") return this.rotateRefreshToken(client, form, request);
-    if (this.debug) this.debug.failure = grantType ? "grant_type_unsupported" : "grant_type_missing";
+    if (grantType === "authorization_code")
+      return this.exchangeCode(client, form, request);
+    if (grantType === "refresh_token")
+      return this.rotateRefreshToken(client, form, request);
+    if (this.debug)
+      this.debug.failure = grantType ? "grant_type_unsupported" : "grant_type_missing";
     throw new OAuthError("unsupported_grant_type");
   }
 
-  private async exchangeCode(client: ClientRow, form: URLSearchParams, request: Request): Promise<Response> {
+  private async exchangeCode(
+    client: ClientRow,
+    form: URLSearchParams,
+    request: Request
+  ): Promise<Response> {
     const code = form.get("code") ?? "";
     const redirectUri = form.get("redirect_uri") ?? "";
     if (!code || !redirectUri) {
@@ -600,7 +762,10 @@ export class OAuthService {
     }
     const codeHash = await sha256Hex(code);
     const requestedResource = form.get("resource");
-    if (requestedResource && requestedResource !== this.mcpResource(new URL(request.url).origin)) {
+    if (
+      requestedResource &&
+      requestedResource !== this.mcpResource(new URL(request.url).origin)
+    ) {
       if (this.debug) this.debug.failure = "token_resource_mismatch";
       throw new OAuthError("invalid_target");
     }
@@ -614,26 +779,39 @@ export class OAuthService {
       .first<CodeRow>();
     const now = nowIso();
     if (
-      !row || row.client_id !== client.client_id || row.redirect_uri !== redirectUri ||
-      row.expires_at <= now || row.consumed_at
+      !row ||
+      row.client_id !== client.client_id ||
+      row.redirect_uri !== redirectUri ||
+      row.expires_at <= now ||
+      row.consumed_at
     ) {
       if (this.debug) {
-        this.debug.failure = !row ? "authorization_code_not_found"
-          : row.client_id !== client.client_id ? "authorization_code_client_mismatch"
-          : row.redirect_uri !== redirectUri ? "authorization_code_redirect_uri_mismatch"
-          : row.expires_at <= now ? "authorization_code_expired"
-          : "authorization_code_already_used";
+        this.debug.failure = !row
+          ? "authorization_code_not_found"
+          : row.client_id !== client.client_id
+            ? "authorization_code_client_mismatch"
+            : row.redirect_uri !== redirectUri
+              ? "authorization_code_redirect_uri_mismatch"
+              : row.expires_at <= now
+                ? "authorization_code_expired"
+                : "authorization_code_already_used";
       }
       throw new OAuthError("invalid_grant");
     }
-    if ((row.resource && row.resource !== this.mcpResource(new URL(request.url).origin)) ||
-        (requestedResource && row.resource && requestedResource !== row.resource)) {
+    if (
+      (row.resource &&
+        row.resource !== this.mcpResource(new URL(request.url).origin)) ||
+      (requestedResource && row.resource && requestedResource !== row.resource)
+    ) {
       if (this.debug) this.debug.failure = "authorization_code_resource_mismatch";
       throw new OAuthError("invalid_target");
     }
     if (row.code_challenge) {
       const verifier = form.get("code_verifier") ?? "";
-      if (!/^[A-Za-z0-9._~-]{43,128}$/.test(verifier) || (await pkceChallenge(verifier)) !== row.code_challenge) {
+      if (
+        !/^[A-Za-z0-9._~-]{43,128}$/.test(verifier) ||
+        (await pkceChallenge(verifier)) !== row.code_challenge
+      ) {
         if (this.debug) this.debug.failure = "pkce_verification";
         throw new OAuthError("invalid_grant");
       }
@@ -661,9 +839,12 @@ export class OAuthService {
       avatarUrl: avatarUrlFor(user.id, user)
     };
     const grantId = crypto.randomUUID();
-    await this.db.prepare(
-      "INSERT INTO oauth_grants (id, user_id, client_id, scope, created_at, revoked_at) VALUES (?, ?, ?, ?, ?, NULL)"
-    ).bind(grantId, user.id, client.client_id, row.scope, now).run();
+    await this.db
+      .prepare(
+        "INSERT INTO oauth_grants (id, user_id, client_id, scope, created_at, revoked_at) VALUES (?, ?, ?, ?, ?, NULL)"
+      )
+      .bind(grantId, user.id, client.client_id, row.scope, now)
+      .run();
     return this.createTokenResponse({
       grantId,
       clientId: client.client_id,
@@ -674,14 +855,21 @@ export class OAuthService {
     });
   }
 
-  private async rotateRefreshToken(client: ClientRow, form: URLSearchParams, request: Request): Promise<Response> {
+  private async rotateRefreshToken(
+    client: ClientRow,
+    form: URLSearchParams,
+    request: Request
+  ): Promise<Response> {
     const token = form.get("refresh_token") ?? "";
     if (!token) {
       if (this.debug) this.debug.failure = "refresh_token_missing";
       throw new OAuthError("invalid_request");
     }
     const requestedResource = form.get("resource");
-    if (requestedResource && requestedResource !== this.mcpResource(new URL(request.url).origin)) {
+    if (
+      requestedResource &&
+      requestedResource !== this.mcpResource(new URL(request.url).origin)
+    ) {
       if (this.debug) this.debug.failure = "refresh_resource_mismatch";
       throw new OAuthError("invalid_target");
     }
@@ -696,14 +884,25 @@ export class OAuthService {
       )
       .bind(tokenHash)
       .first<RefreshRow>();
-    if (!row || row.client_id !== client.client_id || row.grant_revoked_at || row.revoked_at) {
-      if (this.debug) this.debug.failure = !row ? "refresh_token_not_found"
-        : row.client_id !== client.client_id ? "refresh_token_client_mismatch"
-        : "refresh_token_revoked";
+    if (
+      !row ||
+      row.client_id !== client.client_id ||
+      row.grant_revoked_at ||
+      row.revoked_at
+    ) {
+      if (this.debug)
+        this.debug.failure = !row
+          ? "refresh_token_not_found"
+          : row.client_id !== client.client_id
+            ? "refresh_token_client_mismatch"
+            : "refresh_token_revoked";
       throw new OAuthError("invalid_grant");
     }
-    if ((row.resource && row.resource !== this.mcpResource(new URL(request.url).origin)) ||
-        (requestedResource && row.resource && requestedResource !== row.resource)) {
+    if (
+      (row.resource &&
+        row.resource !== this.mcpResource(new URL(request.url).origin)) ||
+      (requestedResource && row.resource && requestedResource !== row.resource)
+    ) {
       if (this.debug) this.debug.failure = "refresh_resource_mismatch";
       throw new OAuthError("invalid_target");
     }
@@ -738,13 +937,18 @@ export class OAuthService {
     });
     const responseBody: unknown = await nextTokens.clone().json();
     const replacement =
-      typeof responseBody === "object" && responseBody !== null &&
-      "refresh_token" in responseBody && typeof responseBody.refresh_token === "string"
+      typeof responseBody === "object" &&
+      responseBody !== null &&
+      "refresh_token" in responseBody &&
+      typeof responseBody.refresh_token === "string"
         ? responseBody.refresh_token
         : "";
-    await this.db.prepare(
-      "UPDATE oauth_refresh_tokens SET replaced_by_hash = ? WHERE token_hash = ?"
-    ).bind(await sha256Hex(replacement), tokenHash).run();
+    await this.db
+      .prepare(
+        "UPDATE oauth_refresh_tokens SET replaced_by_hash = ? WHERE token_hash = ?"
+      )
+      .bind(await sha256Hex(replacement), tokenHash)
+      .run();
     return nextTokens;
   }
 
@@ -761,30 +965,52 @@ export class OAuthService {
     const now = nowIso();
     const accessExpiresAt = isoAfter(OAUTH_ACCESS_TTL_SECONDS);
     const refreshExpiresAt = isoAfter(OAUTH_REFRESH_TTL_SECONDS);
-    await this.db.prepare(
-      `INSERT INTO oauth_access_tokens
+    await this.db
+      .prepare(
+        `INSERT INTO oauth_access_tokens
         (token_hash, grant_id, client_id, user_id, scope, resource, expires_at, revoked_at, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?)`
-    ).bind(
-      await sha256Hex(accessToken), input.grantId, input.clientId, input.userId,
-      input.scope, input.resource, accessExpiresAt, now
-    ).run();
-    await this.db.prepare(
-      `INSERT INTO oauth_refresh_tokens
+      )
+      .bind(
+        await sha256Hex(accessToken),
+        input.grantId,
+        input.clientId,
+        input.userId,
+        input.scope,
+        input.resource,
+        accessExpiresAt,
+        now
+      )
+      .run();
+    await this.db
+      .prepare(
+        `INSERT INTO oauth_refresh_tokens
         (token_hash, grant_id, client_id, user_id, scope, resource, family_id,
          expires_at, used_at, revoked_at, replaced_by_hash, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?)`
-    ).bind(
-      await sha256Hex(refreshToken), input.grantId, input.clientId, input.userId,
-      input.scope, input.resource, input.familyId, refreshExpiresAt, now
-    ).run();
-    return new Response(JSON.stringify({
-      access_token: accessToken,
-      token_type: "Bearer",
-      expires_in: OAUTH_ACCESS_TTL_SECONDS,
-      refresh_token: refreshToken,
-      scope: input.scope
-    }), { status: 200, headers: tokenHeaders() });
+      )
+      .bind(
+        await sha256Hex(refreshToken),
+        input.grantId,
+        input.clientId,
+        input.userId,
+        input.scope,
+        input.resource,
+        input.familyId,
+        refreshExpiresAt,
+        now
+      )
+      .run();
+    return new Response(
+      JSON.stringify({
+        access_token: accessToken,
+        token_type: "Bearer",
+        expires_in: OAUTH_ACCESS_TTL_SECONDS,
+        refresh_token: refreshToken,
+        scope: input.scope
+      }),
+      { status: 200, headers: tokenHeaders() }
+    );
   }
 
   async authenticateAccessToken(token: string): Promise<TokenPrincipal | null> {
@@ -800,10 +1026,22 @@ export class OAuthService {
       )
       .bind(await sha256Hex(token))
       .first<{
-        user_id: string; client_id: string; scope: string; expires_at: string; revoked_at: string | null;
-        resource: string | null; grant_revoked_at: string | null; enabled: number;
+        user_id: string;
+        client_id: string;
+        scope: string;
+        expires_at: string;
+        revoked_at: string | null;
+        resource: string | null;
+        grant_revoked_at: string | null;
+        enabled: number;
       }>();
-    if (!row || row.expires_at <= nowIso() || row.revoked_at || row.grant_revoked_at || row.enabled !== 1)
+    if (
+      !row ||
+      row.expires_at <= nowIso() ||
+      row.revoked_at ||
+      row.grant_revoked_at ||
+      row.enabled !== 1
+    )
       return null;
     const user = await new UserRepository(this.db).findById(row.user_id);
     if (!user) return null;
@@ -821,17 +1059,23 @@ export class OAuthService {
   }
 
   async revoke(request: Request, form: URLSearchParams): Promise<Response> {
-    const client = await this.authenticateClient(request);
+    const client = await this.authenticateClient(request, form);
     const token = form.get("token") ?? "";
     if (token) {
       const tokenHash = await sha256Hex(token);
-      const refresh = await this.db.prepare(
-        "SELECT grant_id FROM oauth_refresh_tokens WHERE token_hash = ? AND client_id = ?"
-      ).bind(tokenHash, client.client_id).first<{ grant_id: string }>();
+      const refresh = await this.db
+        .prepare(
+          "SELECT grant_id FROM oauth_refresh_tokens WHERE token_hash = ? AND client_id = ?"
+        )
+        .bind(tokenHash, client.client_id)
+        .first<{ grant_id: string }>();
       if (refresh) await this.revokeGrant(refresh.grant_id);
-      await this.db.prepare(
-        "UPDATE oauth_access_tokens SET revoked_at = ? WHERE token_hash = ? AND client_id = ? AND revoked_at IS NULL"
-      ).bind(nowIso(), tokenHash, client.client_id).run();
+      await this.db
+        .prepare(
+          "UPDATE oauth_access_tokens SET revoked_at = ? WHERE token_hash = ? AND client_id = ? AND revoked_at IS NULL"
+        )
+        .bind(nowIso(), tokenHash, client.client_id)
+        .run();
     }
     return new Response(null, { status: 200, headers: tokenHeaders() });
   }
@@ -839,20 +1083,32 @@ export class OAuthService {
   private async revokeGrant(grantId: string): Promise<void> {
     const now = nowIso();
     await this.db.batch([
-      this.db.prepare("UPDATE oauth_grants SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL").bind(now, grantId),
-      this.db.prepare("UPDATE oauth_access_tokens SET revoked_at = ? WHERE grant_id = ? AND revoked_at IS NULL").bind(now, grantId),
-      this.db.prepare("UPDATE oauth_refresh_tokens SET revoked_at = ? WHERE grant_id = ? AND revoked_at IS NULL").bind(now, grantId)
+      this.db
+        .prepare(
+          "UPDATE oauth_grants SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL"
+        )
+        .bind(now, grantId),
+      this.db
+        .prepare(
+          "UPDATE oauth_access_tokens SET revoked_at = ? WHERE grant_id = ? AND revoked_at IS NULL"
+        )
+        .bind(now, grantId),
+      this.db
+        .prepare(
+          "UPDATE oauth_refresh_tokens SET revoked_at = ? WHERE grant_id = ? AND revoked_at IS NULL"
+        )
+        .bind(now, grantId)
     ]);
   }
-
 }
 
-export const tokenHeaders = (): Headers => new Headers({
-  "content-type": "application/json; charset=utf-8",
-  "cache-control": "no-store",
-  pragma: "no-cache",
-  "x-content-type-options": "nosniff"
-});
+export const tokenHeaders = (): Headers =>
+  new Headers({
+    "content-type": "application/json; charset=utf-8",
+    "cache-control": "no-store",
+    pragma: "no-cache",
+    "x-content-type-options": "nosniff"
+  });
 
 export const encodeClientCredentials = (clientId: string, secret: string): string =>
   `Basic ${btoa(`${encodeBasicPart(clientId)}:${encodeBasicPart(secret)}`)}`;
