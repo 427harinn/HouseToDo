@@ -334,6 +334,17 @@ export class MemoryD1 {
   readonly pushSubscriptions = new Map<string, PushSubscriptionDbRecord>();
   readonly notificationDeliveries = new Map<string, NotificationDeliveryDbRecord>();
   readonly notificationSettings = new Map<string, UserNotificationSettingsDbRecord>();
+  readonly oauthClients = new Map<string, {
+    client_id: string; client_name: string; client_secret_hash: string | null;
+    allowed_scopes: string; token_endpoint_auth_method: string; enabled: number;
+  }>();
+  readonly oauthRedirectUris = new Map<string, { client_id: string; redirect_uri: string; created_at: string }>();
+  readonly oauthTransactions = new Map<string, Record<string, unknown>>();
+  readonly oauthCompletions = new Map<string, Record<string, unknown>>();
+  readonly oauthCodes = new Map<string, Record<string, unknown>>();
+  readonly oauthGrants = new Map<string, Record<string, unknown>>();
+  readonly oauthAccessTokens = new Map<string, Record<string, unknown>>();
+  readonly oauthRefreshTokens = new Map<string, Record<string, unknown>>();
   private lastDeletedReservation = false;
   private lastChanges = 0;
 
@@ -366,7 +377,15 @@ export class MemoryD1 {
       this.imageUploadReservations,
       this.pushSubscriptions,
       this.notificationDeliveries,
-      this.notificationSettings
+      this.notificationSettings,
+      this.oauthClients,
+      this.oauthRedirectUris,
+      this.oauthTransactions,
+      this.oauthCompletions,
+      this.oauthCodes,
+      this.oauthGrants,
+      this.oauthAccessTokens,
+      this.oauthRefreshTokens
     ];
     const snapshots = maps.map((map) => new Map<unknown, unknown>(map));
     const results: D1Result<T>[] = [];
@@ -410,7 +429,46 @@ export class MemoryD1 {
         today_count: number;
       }
     | { count: number }
+    | Record<string, unknown>
     | null {
+    if (sql.includes("FROM oauth_clients WHERE client_id = ?")) {
+      const client = this.oauthClients.get(String(values[0]));
+      if (!client) return null;
+      if (sql.includes("SELECT client_name")) return { client_name: client.client_name };
+      return client;
+    }
+    if (sql.includes("FROM oauth_client_redirect_uris"))
+      return this.oauthRedirectUris.get(`${String(values[0])}:${String(values[1])}`) ?? null;
+    if (sql.includes("FROM oauth_authorization_transactions")) {
+      const row = this.oauthTransactions.get(String(values[0]));
+      return row && (!sql.includes("expires_at > ?") || String(row.expires_at) > String(values[1])) &&
+        (!sql.includes("consumed_at IS NULL") || row.consumed_at === null || row.consumed_at === undefined) ? row : null;
+    }
+    if (sql.includes("FROM oauth_authorization_codes WHERE code_hash = ?"))
+      return this.oauthCodes.get(String(values[0])) ?? null;
+    if (sql.includes("FROM oauth_authorization_completions")) {
+      const row = this.oauthCompletions.get(String(values[0]));
+      return row && String(row.expires_at) > String(values[1]) &&
+        (row.consumed_at === null || row.consumed_at === undefined) ? row : null;
+    }
+    if (sql.includes("FROM oauth_refresh_tokens r") && sql.includes("LEFT JOIN oauth_grants")) {
+      const row = this.oauthRefreshTokens.get(String(values[0]));
+      if (!row) return null;
+      const grant = this.oauthGrants.get(String(row.grant_id));
+      return { ...row, grant_revoked_at: grant?.revoked_at ?? null };
+    }
+    if (sql.includes("FROM oauth_refresh_tokens WHERE token_hash = ?")) {
+      const row = this.oauthRefreshTokens.get(String(values[0]));
+      return row && row.client_id === values[1] ? row : null;
+    }
+    if (sql.includes("FROM oauth_access_tokens t") && sql.includes("INNER JOIN oauth_grants")) {
+      const row = this.oauthAccessTokens.get(String(values[0]));
+      if (!row) return null;
+      const grant = this.oauthGrants.get(String(row.grant_id));
+      const client = this.oauthClients.get(String(row.client_id));
+      if (!grant || !client) return null;
+      return { ...row, grant_revoked_at: grant.revoked_at ?? null, enabled: client.enabled };
+    }
     if (sql.includes("FROM users WHERE id")) {
       return this.users.get(String(values[0])) ?? null;
     }
@@ -1201,6 +1259,129 @@ export class MemoryD1 {
         last_used_at: String(values[5])
       });
     }
+    if (sql.startsWith("INSERT INTO oauth_authorization_transactions")) {
+      this.oauthTransactions.set(String(values[0]), {
+        transaction_hash: String(values[0]), client_id: String(values[1]), user_id: null,
+        redirect_uri: String(values[2]), requested_scope: String(values[3]), state: String(values[4]),
+        code_challenge: values[5] as string | null, code_challenge_method: values[6] as string | null,
+        resource: values[7] as string | null, csrf_token: String(values[8]),
+        expires_at: String(values[9]), consumed_at: null, created_at: String(values[10])
+      });
+    }
+    if (sql.startsWith("INSERT INTO oauth_authorization_codes") && !sql.includes("SELECT ?")) {
+      this.oauthCodes.set(String(values[0]), {
+        code_hash: String(values[0]), client_id: String(values[1]), user_id: String(values[2]),
+        redirect_uri: String(values[3]), scope: String(values[4]),
+        code_challenge: values[5] as string | null, code_challenge_method: values[6] as string | null,
+        resource: values[7] as string | null, expires_at: String(values[8]), consumed_at: null,
+        created_at: String(values[9])
+      });
+    }
+    if (sql.startsWith("INSERT INTO oauth_authorization_completions")) {
+      this.oauthCompletions.set(String(values[0]), {
+        completion_hash: String(values[0]), client_id: String(values[1]), user_id: String(values[2]),
+        redirect_uri: String(values[3]), scope: String(values[4]), state: String(values[5]),
+        code_challenge: values[6] as string | null,
+        code_challenge_method: values[7] as string | null,
+        resource: values[8] as string | null, expires_at: String(values[9]), consumed_at: null,
+        created_at: String(values[10])
+      });
+    }
+    if (sql.startsWith("INSERT INTO oauth_authorization_codes") && sql.includes("SELECT ?")) {
+      const completion = this.oauthCompletions.get(String(values[10]));
+      if (completion && completion.consumed_at === values[11]) {
+        this.oauthCodes.set(String(values[0]), {
+          code_hash: String(values[0]), client_id: String(values[1]), user_id: String(values[2]),
+          redirect_uri: String(values[3]), scope: String(values[4]),
+          code_challenge: values[5] as string | null,
+          code_challenge_method: values[6] as string | null,
+          resource: values[7] as string | null, expires_at: String(values[8]), consumed_at: null,
+          created_at: String(values[9])
+        });
+      } else changes = 0;
+    }
+    if (sql.startsWith("INSERT INTO oauth_grants")) {
+      this.oauthGrants.set(String(values[0]), {
+        id: String(values[0]), user_id: String(values[1]), client_id: String(values[2]),
+        scope: String(values[3]), created_at: String(values[4]), revoked_at: null
+      });
+    }
+    if (sql.startsWith("INSERT INTO oauth_access_tokens")) {
+      this.oauthAccessTokens.set(String(values[0]), {
+        token_hash: String(values[0]), grant_id: String(values[1]), client_id: String(values[2]),
+        user_id: String(values[3]), scope: String(values[4]), resource: values[5] as string | null,
+        expires_at: String(values[6]), revoked_at: null, created_at: String(values[7])
+      });
+    }
+    if (sql.startsWith("INSERT INTO oauth_refresh_tokens")) {
+      this.oauthRefreshTokens.set(String(values[0]), {
+        token_hash: String(values[0]), grant_id: String(values[1]), client_id: String(values[2]),
+        user_id: String(values[3]), scope: String(values[4]), resource: values[5] as string | null,
+        family_id: String(values[6]), expires_at: String(values[7]), used_at: null,
+        revoked_at: null, replaced_by_hash: null, created_at: String(values[8])
+      });
+    }
+    if (sql.startsWith("UPDATE oauth_authorization_codes SET consumed_at")) {
+      const row = this.oauthCodes.get(String(values[1]));
+      if (row && !row.consumed_at && String(row.expires_at) > String(values[2])) {
+        row.consumed_at = String(values[0]);
+        changes = 1;
+      } else changes = 0;
+    }
+    if (sql.startsWith("UPDATE oauth_refresh_tokens SET used_at")) {
+      const row = this.oauthRefreshTokens.get(String(values[1]));
+      if (row && !row.used_at && !row.revoked_at && String(row.expires_at) > String(values[2])) {
+        row.used_at = String(values[0]);
+        changes = 1;
+      } else changes = 0;
+    }
+    if (sql.startsWith("UPDATE oauth_refresh_tokens SET replaced_by_hash")) {
+      const row = this.oauthRefreshTokens.get(String(values[1]));
+      if (row) row.replaced_by_hash = String(values[0]);
+      else changes = 0;
+    }
+    if (sql.startsWith("UPDATE oauth_access_tokens SET revoked_at")) {
+      const row = this.oauthAccessTokens.get(String(values[1]));
+      if (row && row.client_id === values[2] && !row.revoked_at) row.revoked_at = String(values[0]);
+      else changes = 0;
+    }
+    if (sql.startsWith("UPDATE oauth_grants SET revoked_at")) {
+      const row = this.oauthGrants.get(String(values[1]));
+      if (row && !row.revoked_at) row.revoked_at = String(values[0]);
+    }
+    if (sql.startsWith("UPDATE oauth_access_tokens SET revoked_at = ? WHERE grant_id")) {
+      for (const row of this.oauthAccessTokens.values())
+        if (row.grant_id === values[1] && !row.revoked_at) row.revoked_at = String(values[0]);
+    }
+    if (sql.startsWith("UPDATE oauth_refresh_tokens SET revoked_at = ? WHERE grant_id")) {
+      for (const row of this.oauthRefreshTokens.values())
+        if (row.grant_id === values[1] && !row.revoked_at) row.revoked_at = String(values[0]);
+    }
+    if (sql.startsWith("UPDATE oauth_authorization_transactions SET user_id")) {
+      const row = this.oauthTransactions.get(String(values[1]));
+      if (row && String(row.expires_at) > String(values[2]) &&
+        (row.consumed_at === null || row.consumed_at === undefined) &&
+        (row.user_id === null || row.user_id === undefined || row.user_id === values[3])) {
+        row.user_id = String(values[0]);
+      } else changes = 0;
+    }
+    if (sql.startsWith("UPDATE oauth_authorization_transactions SET consumed_at")) {
+      const row = this.oauthTransactions.get(String(values[1]));
+      if (row && row.user_id === values[2] &&
+        (row.consumed_at === null || row.consumed_at === undefined) &&
+        String(row.expires_at) > String(values[3])) {
+        row.consumed_at = String(values[0]);
+      } else changes = 0;
+    }
+    if (sql.startsWith("UPDATE oauth_authorization_completions SET consumed_at")) {
+      const row = this.oauthCompletions.get(String(values[1]));
+      if (row && (row.consumed_at === null || row.consumed_at === undefined) &&
+        String(row.expires_at) > String(values[2])) {
+        row.consumed_at = String(values[0]);
+      } else changes = 0;
+    }
+    if (sql.startsWith("DELETE FROM oauth_authorization_transactions"))
+      this.oauthTransactions.delete(String(values[0]));
     if (sql.startsWith("DELETE FROM sessions WHERE token_hash")) {
       for (const [id, session] of this.sessions) {
         if (session.token_hash === values[0]) this.sessions.delete(id);

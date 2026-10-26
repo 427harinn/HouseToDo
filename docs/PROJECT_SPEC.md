@@ -34,6 +34,10 @@ manifestとService Workerを提供します。Service Workerはpush payloadを�
 
 タスクのdeadline reminderと家事時刻30分後のfollow-up、買い物追加、ユーザーのevening summary、Push送信、delivery log、重複防止、pending claim leaseを実装しています。canonical taskはhousehold timezoneの`deadlineDate` / `deadlineTime`から各通知時刻を解決し、stable occurrence/period keyで重複を防止します。follow-upは通常通知が設定されているtaskのみを対象とし、30分経過後の既存20分 delivery windowでrecordを再確認して完了・skip済みscopeとinactive taskを除外します。legacy follow-upは実際の家事時刻である`scheduledTime`を使い、通常通知設定の`notificationTime`がある場合に限ります。買い物追加通知は同じhouseholdの追加者以外へ送信します。evening summaryは当日未完了タスクがある場合に限り送信対象になります。test Push APIはproductionでは無効です。
 
+### Muse連携（staging）
+
+OAuth認証済みMuseはMCP toolsでタスクと買い物を読み書きできます。タスク作成では単発、毎日、曜日指定、週あたり回数、毎週/毎月の期間内実施、毎月指定日、今週中、今月中、締切日を指定でき、既存のタスク通知presetも指定できます。`update_task`は変更項目だけを受け取り、詳細取得後の部分更新を行います。`delete_task`は物理削除せずタスクを無効化します。買い物は名前・数量・メモ・購入予定日の部分更新、削除、購入済みから未購入への復帰を行えます。対象IDは`get_shopping`で取得し、同名などで対象が曖昧ならユーザーに確認します。OAuth scopeで読み書きを分け、既存Serviceが認証ユーザーの現在の家庭に限定します。このMCP機能はstaging/testのみ有効でproductionでは無効です。
+
 ### 現在のUX
 
 モバイルファーストのReact UIで、ログイン、家庭管理、ホーム、タスク一覧・作成編集・詳細、買い物、画像、設定を提供します。設定では通知状態、Push購読、通知設定、家庭メンバー、画像使用量を確認できます。初期ラフ画像は現在UIの正確な参照ではありません。

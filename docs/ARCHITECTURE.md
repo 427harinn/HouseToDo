@@ -20,6 +20,8 @@ routeのsource of truthは `worker/app.ts` と `worker/routes/`です。認証�
 
 主要API領域は `/api/auth/*`、`/api/households/*`、`/api/tasks/*`、`/api/dashboard/today`、`/api/shopping/*`、`/api/notifications/*`です。API一覧をREADMEや他docへ複製しません。
 
+Staging Muse integration uses OAuth bearer tokens at `/mcp`. The MCP task adapter translates its compact recurrence/notification schema through shared task validation and `TaskService`; shopping tools call `ShoppingService` for list, partial update, deletion, purchase, and restore behavior. Household scope is resolved only from the authenticated token user; the service enforces item household ownership and owns image preservation and R2 cleanup. Production remains disabled in this integration configuration.
+
 ## Images / R2
 
 画像はbrowser processing後にR2へ保存し、WebPまたはJPEGの実際のcontent typeとmagic bytesを検証してD1 metadataをtransaction境界に含めます。upload reservation、active usage、daily upload、pending cleanup、orphan queueをserviceとrepositoryで管理します。参照中のblobは削除せず、R2削除失敗はorphan queueへ送ります。
