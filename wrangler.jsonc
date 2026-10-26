@@ -86,6 +86,7 @@
         {
           "binding": "DB",
           "database_name": "house-to-do",
+          "database_id": "f4877c95-59c1-4e42-9684-5bc51d880aa4",
           "migrations_dir": "migrations"
         }
       ],
