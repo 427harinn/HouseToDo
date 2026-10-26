@@ -329,6 +329,16 @@ export const handleOAuthRequest = async (request: Request, env: Env): Promise<Re
       status: response.status,
       oauthError
     }));
+  } else if (env.APP_ENV === "production") {
+    console.info(JSON.stringify({
+      event: "oauth_request",
+      requestId: request.headers.get("cf-ray") ?? crypto.randomUUID(),
+      endpoint: url.pathname,
+      status: response.status,
+      errorCategory: response.status >= 500
+        ? "server_error"
+        : response.status >= 400 ? "request_rejected" : null
+    }));
   }
   return response;
 };

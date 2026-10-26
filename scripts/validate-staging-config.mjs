@@ -3,8 +3,6 @@ import { pathToFileURL } from "node:url";
 
 export const STAGING_CRON = "*/5 * * * *";
 
-const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
 export const validateStagingConfig = (config) => {
   const failures = [];
   const has = (pattern) => pattern.test(config);
@@ -20,10 +18,25 @@ export const validateStagingConfig = (config) => {
   if (!has(/"APP_ENV"\s*:\s*"staging"/)) failures.push("APP_ENV is not staging");
   const origin = stagingValueAfter("ALLOWED_ORIGINS");
   if (!origin || origin.includes("__") || origin === "*") failures.push("staging origin is not configured");
-  const stagingCronPattern = new RegExp(`"crons"\\s*:\\s*\\[\\s*"${escapeRegExp(STAGING_CRON)}"\\s*\\]`, "g");
-  const stagingCronMatches = stagingSection.match(stagingCronPattern) ?? [];
-  if (stagingCronMatches.length !== 1) failures.push(`staging Cron must contain exactly one ${STAGING_CRON} UTC trigger`);
-  if (/house-to-do-production|__PRODUCTION_/.test(config)) failures.push("production resource configuration must not be present");
+  try {
+    const parsed = JSON.parse(config);
+    const staging = parsed.env?.staging;
+    const stagingCrons = staging?.triggers?.crons ?? [];
+    const stagingCronMatches = stagingCrons.filter((cron) => cron === STAGING_CRON);
+    if (stagingCronMatches.length !== 1 || stagingCrons.length !== 1) {
+      failures.push(`staging Cron must contain exactly one ${STAGING_CRON} UTC trigger`);
+    }
+    const production = parsed.env?.production;
+    if (production) {
+      const productionD1 = production.d1_databases?.find(({ binding }) => binding === "DB");
+      const productionR2 = production.r2_buckets?.find(({ binding }) => binding === "ATTACHMENTS");
+      if (production.name === "house-to-do-staging") failures.push("staging and production Worker names must differ");
+      if (productionD1?.database_name === "house-to-do-staging") failures.push("staging and production D1 databases must differ");
+      if (productionR2?.bucket_name === "house-to-do-attachments-staging") failures.push("staging and production R2 buckets must differ");
+    }
+  } catch {
+    failures.push("Wrangler configuration is not valid JSONC without comments");
+  }
 
   return failures;
 };

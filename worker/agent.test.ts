@@ -40,6 +40,30 @@ const data = async <T>(response: Response): Promise<T> => {
 };
 
 describe("Agent API", () => {
+  it("keeps the Phase 1 fixed Bearer API disabled in production even when its credentials are configured", async () => {
+    const app = createApp();
+    const env = envFor();
+    const cookie = await register(env, "agent-production@example.com");
+    await app.fetch(post("/api/households", { name: "Production guard" }, cookie), env);
+    const me = await data<{ user: { id: string } }>(
+      await app.fetch(
+        new Request("https://example.test/api/auth/me", { headers: { cookie } }),
+        env
+      )
+    );
+    env.APP_ENV = "production";
+    env.AGENT_API_TOKEN = "configured-but-disabled-in-production";
+    env.AGENT_API_USER_ID = me.user.id;
+
+    const response = await app.fetch(
+      new Request("https://example.test/api/agent/shopping", {
+        headers: { authorization: "Bearer configured-but-disabled-in-production" }
+      }),
+      env
+    );
+    expect(response.status).toBe(401);
+  });
+
   it("authenticates with a secret bearer token without changing browser cookie or origin protection", async () => {
     const app = createApp();
     const env = envFor();

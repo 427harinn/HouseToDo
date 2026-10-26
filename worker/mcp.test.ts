@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createApp } from "./app";
 import { getLocalDate } from "./lib/date-time";
 import { sha256Hex } from "./lib/crypto";
@@ -1008,7 +1008,7 @@ describe("MCP Streamable HTTP endpoint", () => {
     ).toBe(403);
   });
 
-  it("keeps data isolated by the token user and leaves production disabled", async () => {
+  it("keeps data isolated by the token user and enables production MCP only with OAuth access tokens", async () => {
     const env = envFor();
     const owner = await addUser(env, "mcp-owner@example.test");
     const other = await addUser(env, "mcp-other@example.test");
@@ -1025,17 +1025,58 @@ describe("MCP Streamable HTTP endpoint", () => {
     );
     expect((await result(crossHousehold)).result?.isError).toBe(true);
     env.APP_ENV = "production";
-    expect(
-      (await app.fetch(new Request(`${ORIGIN}/mcp`, { method: "GET" }), env)).status
-    ).toBe(404);
-    expect(
-      (
-        await app.fetch(
-          new Request(`${ORIGIN}/.well-known/oauth-protected-resource/mcp`),
-          env
-        )
-      ).status
-    ).toBe(404);
+    const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    const metadata = await app.fetch(
+      new Request(`${ORIGIN}/.well-known/oauth-protected-resource/mcp`),
+      env
+    );
+    expect(metadata.status).toBe(200);
+    expect(await result(metadata)).toMatchObject({ resource: `${ORIGIN}/mcp` });
+
+    const validRequest = rpc(owner.token, call("create_task", {
+      title: "user-input-must-not-be-logged",
+      date: today
+    }));
+    validRequest.headers.set("cf-ray", "mcp-production-request-1");
+    const validResponse = await app.fetch(validRequest, env);
+    expect(validResponse.status).toBe(200);
+
+    env.AGENT_API_TOKEN = "phase-one-fixed-bearer-must-not-work";
+    env.AGENT_API_USER_ID = owner.userId;
+    const fixedTokenResponse = await app.fetch(
+      rpc("phase-one-fixed-bearer-must-not-work", call("get_today_tasks")),
+      env
+    );
+    expect(fixedTokenResponse.status).toBe(401);
+
+    const records = info.mock.calls.map(([entry]) => JSON.parse(String(entry)) as Record<string, unknown>);
+    expect(records).toHaveLength(3);
+    expect(records.map((record) => record.endpoint)).toEqual([
+      "/.well-known/oauth-protected-resource/mcp", "/mcp", "/mcp"
+    ]);
+    expect(records[1]).toMatchObject({
+      event: "mcp_request",
+      requestId: "mcp-production-request-1",
+      endpoint: "/mcp",
+      toolName: "create_task",
+      status: 200,
+      errorCategory: null
+    });
+    for (const record of records) {
+      expect(Object.keys(record).sort()).toEqual([
+        "endpoint", "errorCategory", "event", "requestId", "status", "toolName"
+      ]);
+      expect(record).not.toHaveProperty("clientId");
+      expect(record).not.toHaveProperty("userId");
+      expect(record).not.toHaveProperty("authPresent");
+    }
+    const serializedLogs = JSON.stringify(records);
+    expect(serializedLogs).not.toContain(owner.token);
+    expect(serializedLogs).not.toContain("phase-one-fixed-bearer-must-not-work");
+    expect(serializedLogs).not.toContain("user-input-must-not-be-logged");
+    expect((await app.fetch(new Request(`${ORIGIN}/mcp`, { method: "GET" }), env)).status).toBe(405);
+    env.APP_ENV = "development";
+    expect((await app.fetch(new Request(`${ORIGIN}/mcp`, { method: "GET" }), env)).status).toBe(404);
   });
 
   it("checks modern Streamable HTTP header/body agreement and Origin", async () => {
