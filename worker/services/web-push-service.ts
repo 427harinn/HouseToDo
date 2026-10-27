@@ -30,7 +30,7 @@ export type WebPushErrorCategory =
 
 export type WebPushRequestPhase = "request_build" | "fetch_call";
 
-export type WebPushServiceKind = "apple" | "fcm" | "mozilla" | "unknown";
+export type WebPushServiceKind = "apple" | "fcm" | "mozilla" | "other";
 
 export type WebPushFailure = {
   stage: WebPushFailureStage;
@@ -59,23 +59,26 @@ class ClassifiedWebPushError extends Error {
   }
 }
 
-const isDetailedEnvironment = (appEnv: string | undefined): boolean =>
-  appEnv === "staging" || appEnv === "development" || appEnv === "test";
-
 const logWebPushFailure = (
-  appEnv: string | undefined,
   failure: WebPushFailure
 ): void => {
-  if (!isDetailedEnvironment(appEnv)) return;
-  console.error("web_push_send_failed", {
-    stage: failure.stage,
-    errorCategory: failure.errorCategory,
-    upstreamStatus: failure.upstreamStatus,
-    ...(failure.requestPhase ? { requestPhase: failure.requestPhase } : {}),
-    ...(failure.errorName ? { errorName: failure.errorName } : {}),
-    ...(failure.causeCode !== undefined ? { causeCode: failure.causeCode } : {}),
-    ...(failure.pushService ? { pushService: failure.pushService } : {})
-  });
+  console.error(
+    JSON.stringify({
+      event: "web_push_send_result",
+      result: classifyPushFailure(failure),
+      errorCategory: failure.errorCategory,
+      upstreamStatus: failure.upstreamStatus,
+      ...(failure.pushService ? { pushService: failure.pushService } : {})
+    })
+  );
+};
+
+const classifyPushFailure = (failure: WebPushFailure): string => {
+  if (failure.errorCategory === "push_service_stale") return "expired_subscription";
+  if (failure.errorCategory === "push_service_auth_failed") return "auth_error";
+  if (failure.errorCategory === "network_failed") return "network_error";
+  if (failure.stage === "vapid") return "signing_error";
+  return "unknown_error";
 };
 
 const failure = (
@@ -130,13 +133,16 @@ const pushServiceFromEndpoint = (endpoint: string): WebPushServiceKind => {
     if (hostname === "fcm.googleapis.com" || hostname.endsWith(".fcm.googleapis.com")) {
       return "fcm";
     }
-    if (hostname === "updates.push.services.mozilla.com" || hostname.endsWith(".mozilla.com")) {
+    if (
+      hostname === "updates.push.services.mozilla.com" ||
+      hostname.endsWith(".mozilla.com")
+    ) {
       return "mozilla";
     }
   } catch {
-    return "unknown";
+    return "other";
   }
-  return "unknown";
+  return "other";
 };
 
 const encoder = new TextEncoder();
@@ -266,19 +272,18 @@ const createVapidAuthorization = async (
       ["sign"]
     );
   } catch {
-    throw new ClassifiedWebPushError(
-      failure("vapid", "vapid_key_import_failed")
-    );
+    throw new ClassifiedWebPushError(failure("vapid", "vapid_key_import_failed"));
   }
-  const audience = new URL(endpoint).origin;
+  const endpointOrigin = new URL(endpoint).origin;
+  const nowSeconds = Math.floor(Date.now() / 1000);
   const header = bytesToBase64Url(
     encoder.encode(JSON.stringify({ typ: "JWT", alg: "ES256" }))
   );
   const body = bytesToBase64Url(
     encoder.encode(
       JSON.stringify({
-        aud: audience,
-        exp: Math.floor(Date.now() / 1000) + 43_200,
+        aud: endpointOrigin,
+        exp: nowSeconds + 43_200,
         sub: subject
       })
     )
@@ -287,16 +292,13 @@ const createVapidAuthorization = async (
   let signature: Uint8Array;
   try {
     signature = new Uint8Array(
-      await crypto.subtle.sign(
-        { name: "ECDSA", hash: "SHA-256" },
-        privateKey,
-        input
-      )
+      await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, privateKey, input)
     );
   } catch {
     throw new ClassifiedWebPushError(failure("vapid", "vapid_sign_failed"));
   }
-  return `vapid t=${header}.${body}.${bytesToBase64Url(signature)}, k=${publicKey}`;
+  const token = `${header}.${body}.${bytesToBase64Url(signature)}`;
+  return `vapid t=${token}, k=${publicKey}`;
 };
 
 export class WebPushService {
@@ -322,7 +324,7 @@ export class WebPushService {
     const privateKey = env.WEB_PUSH_VAPID_PRIVATE_KEY?.trim();
     const subject = env.WEB_PUSH_SUBJECT?.trim();
     if (!publicKey || !privateKey || !subject || !/^(mailto:|https:)/.test(subject)) {
-      logWebPushFailure(env.APP_ENV, failure("config", "missing_config"));
+      logWebPushFailure(failure("config", "missing_config"));
       throw new Error("push-config-missing");
     }
     const subscriptions = await this.repository.listActiveByUserHousehold(
@@ -347,10 +349,19 @@ export class WebPushService {
       );
       if (result.status === "sent") {
         sent += 1;
+        console.log(JSON.stringify({
+          event: "web_push_send_result",
+          result: "success",
+          pushService: pushServiceFromEndpoint(subscription.endpoint),
+          httpStatus: result.upstreamStatus
+        }));
       } else {
         failed += 1;
         firstFailure ??= result.failure;
-        logWebPushFailure(env.APP_ENV, result.failure);
+        logWebPushFailure({
+          ...result.failure,
+          pushService: result.failure.pushService ?? pushServiceFromEndpoint(subscription.endpoint)
+        });
       }
     }
     return { sent, failed, ...(firstFailure ? { failure: firstFailure } : {}) };
@@ -360,26 +371,50 @@ export class WebPushService {
     userId: string,
     householdId: string,
     payload: object,
-    env: { APP_ENV?: string; WEB_PUSH_VAPID_PUBLIC_KEY?: string; WEB_PUSH_VAPID_PRIVATE_KEY?: string; WEB_PUSH_SUBJECT?: string }
+    env: {
+      APP_ENV?: string;
+      WEB_PUSH_VAPID_PUBLIC_KEY?: string;
+      WEB_PUSH_VAPID_PRIVATE_KEY?: string;
+      WEB_PUSH_SUBJECT?: string;
+    },
   ): Promise<WebPushSendResult> {
     const publicKey = env.WEB_PUSH_VAPID_PUBLIC_KEY?.trim();
     const privateKey = env.WEB_PUSH_VAPID_PRIVATE_KEY?.trim();
     const subject = env.WEB_PUSH_SUBJECT?.trim();
     if (!publicKey || !privateKey || !subject || !/^(mailto:|https:)/.test(subject)) {
-      logWebPushFailure(env.APP_ENV, failure("config", "missing_config"));
+      logWebPushFailure(failure("config", "missing_config"));
       throw new Error("push-config-missing");
     }
-    const subscriptions = await this.repository.listActiveByUserHousehold(userId, householdId);
+    const subscriptions = await this.repository.listActiveByUserHousehold(
+      userId,
+      householdId
+    );
     let sent = 0;
     let failed = 0;
     let firstFailure: WebPushFailure | undefined;
     for (const subscription of subscriptions) {
-      const result = await this.sendOne(subscription, payload, publicKey, privateKey, subject);
-      if (result.status === "sent") sent += 1;
-      else {
+      const result = await this.sendOne(
+        subscription,
+        payload,
+        publicKey,
+        privateKey,
+        subject
+      );
+      if (result.status === "sent") {
+        sent += 1;
+        console.log(JSON.stringify({
+          event: "web_push_send_result",
+          pushService: pushServiceFromEndpoint(subscription.endpoint),
+          result: "success",
+          httpStatus: result.upstreamStatus
+        }));
+      } else {
         failed += 1;
         firstFailure ??= result.failure;
-        logWebPushFailure(env.APP_ENV, result.failure);
+        logWebPushFailure({
+          ...result.failure,
+          pushService: result.failure.pushService ?? pushServiceFromEndpoint(subscription.endpoint)
+        });
       }
     }
     return { sent, failed, ...(firstFailure ? { failure: firstFailure } : {}) };
@@ -414,7 +449,6 @@ export class WebPushService {
         failure: failure("encryption", errorCategory)
       };
     }
-
     let authorization: string;
     try {
       authorization = await createVapidAuthorization(
@@ -432,7 +466,6 @@ export class WebPushService {
         failure: failure("vapid", "unknown")
       };
     }
-
     let response: Response;
     try {
       response = await this.performFetch(subscription.endpoint, {
@@ -482,6 +515,7 @@ export class WebPushService {
               : response.status >= 400
                 ? failure("push_service", "push_service_client_error", response.status)
                 : failure("push_service", "unknown", response.status);
+    responseFailure.pushService = pushServiceFromEndpoint(subscription.endpoint);
 
     if (responseFailure.errorCategory === "push_service_stale") {
       try {
@@ -492,6 +526,11 @@ export class WebPushService {
           failure: failure("subscription", "subscription_state_update_failed")
         };
       }
+      console.log(JSON.stringify({
+        event: "web_push_subscription_disabled",
+        pushService: responseFailure.pushService,
+        httpStatus: response.status
+      }));
       return { status: "stale", failure: responseFailure };
     }
     return { status: "failed", failure: responseFailure };

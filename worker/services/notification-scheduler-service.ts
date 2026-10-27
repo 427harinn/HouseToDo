@@ -9,7 +9,15 @@ import { projectTaskOnDate, type TaskScope } from "../lib/task-model";
 import { createNotificationSchedulerRepositories } from "../repositories/notification-scheduler-repository";
 import type { Household, Task } from "../types/domain";
 import { TaskService } from "./task-service";
-import { WebPushService } from "./web-push-service";
+import { WebPushService, type WebPushFailure } from "./web-push-service";
+
+const classifyPushFailure = (failure: WebPushFailure): string => {
+  if (failure.errorCategory === "push_service_stale") return "expired_subscription";
+  if (failure.errorCategory === "push_service_auth_failed") return "auth_error";
+  if (failure.errorCategory === "network_failed") return "network_error";
+  if (failure.stage === "vapid") return "signing_error";
+  return "unknown_error";
+};
 
 export const isTaskDueToday = (task: Task, dateKey: string): boolean =>
   task.active &&
@@ -214,6 +222,8 @@ type NotificationPushSender = Pick<WebPushService, "sendPayload">;
 type HomeProjector = Pick<TaskService, "listHomeForHousehold">;
 
 export class NotificationSchedulerService {
+  private deliveryCounts = { sent: 0, failed: 0 };
+
   constructor(
     private readonly db: D1Database,
     private readonly push: NotificationPushSender = new WebPushService(db),
@@ -226,6 +236,8 @@ export class NotificationSchedulerService {
     at = new Date()
   ): Promise<void> {
     const now = at.toISOString();
+    this.deliveryCounts = { sent: 0, failed: 0 };
+    console.log(JSON.stringify({ event: "notification_scheduler_started", scheduledAt: now }));
     for (const household of await this.repositories.households.listAll()) {
       try {
         await this.runForHousehold(env, household, at, now);
@@ -233,12 +245,16 @@ export class NotificationSchedulerService {
         console.error(
           JSON.stringify({
             event: "notification_scheduler_household_failed",
-            householdId: household.id,
             errorName: error instanceof Error ? error.name : "UnknownError"
           })
         );
       }
     }
+    console.log(JSON.stringify({
+      event: "notification_scheduler_completed",
+      sentCount: this.deliveryCounts.sent,
+      failedCount: this.deliveryCounts.failed
+    }));
   }
 
   private async runForHousehold(
@@ -541,17 +557,36 @@ export class NotificationSchedulerService {
       return;
     try {
       const result = await this.push.sendPayload(userId, householdId, payload, env);
-      if (result.sent > 0) await this.repositories.deliveries.markSent(id, now);
-      else await this.repositories.deliveries.release(id);
+      if (result.sent > 0) {
+        await this.repositories.deliveries.markSent(id, now);
+        this.deliveryCounts.sent += result.sent;
+        this.deliveryCounts.failed += result.failed;
+        console.log(JSON.stringify({
+          event: "notification_delivery_result",
+          result: "success",
+          sentCount: result.sent,
+          failedCount: result.failed
+        }));
+      } else {
+        await this.repositories.deliveries.release(id);
+        console.log(JSON.stringify({
+          event: "notification_delivery_result",
+          result: result.failure ? classifyPushFailure(result.failure) : "unknown_error",
+          errorCategory: result.failure?.errorCategory ?? "no_successful_subscription",
+          failedCount: result.failed
+        }));
+        this.deliveryCounts.failed += Math.max(result.failed, 1);
+      }
     } catch (error) {
       await this.repositories.deliveries.release(id);
       console.error(
         JSON.stringify({
-          event: "notification_scheduler_delivery_failed",
-          type,
+          event: "notification_delivery_result",
+          result: "unknown_error",
           errorName: error instanceof Error ? error.name : "UnknownError"
         })
       );
+      this.deliveryCounts.failed += 1;
     }
   }
 }

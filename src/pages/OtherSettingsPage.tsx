@@ -20,7 +20,7 @@ import type { ProcessedImage } from "../lib/image-processing";
 import { ProfileImagePicker } from "../components/ProfileImageCropper";
 import { formatBytes } from "../lib/format";
 import { getBrowserCapabilities, type BrowserCapabilities } from "../lib/capabilities";
-import { urlBase64ToUint8Array } from "../lib/vapid";
+import { createFreshPushSubscription, unsubscribePushSubscription } from "../lib/push-subscription";
 import type { AuthUser, Household, HouseholdMember } from "../types";
 
 export type OtherSettingsPageKind =
@@ -255,7 +255,11 @@ function MembersPage({ household }: { household: Household }) {
 
 const getNotificationRegistration = async () => {
   if (typeof navigator === "undefined" || !navigator.serviceWorker?.getRegistration) return null;
-  return (await navigator.serviceWorker.getRegistration()) ?? null;
+  const registration = await navigator.serviceWorker.getRegistration();
+  if (!registration) return null;
+  if (registration.active) return registration;
+  const ready = await navigator.serviceWorker.ready;
+  return ready.scope === registration.scope ? ready : null;
 };
 
 function NotificationsPage() {
@@ -323,12 +327,16 @@ function NotificationsPage() {
       try {
         const registration = await getNotificationRegistration();
         const subscription = registration?.pushManager ? await registration.pushManager.getSubscription() : null;
-        if (subscription) {
-          await unregisterPushSubscription(subscription.endpoint);
-          await subscription.unsubscribe();
+        if (registration && subscription) {
+          await unsubscribePushSubscription(registration, subscription, unregisterPushSubscription);
         }
         setDeviceEnabled(false);
-      } catch (nextError) { setError(errorMessage(nextError)); }
+      } catch (nextError) {
+        const registration = await getNotificationRegistration().catch(() => null);
+        const subscription = registration?.pushManager ? await registration.pushManager.getSubscription().catch(() => null) : null;
+        setDeviceEnabled(Boolean(subscription));
+        setError(errorMessage(nextError));
+      }
       finally { setDeviceBusy(false); }
       return;
     }
@@ -342,13 +350,17 @@ function NotificationsPage() {
       const permission = await Notification.requestPermission();
       if (permission !== "granted") throw new Error(permission === "denied" ? "denied" : "permission-not-granted");
       const { publicKey } = await getVapidPublicKey();
-      const existing = await registration.pushManager.getSubscription();
-      const subscription = existing ?? await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(publicKey) });
-      try { await registerPushSubscription(subscription); }
-      catch (nextError) { if (!existing) await subscription.unsubscribe().catch(() => undefined); throw nextError; }
+      await createFreshPushSubscription(
+        registration,
+        publicKey,
+        registerPushSubscription,
+        unregisterPushSubscription
+      );
       setDeviceEnabled(true);
     } catch (nextError) {
-      setDeviceEnabled(false);
+      const registration = await getNotificationRegistration().catch(() => null);
+      const subscription = registration?.pushManager ? await registration.pushManager.getSubscription().catch(() => null) : null;
+      setDeviceEnabled(Boolean(subscription));
       setError(nextError instanceof Error && nextError.message === "unsupported" ? "このブラウザでは通知を利用できません。" : nextError instanceof Error && nextError.message === "denied" ? "ブラウザ設定から通知を許可してください。" : "通知の設定に失敗しました。もう一度お試しください。");
     } finally { setDeviceBusy(false); setCapabilities(getBrowserCapabilities()); }
   };
